@@ -1,0 +1,108 @@
+{
+"para version": "V1.3",
+"PCB version": "V1.2",
+"opto calibration": {
+"slopes": [
+  1.92,
+  0.68,
+  0.48,
+  1.15,
+  0.8,
+  0.56,
+  1.4,
+  0.46,
+  0.36,
+  0.4
+],
+"origins": [
+  -42.25,
+  -31.23,
+  18.65,
+  29.45,
+  29.34,
+  28.41,
+  23.34,
+  1.52,
+  1.64,
+  -11.68
+]
+},
+"LED power": [
+  20,
+  20,
+  20,
+  20,
+  20,
+  20,
+  20,
+  20,
+  20,
+  20
+],
+"parameters": {
+  "min increase": 5,
+  "min sharpness": 2,
+  "min slight positive time": 22.0,
+  "detect shape": true,
+  "detection margin time": 6.0,
+  "arm percentile": 0.5,
+  "transition percentile": 0.2,
+  "sg order": 0,
+  "sg window": 2,
+  "baseline start": 3,
+  "baseline range": 4
+},
+"units": "nM FAM",
+"device ID": "proto 1",
+"lysis duration": 60,
+"opto preheat time": 90,
+"LED Duration": 800,
+"time per loop": 10000,
+"amplification time": 40,
+"lysis temperature": 82,
+"amplification temperature": 65,
+"PID parameter": [
+  25,
+  0.1,
+  30
+],
+"PID2 parameter": [
+  25,
+  0.1,
+  30
+],
+"Bottom overheat value": [
+  2,
+  2,
+  2
+],
+"Top overheat value": [
+  20,
+  20,
+  20
+],
+"temperature value calibration":[
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+],
+"top heater PWM":[
+  [
+    40,
+    100
+  ],
+  [
+    40,
+    100
+  ],
+  [
+    40,
+    100
+  ]
+],
+"counter":""
+}

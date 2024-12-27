@@ -1,0 +1,16 @@
+{
+"para version": "V1.3",
+"lysis temperature": 82,
+"amplification temperature": 65,
+"PID parameter": [
+  25,
+  0.1,
+  30
+],
+"PID2 parameter": [
+  25,
+  0.1,
+  30
+],
+"buzzer": "PID"
+}

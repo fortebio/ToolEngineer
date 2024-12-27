@@ -1,0 +1,48 @@
+{
+"para version": "V1.3",
+"lysis temperature": 82,
+"amplification temperature": 65,
+"PID parameter": [
+  25,
+  0.1,
+  30
+],
+"PID2 parameter": [
+  25,
+  0.1,
+  30
+],
+"Bottom overheat value": [
+  2,
+  2,
+  2
+],
+"Top overheat value": [
+  20,
+  20,
+  20
+],
+"temperature value calibration":[
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+],
+"top heater PWM":[
+  [
+    40,
+    100
+  ],
+  [
+    40,
+    100
+  ],
+  [
+    40,
+    100
+  ]
+]
+}
