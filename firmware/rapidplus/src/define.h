@@ -178,7 +178,7 @@ struct parastructure {
 #define cDebug                          (1)
 #define cMainDebug                      (1)
 #define cSensorDebug                    (0)
-#define cButtonDebug                    (0)
+#define cButtonDebug                    (1)
 #define cDisplayDebug                   (0)
 #define cBlueToothDebug                 (1)
 
@@ -288,8 +288,8 @@ struct parastructure {
 #define DELTA_HALFPWM 80     //half PWM output when the temperature difference from the target temperature is lower than it
 
 //target temperature of top heater
-#define HOTLID1_TEMP  80.0
-#define HOTLID23_TEMP 80.0
+#define HOTLID1_TEMP  60.0
+#define HOTLID23_TEMP 60.0
 
 //GPIO used for bottom heater
 #define HEATER1IO     33     //heater1
@@ -328,6 +328,6 @@ struct parastructure {
 
 
 static String ip = "";
-static String FirmwareVer="V1.48";  //PID calibration, pararead output json
+static String FirmwareVer="V1.49";  //PID calibration, pararead output json
 
 #endif

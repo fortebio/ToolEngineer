@@ -2,6 +2,7 @@
 #define _BUTTON_H
 
 #include "define.h"
+#include "ForteSetting.h"
 
 // typedef void (*hanler)();
 typedef void (*buttonCallback)();

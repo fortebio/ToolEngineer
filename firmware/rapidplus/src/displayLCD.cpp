@@ -15,26 +15,28 @@
 #define VIOLET 0xA81F
 String measure_value = "";
 
-
 // bool butt = 1;  // 0: blue, 1: green
 
-
-displayCLD::displayCLD(/* args */) {
+displayCLD::displayCLD(/* args */)
+{
   this->bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCK, TFT_MOSI, TFT_MISO);
   this->display = new Arduino_ILI9341(this->bus, TFT_RESET);
 }
 
-displayCLD::~displayCLD() {
+displayCLD::~displayCLD()
+{
 }
 
-void displayCLD::begin() {
+void displayCLD::begin()
+{
   this->display->begin();
   this->display->fillScreen(BLACK);
   this->display->setRotation(1);
   this->display->setUTF8Print(true);
 }
 
-void displayCLD::logoFortebiotech() {
+void displayCLD::logoFortebiotech()
+{
   this->display->fillScreen(BLACK);
   this->display->fillTriangle(80, 60, 132, 30, 132, 90, this->display->color565(16, 55, 50));
   this->display->fillTriangle(130, 100, 78, 70, 78, 130, this->display->color565(16, 55, 50));
@@ -62,9 +64,11 @@ void displayCLD::logoFortebiotech() {
   dbg_display("logo thanh cong");
 }
 
-void displayCLD::screen_Start() {
-  if (language == 0) {
-    ip = WiFi.localIP().toString().c_str();  // Taking ip address
+void displayCLD::screen_Start()
+{
+  if (language == 0)
+  {
+    ip = WiFi.localIP().toString().c_str(); // Taking ip address
     this->display->fillScreen(BLACK);
     this->display->setTextSize(1);
     this->display->fillRect(108, 0, 108, 20, Forte_Green);
@@ -88,10 +92,11 @@ void displayCLD::screen_Start() {
     info_displayln(ip);
     this->display->setCursor(20, 210);
     this->display->print("ID " + id);
-  } else
+  }
+  else
 
   {
-    ip = WiFi.localIP().toString().c_str();  // Taking ip address
+    ip = WiFi.localIP().toString().c_str(); // Taking ip address
     this->display->fillScreen(BLACK);
     this->display->setTextSize(1);
     this->display->fillRect(108, 0, 108, 20, Forte_Green);
@@ -120,11 +125,10 @@ void displayCLD::screen_Start() {
     this->display->setCursor(80, 180);
     this->display->print("Amplification");
 
-
     this->display->setTextSize(1);
     this->display->setTextColor(Forte_Green);
     this->display->setCursor(20, 230);
-    this->display->print(FirmwareVer+ "  " + ip);
+    this->display->print(FirmwareVer + "  " + ip);
     info_displayln(ip);
     this->display->setCursor(20, 210);
     this->display->print("ID " + id);
@@ -133,29 +137,29 @@ void displayCLD::screen_Start() {
   //   while (digitalRead(blueButton)) {} //NOTE: sua lai nut nhan
 }
 
-
 void displayCLD::ErrorProcessatBegin(String strDescript, String strValue)
 {
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(2);
-    this->display->setTextColor(RED);
-    this->display->setCursor(15, 60);
-    this->display->print(strDescript);
-    this->display->drawRect(30, 140, 272, 80, RED);
-    this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10) {
-      static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
-      this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
-      this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
-    }
-    this->display->drawCircle(55, 180, 22, RED);
-    this->display->fillCircle(55, 180, 17, RED);
-    this->display->setTextSize(2);
-    this->display->setTextColor(RED);
-    
-    this->display->setCursor(90, 190);
-    this->display->print("Slot " + strValue);   //show the tempeature of heater1 and hotlid1
-    _buzzer.BuzzerAlarm();
+  this->display->fillScreen(BLACK);
+  this->display->setTextSize(2);
+  this->display->setTextColor(RED);
+  this->display->setCursor(15, 60);
+  this->display->print(strDescript);
+  this->display->drawRect(30, 140, 272, 80, RED);
+  this->display->drawRect(29, 139, 274, 82, RED);
+  for (int i = 18; i <= 310; i += 10)
+  {
+    static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
+    this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
+    this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
+  }
+  this->display->drawCircle(55, 180, 22, RED);
+  this->display->fillCircle(55, 180, 17, RED);
+  this->display->setTextSize(2);
+  this->display->setTextColor(RED);
+
+  this->display->setCursor(90, 190);
+  this->display->print("Slot " + strValue); // show the tempeature of heater1 and hotlid1
+  _buzzer.BuzzerAlarm();
 }
 
 void displayCLD::ErrorDisplay(String strDescript)
@@ -169,12 +173,11 @@ void displayCLD::ErrorDisplay(String strDescript)
   this->display->setTextSize(2);
 }
 
-
 void displayCLD::ErrorProcess(String strDescript, String strValue)
 {
   if (type_infor != errprocess)
   {
-  
+
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
     this->display->setTextColor(RED);
@@ -182,7 +185,8 @@ void displayCLD::ErrorProcess(String strDescript, String strValue)
     this->display->print(strDescript);
     this->display->drawRect(30, 140, 272, 80, RED);
     this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10) {
+    for (int i = 18; i <= 310; i += 10)
+    {
       static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
       this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
       this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
@@ -191,63 +195,63 @@ void displayCLD::ErrorProcess(String strDescript, String strValue)
     this->display->fillCircle(55, 180, 17, RED);
     this->display->setTextSize(2);
     this->display->setTextColor(RED);
-    
+
     this->display->setCursor(90, 190);
-    this->display->print(strValue);   //show the tempeature of heater1 and hotlid1
+    this->display->print(strValue); // show the tempeature of heater1 and hotlid1
     // info_displayf("status of LCD is %d\n", type_infor);
 
     this->display->setTextColor(WHITE);
     this->display->setTextSize(1);
-    this->display->setCursor(30, 230);    //start position of each sensor value
+    this->display->setCursor(30, 230); // start position of each sensor value
     this->display->printf("Please restart power");
     _buzzer.BuzzerAlarm();
     type_infor = errprocess;
-    timeRefresh = millis() + 1000;  //err will display for 1 seconds
+    timeRefresh = millis() + 1000; // err will display for 1 seconds
   }
 }
 
-//when press white button to reboot, or restart next testing after result display
+// when press white button to reboot, or restart next testing after result display
 void displayCLD::RestartProcess(String strDescript, String strValue)
 {
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(2);
-    this->display->setTextColor(RED);
-    this->display->setCursor(15, 60);
-    this->display->print(strDescript);
-    this->display->drawRect(30, 140, 272, 80, RED);
-    this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10) {
-      static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
-      this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
-      this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
-    }
-    this->display->drawCircle(55, 180, 22, RED);
-    this->display->fillCircle(55, 180, 17, RED);
-    this->display->setTextSize(2);
-    this->display->setTextColor(RED);
-    
-    this->display->setCursor(90, 190);
-    this->display->print(strValue);   //show the tempeature of heater1 and hotlid1
-    // info_displayf("status of LCD is %d\n", type_infor);
+  this->display->fillScreen(BLACK);
+  this->display->setTextSize(2);
+  this->display->setTextColor(RED);
+  this->display->setCursor(15, 60);
+  this->display->print(strDescript);
+  this->display->drawRect(30, 140, 272, 80, RED);
+  this->display->drawRect(29, 139, 274, 82, RED);
+  for (int i = 18; i <= 310; i += 10)
+  {
+    static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
+    this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
+    this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
+  }
+  this->display->drawCircle(55, 180, 22, RED);
+  this->display->fillCircle(55, 180, 17, RED);
+  this->display->setTextSize(2);
+  this->display->setTextColor(RED);
 
-    this->display->setTextColor(GREEN);
-    this->display->setTextSize(1);
-    this->display->setCursor(30, 230);    //start position of each sensor value
-    this->display->printf("Reboot in 1 second");
-    _buzzer.BuzzerAlert();
-    type_infor = ewaitingtimeout;
-    timeRefresh = millis() + 1000;  //err will display for 1 seconds
+  this->display->setCursor(90, 190);
+  this->display->print(strValue); // show the tempeature of heater1 and hotlid1
+  // info_displayf("status of LCD is %d\n", type_infor);
 
+  this->display->setTextColor(GREEN);
+  this->display->setTextSize(1);
+  this->display->setCursor(30, 230); // start position of each sensor value
+  this->display->printf("Reboot in 1 second");
+  _buzzer.BuzzerAlert();
+  type_infor = ewaitingtimeout;
+  timeRefresh = millis() + 1000; // err will display for 1 seconds
 }
 
 bool displayCLD::ErrorStatus()
 {
-  return type_infor == errprocess;    //return the status whether it's error process or not
+  return type_infor == errprocess; // return the status whether it's error process or not
 }
 
 bool displayCLD::FinishStatus()
 {
-    return _displayCLD.type_infor == escreenResult;
+  return _displayCLD.type_infor == escreenResult;
 }
 
 void displayCLD::TemperatureBottomSeqDisplay()
@@ -259,7 +263,7 @@ void displayCLD::TemperatureBottomSeqDisplay()
   this->display->print("Sequence of bottom sensor");
   this->display->setTextColor(Forte_Green);
   this->display->setCursor(10, 60);
-  this->display->printf("%.2f:%.2f:%.2f", _bottomThermometer.getTemperature()[0], _bottomThermometer.getTemperature()[1], _bottomThermometer.getTemperature()[2]);    //display the reading from the sensor
+  this->display->printf("%.2f:%.2f:%.2f", _bottomThermometer.getTemperature()[0], _bottomThermometer.getTemperature()[1], _bottomThermometer.getTemperature()[2]); // display the reading from the sensor
   this->display->setTextColor(BLUE);
   this->display->setCursor(10, 110);
   uint8_t *seq = _ForteSetting.parameter.bottomTemperatureSensorSq;
@@ -279,7 +283,7 @@ void displayCLD::TemperatureTopSeqDisplay()
   this->display->print("Sequence of top sensor");
   this->display->setTextColor(Forte_Green);
   this->display->setCursor(10, 60);
-  this->display->printf("%.2f:%.2f:%.2f:%.2f", _topThermometer.getTemperature()[0], _topThermometer.getTemperature()[1], _topThermometer.getTemperature()[2], _topThermometer.getTemperature()[3]); //display the reading from the sensor
+  this->display->printf("%.2f:%.2f:%.2f:%.2f", _topThermometer.getTemperature()[0], _topThermometer.getTemperature()[1], _topThermometer.getTemperature()[2], _topThermometer.getTemperature()[3]); // display the reading from the sensor
   this->display->setTextColor(BLUE);
   this->display->setCursor(10, 110);
   uint8_t *seq = _ForteSetting.parameter.topTemperatureSensorSq;
@@ -289,7 +293,6 @@ void displayCLD::TemperatureTopSeqDisplay()
   this->display->setTextSize(1);
   this->display->printf("Press white button to skip and simulate\n");
 }
-
 
 void displayCLD::NextTestDisplay()
 {
@@ -304,31 +307,32 @@ void displayCLD::NextTestDisplay()
 
 void displayCLD::ErrRebootDisplay()
 {
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(2);
-    this->display->setTextColor(RED);
-    this->display->setCursor(42, 60);
-    this->display->print("Restart testing");
-    timeRefresh = millis() + 1000;
-    type_infor = ewaitingtimeout;
+  this->display->fillScreen(BLACK);
+  this->display->setTextSize(2);
+  this->display->setTextColor(RED);
+  this->display->setCursor(42, 60);
+  this->display->print("Restart testing");
+  timeRefresh = millis() + 1000;
+  type_infor = ewaitingtimeout;
 }
 
 void displayCLD::preHeat67CLD_Header()
 {
 
-  if(bheadershow)
+  if (bheadershow)
   {
     // info_displayln("header show");
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
     this->display->setTextColor(Forte_Green);
     this->display->setCursor(15, 60);
-    this->display->print("Preheat heater and");    //update from 67, as the target temperature of liquid is 65 degree
+    this->display->print("Preheat heater and"); // update from 67, as the target temperature of liquid is 65 degree
     this->display->setCursor(15, 90);
     this->display->print("sensor in 15mins");
     this->display->drawRect(30, 140, 272, 80, RED);
     this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10) {
+    for (int i = 18; i <= 310; i += 10)
+    {
       static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
       this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
       this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
@@ -348,27 +352,27 @@ void displayCLD::preHeat67CLD_Header()
     }
     else
     {
-      if (_PIDControl.getphase2ready())       //check the status of heater
+      if (_PIDControl.getphase2ready()) // check the status of heater
       {
-          _displayCLD.type_infor = ewaitampTube;
-          _displayCLD.changeScreen = true;
-          _buzzer.BuzzerAlert();
+        _displayCLD.type_infor = ewaitampTube;
+        _displayCLD.changeScreen = true;
+        _buzzer.BuzzerAlert();
       }
     }
-    bheadershow = false;     //header has been showed
+    bheadershow = false; // header has been showed
   }
 }
 
 void displayCLD::preHeat67CLD()
 {
-  if(_bottomThermometer.getNewTemperatureScreenFlag())    //if there is temperature data to display
-  {  
+  if (_bottomThermometer.getNewTemperatureScreenFlag()) // if there is temperature data to display
+  {
     this->display->fillRect(90, 160, 180, 50, BLACK);
     this->display->setCursor(90, 190);
-    double * temperature = _PIDControl.getBottomTemperature();
-    double * temperatureHotlid = _PIDControl.getHotlidTemperature();
+    double *temperature = _PIDControl.getBottomTemperature();
+    double *temperatureHotlid = _PIDControl.getHotlidTemperature();
     this->display->setTextSize(2);
-    if(_PIDControl.getphase2ready())
+    if (_PIDControl.getphase2ready())
     {
       this->display->setTextColor(Forte_Green);
     }
@@ -377,14 +381,13 @@ void displayCLD::preHeat67CLD()
       this->display->setTextColor(RED);
     }
     this->display->printf("%d:%d:%d:%d", int(temperature[1]), int(temperature[2]), int(temperatureHotlid[1]), int(temperatureHotlid[2]));
-    _bottomThermometer.clearNewTemperatureScreenFlag();   //clear the flag after display the temperature
+    _bottomThermometer.clearNewTemperatureScreenFlag(); // clear the flag after display the temperature
   }
 }
 
-
 void displayCLD::preHeat80CLD_Header()
 {
-  if(bheadershow)
+  if (bheadershow)
   {
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
@@ -395,7 +398,8 @@ void displayCLD::preHeat80CLD_Header()
     this->display->print("in about 10min");
     this->display->drawRect(30, 140, 272, 80, RED);
     this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10) {
+    for (int i = 18; i <= 310; i += 10)
+    {
       static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
       this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
       this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
@@ -406,35 +410,36 @@ void displayCLD::preHeat80CLD_Header()
     this->display->setTextColor(RED);
     // this->display->setCursor(90, 175);
     // this->display->println("Temperature");
-    bheadershow = false;     //header has been showed
+    bheadershow = false; // header has been showed
   }
 }
 
 void displayCLD::preHeat80CLD()
 {
-  if(_bottomThermometer.getNewTemperatureScreenFlag())    //if there is temperature data to display
-  {    
+  if (_bottomThermometer.getNewTemperatureScreenFlag()) // if there is temperature data to display
+  {
     this->display->fillRect(90, 160, 180, 60, BLACK);
     this->display->setCursor(90, 190);
-    double * bottomTemperature = _PIDControl.getBottomTemperature();
-    double * hotlidTemperature = _PIDControl.getHotlidTemperature();
-    this->display->printf("%d, %d", int(bottomTemperature[0]), int(hotlidTemperature[0]));   //show the tempeature of heater1 and hotlid1
-    _bottomThermometer.clearNewTemperatureScreenFlag();   //clear the flag after display the temperature
-
+    double *bottomTemperature = _PIDControl.getBottomTemperature();
+    double *hotlidTemperature = _PIDControl.getHotlidTemperature();
+    this->display->printf("%d, %d", int(bottomTemperature[0]), int(hotlidTemperature[0])); // show the tempeature of heater1 and hotlid1
+    _bottomThermometer.clearNewTemperatureScreenFlag();                                    // clear the flag after display the temperature
   }
 }
 
 void displayCLD::waitLysisTube()
 {
   unsigned long now = millis();
-  if(timeRefresh > now)   //no refresh needed
+  if (timeRefresh > now) // no refresh needed
   {
     return;
   }
-  timeRefresh = now + 10*1000;  //refresh every 10 seconds
-  if (language == 0) {
-    
-  } else {
+  timeRefresh = now + 10 * 1000; // refresh every 10 seconds
+  if (language == 0)
+  {
+  }
+  else
+  {
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
     this->display->setTextColor(Forte_Green);
@@ -444,7 +449,8 @@ void displayCLD::waitLysisTube()
     this->display->print("and close the lid");
     this->display->drawRect(30, 140, 272, 80, RED);
     this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10) {
+    for (int i = 18; i <= 310; i += 10)
+    {
       static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
       this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
       this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
@@ -468,22 +474,25 @@ void displayCLD::waitLysisTube()
 void displayCLD::waitLysis10min()
 {
   unsigned long now = millis();
-  if (timer10minEnd < now)    //if reached 10mins
+  if (timer10minEnd < now) // if reached 10mins
   {
-    type_infor = ewaitphase2; //change status to next step
+    type_infor = ewaitphase2; // change status to next step
     changeScreen = true;
     _buzzer.BuzzerAlert();
     return;
   }
-  if(timeRefresh > now)   //no refresh needed
+  if (timeRefresh > now) // no refresh needed
   {
     return;
   }
-  timeRefresh = now + 1*1000;  //refresh every second
-  if(bheadershow)
+  timeRefresh = now + 1 * 1000; // refresh every second
+  if (bheadershow)
   {
-    if (language == 0) {
-    } else {
+    if (language == 0)
+    {
+    }
+    else
+    {
       this->display->fillScreen(BLACK);
       this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
       this->display->drawBitmap(275, 7, logoFBT, 35, 34, Forte_Green);
@@ -499,30 +508,31 @@ void displayCLD::waitLysis10min()
     bheadershow = false;
   }
   this->display->fillRect(18, 150, 320, 90, BLACK);
-	this->display->setCursor(90, 190);
-  unsigned long timeleft = (timer10minEnd - now)/1000;           //seconds left
-	this->display->printf("%dmin %dsec", timeleft/(60), timeleft%60);   //show the time left
+  this->display->setCursor(90, 190);
+  unsigned long timeleft = (timer10minEnd - now) / 1000;                // seconds left
+  this->display->printf("%dmin %dsec", timeleft / (60), timeleft % 60); // show the time left
 }
 
 void displayCLD::startHeating10mins()
 {
-  timer10minEnd = millis() + LYSIS_DURATION*1000;   //calculate the end time of the 10mins
-  bheadershow = true;    //use it again to show header of the display
+  timer10minEnd = millis() + LYSIS_DURATION * 1000; // calculate the end time of the 10mins
+  bheadershow = true;                               // use it again to show header of the display
   timeRefresh = 0;
-  
 }
 
-void displayCLD::waitBtnStartPhase2()     //can add more buzzer alert in the future
+void displayCLD::waitBtnStartPhase2() // can add more buzzer alert in the future
 {
   unsigned long now = millis();
-  if(timeRefresh > now)   //no refresh needed
+  if (timeRefresh > now) // no refresh needed
   {
     return;
   }
-  timeRefresh = now + 10*1000;  //refresh every 10 seconds
-  if (language == 0) {
-    
-  } else {
+  timeRefresh = now + 10 * 1000; // refresh every 10 seconds
+  if (language == 0)
+  {
+  }
+  else
+  {
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
     this->display->setTextColor(Forte_Green);
@@ -532,7 +542,8 @@ void displayCLD::waitBtnStartPhase2()     //can add more buzzer alert in the fut
     this->display->print("then close the lid");
     this->display->drawRect(30, 140, 272, 80, GREEN);
     this->display->drawRect(29, 139, 274, 82, GREEN);
-    for (int i = 18; i <= 310; i += 10) {
+    for (int i = 18; i <= 310; i += 10)
+    {
       static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
       this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
       this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
@@ -551,14 +562,16 @@ void displayCLD::waitBtnStartPhase2()     //can add more buzzer alert in the fut
 void displayCLD::waitAmpTube()
 {
   unsigned long now = millis();
-  if(timeRefresh > now)   //no refresh needed
+  if (timeRefresh > now) // no refresh needed
   {
     return;
   }
-  timeRefresh = now + 10*1000;  //refresh every 10 seconds
-  if (language == 0) {
-    
-  } else {
+  timeRefresh = now + 10 * 1000; // refresh every 10 seconds
+  if (language == 0)
+  {
+  }
+  else
+  {
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
     this->display->setTextColor(Forte_Green);
@@ -568,7 +581,8 @@ void displayCLD::waitAmpTube()
     this->display->print("and close the lid");
     this->display->drawRect(30, 140, 272, 80, RED);
     this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10) {
+    for (int i = 18; i <= 310; i += 10)
+    {
       static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
       this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
       this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
@@ -587,35 +601,37 @@ void displayCLD::waitAmpTube()
     this->display->print("Measure");
     // this->display->print(this->couter);
   }
-
 }
 
 void displayCLD::startAmplification()
 {
-  timer30minEnd = millis() + AMPLIFICATION_DURATION;// * 1000;//_sensor6035.getOPTO_DURATION();//AMPLIFICATION_DURATION*60*1000;   //calculate the end time of the 10mins
-  bheadershow = true;    //use it again to show header of the display
+  timer30minEnd = millis() + AMPLIFICATION_DURATION; // * 1000;//_sensor6035.getOPTO_DURATION();//AMPLIFICATION_DURATION*60*1000;   //calculate the end time of the 10mins
+  bheadershow = true;                                // use it again to show header of the display
   timeRefresh = 0;
 }
 
 void displayCLD::waitAmplification30min()
 {
   unsigned long now = millis();
-  if (timer30minEnd < now)    //if reached 30mins
+  if (timer30minEnd < now) // if reached 30mins
   {
-  //   type_infor = ewaitphase2; //change status to next step
-  //   _buzzer.BuzzerAlert();
+    //   type_infor = ewaitphase2; //change status to next step
+    //   _buzzer.BuzzerAlert();
     return;
   }
-  if(timeRefresh > now)   //no refresh needed
+  if (timeRefresh > now) // no refresh needed
   {
     return;
   }
-  timeRefresh = now + 1*1000;  //refresh every second
-  if(bheadershow)
+  timeRefresh = now + 1 * 1000; // refresh every second
+  if (bheadershow)
   {
     _sensor6035.setStepeSensorstart();
-    if (language == 0) {
-    } else {
+    if (language == 0)
+    {
+    }
+    else
+    {
       this->display->fillScreen(BLACK);
       this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
       this->display->drawBitmap(275, 7, logoFBT, 35, 34, Forte_Green);
@@ -631,19 +647,21 @@ void displayCLD::waitAmplification30min()
     bheadershow = false;
   }
   this->display->fillRect(18, 150, 320, 90, BLACK);
-	this->display->setCursor(90, 190);
-  unsigned long timeleft = (timer30minEnd - now)/1000;           //seconds left
-	this->display->printf("%dmin %dsec", timeleft/(60), timeleft%60);   //show the time left
+  this->display->setCursor(90, 190);
+  unsigned long timeleft = (timer30minEnd - now) / 1000;                // seconds left
+  this->display->printf("%dmin %dsec", timeleft / (60), timeleft % 60); // show the time left
 }
 
-void displayCLD::prepare() {
+void displayCLD::prepare()
+{
   unsigned long now = millis();
-  if(timeRefresh > now)   //no refresh needed
+  if (timeRefresh > now) // no refresh needed
   {
     return;
   }
-  timeRefresh = now + 10*1000;  //refresh every 10 seconds
-  if (language == 0) {
+  timeRefresh = now + 10 * 1000; // refresh every 10 seconds
+  if (language == 0)
+  {
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
     this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
@@ -656,7 +674,8 @@ void displayCLD::prepare() {
     // this->display->drawRect(185, 0, 135, 35, Forte_Green);
     this->display->drawRect(30, 140, 272, 80, RED);
     this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 300; i += 10) {
+    for (int i = 18; i <= 300; i += 10)
+    {
       static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
       this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
       this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
@@ -670,7 +689,9 @@ void displayCLD::prepare() {
     this->display->setCursor(90, 205);
     this->display->print("để đo lần ");
     this->display->print(this->couter);
-  } else {
+  }
+  else
+  {
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
     this->display->setTextColor(Forte_Green);
@@ -680,7 +701,8 @@ void displayCLD::prepare() {
     this->display->print("and close the lid");
     this->display->drawRect(30, 140, 272, 80, RED);
     this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10) {
+    for (int i = 18; i <= 310; i += 10)
+    {
       static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
       this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
       this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
@@ -701,87 +723,92 @@ void displayCLD::prepare() {
   }
 }
 
-void displayCLD::screen_Result() {
- /* if (language == 0) {
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(2);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->setTextColor(YELLOW);
-    this->display->setCursor(18, 35);
-    this->display->printf("Lần đo %d:", this->couter);
-    this->display->setTextSize(7);
-    this->display->setTextColor(RED);
+void displayCLD::screen_Result()
+{
+  /* if (language == 0) {
+     this->display->fillScreen(BLACK);
+     this->display->setTextSize(2);
+     this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+     this->display->setTextColor(YELLOW);
+     this->display->setCursor(18, 35);
+     this->display->printf("Lần đo %d:", this->couter);
+     this->display->setTextSize(7);
+     this->display->setTextColor(RED);
 
-    if (_sensor.result_Sensor[0][this->couter - 1] < 10)
-      this->display->setCursor(135, 140);
-    else if (_sensor.result_Sensor[0][this->couter - 1] < 100)
-      this->display->setCursor(110, 140);
-    else if (_sensor.result_Sensor[0][this->couter - 1] < 1000)
-      this->display->setCursor(85, 140);
-    else
-      this->display->setCursor(50, 140);
+     if (_sensor.result_Sensor[0][this->couter - 1] < 10)
+       this->display->setCursor(135, 140);
+     else if (_sensor.result_Sensor[0][this->couter - 1] < 100)
+       this->display->setCursor(110, 140);
+     else if (_sensor.result_Sensor[0][this->couter - 1] < 1000)
+       this->display->setCursor(85, 140);
+     else
+       this->display->setCursor(50, 140);
 
-    this->display->println(_sensor.result_Sensor[0][this->couter - 1]);
+     this->display->println(_sensor.result_Sensor[0][this->couter - 1]);
 
-    this->display->setTextSize(1);
-    this->display->setCursor(18, 190);
-    if (butt == 0) {
-      this->display->setTextColor(Forte_Green);
-    } else {
-      this->display->setTextColor(GREEN);
-    }
-    this->display->println("Nút Xanh: Đo lại");
-    this->display->setCursor(18, 210);
-    this->display->setTextColor(RED);
-    this->display->println("Nút Đỏ: Tiếp tục");
-    this->display->setCursor(18, 230);
-    this->display->setTextColor(WHITE);
-    this->display->println("Nút Trắng: Xem lại kết quả trước");
-  } else*/ {
-    int CT_value[10]={0};
+     this->display->setTextSize(1);
+     this->display->setCursor(18, 190);
+     if (butt == 0) {
+       this->display->setTextColor(Forte_Green);
+     } else {
+       this->display->setTextColor(GREEN);
+     }
+     this->display->println("Nút Xanh: Đo lại");
+     this->display->setCursor(18, 210);
+     this->display->setTextColor(RED);
+     this->display->println("Nút Đỏ: Tiếp tục");
+     this->display->setCursor(18, 230);
+     this->display->setTextColor(WHITE);
+     this->display->println("Nút Trắng: Xem lại kết quả trước");
+   } else*/
+  {
+    int CT_value[10] = {0};
     char result[10] = {0};
 
     bool flag = _sensor6035.bResultGet(CT_value, result);
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
 
-    //display the block number
-    this->display->setCursor(110, 30);    //start position of each sensor value
+    // display the block number
+    this->display->setCursor(75, 30); // start position of each sensor value
     this->display->printf("Left");
-    this->display->setCursor(210, 30);    //start position of each sensor value
+    this->display->setCursor(190, 30); // start position of each sensor value
     this->display->printf("Right");
-    const String channelName[] = {"PC", "NC", "EHP", "EMS", "WSSV"};
-    //display the list
-    for (u8_t i = 0; i < OPTOCHANNELS/2; i++)
+    // const uint8_t channelName[] = {1,2,3,4,5};
+    // display the list
+    this->display->setTextColor(WHITE);
+    for (u8_t i = 0; i < (OPTOCHANNELS / 2); i++)
     {
-      this->display->setCursor(15, 70+35*(i%5));    //start position of each channel name
-      this->display->printf("%s", channelName[i]);
+      this->display->setCursor(15, 70 + 35 * (i % 5)); // start position of each channel name
+      this->display->printf("%02d", (5-i));
+      this->display->setCursor(280, 70 + 35 * (i % 5)); // start position of each channel name
+      this->display->printf("%02d", (10-i));
     }
-    
+
     for (u8_t i = 0; i < OPTOCHANNELS; i++)
     {
-      this->display->setCursor(90+110*(i/5), 70+35*(i%5));    //start position of each sensor value
+      this->display->setCursor(75 + 120 * (i / 5), 70 + 35 * ((OPTOCHANNELS-i -1) % 5)); // start position of each sensor value
 
       if (result[i] == 'N')
       {
         this->display->setTextColor(Forte_Green);
-        this->display->printf("|--|N|");
+        this->display->printf("|--|");
       }
       else if (result[i] == 'S')
       {
         this->display->setTextColor(YELLOW);
-        this->display->printf("|%02d|S|", CT_value[i]);
+        this->display->printf("|%02d|", CT_value[i]);
       }
       else if (result[i] == 'P')
       {
         this->display->setTextColor(RED);
-        this->display->printf("|%02d|P|", CT_value[i]);
+        this->display->printf("|%02d|", CT_value[i]);
       }
     }
 
     this->display->setTextColor(WHITE);
     this->display->setTextSize(1);
-    this->display->setCursor(30, 230);
+    this->display->setCursor(15, 230);
     this->display->printf("Press white key to test next");
 
     changeScreen = false;
@@ -1172,8 +1199,10 @@ void displayCLD::set_language() {
   }
 }
 */
-void displayCLD::set_connect_bluetooth() {
-  if (language == 0) {
+void displayCLD::set_connect_bluetooth()
+{
+  if (language == 0)
+  {
     this->display->fillScreen(BLACK);
     this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
     this->display->setTextSize(2);
@@ -1191,8 +1220,8 @@ void displayCLD::set_connect_bluetooth() {
     this->display->drawRect(18, 170, 296, 50, WHITE);
     this->display->setCursor(25, 210);
     this->display->print("ID: " + id);
-    connectWIFI();              // Obtain Wifi ID and password from user via bluetooth
-    saveCredentialsToEEPROM();  // save Wifi ID and password in EEPROM
+    connectWIFI();             // Obtain Wifi ID and password from user via bluetooth
+    saveCredentialsToEEPROM(); // save Wifi ID and password in EEPROM
     loadCredentialsFromEEPROM();
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
@@ -1219,10 +1248,11 @@ void displayCLD::set_connect_bluetooth() {
     this->display->print("ID: " + id);
     delay(2000);
     ESP.restart();
-
-  } else {
+  }
+  else
+  {
     this->display->fillScreen(BLACK);
-    //this->display->drawRect(0,0,320,240,BLUE);
+    // this->display->drawRect(0,0,320,240,BLUE);
     this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
     this->display->setTextSize(2);
     this->display->setTextColor(ORANGE);
@@ -1239,10 +1269,10 @@ void displayCLD::set_connect_bluetooth() {
     this->display->drawRect(18, 170, 296, 50, WHITE);
     this->display->setCursor(25, 210);
     this->display->print("ID: " + id);
-    connectWIFI();              // Obtain Wifi ID and password from user via bluetooth
-    saveCredentialsToEEPROM();  // save Wifi ID and password in EEPROM
+    connectWIFI();             // Obtain Wifi ID and password from user via bluetooth
+    saveCredentialsToEEPROM(); // save Wifi ID and password in EEPROM
     loadCredentialsFromEEPROM();
-    //Update newScreen
+    // Update newScreen
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
     this->display->setCursor(25, 120);
@@ -1270,156 +1300,158 @@ void displayCLD::set_connect_bluetooth() {
     ESP.restart();
   }
 }
-void displayCLD::loop() {
-  if (this->changeScreen) {
-    switch (this->type_infor) {
-      case escreenStart:
-        {
-          dbg_display("escreenStart");
-          this->screen_Start();
-          // _sensor6035.clear();
-          this->changeScreen = false;
-          break;
-        }
-      case epreheating80:
-        dbg_display("epreheating80");
-          this->preHeat80CLD_Header();
-          this->preHeat80CLD();
-        break;
-      case ewaitLysisTube:    //wait user to put lysis tube and start
-        waitLysisTube();
-        // this->prepare();
-        break;
-      case eheatLysis:
-        waitLysis10min();
-        break;
-      case ewaitphase2:
-        waitBtnStartPhase2();
-        break;
+void displayCLD::loop()
+{
+  if (this->changeScreen)
+  {
+    switch (this->type_infor)
+    {
+    case escreenStart:
+    {
+      dbg_display("escreenStart");
+      this->screen_Start();
+      // _sensor6035.clear();
+      this->changeScreen = false;
+      break;
+    }
+    case epreheating80:
+      dbg_display("epreheating80");
+      this->preHeat80CLD_Header();
+      this->preHeat80CLD();
+      break;
+    case ewaitLysisTube: // wait user to put lysis tube and start
+      waitLysisTube();
+      // this->prepare();
+      break;
+    case eheatLysis:
+      waitLysis10min();
+      break;
+    case ewaitphase2:
+      waitBtnStartPhase2();
+      break;
 
+    case epreheating67:
+    {
+      dbg_display("epreheating67");
+      this->preHeat67CLD_Header();
+      this->preHeat67CLD();
+      break;
+    }
 
-      case epreheating67:
-      {
-        dbg_display("epreheating67");
-        this->preHeat67CLD_Header();
-        this->preHeat67CLD();
-        break;
-      }
+    case ewaitampTube:
+    {
+      waitAmpTube();
+      break;
+    }
 
-      case ewaitampTube:
-      {
-        waitAmpTube();
-        break;
-      }
-
-        // case eincreaseto80:
-        // {
-        //   dbg_display("eincreaseto80");
-        //   this->preHeat80CLD_Header();
-        //   this->preHeat80CLD();
-        //   break;
-        // }
-      case eoptoreading:
-      case ewaitingReadsensor:
-        {
-          dbg_display("ewaitingReadsensor");
-          waitAmplification30min();
-          // waiting_Readsensor();
-          break;
-        }
-      case eprepare:
-        {
-          dbg_display("eprepare");
-          this->prepare();
-          break;
-        }
-
-      case escreenResult:
-        {
-          dbg_display("escreenResult lan %d", this->couter);
-          this->screen_Result();
-          break;
-        }
-      case errprocess:
-      {
-        // this->NextTestDisplay();
-        // this->RestartProcess("Reboot after Err", "Rebooting...");
-        break;
-      }
-      // case eErrResart:
+      // case eincreaseto80:
       // {
-      //   this->RestartProcess("Reboot after Err", "Rebooting...");
+      //   dbg_display("eincreaseto80");
+      //   this->preHeat80CLD_Header();
+      //   this->preHeat80CLD();
       //   break;
       // }
-      case escreenRestart:
+    case eoptoreading:
+    case ewaitingReadsensor:
+    {
+      dbg_display("ewaitingReadsensor");
+      waitAmplification30min();
+      // waiting_Readsensor();
+      break;
+    }
+    case eprepare:
+    {
+      dbg_display("eprepare");
+      this->prepare();
+      break;
+    }
+
+    case escreenResult:
+    {
+      dbg_display("escreenResult lan %d", this->couter);
+      this->screen_Result();
+      break;
+    }
+    case errprocess:
+    {
+      // this->NextTestDisplay();
+      // this->RestartProcess("Reboot after Err", "Rebooting...");
+      break;
+    }
+    // case eErrResart:
+    // {
+    //   this->RestartProcess("Reboot after Err", "Rebooting...");
+    //   break;
+    // }
+    case escreenRestart:
+    {
+      // this->ErrRebootDisplay();
+      this->RestartProcess("To test next one", "Rebooting...");
+      break;
+    }
+    case ebuttonrestart:
+    {
+      this->RestartProcess("Restarted by user", "Rebooting...");
+      break;
+    }
+    case ewaitingtimeout:
+    {
+      if (millis() > timeRefresh)
       {
-        // this->ErrRebootDisplay();
-        this->RestartProcess("To test next one", "Rebooting...");
-        break;
+        _ForteSetting.rerun();
+        type_infor = escreenStart;
+        _buzzer.BuzzerStop();
       }
-      case ebuttonrestart:
-      {
-        this->RestartProcess("Restarted by user", "Rebooting...");
-        break;
-      }
-      case ewaitingtimeout:
-      {
-        if (millis() > timeRefresh)
-        {
-          _ForteSetting.rerun();
-          type_infor = escreenStart;
-          _buzzer.BuzzerStop();
-        }
-        break;
-      }
-/*
-      case escreenAverageResult:
-        {
-          dbg_display("escreenAverageResult");
-          _sensor.Average_Result();
-          this->screen_Average_Result();
-          this->changeScreen = false;
-          break;
-        }
+      break;
+    }
+      /*
+            case escreenAverageResult:
+              {
+                dbg_display("escreenAverageResult");
+                _sensor.Average_Result();
+                this->screen_Average_Result();
+                this->changeScreen = false;
+                break;
+              }
 
-      case ecalibSensor:
-        {
-          dbg_display("ecalibSensor");
-          this->screen_Calib();
-          this->changeScreen = false;
-          break;
-        }
+            case ecalibSensor:
+              {
+                dbg_display("ecalibSensor");
+                this->screen_Calib();
+                this->changeScreen = false;
+                break;
+              }
 
-      case e_setting:
-        {
+            case e_setting:
+              {
 
-          this->setting();
-          this->changeScreen = false;
-          break;
-        }
-      case e_connect_bluetooth:
-        {
-          this->set_connect_bluetooth();
-          this->changeScreen = false;
-          break;
-        }
-      case e_language:
-        {
-          this->set_language();
-          this->changeScreen = false;
-          break;
-        }
+                this->setting();
+                this->changeScreen = false;
+                break;
+              }
+            case e_connect_bluetooth:
+              {
+                this->set_connect_bluetooth();
+                this->changeScreen = false;
+                break;
+              }
+            case e_language:
+              {
+                this->set_language();
+                this->changeScreen = false;
+                break;
+              }
 
-      case logdata:
-        {
-          this->log_data();
-          this->screen_Average_Result();
-          _displayCLD.type_infor = escreenAverageResult;
-          this->changeScreen = false;
-          break;
-        }*/
-      default:
-        break;
+            case logdata:
+              {
+                this->log_data();
+                this->screen_Average_Result();
+                _displayCLD.type_infor = escreenAverageResult;
+                this->changeScreen = false;
+                break;
+              }*/
+    default:
+      break;
     }
     // this->changeScreen = false;
   }
