@@ -2224,27 +2224,27 @@ void sensor6035::OptoCommandProcess(char command)
         info_displayln(_heater3_PWM);
         break;
 
-    case 'D':
-        // Let the user know the current PWM value
-        info_display("Current PWM value (/255) for TOP HEATER 1  is  set to: ");
-        info_displayln(_top_heater1_PWM);
+    // case 'D':
+    //     // Let the user know the current PWM value
+    //     info_display("Current PWM value (/255) for TOP HEATER 1  is  set to: ");
+    //     info_displayln(_top_heater1_PWM);
 
-        // Prompt the user to enter a new PWM value
-        info_display("Enter new PWM value (/255, integer) for the heater : ");
+    //     // Prompt the user to enter a new PWM value
+    //     info_display("Enter new PWM value (/255, integer) for the heater : ");
 
-        // Wait for user input
-        while (Serial.available() == 0)
-        {
-        }
+    //     // Wait for user input
+    //     while (Serial.available() == 0)
+    //     {
+    //     }
 
-        // Read the user input as an integer
-        _top_heater1_PWM = Serial.parseInt();
-        analogWrite(HOTLID1IO, _top_heater1_PWM);
+    //     // Read the user input as an integer
+    //     _top_heater1_PWM = Serial.parseInt();
+    //     analogWrite(HOTLID1IO, _top_heater1_PWM);
 
-        // Print the captured PWM
-        info_display("New PWM value (/255) set to: ");
-        info_displayln(_top_heater1_PWM);
-        break;
+    //     // Print the captured PWM
+    //     info_display("New PWM value (/255) set to: ");
+    //     info_displayln(_top_heater1_PWM);
+    //     break;
 
     case 'E':
         // Let the user know the current PWM value

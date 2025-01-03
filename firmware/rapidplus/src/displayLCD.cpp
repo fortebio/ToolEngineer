@@ -283,11 +283,11 @@ void displayCLD::TemperatureTopSeqDisplay()
   this->display->print("Sequence of top sensor");
   this->display->setTextColor(Forte_Green);
   this->display->setCursor(10, 60);
-  this->display->printf("%.2f:%.2f:%.2f:%.2f", _topThermometer.getTemperature()[0], _topThermometer.getTemperature()[1], _topThermometer.getTemperature()[2], _topThermometer.getTemperature()[3]); // display the reading from the sensor
+  this->display->printf("%.2f:%.2f:%.2f", _topThermometer.getTemperature()[0], _topThermometer.getTemperature()[1], _topThermometer.getTemperature()[2]); // display the reading from the sensor
   this->display->setTextColor(BLUE);
   this->display->setCursor(10, 110);
   uint8_t *seq = _ForteSetting.parameter.topTemperatureSensorSq;
-  this->display->printf("%d:%d:%d:%d", seq[0], seq[1], seq[2], seq[3]);
+  this->display->printf("%d:%d:%d", seq[0], seq[1], seq[2]);
   this->display->setTextColor(WHITE);
   this->display->setCursor(10, 180);
   this->display->setTextSize(1);
@@ -421,9 +421,9 @@ void displayCLD::preHeat80CLD()
     this->display->fillRect(90, 160, 180, 60, BLACK);
     this->display->setCursor(90, 190);
     double *bottomTemperature = _PIDControl.getBottomTemperature();
-    double *hotlidTemperature = _PIDControl.getHotlidTemperature();
-    this->display->printf("%d, %d", int(bottomTemperature[0]), int(hotlidTemperature[0])); // show the tempeature of heater1 and hotlid1
-    _bottomThermometer.clearNewTemperatureScreenFlag();                                    // clear the flag after display the temperature
+    // double *hotlidTemperature = _PIDControl.getHotlidTemperature();
+    this->display->printf("%d", int(bottomTemperature[0])); // show the tempeature of heater1 and hotlid1
+    _bottomThermometer.clearNewTemperatureScreenFlag();     // clear the flag after display the temperature
   }
 }
 
@@ -780,14 +780,14 @@ void displayCLD::screen_Result()
     for (u8_t i = 0; i < (OPTOCHANNELS / 2); i++)
     {
       this->display->setCursor(15, 70 + 35 * (i % 5)); // start position of each channel name
-      this->display->printf("%02d", (5-i));
+      this->display->printf("%02d", (5 - i));
       this->display->setCursor(280, 70 + 35 * (i % 5)); // start position of each channel name
-      this->display->printf("%02d", (10-i));
+      this->display->printf("%02d", (10 - i));
     }
 
     for (u8_t i = 0; i < OPTOCHANNELS; i++)
     {
-      this->display->setCursor(75 + 120 * (i / 5), 70 + 35 * ((OPTOCHANNELS-i -1) % 5)); // start position of each sensor value
+      this->display->setCursor(75 + 120 * (i / 5), 70 + 35 * ((OPTOCHANNELS - i - 1) % 5)); // start position of each sensor value
 
       if (result[i] == 'N')
       {

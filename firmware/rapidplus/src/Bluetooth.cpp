@@ -7,24 +7,25 @@ String password = "";
 uint64_t epsid = ESP.getEfuseMac();
 String id(String(epsid).c_str());
 
-extern int language =0;
+extern int language = 0;
 
-void connectBLE(){
-
-  SerialBT.begin("BTDetector-" + String(ESP.getEfuseMac())); //Bluetooth device name
+void connectBLE()
+{
+  SerialBT.begin("BTDetector-" + String(ESP.getEfuseMac())); // Bluetooth device name
   dbg_bluetooth("The device started with name BTDetector-%s, now you can pair it with bluetooth!\n", String(ESP.getEfuseMac()).c_str());
 }
 
-void BLEloop(){
+void BLEloop()
+{
   if (SerialBT.available())
-    {SerialBT.printf("received data: %s\n", SerialBT.readString());
-    dbg_bluetooth("receive data");}
-    // SerialBT.write('t');
-    delay(300);
+  {
+    SerialBT.printf("received data: %s\n", SerialBT.readString());
+    dbg_bluetooth("receive data");
+  }
+  // SerialBT.write('t');
+  delay(300);
   // }
-
 }
-
 
 void readEEPROM()
 {
@@ -32,11 +33,12 @@ void readEEPROM()
   String strjson = "";
   // Read json data from EEPROM
   char tmp[4] = {0};
-  for (uint32_t i = 0; i < _EEPROM_SIZE; i++) {
+  for (uint32_t i = 0; i < _EEPROM_SIZE; i++)
+  {
     char c = EEPROM.read(i);
     sprintf(tmp, "%02X", c);
     strjson += tmp;
-    if (i%32 == 31)
+    if (i % 32 == 31)
     {
       info_displayln(strjson);
       strjson = "";
@@ -50,7 +52,7 @@ void paraDisplay(parastructure para)
 {
   info_displayf("Length: %d\n", para.length);
 
-  DynamicJsonDocument paradata(3000);   //support maximum 3K
+  DynamicJsonDocument paradata(3000); // support maximum 3K
 
   paradata["para version"] = para.para_version;
   // info_displayf("para version: %s\n", para.para_version);
@@ -59,11 +61,11 @@ void paraDisplay(parastructure para)
   JsonArray slopes = calibration.createNestedArray("slopes");
   JsonArray origins = calibration.createNestedArray("origins");
   JsonArray ledPower = paradata.createNestedArray("LED power");
-  for(int i=0;i<OPTOCHANNELS;i++)
+  for (int i = 0; i < OPTOCHANNELS; i++)
   {
-      slopes.add(para.slopes[i]);
-      origins.add(para.origins[i]);
-      ledPower.add(para.led_power[i]);
+    slopes.add(para.slopes[i]);
+    origins.add(para.origins[i]);
+    ledPower.add(para.led_power[i]);
   }
 
   JsonObject opto_parameter = paradata.createNestedObject("parameters");
@@ -90,48 +92,54 @@ void paraDisplay(parastructure para)
   paradata["amplification temperature"] = para.amplifTemp;
 
   JsonArray bottomTemperatureSensorSq = paradata.createNestedArray("bottom temperature sensor seq");
-  for(int i=0;i<3;i++)
+  for (int i = 0; i < 3; i++)
   {
-      bottomTemperatureSensorSq.add(para.bottomTemperatureSensorSq[i]);
+    bottomTemperatureSensorSq.add(para.bottomTemperatureSensorSq[i]);
   }
 
   JsonArray topTemperatureSensorSq = paradata.createNestedArray("top temperature sensor seq");
-  for(int i=0;i<4;i++)
+  for (int i = 0; i < 3; i++)
   {
-      topTemperatureSensorSq.add(para.topTemperatureSensorSq[i]);
+    topTemperatureSensorSq.add(para.topTemperatureSensorSq[i]);
   }
 
   JsonArray pid1 = paradata.createNestedArray("PID parameter");
   JsonArray pid2 = paradata.createNestedArray("PID2 parameter");
   JsonArray bottomOverheat = paradata.createNestedArray("Bottom overheat value");
   JsonArray topOverheat = paradata.createNestedArray("Top overheat value");
-  for(int i=0;i<3;i++)
+  for (int i = 0; i < 3; i++)
   {
-      pid1.add(para.kpid[i]);
-      pid2.add(para.kpid2[i]);
-      bottomOverheat.add(para.bottomOverheat[i]);
-      topOverheat.add(para.topOverheat[i]);
+    pid1.add(para.kpid[i]);
+    pid2.add(para.kpid2[i]);
+    bottomOverheat.add(para.bottomOverheat[i]);
+  }
+
+  for (int i = 0; i < 2; i++)
+  {
+    topOverheat.add(para.topOverheat[i]);
   }
 
   JsonArray temperatureOffset = paradata.createNestedArray("temperature value calibration");
-  for(int i=0;i<7;i++)
+  for (int i = 0; i < 6; i++)
   {
-      temperatureOffset.add(para.temperatureOffset[i]);
+    temperatureOffset.add(para.temperatureOffset[i]);
   }
 
   JsonArray hotlidPWM = paradata.createNestedArray("top heater PWM");
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 2; i++)
+  {
     JsonArray row = hotlidPWM.createNestedArray();
-    for (int j = 0; j < 2; j++) {
+    for (int j = 0; j < 2; j++)
+    {
       row.add(para.hotlidPWM[i][j]);
     }
   }
-  paradata["buzzer"] = para.buzzerOn?"On":"Off";
+  paradata["buzzer"] = para.buzzerOn ? "On" : "Off";
 
-  //Output metadata
+  // Output metadata
   String output;
   serializeJsonPretty(paradata, output);
-  info_displayln(output+"@");
+  info_displayln(output + "@");
 
   // info_displayf("bottom temperature sensor seq: %d, %d, %d\n", para.bottomTemperatureSensorSq[0], para.bottomTemperatureSensorSq[1], para.bottomTemperatureSensorSq[2]);
   // info_displayf("top temperature sensor seq: %d, %d, %d, %d\n", para.topTemperatureSensorSq[0], para.topTemperatureSensorSq[1], para.topTemperatureSensorSq[2], para.topTemperatureSensorSq[3]);
@@ -160,14 +168,13 @@ void paraDisplay(parastructure para)
   // {
   //   info_displayf(", %.4g", para.slopes[i]);
   // }
-  
 
   // info_displayf("\norigins: %.4g", para.origins[0]);
   // for (uint8_t i = 1; i < 10; i++)
   // {
   //   info_displayf(", %.4g", para.origins[i]);
   // }
-  
+
   // info_displayf("\nLED power: %d", para.led_power[0]);
   // for (uint8_t i = 1; i < 10; i++)
   // {
@@ -215,94 +222,103 @@ void paraDisplay(parastructure para)
   // info_displayf("buzzer is %s\n", para.buzzerOn?"On":"Off");
 }
 
-
 void loadParaFromEEPROM()
 {
   EEPROM.begin(_EEPROM_SIZE);
   parastructure para;
   EEPROM.get(PARAMETERPOS, para);
   info_displayf("check para in EEPROM, length is %d, right one is %d\n", para.length, sizeof(para));
-  if (para.length == sizeof(para))        //if the length of the parameter in EEPROM is not -1 or 0, then use it.
+  if (para.length == sizeof(para)) // if the length of the parameter in EEPROM is not -1 or 0, then use it.
   {
-      info_displayln("There is para in the EEPROM");
-      paraDisplay(para);
+    info_displayln("There is para in the EEPROM");
+    paraDisplay(para);
   }
   else
   {
-      info_displayln("No para in the EEPROM");
-      return;
+    info_displayln("No para in the EEPROM");
+    return;
   }
 }
 
-
-void connectWIFI(){
-  ssid = ""; // Initialize as empty
+void connectWIFI()
+{
+  ssid = "";     // Initialize as empty
   password = ""; // Initialize as empty
-  id="";
+  id = "";
   SerialBT.begin();
-  while(!SerialBT.hasClient()) { // check if bluetooth connection is established
+  while (!SerialBT.hasClient())
+  { // check if bluetooth connection is established
     delay(10);
   }
   SerialBT.println("Establishing setup...");
   delay(3000);
   SerialBT.println("Enter Wifi ID:");
   delay(3000);
-  while(ssid.isEmpty()){
+  while (ssid.isEmpty())
+  {
     ssid = SerialBT.readString();
     ssid.trim();
   }
   SerialBT.println("Wifi is " + ssid);
   SerialBT.println("Enter Wifi password:");
-  while(password.isEmpty()){
+  while (password.isEmpty())
+  {
     password = SerialBT.readString();
     password.trim();
   }
-  SerialBT.println("Password is "+password);
+  SerialBT.println("Password is " + password);
   SerialBT.println("Enter ID machine:");
-  while(id.isEmpty()){
+  while (id.isEmpty())
+  {
     id = SerialBT.readString();
     id.trim();
   }
-  SerialBT.println("ID is "+id);
+  SerialBT.println("ID is " + id);
   SerialBT.println("Setup completed!");
   delay(3000);
   SerialBT.end();
 }
 
-void saveCredentialsToEEPROM() {
+void saveCredentialsToEEPROM()
+{
   EEPROM.begin(_EEPROM_SIZE);
   // Write SSID length to EEPROM
   unsigned char ssidLength = ssid.length();
   EEPROM.put(10, ssidLength); // change from 0 to 10 to avoid conflict with max-min calibration value
   // Write SSID to EEPROM
-  for (unsigned char i = 0; i < ssidLength; i++) {
+  for (unsigned char i = 0; i < ssidLength; i++)
+  {
     EEPROM.write(i + sizeof(ssidLength) + 10, ssid[i]);
   }
   // Write password length to EEPROM
   unsigned char passwordLength = password.length();
   EEPROM.put(sizeof(ssidLength) + ssidLength + 10, passwordLength);
   // Write password to EEPROM
-  for (int i = 0; i < passwordLength; i++) {
+  for (int i = 0; i < passwordLength; i++)
+  {
     EEPROM.write(i + sizeof(ssidLength) + ssidLength + sizeof(passwordLength) + 10, password[i]);
   }
-  //write ID length to EEPROM
+  // write ID length to EEPROM
   unsigned char IDLength = id.length();
   EEPROM.put(sizeof(ssidLength) + ssidLength + 30, IDLength);
   // Write ID to EEPROM
-  for (int i = 0; i < IDLength; i++) {
+  for (int i = 0; i < IDLength; i++)
+  {
     EEPROM.write(i + sizeof(ssidLength) + ssidLength + sizeof(passwordLength) + 30, id[i]);
   }
   EEPROM.commit();
   EEPROM.end();
 }
 
-void loadCredentialsFromEEPROM() {
+void loadCredentialsFromEEPROM()
+{
   EEPROM.begin(_EEPROM_SIZE);
   unsigned char ssidLength;
   EEPROM.get(10, ssidLength);
   ssid = ""; // Clear ssid before loading
   // Read SSID from EEPROM
-  for (unsigned char i = 0; i < ssidLength; i++) {
+  for (unsigned char i = 0; i < ssidLength; i++)
+  {
     char c = EEPROM.read(i + sizeof(ssidLength) + 10);
     ssid += c;
   }
@@ -310,32 +326,32 @@ void loadCredentialsFromEEPROM() {
   EEPROM.get(sizeof(ssidLength) + ssidLength + 10, passwordLength);
   password = ""; // Clear password before loading
   // Read password from EEPROM
-  for (unsigned char i = 0; i < passwordLength; i++) {
+  for (unsigned char i = 0; i < passwordLength; i++)
+  {
     char c = EEPROM.read(i + sizeof(ssidLength) + ssidLength + sizeof(passwordLength) + 10);
     password += c;
   }
-unsigned char IDLength;
+  unsigned char IDLength;
   EEPROM.get(sizeof(ssidLength) + ssidLength + 30, IDLength);
 
   id = ""; // Clear ID before loading
   // Read ID from EEPROM
-  for (unsigned char i = 0; i < IDLength; i++) {
+  for (unsigned char i = 0; i < IDLength; i++)
+  {
     char c = EEPROM.read(i + sizeof(ssidLength) + ssidLength + sizeof(passwordLength) + 30);
     id += c;
   }
 
-
   EEPROM.end();
- 
 }
 
 void Write_language_ToEEPROM()
 {
   EEPROM.begin(_EEPROM_SIZE);
-  EEPROM.write(200,language);
+  EEPROM.write(200, language);
   delay(50);
   EEPROM.commit();
-  //EEPROM.end(); 
+  // EEPROM.end();
 }
 void Read_language_fromEEPROM()
 {

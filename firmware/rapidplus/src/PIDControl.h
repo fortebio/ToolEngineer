@@ -12,9 +12,9 @@
 #define OVERHEAT_THRESHOLD1  _ForteSetting.parameter.bottomOverheat[0]           //If temperature of bottom heater1 is too hot
 #define OVERHEAT_THRESHOLD2  _ForteSetting.parameter.bottomOverheat[1]           //If temperature of bottom heater2 is too hot
 #define OVERHEAT_THRESHOLD3  _ForteSetting.parameter.bottomOverheat[2]           //If temperature of bottom heater3 is too hot
-#define OVERHEAT_THRESHOLD_TOP1  _ForteSetting.parameter.topOverheat[0]           //If temperature of top heater1 is too hot
-#define OVERHEAT_THRESHOLD_TOP2  _ForteSetting.parameter.topOverheat[1]           //If temperature of top heater2 is too hot
-#define OVERHEAT_THRESHOLD_TOP3  _ForteSetting.parameter.topOverheat[2]           //If temperature of top heater3 is too hot
+// #define OVERHEAT_THRESHOLD_TOP1  _ForteSetting.parameter.topOverheat[0]           //If temperature of top heater1 is too hot
+#define OVERHEAT_THRESHOLD_TOP2  _ForteSetting.parameter.topOverheat[0]           //If temperature of top heater2 is too hot
+#define OVERHEAT_THRESHOLD_TOP3  _ForteSetting.parameter.topOverheat[1]           //If temperature of top heater3 is too hot
 #define UNDERHEAT_THRESHOLD1  -1*OVERHEAT_THRESHOLD1         //If temperature of bottom heater1 is too low
 #define UNDERHEAT_THRESHOLD2  -1*OVERHEAT_THRESHOLD2         //If temperature of bottom heater2 is too low
 #define UNDERHEAT_THRESHOLD3  -1*OVERHEAT_THRESHOLD3         //If temperature of bottom heater3 is too low
@@ -78,7 +78,7 @@ private:
     bool bheater1Simu = false;
     bool bheater2Simu = false;
     bool bheater3Simu = false;
-    bool bhotlid1Simu = false;
+    // bool bhotlid1Simu = false;
     bool bhotlid23Simu = false;
 
     bool btemperatureOut = false;
@@ -105,9 +105,9 @@ public:
     void setpid1startpreHeat80();   //button set this to start pid1 process
     void StartPreheat80();
     void Heat1Preheat80();          //pre heat the heat block 1 to 80
-    void HeatHotlid1();             //heat the hotlid 1 to 80
+    // void HeatHotlid1();             //heat the hotlid 1 to 80
     void pid1Maintain80();          //maintain heat1 to be 80 when heat up hotlid1 and maintain
-    void MaintainHotlid1();
+    // void MaintainHotlid1();
 
     void setPreheat67();        //change the status to set epidstartpreHeat67 after button pressing
     void StartPreheat2_67();
