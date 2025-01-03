@@ -380,7 +380,7 @@ void displayCLD::preHeat67CLD()
     {
       this->display->setTextColor(RED);
     }
-    this->display->printf("%d:%d:%d:%d", int(temperature[1]), int(temperature[2]), int(temperatureHotlid[1]), int(temperatureHotlid[2]));
+    this->display->printf("%d:%d:%d:%d", int(temperature[1]), int(temperature[2]), int(temperatureHotlid[0]), int(temperatureHotlid[1]));
     _bottomThermometer.clearNewTemperatureScreenFlag(); // clear the flag after display the temperature
   }
 }

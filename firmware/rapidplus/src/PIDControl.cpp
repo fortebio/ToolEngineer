@@ -178,7 +178,7 @@ void PIDControl::loop()
                 return;
             }
             HotlidTemperature[i] = hotlidTemp[(int)_ForteSetting.parameter.topTemperatureSensorSq[i]] + _ForteSetting.parameter.temperatureOffset[3 + i];
-            info_displayf("hotlid%d: %.1f_", i, HotlidTemperature[i]);
+            // info_displayf("hotlid%d: %.1f_", i, HotlidTemperature[i]);
             if (targetTemp[i] < HotlidTemperature[i])
             {
                 stopAllHeating();
@@ -428,7 +428,7 @@ void PIDControl::sensorSeq()
                         stopAllHeating();
                         // record it
                         _ForteSetting.parameter.bottomTemperatureSensorSq[i] = j;
-                        info_displayf("found %d bottom sensor @ %d\n", i, j);
+                        // info_displayf("found %d bottom sensor @ %d\n", i, j);
                         break;
                     }
                 }
