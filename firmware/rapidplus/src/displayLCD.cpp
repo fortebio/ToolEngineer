@@ -765,6 +765,23 @@ void displayCLD::screen_Result()
     int CT_value[10] = {0};
     char result[10] = {0};
 
+    _sensor6035.outputHeader();
+    uint8_t loops = _ForteSetting.parameter.amplification_time;
+
+    for (size_t i = 0; i < loops; i++) // cnt
+    {
+      info_display(float(i) * OPTO_INTERVAL / 60000.0); // time
+      info_display(",");
+      for (size_t j = 0; j < 10; j++) // LED channel
+      {
+        info_display(_sensor6035.calCalibratedValue(j, i));
+        info_display(",");
+        delay(1);
+      }
+      info_displayln(_ForteSetting.parameter.amplifTemp);
+    }
+    info_displayln("<AmpStart/>");
+
     bool flag = _sensor6035.bResultGet(CT_value, result);
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);

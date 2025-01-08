@@ -298,7 +298,7 @@ struct parastructure
 
 // target temperature of top heater
 // #define HOTLID1_TEMP 60.0
-#define HOTLID23_TEMP 60.0
+#define HOTLID23_TEMP 80.0
 
 // GPIO used for bottom heater
 #define HEATER1IO 33 // heater1

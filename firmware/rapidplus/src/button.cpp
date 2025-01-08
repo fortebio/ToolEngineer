@@ -369,7 +369,10 @@ static void tickerHandler(uint8_t index)
     memcpy(_sensor6035.sensor67Value, tmp, sizeof(tmp));
 
     EEPROM.end();
-    
+
+ 
+    // _displayCLD.screen_Result();
+
     // _ForteSetting.recvData = "getResult";
     _displayCLD.changeScreen = true;
     _displayCLD.type_infor = escreenResult;

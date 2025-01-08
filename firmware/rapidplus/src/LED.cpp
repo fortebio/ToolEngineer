@@ -30,7 +30,7 @@ void LED::begin()
 
     //buzzer setting and beep once
     mcp.pinMode(BUZZER, OUTPUT);        //this is to initiate the buzzer as output!
-    // for (u8_t i = 0; i < 2; i++)
+    for (u8_t i = 0; i < 2; i++)
     {
         /* code */
         mcp.digitalWrite(BUZZER, HIGH);
