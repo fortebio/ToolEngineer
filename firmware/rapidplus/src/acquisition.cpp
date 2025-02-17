@@ -27,8 +27,6 @@ void AcquisitionControl::store(Word value)
     
 }
 
-
-
 double AcquisitionControl::calculateMedian(std::vector<Word>& _values)
 {
     // make a hard copy of vector to prevent sorting previous data
@@ -47,7 +45,6 @@ double AcquisitionControl::calculateMedian(std::vector<Word>& _values)
     }
 }
 
-
 void AcquisitionControl::filterOdds(std::vector<Word>& _values)
 {
     std::vector<Word>::iterator it = _values.begin();
@@ -63,7 +60,6 @@ void AcquisitionControl::filterOdds(std::vector<Word>& _values)
         else ++it;
     }
 }
-
 
 bool AcquisitionControl::isFinished()
 {
@@ -85,13 +81,11 @@ uint8_t AcquisitionControl::getRepeats()
     return repeats;
 }
 
-
 void AcquisitionControl::clear()
 {
     values.clear();
     numErrors = 0;
 }
-
 
 double AcquisitionControl::getAverage()
 {
@@ -104,7 +98,6 @@ double AcquisitionControl::getAverage()
         return mean;
     }
 }
-
 
 Word AcquisitionControl::getSum()
 {

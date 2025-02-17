@@ -143,7 +143,6 @@ void PIDControl::loop()
     _topThermometer.loop(); // low priority
     if (_topThermometer.getNewTemperatureFlag())
     {
-
         if ((_topThermometer.getTempSensorQuantity() != 3) && (!bheater1Simu))
         {
             info_displayf("Only got %d/3 top sensor resp\n", _topThermometer.getTempSensorQuantity());

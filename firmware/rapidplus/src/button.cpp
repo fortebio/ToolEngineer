@@ -116,12 +116,12 @@ void buttonProcess(e_statusbutton index)
         dbg_button("Red Btn - start amplification");
       }
 
-      else if (_displayCLD.type_infor == eprepare)
-      {
-        _displayCLD.type_infor = ewaitingReadsensor;
-        _displayCLD.changeScreen = true;
-        dbg_button("nut RED - bat dau do");
-      }
+      // else if (_displayCLD.type_infor == eprepare)
+      // {
+      //   _displayCLD.type_infor = ewaitingReadsensor;
+      //   _displayCLD.changeScreen = true;
+      //   dbg_button("nut RED - bat dau do");
+      // }
       /*
                 else if (_displayCLD.type_infor == escreenResult && _displayCLD.couter < 3) {
                   _displayCLD.couter++;
