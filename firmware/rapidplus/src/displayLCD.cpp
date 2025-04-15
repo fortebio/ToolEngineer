@@ -61,7 +61,19 @@ void displayCLD::logoFortebiotech()
   this->display->print(FirmwareVer);
   this->display->setFont(u8g2_font_unifont_t_vietnamese1);
   delay(LOGODISPLAYTIME);
-  dbg_display("logo thanh cong");
+  // dbg_display("logo thanh cong");
+}
+
+void show_IconWifi(void)
+{
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    _displayCLD.display->drawBitmap(286, 9, image_WIFI_Connect, 19, 16, WHITE);
+  }
+  else
+  {
+    _displayCLD.display->drawBitmap(286, 9, image_WIFI_Disconnect, 19, 16, WHITE);
+  }
 }
 
 void displayCLD::screen_Start()
@@ -723,114 +735,78 @@ void displayCLD::prepare()
   }
 }
 
-void displayCLD::screen_Result()
-{
-  /* if (language == 0) {
-     this->display->fillScreen(BLACK);
-     this->display->setTextSize(2);
-     this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-     this->display->setTextColor(YELLOW);
-     this->display->setCursor(18, 35);
-     this->display->printf("Lần đo %d:", this->couter);
-     this->display->setTextSize(7);
-     this->display->setTextColor(RED);
+// void displayCLD::screen_Result()
+// {
+//   {
+//     int CT_value[10] = {0};
+//     char result[10] = {0};
 
-     if (_sensor.result_Sensor[0][this->couter - 1] < 10)
-       this->display->setCursor(135, 140);
-     else if (_sensor.result_Sensor[0][this->couter - 1] < 100)
-       this->display->setCursor(110, 140);
-     else if (_sensor.result_Sensor[0][this->couter - 1] < 1000)
-       this->display->setCursor(85, 140);
-     else
-       this->display->setCursor(50, 140);
+//     _sensor6035.outputHeader();
+//     uint8_t loops = _ForteSetting.parameter.amplification_time;
 
-     this->display->println(_sensor.result_Sensor[0][this->couter - 1]);
+//     for (size_t i = 0; i < loops; i++) // cnt
+//     {
+//       info_display(float(i) * OPTO_INTERVAL / 60000.0); // time
+//       info_display(",");
+//       for (size_t j = 0; j < 10; j++) // LED channel
+//       {
+//         info_display(_sensor6035.calCalibratedValue(j, i));
+//         info_display(",");
+//         delay(1);
+//       }
+//       info_displayln(_ForteSetting.parameter.amplifTemp);
+//     }
+//     info_displayln("<AmpStart/>");
 
-     this->display->setTextSize(1);
-     this->display->setCursor(18, 190);
-     if (butt == 0) {
-       this->display->setTextColor(Forte_Green);
-     } else {
-       this->display->setTextColor(GREEN);
-     }
-     this->display->println("Nút Xanh: Đo lại");
-     this->display->setCursor(18, 210);
-     this->display->setTextColor(RED);
-     this->display->println("Nút Đỏ: Tiếp tục");
-     this->display->setCursor(18, 230);
-     this->display->setTextColor(WHITE);
-     this->display->println("Nút Trắng: Xem lại kết quả trước");
-   } else*/
-  {
-    int CT_value[10] = {0};
-    char result[10] = {0};
+//     bool flag = _sensor6035.bResultGet(CT_value, result);
+//     this->display->fillScreen(BLACK);
+//     this->display->setTextSize(2);
 
-    _sensor6035.outputHeader();
-    uint8_t loops = _ForteSetting.parameter.amplification_time;
+//     // display the block number
+//     this->display->setCursor(75, 30); // start position of each sensor value
+//     this->display->printf("Left");
+//     this->display->setCursor(190, 30); // start position of each sensor value
+//     this->display->printf("Right");
+//     // const uint8_t channelName[] = {1,2,3,4,5};
+//     // display the list
+//     this->display->setTextColor(WHITE);
+//     for (u8_t i = 0; i < (OPTOCHANNELS / 2); i++)
+//     {
+//       this->display->setCursor(15, 70 + 35 * (i % 5)); // start position of each channel name
+//       this->display->printf("%02d", (5 - i));
+//       this->display->setCursor(280, 70 + 35 * (i % 5)); // start position of each channel name
+//       this->display->printf("%02d", (10 - i));
+//     }
 
-    for (size_t i = 0; i < loops; i++) // cnt
-    {
-      info_display(float(i) * OPTO_INTERVAL / 60000.0); // time
-      info_display(",");
-      for (size_t j = 0; j < 10; j++) // LED channel
-      {
-        info_display(_sensor6035.calCalibratedValue(j, i));
-        info_display(",");
-        delay(1);
-      }
-      info_displayln(_ForteSetting.parameter.amplifTemp);
-    }
-    info_displayln("<AmpStart/>");
+//     for (u8_t i = 0; i < OPTOCHANNELS; i++)
+//     {
+//       this->display->setCursor(75 + 120 * (i / 5), 70 + 35 * ((OPTOCHANNELS - i - 1) % 5)); // start position of each sensor value
 
-    bool flag = _sensor6035.bResultGet(CT_value, result);
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(2);
+//       if (result[i] == 'N')
+//       {
+//         this->display->setTextColor(Forte_Green);
+//         this->display->printf("|--|");
+//       }
+//       else if (result[i] == 'S')
+//       {
+//         this->display->setTextColor(YELLOW);
+//         this->display->printf("|%02d|", CT_value[i]);
+//       }
+//       else if (result[i] == 'P')
+//       {
+//         this->display->setTextColor(RED);
+//         this->display->printf("|%02d|", CT_value[i]);
+//       }
+//     }
 
-    // display the block number
-    this->display->setCursor(75, 30); // start position of each sensor value
-    this->display->printf("Left");
-    this->display->setCursor(190, 30); // start position of each sensor value
-    this->display->printf("Right");
-    // const uint8_t channelName[] = {1,2,3,4,5};
-    // display the list
-    this->display->setTextColor(WHITE);
-    for (u8_t i = 0; i < (OPTOCHANNELS / 2); i++)
-    {
-      this->display->setCursor(15, 70 + 35 * (i % 5)); // start position of each channel name
-      this->display->printf("%02d", (5 - i));
-      this->display->setCursor(280, 70 + 35 * (i % 5)); // start position of each channel name
-      this->display->printf("%02d", (10 - i));
-    }
+//     this->display->setTextColor(WHITE);
+//     this->display->setTextSize(1);
+//     this->display->setCursor(15, 230);
+//     this->display->printf("Press white key to test next");
 
-    for (u8_t i = 0; i < OPTOCHANNELS; i++)
-    {
-      this->display->setCursor(75 + 120 * (i / 5), 70 + 35 * ((OPTOCHANNELS - i - 1) % 5)); // start position of each sensor value
-
-      if (result[i] == 'N')
-      {
-        this->display->setTextColor(Forte_Green);
-        this->display->printf("|--|");
-      }
-      else if (result[i] == 'S')
-      {
-        this->display->setTextColor(YELLOW);
-        this->display->printf("|%02d|", CT_value[i]);
-      }
-      else if (result[i] == 'P')
-      {
-        this->display->setTextColor(RED);
-        this->display->printf("|%02d|", CT_value[i]);
-      }
-    }
-
-    this->display->setTextColor(WHITE);
-    this->display->setTextSize(1);
-    this->display->setCursor(15, 230);
-    this->display->printf("Press white key to test next");
-
-    changeScreen = false;
-  }
-}
+//     changeScreen = false;
+//   }
+// }
 /*
 String encMeasureValue(const String& str) {
   if (str == "Chứng dương") {
@@ -1237,9 +1213,9 @@ void displayCLD::set_connect_bluetooth()
     this->display->drawRect(18, 170, 296, 50, WHITE);
     this->display->setCursor(25, 210);
     this->display->print("ID: " + id);
-    connectWIFI();             // Obtain Wifi ID and password from user via bluetooth
-    saveCredentialsToEEPROM(); // save Wifi ID and password in EEPROM
-    loadCredentialsFromEEPROM();
+    connectWIFI();       // Obtain Wifi ID and password from user via bluetooth
+    saveSettingDevice(); // save Wifi ID and password in EEPROM
+    loadSettingDevice();
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
     this->display->setCursor(25, 120);
@@ -1286,9 +1262,9 @@ void displayCLD::set_connect_bluetooth()
     this->display->drawRect(18, 170, 296, 50, WHITE);
     this->display->setCursor(25, 210);
     this->display->print("ID: " + id);
-    connectWIFI();             // Obtain Wifi ID and password from user via bluetooth
-    saveCredentialsToEEPROM(); // save Wifi ID and password in EEPROM
-    loadCredentialsFromEEPROM();
+    connectWIFI();       // Obtain Wifi ID and password from user via bluetooth
+    saveSettingDevice(); // save Wifi ID and password in EEPROM
+    loadSettingDevice();
     // Update newScreen
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
@@ -1421,6 +1397,18 @@ void displayCLD::loop()
       }
       break;
     }
+    case eSettingMenu:
+    {
+      this->setting_Menu();
+      this->changeScreen = false;
+      break;
+    }
+    case eSettingWifi:
+    {
+      this->setting_Wifi();
+      this->changeScreen = false;
+      break;
+    }
       /*
             case escreenAverageResult:
               {
@@ -1470,6 +1458,7 @@ void displayCLD::loop()
     default:
       break;
     }
+    show_IconWifi();
     // this->changeScreen = false;
   }
 }
@@ -1479,6 +1468,123 @@ void displayCLD::rerun()
   // type_infor = escreenStart;
   changeScreen = true;
   // info_displayf("status of LCD is %d\n", type_infor);
+}
+
+void displayCLD::setting_Menu(void)
+{
+  this->display->fillScreen(BLACK);
+
+  this->display->fillRect(108, 0, 108, 20, Forte_Green);
+  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+  this->display->drawBitmap(18, 5, logoFBT, 35, 34, Forte_Green);
+  this->display->setTextSize(1);
+  this->display->setCursor(110, 15);
+  this->display->setTextColor(BLACK);
+  this->display->println("FORTE BIOTECH");
+
+  this->display->setTextWrap(false);
+  this->display->setTextSize(2);
+
+  this->display->drawRoundRect(30, 94, 272, 60, 10, GREEN);
+  this->display->drawCircle(55, 124, 20, GREEN);
+  this->display->fillCircle(55, 124, 16, GREEN);
+  this->display->setTextColor(GREEN);
+  this->display->setCursor(90, 135);
+  this->display->print("Language");
+
+  this->display->drawRoundRect(30, 170, 272, 60, 10, RED);
+  this->display->drawCircle(55, 200, 20, RED);
+  this->display->fillCircle(55, 200, 16, RED);
+  this->display->setTextColor(RED);
+  this->display->setCursor(90, 210);
+  this->display->print("WiFi/Update");
+
+  this->display->setTextSize(2);
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(45, 55);
+  this->display->print("Settings");
+  this->display->setCursor(45, 85);
+  this->display->print("RAPID Plus");
+}
+
+void displayCLD::setting_Wifi(void)
+{
+  if (WiFi.status() == WL_DISCONNECTED)
+  {
+    password = " ";
+    ssid = " ";
+  }
+  if (id_device == "")
+  {
+    id_device = " ";
+  }
+
+  {
+    this->display->fillScreen(BLACK);
+    this->display->fillRect(108, 0, 108, 20, Forte_Green);
+    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+    this->display->drawBitmap(18, 5, logoFBT, 35, 34, Forte_Green);
+    this->display->setTextSize(1);
+    this->display->setCursor(110, 15);
+    this->display->setTextColor(BLACK);
+    this->display->println("FORTE BIOTECH");
+    this->display->setTextWrap(false);
+    this->display->setTextSize(1);
+    this->display->drawRoundRect(29, 106, 272, 30, 10, RED);
+    this->display->setTextColor(WHITE);
+    this->display->setCursor(35, 180);
+    this->display->print("wifi name:");
+    this->display->print(String(ssid));
+    this->display->setCursor(35, 200);
+    this->display->print("password :");
+    this->display->print(String(password));
+
+    this->display->drawRoundRect(30, 158, 272, 60, 10, GREEN);
+    this->display->setCursor(35, 123);
+    this->display->print("id device:");
+    this->display->print(String(id_device));
+
+    this->display->setTextSize(2);
+    this->display->setCursor(45, 55);
+    this->display->print("Settings");
+    this->display->setCursor(45, 85);
+    this->display->print("Device/Update");
+  }
+  Wifi_Connect();
+  {
+    this->display->fillScreen(BLACK);
+    this->display->fillRect(108, 0, 108, 20, Forte_Green);
+    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+    this->display->drawBitmap(18, 5, logoFBT, 35, 34, Forte_Green);
+
+    this->display->setTextWrap(false);
+    this->display->setTextSize(1);
+    this->display->drawRoundRect(29, 106, 272, 30, 10, RED);
+    this->display->setTextColor(WHITE);
+    this->display->setCursor(35, 180);
+    this->display->print("wifi name:");
+    this->display->print(String(ssid));
+    this->display->setCursor(35, 200);
+    this->display->print("password :");
+    this->display->print(String(password));
+
+    this->display->drawRoundRect(30, 158, 272, 60, 10, GREEN);
+    this->display->setCursor(35, 123);
+    this->display->print("id device:");
+    this->display->print(String(id_device));
+
+    this->display->setTextSize(2);
+    this->display->setCursor(45, 55);
+    this->display->print("Settings");
+    this->display->setCursor(45, 85);
+    this->display->print("Device/Update");
+  }
+  delay(1000);
+  esp_restart();
+}
+
+void displayCLD::setting_Language(void)
+{
 }
 
 displayCLD _displayCLD;

@@ -7,9 +7,17 @@
 #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
 #endif
 
+#include <NTPClient.h>
+#include <WiFiManager.h>
+#include <WebServer.h>
+#include <HTTPClient.h>
+#include "sensor6035.h"
+
+
 struct parastructure;               //forward declaration
 extern String  ssid;
 extern String  password;
+extern String id_device;
 extern String id;
 
 extern BluetoothSerial SerialBT;
@@ -25,10 +33,19 @@ void loadJsonFromEEPROM();
 bool loadJsonFromEEPROM(char * jsondata);
 
 void connectWIFI();
-void saveCredentialsToEEPROM();
-void loadCredentialsFromEEPROM();
+void saveSettingDevice();
+void loadSettingDevice();
 void Write_language_ToEEPROM();
 void Read_language_fromEEPROM();
+
+/**
+ * @brief Connect to WiFi using WiFiManager
+ * @version 2.1 
+ * 
+ */
+
+ void Wifi_Connect(void);
+ 
 
 
 

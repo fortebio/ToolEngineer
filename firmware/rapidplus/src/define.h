@@ -31,7 +31,8 @@
  * opto sensor optimising on error process
  * display firmware version at the function selection display
  * - v1.46
- * Support the loops to 40, so the configuration, memory and FLASH need to be upgraded
+ * Support the loops to 40, so the configuration, memory and FLASH need to be
+ * upgraded
  * - v1.45
  * Output log when it's overheat and underheat
  * - v1.44:
@@ -40,36 +41,39 @@
  * - v1.43:
  * 1. Update file PIDControl.cpp
  * Unify the temperature+PID output format.
- * Format is: "Timexxx" + Time(in second) + Heater No. + Reading/Heating/Maintain + Temperature value/(Target temperature+PWM)
- * How to use it:
+ * Format is: "Timexxx" + Time(in second) + Heater No. +
+ * Reading/Heating/Maintain + Temperature value/(Target temperature+PWM) How to
+ * use it:
  * 1. Connect device and open the SerialDebug tool
  * 2. Connect the correct port, clear the old log
- * 3. Send command "TemperatureOutput", then device will output the temperature reading and PWM at any stage
+ * 3. Send command "TemperatureOutput", then device will output the temperature
+ * reading and PWM at any stage
  * 4. Operat the machine to finish the different stage
  * 5. Copy or save all the log data
  * 6. Paste the data into Excel
  * 7. Filter all the colums
- * 8. Choose different heater at the 3rd column, then you can get the temperature value
+ * 8. Choose different heater at the 3rd column, then you can get the
+ * temperature value
  *
- * Output data example, no need to know the details, it can be understand easily by real log data
- * e.g.1  TimeRB	1173.81	BottomHeater	Reading	32.19	65.5	65.38
- *  1st item: "TimeRB" means Time+Reading+BottomHeater; other: "TimeRT"" means Time+Reading+TopHeater
- *  2nd item: "1173.81" means time in second
- *  3rd item: "BottomHeater" is the name of all the bottom heaters. Other value: "TopHeater" means all top heaters;
- *  4th item: "Reading" is the status;
- *  5th item: Temperature value.
+ * Output data example, no need to know the details, it can be understand easily
+ * by real log data e.g.1  TimeRB	1173.81	BottomHeater
+ * Reading	32.19	65.5	65.38 1st item: "TimeRB" means
+ * Time+Reading+BottomHeater; other: "TimeRT"" means Time+Reading+TopHeater 2nd
+ * item: "1173.81" means time in second 3rd item: "BottomHeater" is the name of
+ * all the bottom heaters. Other value: "TopHeater" means all top heaters; 4th
+ * item: "Reading" is the status; 5th item: Temperature value.
  *
- * e.g.2  TimeMB2	1168.10	Heater2	Maintain	Temperature	65.5	Target	65.00	PWM	0
- *  1st item: "TimeMB2" means Time+Maintain+BottomHeater+No.(1-3); other value is "TimePT2", meaning Time+Preheat+TopHeater+No.(1-4)
- *  2nd item: "1168.10" means time in second
- *  3rd item: "Heater2" means BottomHeater+No.(1-3). Other value: "TopHeater3" means TopHeater+No.(1-4)
- *  4th item: "Maintain" means the maintain temperature status; other value: "Heating" means preheating
- *  5th item: "Temperature" means the following item is temperature value
- *  6th item: Temperature value
- *  7th item: "Target" means the following item is target temperature value
- *  8th item: Target temperature value
- *  9th item: "PWM" means the following item is PWM value
- *  10th item: PWM value
+ * e.g.2  TimeMB2	1168.10	Heater2	Maintain	Temperature	65.5
+ * Target	65.00	PWM	0 1st item: "TimeMB2" means
+ * Time+Maintain+BottomHeater+No.(1-3); other value is "TimePT2", meaning
+ * Time+Preheat+TopHeater+No.(1-4) 2nd item: "1168.10" means time in second 3rd
+ * item: "Heater2" means BottomHeater+No.(1-3). Other value: "TopHeater3" means
+ * TopHeater+No.(1-4) 4th item: "Maintain" means the maintain temperature
+ * status; other value: "Heating" means preheating 5th item: "Temperature" means
+ * the following item is temperature value 6th item: Temperature value 7th item:
+ * "Target" means the following item is target temperature value 8th item:
+ * Target temperature value 9th item: "PWM" means the following item is PWM
+ * value 10th item: PWM value
  *
  *
  * - v1.42:
@@ -78,8 +82,11 @@
  * 3. Add threshold for top heater
  * 4. Adjust the overheat parameter
  * 5. Variable conflict between main loop and each channel testing
- * 6. PID and overheat is configurable: Add PID1&PID2 para, overheat temperature value for bottom and top
- * 7. Adjust the para configuration file. Make sure seq of thermometer is zero. Prepare for different scenarios, especially the sequence of the thermal sensor
+ * 6. PID and overheat is configurable: Add PID1&PID2 para, overheat temperature
+ * value for bottom and top
+ * 7. Adjust the para configuration file. Make sure seq of thermometer is zero.
+ * Prepare for different scenarios, especially the sequence of the thermal
+ * sensor
  *
  * - v1.41:
  * Update PID parameter gotten from heat stress testing
@@ -89,15 +96,15 @@
  *
  */
 
+#include "time.h"
+#include <EEPROM.h>
+#include <ESPmDNS.h>
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
+#include <Update.h>
+#include <WebServer.h>
 #include <WiFi.h>
 #include <WiFiClient.h>
-#include <WebServer.h>
-#include <HTTPClient.h>
-#include "time.h"
-#include <HTTPUpdate.h>
-#include <EEPROM.h>
-#include <Update.h>
-#include <ESPmDNS.h>
 
 #include "Bluetooth.h"
 
@@ -108,43 +115,77 @@
 // 512~1023: para with parastructure format, 512 bytes
 // 1024~4095: record, 3K
 
-#define _EEPROM_SIZE 4096            // add additional for para, record and json file storage.
-#define PARAMETERPOS 512             // Record start at 512 with length to be 1800(store 90 rounds data), the first 512 is reserved for Forte to use
-#define RECORDPOS PARAMETERPOS + 512 // parameter start after record, the length of parameter is 336
+#define _EEPROM_SIZE \
+  4096 // add additional for para, record and json file storage.
+#define PARAMETERPOS \
+  512 // Record start at 512 with length to be 1800(store 90 rounds data), the
+      // first 512 is reserved for Forte to use
+#define RECORDPOS \
+  PARAMETERPOS +  \
+      512 // parameter start after record, the length of parameter is 336
+
+#define ADDR_LANGUAGE 36
+#define ADDR_SSID 40
+#define ADDR_PASSWORD 75
+#define ADDR_ID_BLE 130
+#define ADDR_ID_DEVICE_BASE 170
+#define ADDR_CHECK_ID_DEVICE 210
+#define ADDR_CHECK_LANGUAGE 220 
 
 struct parastructure
 {
-  int length = 0; // length of the structure, to indicate EEPROM has parameter or not. Only if the length read from EEPROM equal to the structure length, then yes. As of 11 Apr, the length is 244
+  int length = 0; // length of the structure, to indicate EEPROM has parameter
+                  // or not. Only if the length read from EEPROM equal to the
+                  // structure length, then yes. As of 11 Apr, the length is 244
 
   // Version information
-  char para_version[10] = "V1.3"; // change from soft version to para version, must include it in the json data!!!
-  char PCB_version[10] = "V1.3";  // hardware version to differentiate the different version PCB
+  char para_version[10] = "V1.3"; // change from soft version to para version,
+                                  // must include it in the json data!!!
+  char PCB_version[10] =
+      "V1.3"; // hardware version to differentiate the different version PCB
 
   // Opto calibration
-  float slopes[10] = {1.91, // define the parameter matrix used for result calculation, there are 10 channels, each one include parameter {a,b}, "slopes"
-                      0.67,
-                      0.48,
-                      1.15,
-                      0.79,
-                      0.56,
-                      1.39,
-                      0.46,
-                      0.35,
-                      0.4};
+  // define the parameter matrix used for result calculation, there are
+  // 10 channels, each one include parameter {a,b}, "slopes"
+  float slopes[10] = {1, //
+                      1, //
+                      1, //
+                      1, //
+                      1, //
+                      1, //
+                      1, //
+                      1, //
+                      1, //
+                      1};
 
-  float origins[10] = {0};                                                              // origin value, "origins"
-  uint8_t led_power[10] = {0x9A, 0x4D, 0x4D, 0x9A, 0x4D, 0x4D, 0x9A, 0x4D, 0x5A, 0x4D}; // PWM value to control the LED intensity, "led_power"
+  float origins[10] = {0}; // origin value, "origins"
+
+  uint8_t led_power[10] = {0x78,  //
+                           0x78,  //
+                           0x78,  //
+                           0x78,  //
+                           0x78,  //
+                           0x78,  //
+                           0x78,  //
+                           0x78,  //
+                           0x78,  //
+                           0x78}; // PWM value to control the LED intensity,
+                                  // "led_power"
 
   // Alg parameter
-  double min_increase = 30.0;             // fluorescence level threshold
-  double min_sharpness = 10.0;            // amplification steepnes level
-  double min_slight_positive_time = 22.0; // threshold for calling Slight Positive from Positive
-  bool detect_shape = true;               // lag phase detection On/Off
-  double detection_margin_time = 6.0;     // minimum main peak position to consider Ct value as positive
-  double arm_percentile = 0.5;            // percentile used for calculating lag phase
-  double transition_percentile = 0.25;    // percentile used for calcuating transition time (Ct) & fluorescence increase
-  uint8_t sg_order = 0;                   // interpolation smoothing order
-  uint8_t sg_window = 2;                  // smoothing window size for algorithm
+  double min_increase = 20.0; // fluorescence level threshold
+  double min_sharpness = 5.0; // amplification steepnes level
+  double min_slight_positive_time =
+      22.0;                 /*threshold for calling Slight Positive from Positive*/
+  bool detect_shape = true; // lag phase detection On/Off
+  double detection_margin_time =
+      4.0;                     // minimum main peak position to consider Ct value as positive
+  double arm_percentile = 0.5; // percentile used for calculating lag phase
+  double transition_percentile =
+      0.25;              // percentile used for calcuating transition time (Ct) &
+                         // fluorescence increase
+  uint8_t sg_order = 0;  // interpolation smoothing order
+  uint8_t sg_window = 2; // smoothing window size for algorithm
   // int sg_window_display = 2;              // window size for display to users
   uint8_t baseline_start = 3; // start of baselining (minutes)
   uint8_t baseline_range = 4; // range of baselining (minutes)
@@ -154,31 +195,45 @@ struct parastructure
   char device_id[10] = "proto 0"; // device id, "device_id"
 
   // Opto measurement configuration
-  uint16_t lysisDuration = 600;           // duration of lysis, "lysis duration"
-  uint16_t optopreheatduration = 15 * 60; // duration for LED and opto sensor preheat in second. "opto preheat time"
+  uint16_t lysisDuration = 600; // duration of lysis, "lysis duration"
+  uint16_t optopreheatduration =
+      15 * 60; // duration for LED and opto sensor preheat in second. "opto
+               // preheat time"
 
-  uint LEDDuration = 4 * 1000;     // LED(time in ms) is on for 4s before sensor reading###"LED Duration"
-  ulong timePerLoop = 60 * 1000;   // Duration(ms) of 1 loop ###"time per loop"
-  uint8_t amplification_time = 40; // quantity to measure during the amplification, "amplification_time"
+  uint LEDDuration = 2 * 100;    // LED(time in ms) is on for 0.2s before sensor
+                                 // reading###"LED Duration"
+  ulong timePerLoop = 60 * 1000; // Duration(ms) of 1 loop ###"time per loop"
+  uint8_t amplification_time =
+      40; // quantity to measure during the amplification, "amplification_time"
 
   // heater configuration
-  float lysisTemp = 82.0;                     //"lysis temperature"
-  float amplifTemp = 65.8;                    //"amplification temperature"
-  uint8_t bottomTemperatureSensorSq[3] = {0}; // bottom sensor 1, 2, 3. to be zero by default, need to calibrate it.
-  uint8_t topTemperatureSensorSq[3] = {0};    // hotlid sensor 1, 2, 3, ambient sensor. to be zero by default, need to calibrate it.
-  double kpid[3] = {25, 0.1, 30};             // PID parameter for bottom heater1(Lysis)
-  double kpid2[3] = {25, 0.1, 30};            // PID parameter for bottom heater2&3(Amplification)
-  double bottomOverheat[3] = {2, 2, 2};       // overheat value of bottom heater, underheater value is negative of overheat
-  double topOverheat[2] = {20, 20};           // overheat value of top heater
-  float temperatureOffset[6] = {0};           // temperature offset of bottom sensor 1, 2, 3, hotlid sensor 1, 2, 3, ambient sensor, the usage is reading temperature + this value -> output temperature
+  float lysisTemp = 82.0;  //"lysis temperature"
+  float amplifTemp = 65.8; //"amplification temperature"
+  uint8_t bottomTemperatureSensorSq[3] = {
+      0}; // bottom sensor 1, 2, 3. to be zero by default, need to calibrate it.
+  uint8_t topTemperatureSensorSq[3] = {
+      0};                         // hotlid sensor 1, 2, 3, ambient sensor. to be zero by default, need
+                                  // to calibrate it.
+  double kpid[3] = {25, 0.1, 30}; // PID parameter for bottom heater1(Lysis)
+  double kpid2[3] = {25, 0.1,
+                     30}; // PID parameter for bottom heater2&3(Amplification)
+  double bottomOverheat[3] = {2, 2,
+                              2};   // overheat value of bottom heater,
+                                    // underheater value is negative of overheat
+  double topOverheat[2] = {20, 20}; // overheat value of top heater
+  float temperatureOffset[6] = {
+      0}; // temperature offset of bottom sensor 1, 2, 3, hotlid sensor 1, 2, 3,
+          // ambient sensor, the usage is reading temperature + this value ->
+          // output temperature
   uint8_t hotlidPWM[2][2] = {{40, 80},
                              {40, 80}}; // PWM low and high value for hotlid
 
   // buzzer configuration
-  uint8_t buzzerOn = 1; // on/off status, on is 1 while off is 0. "buzzer" "On" is on, others is off
+  uint8_t buzzerOn = 1; // on/off status, on is 1 while off is 0. "buzzer" "On"
+                        // is on, others is off
 };
 
-#define cDebug (1)
+#define cDebug (0)
 #define cMainDebug (1)
 #define cSensorDebug (0)
 #define cButtonDebug (1)
@@ -186,14 +241,31 @@ struct parastructure
 #define cBlueToothDebug (1)
 
 #define DEBUG_COM Serial
-#define HEADER_FORMAT(fmt) "<%s>:<%d> " fmt "\r\n", pathToFileName(__FILE__), __LINE__
-#define dbg_main(format, ...) (cMainDebug & cDebug) ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) : NULL
-#define dbg_sensor(format, ...) (cSensorDebug & cDebug) ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) : NULL
-#define dbg_button(format, ...) (cButtonDebug & cDebug) ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) : NULL
-#define dbg_display(format, ...) (cDisplayDebug & cDebug) ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) : NULL
-#define dbg_bluetooth(format, ...) (cBlueToothDebug & cDebug) ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) : NULL
+#define HEADER_FORMAT(fmt) \
+  "<%s>:<%d> " fmt "\r\n", pathToFileName(__FILE__), __LINE__
+#define dbg_main(format, ...)                                  \
+  (cMainDebug & cDebug)                                        \
+      ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) \
+      : NULL
+#define dbg_sensor(format, ...)                                \
+  (cSensorDebug & cDebug)                                      \
+      ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) \
+      : NULL
+#define dbg_button(format, ...)                                \
+  (cButtonDebug & cDebug)                                      \
+      ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) \
+      : NULL
+#define dbg_display(format, ...)                               \
+  (cDisplayDebug & cDebug)                                     \
+      ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) \
+      : NULL
+#define dbg_bluetooth(format, ...)                             \
+  (cBlueToothDebug & cDebug)                                   \
+      ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) \
+      : NULL
 
-// below macro function can support the data print via both of serial port and BLE
+// below macro function can support the data print via both of serial port and
+// BLE
 #define info_displayf(...)         \
   {                                \
     DEBUG_COM.printf(__VA_ARGS__); \
@@ -289,12 +361,17 @@ struct parastructure
 #define FANIO 12
 
 // Threshold value of overheat and underheat delta value -> move to PIDControl.h
-//  #define OVERHEAT_THRESHOLD  2.0           //If temperature is too hot, used for both of Lysis and Amplification
-//  #define UNDERHEAT_THRESHOLD  -2.0         //If temperature is not hot enough, used for both of Lysis and Amplification
+//  #define OVERHEAT_THRESHOLD  2.0           //If temperature is too hot, used
+//  for both of Lysis and Amplification #define UNDERHEAT_THRESHOLD  -2.0 //If
+//  temperature is not hot enough, used for both of Lysis and Amplification
 
 // before PID control
-#define DELTA_FULLPWM 80 // full PWM output when the temperature difference from the target temperature is lower than it
-#define DELTA_HALFPWM 80 // half PWM output when the temperature difference from the target temperature is lower than it
+#define DELTA_FULLPWM \
+  80 // full PWM output when the temperature difference from the target
+     // temperature is lower than it
+#define DELTA_HALFPWM \
+  80 // half PWM output when the temperature difference from the target
+     // temperature is lower than it
 
 // target temperature of top heater
 // #define HOTLID1_TEMP 60.0
@@ -317,7 +394,9 @@ struct parastructure
 
 // Quantity definition of temperature sensor
 #define HEATBLKQUANTITY 3 // 3 bottom temperature sensors
-#define HOTLIDQUANTITY 3  // 3 top temperature sensors plus 1 ambient temperature sensor located at PCB
+#define HOTLIDQUANTITY \
+  3 // 3 top temperature sensors plus 1 ambient temperature sensor located at
+    // PCB
 
 // Button definition
 #define NumberButton 3
@@ -334,6 +413,6 @@ struct parastructure
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "V2.0"; // PID calibration, pararead output json
+static String FirmwareVer = "V2.1"; // PID calibration, pararead output json
 
 #endif

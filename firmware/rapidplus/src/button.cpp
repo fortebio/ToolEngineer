@@ -2,14 +2,13 @@
 #include "Ticker.h"
 #include "displayCLD.h"
 #include "PIDControl.h"
-// #include "sensor.h"
-#include "Bluetooth.h"
+// #include "Bluetooth.h"
 typedef void (*hanler)();
 void buttonRedHandler();
 void buttonBlueHandler();
 void buttonWhiteHandler();
 static void tickerHandler(uint8_t index);
-// static void tickerHandler1(uint8_t index);
+static void tickerHandler1(uint8_t index);
 // static void tickerHandler2(uint8_t index);
 
 static uint8_t buttons[NumberButton];
@@ -51,9 +50,10 @@ void buttonProcess(e_statusbutton index)
     {
       buttonTicker[index].attach_ms(calibTime, &tickerHandler, (uint8_t)index);
     }
-    // if (index == B_RED) {
-    //   buttonTicker[index].attach_ms(calibTime, &tickerHandler1, (uint8_t)index);
-    // }
+    if (index == B_RED)
+    {
+      buttonTicker[index].attach_ms(calibTime, &tickerHandler1, (uint8_t)index);
+    }
     buttonPressed[index] = true;
   }
 
@@ -115,88 +115,11 @@ void buttonProcess(e_statusbutton index)
         _displayCLD.startAmplification();
         dbg_button("Red Btn - start amplification");
       }
-
-      // else if (_displayCLD.type_infor == eprepare)
-      // {
-      //   _displayCLD.type_infor = ewaitingReadsensor;
-      //   _displayCLD.changeScreen = true;
-      //   dbg_button("nut RED - bat dau do");
-      // }
-      /*
-                else if (_displayCLD.type_infor == escreenResult && _displayCLD.couter < 3) {
-                  _displayCLD.couter++;
-                  _displayCLD.type_infor = eprepare;
-                  _displayCLD.changeScreen = true;
-                  dbg_button("nut RED - tiep tuc do");
-                }
-
-                else if (_displayCLD.type_infor == escreenResult && _displayCLD.couter >= 3) {
-                  _displayCLD.couter = 0;
-                  _displayCLD.type_infor = escreenAverageResult;
-                  _displayCLD.changeScreen = true;
-                  dbg_button("nut RED - ket qua tb 3 lan do");
-                }
-                else if(_displayCLD.type_infor ==e_setting)
-                {
-                  _displayCLD.type_infor=e_language;
-                  _displayCLD.changeScreen=true;
-                }
-                else if(_displayCLD.type_infor ==e_language)
-                {
-                  _displayCLD.language =1;
-                  _displayCLD.changeScreen=true;
-                  _displayCLD.language_state=English;
-                  _displayCLD.type_infor =e_language;
-
-                }
-      */
-      // add new function @ 20240111 by dxdhub
-      //  else if (_displayCLD.type_infor == epreheating67)
-      //  {
-      //    /* code */
-      //    //start to maintain the 67 degree and keep measuring the sensor
-      //    _displayCLD.type_infor=eoptoreading;
-      //    _displayCLD.changeScreen=true;
-      //  }
-      /*
-
-                else if(_displayCLD.type_infor == echoosetube)
-                {
-
-                  if(_displayCLD.step==1)
-                  {
-                    _displayCLD.type_infor=echoosetube;
-                    _displayCLD.changeScreen = true;
-                    //_displayCLD.step=2;
-                  }
-                  else if(_displayCLD.step==2)
-                  {
-                    _displayCLD.type_infor=echoosetube;
-                    _displayCLD.changeScreen = true;
-                    //_displayCLD.step=3;
-                  }
-                  else if(_displayCLD.step==3)
-                  {
-                    _displayCLD.type_infor=echoosetube;
-                    _displayCLD.changeScreen = true;
-                    //_displayCLD.step=4;
-                  }
-                  else if(_displayCLD.step==4)
-                  {
-                    _displayCLD.type_infor=echoosetube;
-                    _displayCLD.changeScreen = true;
-                   // _displayCLD.step=5;
-                  }
-                  else if(_displayCLD.step ==5)
-                  {
-                    _displayCLD.type_infor=echoosetube;
-                    _displayCLD.changeScreen = true;
-                    _displayCLD.step=0;
-                  }
-                  _displayCLD.step++;
-                }
-      */
-
+      else if (_displayCLD.type_infor == eSettingMenu)
+      {
+        _displayCLD.type_infor = eSettingWifi;
+        _displayCLD.changeScreen = true;
+      }
       break;
     }
 
@@ -206,28 +129,8 @@ void buttonProcess(e_statusbutton index)
       {
         return;
       }
-      /*          if (_displayCLD.type_infor == escreenAverageResult) {
-                  _displayCLD.type_infor = escreenStart;
-                  _displayCLD.changeScreen = true;
-                }
-
-                else if (_displayCLD.type_infor == ecalibSensor) {
-                  _displayCLD.type_infor = escreenStart;
-                  _displayCLD.changeScreen = true;
-                  dbg_button("nut BLUE - huy calib");
-                }
-
-                else*/
-      // if (_displayCLD.type_infor == escreenResult) {
-      //  _displayCLD.type_infor = eprepare;
-      //  _displayCLD.changeScreen = true;
-      //  _displayCLD.startHeating10mins();
-      //  dbg_button("nut BLUE - do lai");
-      // }
-
-      /*else*/ if (_displayCLD.type_infor == escreenStart)
-      { // start to heat up to 80 degree
-        //_displayCLD.couter = 1;
+      if (_displayCLD.type_infor == escreenStart)
+      {
         _displayCLD.type_infor = epreheating80; // actually should start from 80 degree
         _displayCLD.changeScreen = true;
         _displayCLD.bheadershow = true;
@@ -250,34 +153,6 @@ void buttonProcess(e_statusbutton index)
         _sensor6035.skip2Maintain();
         dbg_button("green button - skip opto preheat");
       }
-
-      // else if (_displayCLD.type_infor == escreenStart) {
-      //   //_displayCLD.couter = 1;
-      //   _displayCLD.type_infor = echoosetube;
-      //   _displayCLD.changeScreen = true;
-      //   dbg_button("nut BLUE - chuan bi");
-
-      // }
-
-      /*          else if (_displayCLD.type_infor == echoosetube) {
-                  _displayCLD.couter = 1;
-                  _displayCLD.type_infor = eprepare;
-                  _displayCLD.changeScreen = true;
-                }
-                 else if(_displayCLD.type_infor ==e_setting)
-                {
-                _displayCLD.type_infor = e_connect_bluetooth;
-                _displayCLD.changeScreen =true;
-                }
-                else if(_displayCLD.type_infor ==e_language)
-                {
-                  _displayCLD.language =0;
-                  _displayCLD.changeScreen=true;
-                  _displayCLD.language_state=VietNamese ;
-                  _displayCLD.type_infor =e_language;
-
-                }
-      */
       break;
     }
 
@@ -285,20 +160,12 @@ void buttonProcess(e_statusbutton index)
     {
       if (_displayCLD.FinishStatus()) // button pressed when display the result or error status, then return to start
       {
-        // _displayCLD.type_infor = errprocess;
         _displayCLD.type_infor = escreenRestart;
         _displayCLD.changeScreen = true;
-        // ESP.restart();
-        // _ForteSetting.rerun();
         return;
       }
       if (_displayCLD.ErrorStatus())
       {
-        // _displayCLD.type_infor = escreenRestart;
-        // _displayCLD.type_infor = eErrResart;
-        // _displayCLD.changeScreen = true;
-        // ESP.restart();
-        // _ForteSetting.rerun();
         return;
       }
       if (_displayCLD.type_infor == escreenStart) // no need to restart as at the start screen already
@@ -307,40 +174,8 @@ void buttonProcess(e_statusbutton index)
       }
       _displayCLD.type_infor = ebuttonrestart;
       _displayCLD.changeScreen = true;
-      // ESP.restart();
-      // _ForteSetting.rerun();
       return;
 
-      /*          buttonTicker[index].detach();
-                if (_displayCLD.type_infor == ecalibSensor) {
-                  _sensor.flagformatCalib = true;
-                  dbg_button("nut WHITE - format calib");
-                }
-
-                else if (_displayCLD.type_infor == escreenResult || _displayCLD.type_infor == eprepare)  //|| _displayCLD.type_infor == escreenAverageResult
-                {
-                  if (_sensor.flagback == false && _displayCLD.couter > 1) {
-                    _sensor.flagback = true;
-                    _displayCLD.instantStatus[0] = _displayCLD.couter;
-                    _displayCLD.instantStatus[1] = _displayCLD.type_infor;
-                  }
-                  if (_displayCLD.couter > 1) {
-                    _displayCLD.couter--;
-                    _displayCLD.type_infor = escreenResult;
-                    _displayCLD.changeScreen = true;
-                  }
-                }
-                 else if(_displayCLD.type_infor ==escreenAverageResult)
-                {
-                  _displayCLD.type_infor=logdata;
-                  _displayCLD.changeScreen=true;
-                }
-                 else if(_displayCLD.type_infor ==e_language)
-                {
-                  _displayCLD.type_infor=escreenStart;
-                  _displayCLD.changeScreen=true;
-                }
-      */
       break;
     }
 
@@ -370,7 +205,6 @@ static void tickerHandler(uint8_t index)
 
     EEPROM.end();
 
- 
     // _displayCLD.screen_Result();
 
     // _ForteSetting.recvData = "getResult";
@@ -380,15 +214,17 @@ static void tickerHandler(uint8_t index)
     dbg_button("nut WHITE huhu");
   }
 }
-// static void tickerHandler1(uint8_t index) {
-//   buttonTicker[index].detach();
-// if (!digitalRead(buttons[index])) {
-//     buttonPressed[index] = false;
-//     _displayCLD.type_infor = e_setting;
-//     _displayCLD.changeScreen = true;
-//     dbg_button("nut Red - setting");
-//   }
-// }
+static void tickerHandler1(uint8_t index)
+{
+  buttonTicker[index].detach();
+  if (!digitalRead(buttons[index]))
+  {
+    buttonPressed[index] = false;
+    _displayCLD.type_infor = eSettingMenu;
+    _displayCLD.changeScreen = true;
+    dbg_button("nut Red - setting");
+  }
+}
 
 void IRAM_ATTR buttonRedHandler()
 {
