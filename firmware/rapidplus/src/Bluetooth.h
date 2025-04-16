@@ -11,7 +11,7 @@
 #include <WiFiManager.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
-#include "sensor6035.h"
+// #include "sensor6035.h"
 
 
 struct parastructure;               //forward declaration
@@ -43,8 +43,13 @@ void Read_language_fromEEPROM();
  * @version 2.1 
  * 
  */
-
  void Wifi_Connect(void);
+
+/**
+ * @brief googlesheet API
+ * @version 2.2 
+ */
+void postData_GoogleSheet(void);
  
 
 

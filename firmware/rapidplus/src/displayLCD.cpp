@@ -735,78 +735,78 @@ void displayCLD::prepare()
   }
 }
 
-// void displayCLD::screen_Result()
-// {
-//   {
-//     int CT_value[10] = {0};
-//     char result[10] = {0};
+void displayCLD::screen_Result()
+{
+  {
+    int CT_value[10] = {0};
+    char result[10] = {0};
 
-//     _sensor6035.outputHeader();
-//     uint8_t loops = _ForteSetting.parameter.amplification_time;
+    _sensor6035.outputHeader();
+    uint8_t loops = _ForteSetting.parameter.amplification_time;
 
-//     for (size_t i = 0; i < loops; i++) // cnt
-//     {
-//       info_display(float(i) * OPTO_INTERVAL / 60000.0); // time
-//       info_display(",");
-//       for (size_t j = 0; j < 10; j++) // LED channel
-//       {
-//         info_display(_sensor6035.calCalibratedValue(j, i));
-//         info_display(",");
-//         delay(1);
-//       }
-//       info_displayln(_ForteSetting.parameter.amplifTemp);
-//     }
-//     info_displayln("<AmpStart/>");
+    for (size_t i = 0; i < loops; i++) // cnt
+    {
+      info_display(float(i) * OPTO_INTERVAL / 60000.0); // time
+      info_display(",");
+      for (size_t j = 0; j < 10; j++) // LED channel
+      {
+        info_display(_sensor6035.calCalibratedValue(j, i));
+        info_display(",");
+        delay(1);
+      }
+      info_displayln(_ForteSetting.parameter.amplifTemp);
+    }
+    info_displayln("<AmpStart/>");
 
-//     bool flag = _sensor6035.bResultGet(CT_value, result);
-//     this->display->fillScreen(BLACK);
-//     this->display->setTextSize(2);
+    bool flag = _sensor6035.bResultGet(CT_value, result);
+    this->display->fillScreen(BLACK);
+    this->display->setTextSize(2);
 
-//     // display the block number
-//     this->display->setCursor(75, 30); // start position of each sensor value
-//     this->display->printf("Left");
-//     this->display->setCursor(190, 30); // start position of each sensor value
-//     this->display->printf("Right");
-//     // const uint8_t channelName[] = {1,2,3,4,5};
-//     // display the list
-//     this->display->setTextColor(WHITE);
-//     for (u8_t i = 0; i < (OPTOCHANNELS / 2); i++)
-//     {
-//       this->display->setCursor(15, 70 + 35 * (i % 5)); // start position of each channel name
-//       this->display->printf("%02d", (5 - i));
-//       this->display->setCursor(280, 70 + 35 * (i % 5)); // start position of each channel name
-//       this->display->printf("%02d", (10 - i));
-//     }
+    // display the block number
+    this->display->setCursor(75, 30); // start position of each sensor value
+    this->display->printf("Left");
+    this->display->setCursor(190, 30); // start position of each sensor value
+    this->display->printf("Right");
+    // const uint8_t channelName[] = {1,2,3,4,5};
+    // display the list
+    this->display->setTextColor(WHITE);
+    for (u8_t i = 0; i < (OPTOCHANNELS / 2); i++)
+    {
+      this->display->setCursor(15, 70 + 35 * (i % 5)); // start position of each channel name
+      this->display->printf("%02d", (5 - i));
+      this->display->setCursor(280, 70 + 35 * (i % 5)); // start position of each channel name
+      this->display->printf("%02d", (10 - i));
+    }
 
-//     for (u8_t i = 0; i < OPTOCHANNELS; i++)
-//     {
-//       this->display->setCursor(75 + 120 * (i / 5), 70 + 35 * ((OPTOCHANNELS - i - 1) % 5)); // start position of each sensor value
+    for (u8_t i = 0; i < OPTOCHANNELS; i++)
+    {
+      this->display->setCursor(75 + 120 * (i / 5), 70 + 35 * ((OPTOCHANNELS - i - 1) % 5)); // start position of each sensor value
 
-//       if (result[i] == 'N')
-//       {
-//         this->display->setTextColor(Forte_Green);
-//         this->display->printf("|--|");
-//       }
-//       else if (result[i] == 'S')
-//       {
-//         this->display->setTextColor(YELLOW);
-//         this->display->printf("|%02d|", CT_value[i]);
-//       }
-//       else if (result[i] == 'P')
-//       {
-//         this->display->setTextColor(RED);
-//         this->display->printf("|%02d|", CT_value[i]);
-//       }
-//     }
+      if (result[i] == 'N')
+      {
+        this->display->setTextColor(Forte_Green);
+        this->display->printf("|--|");
+      }
+      else if (result[i] == 'S')
+      {
+        this->display->setTextColor(YELLOW);
+        this->display->printf("|%02d|", CT_value[i]);
+      }
+      else if (result[i] == 'P')
+      {
+        this->display->setTextColor(RED);
+        this->display->printf("|%02d|", CT_value[i]);
+      }
+    }
 
-//     this->display->setTextColor(WHITE);
-//     this->display->setTextSize(1);
-//     this->display->setCursor(15, 230);
-//     this->display->printf("Press white key to test next");
+    this->display->setTextColor(WHITE);
+    this->display->setTextSize(1);
+    this->display->setCursor(15, 230);
+    this->display->printf("Press white key to test next");
 
-//     changeScreen = false;
-//   }
-// }
+    changeScreen = false;
+  }
+}
 /*
 String encMeasureValue(const String& str) {
   if (str == "Chứng dương") {

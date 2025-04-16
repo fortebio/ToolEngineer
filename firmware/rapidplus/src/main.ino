@@ -40,7 +40,8 @@ void setup()
   _Fan.begin();
   _PIDControl.timeoutSetting();
 
-  info_displayf("This is the Forte Heater&Reader %s on PCB %s @ %s %s\n", FirmwareVer, _ForteSetting.parameter.PCB_version, __DATE__, __TIME__);
+  // info_displayf("This is the Forte Heater&Reader %s on PCB %s @ %s %s\n", FirmwareVer, _ForteSetting.parameter.PCB_version, __DATE__, __TIME__);
+  // postData_GoogleSheet();
 }
 
 void loop()

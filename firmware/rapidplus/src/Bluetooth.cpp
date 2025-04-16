@@ -318,81 +318,96 @@ void Wifi_Connect()
 //   return nameSick;
 // }
 
-String getTime()
+// String getTime()
+// {
+//   struct tm timeinfo;
+//   char timeString[50];
+
+//   // Get local time
+//   if (!getLocalTime(&timeinfo))
+//   {
+//     Serial.println("Failed to obtain time");
+//     return String("N/A");
+//   }
+//   strftime(timeString, sizeof(timeString), "%d-%m-%Y %H:%M:%S", &timeinfo);
+//   return String(timeString);
+// }
+
+void postData_GoogleSheet(void)
 {
-  struct tm timeinfo;
-  char timeString[50];
+  // // Read data Amplifications from EEPROM
+  // word data[11][100] = {0};
+  // word tmp[10][100] = {0};
+  // parastructure para;
+  // // DynamicJsonDocument doc(3000); // support maximum 3K
+  // int CT_value[10];
+  // char result[10];
 
-  // Get local time
-  if (!getLocalTime(&timeinfo))
-  {
-    Serial.println("Failed to obtain time");
-    return String("N/A");
-  }
-  strftime(timeString, sizeof(timeString), "%d-%m-%Y %H:%M:%S", &timeinfo);
-  return String(timeString);
-}
+  // EEPROM.begin(_EEPROM_SIZE);
+  // EEPROM.get(RECORDPOS, tmp);
+  // EEPROM.get(PARAMETERPOS, para);
+  // memcpy(_sensor6035.sensor67Value, tmp, sizeof(tmp));
+  // EEPROM.end();
 
-void postData_GoogleSheet()
-{
-  // Read data Amplifications from EEPROM
-  word data[10][100] = {0};
-  parastructure para;
-  DynamicJsonDocument doc(3000); // support maximum 3K
-  int CT_value[10];
-  char result[10];
-  bool flag = _sensor6035.bResultGet(CT_value, result);
+  // uint8_t loops = _ForteSetting.parameter.amplification_time;
+  // for (uint8_t i = 0; i < loops; i++)
+  // {
+  //   data[0][i] = i + 1; // loop number
+  //   info_displayf("loop %d", i + 1);
+  //   for (uint8_t j = 0; j < 10; j++)
+  //   {
+  //     data[j + 1][i] = _sensor6035.calCalibratedValue(j, i); // sensor value
+  //     info_displayf(", %d", data[j + 1][i]);
+  //   }
+  // }
 
-  EEPROM.begin(_EEPROM_SIZE);
-  EEPROM.get(RECORDPOS, data);
-  EEPROM.get(PARAMETERPOS, para);
-  EEPROM.end();
+  // bool flag = _sensor6035.bResultGet(CT_value, result);
 
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    HTTPClient http;
-    http.begin(serverName);
-    http.addHeader("Content-Type", "application/json");
+  // if (WiFi.status() == WL_CONNECTED)
+  // {
+  //   HTTPClient http;
+  //   http.begin(serverName);
+  //   http.addHeader("Content-Type", "application/json");
 
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-    String timeString = getTime();
+  //   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  //   String timeString = getTime();
 
-    // String jsonData = "{"
-    //                   "\"method\":\"append\","
-    //                   "\"sick\":\"" +
-    //                   getName_ThresholdPositive(sick) + "\","
-    //                                                     "\"sensor_value1\":" +
-    //                   String(sensor_val1) + ","
-    //                                         "\"sensor_value2\":" +
-    //                   String(sensor_val2) + ","
-    //                                         "\"sensor_value3\":" +
-    //                   String(sensor_val3) + ","
-    //                                         "\"data_IDdevice\":\"" +
-    //                   id + "\","
-    //                        "\"date\":\"" +
-    //                   timeString + "\","
-    //                                "\"version\":\"" +
-    //                   FirmwareVer + "\""
-    //                                 "}";
-    // Serial.println("Data: " + jsonData);
-    // int httpResponseCode = http.POST(jsonData);
+  //   // String jsonData = "{"
+  //   //                   "\"method\":\"append\","
+  //   //                   "\"sick\":\"" +
+  //   //                   getName_ThresholdPositive(sick) + "\","
+  //   //                                                     "\"sensor_value1\":" +
+  //   //                   String(sensor_val1) + ","
+  //   //                                         "\"sensor_value2\":" +
+  //   //                   String(sensor_val2) + ","
+  //   //                                         "\"sensor_value3\":" +
+  //   //                   String(sensor_val3) + ","
+  //   //                                         "\"data_IDdevice\":\"" +
+  //   //                   id + "\","
+  //   //                        "\"date\":\"" +
+  //   //                   timeString + "\","
+  //   //                                "\"version\":\"" +
+  //   //                   FirmwareVer + "\""
+  //   //                                 "}";
+  //   // Serial.println("Data: " + jsonData);
+  //   // int httpResponseCode = http.POST(jsonData);
 
-    // if (httpResponseCode > 0)
-    // {
-    //   String response = http.getString();
-    //   Serial.println("Response code: " + String(httpResponseCode));
-    //   Serial.println("Response: " + response);
-    //   Serial.println("Data posted successfully!");
-    // }
-    // else
-    // {
-    //   Serial.println("Error on sending POST: " + String(httpResponseCode));
-    // }
+  //   // if (httpResponseCode > 0)
+  //   // {
+  //   //   String response = http.getString();
+  //   //   Serial.println("Response code: " + String(httpResponseCode));
+  //   //   Serial.println("Response: " + response);
+  //   //   Serial.println("Data posted successfully!");
+  //   // }
+  //   // else
+  //   // {
+  //   //   Serial.println("Error on sending POST: " + String(httpResponseCode));
+  //   // }
 
-    http.end();
-  }
-  else
-  {
-    Serial.println("WiFi disconnected!");
-  }
+  //   http.end();
+  // }
+  // else
+  // {
+  //   Serial.println("WiFi disconnected!");
+  // }
 }

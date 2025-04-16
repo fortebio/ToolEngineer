@@ -115,14 +115,10 @@
 // 512~1023: para with parastructure format, 512 bytes
 // 1024~4095: record, 3K
 
-#define _EEPROM_SIZE \
-  4096 // add additional for para, record and json file storage.
-#define PARAMETERPOS \
-  512 // Record start at 512 with length to be 1800(store 90 rounds data), the
-      // first 512 is reserved for Forte to use
-#define RECORDPOS \
-  PARAMETERPOS +  \
-      512 // parameter start after record, the length of parameter is 336
+#define _EEPROM_SIZE 4096              // add additional for para, record and json file storage.
+#define PARAMETERPOS 512               // Record start at 512 with length to be 1800(store 90 rounds data), the
+                                       // first 512 is reserved for Forte to use
+#define RECORDPOS (PARAMETERPOS + 512) // parameter start after record, the length of parameter is 336
 
 #define ADDR_LANGUAGE 36
 #define ADDR_SSID 40
@@ -130,7 +126,7 @@
 #define ADDR_ID_BLE 130
 #define ADDR_ID_DEVICE_BASE 170
 #define ADDR_CHECK_ID_DEVICE 210
-#define ADDR_CHECK_LANGUAGE 220 
+#define ADDR_CHECK_LANGUAGE 220
 
 struct parastructure
 {
@@ -141,8 +137,7 @@ struct parastructure
   // Version information
   char para_version[10] = "V1.3"; // change from soft version to para version,
                                   // must include it in the json data!!!
-  char PCB_version[10] =
-      "V1.3"; // hardware version to differentiate the different version PCB
+  char PCB_version[10] = "V1.3";  // hardware version to differentiate the different version PCB
 
   // Opto calibration
   // define the parameter matrix used for result calculation, there are
@@ -173,19 +168,16 @@ struct parastructure
                                   // "led_power"
 
   // Alg parameter
-  double min_increase = 20.0; // fluorescence level threshold
-  double min_sharpness = 5.0; // amplification steepnes level
-  double min_slight_positive_time =
-      22.0;                 /*threshold for calling Slight Positive from Positive*/
-  bool detect_shape = true; // lag phase detection On/Off
-  double detection_margin_time =
-      4.0;                     // minimum main peak position to consider Ct value as positive
-  double arm_percentile = 0.5; // percentile used for calculating lag phase
-  double transition_percentile =
-      0.25;              // percentile used for calcuating transition time (Ct) &
-                         // fluorescence increase
-  uint8_t sg_order = 0;  // interpolation smoothing order
-  uint8_t sg_window = 2; // smoothing window size for algorithm
+  double min_increase = 20.0;             // fluorescence level threshold
+  double min_sharpness = 5.0;             // amplification steepnes level
+  double min_slight_positive_time = 22.0; /*threshold for calling Slight Positive from Positive*/
+  bool detect_shape = true;               // lag phase detection On/Off
+  double detection_margin_time = 4.0;     // minimum main peak position to consider Ct value as positive
+  double arm_percentile = 0.5;            // percentile used for calculating lag phase
+  double transition_percentile = 0.25;    // percentile used for calcuating transition time (Ct) &
+                                          // fluorescence increase
+  uint8_t sg_order = 0;                   // interpolation smoothing order
+  uint8_t sg_window = 2;                  // smoothing window size for algorithm
   // int sg_window_display = 2;              // window size for display to users
   uint8_t baseline_start = 3; // start of baselining (minutes)
   uint8_t baseline_range = 4; // range of baselining (minutes)
@@ -195,38 +187,30 @@ struct parastructure
   char device_id[10] = "proto 0"; // device id, "device_id"
 
   // Opto measurement configuration
-  uint16_t lysisDuration = 600; // duration of lysis, "lysis duration"
-  uint16_t optopreheatduration =
-      15 * 60; // duration for LED and opto sensor preheat in second. "opto
-               // preheat time"
+  uint16_t lysisDuration = 600;           // duration of lysis, "lysis duration"
+  uint16_t optopreheatduration = 15 * 60; // duration for LED and opto sensor preheat in second. "opto
+                                          // preheat time"
 
-  uint LEDDuration = 2 * 100;    // LED(time in ms) is on for 0.2s before sensor
-                                 // reading###"LED Duration"
-  ulong timePerLoop = 60 * 1000; // Duration(ms) of 1 loop ###"time per loop"
-  uint8_t amplification_time =
-      40; // quantity to measure during the amplification, "amplification_time"
+  uint LEDDuration = 2 * 100;      // LED(time in ms) is on for 0.2s before sensor
+                                   // reading###"LED Duration"
+  ulong timePerLoop = 60 * 1000;   // Duration(ms) of 1 loop ###"time per loop"
+  uint8_t amplification_time = 40; // quantity to measure during the amplification, "amplification_time"
 
   // heater configuration
-  float lysisTemp = 82.0;  //"lysis temperature"
-  float amplifTemp = 65.8; //"amplification temperature"
-  uint8_t bottomTemperatureSensorSq[3] = {
-      0}; // bottom sensor 1, 2, 3. to be zero by default, need to calibrate it.
-  uint8_t topTemperatureSensorSq[3] = {
-      0};                         // hotlid sensor 1, 2, 3, ambient sensor. to be zero by default, need
-                                  // to calibrate it.
-  double kpid[3] = {25, 0.1, 30}; // PID parameter for bottom heater1(Lysis)
-  double kpid2[3] = {25, 0.1,
-                     30}; // PID parameter for bottom heater2&3(Amplification)
-  double bottomOverheat[3] = {2, 2,
-                              2};   // overheat value of bottom heater,
-                                    // underheater value is negative of overheat
-  double topOverheat[2] = {20, 20}; // overheat value of top heater
-  float temperatureOffset[6] = {
-      0}; // temperature offset of bottom sensor 1, 2, 3, hotlid sensor 1, 2, 3,
-          // ambient sensor, the usage is reading temperature + this value ->
-          // output temperature
-  uint8_t hotlidPWM[2][2] = {{40, 80},
-                             {40, 80}}; // PWM low and high value for hotlid
+  float lysisTemp = 82.0;                         //"lysis temperature"
+  float amplifTemp = 65.8;                        //"amplification temperature"
+  uint8_t bottomTemperatureSensorSq[3] = {0};     // bottom sensor 1, 2, 3. to be zero by default, need to calibrate it.
+  uint8_t topTemperatureSensorSq[3] = {0};        // hotlid sensor 1, 2, 3, ambient sensor. to be zero by default, need
+                                                  // to calibrate it.
+  double kpid[3] = {25, 0.1, 30};                 // PID parameter for bottom heater1(Lysis)
+  double kpid2[3] = {25, 0.1, 30};                // PID parameter for bottom heater2&3(Amplification)
+  double bottomOverheat[3] = {2, 2, 2};           // overheat value of bottom heater,
+                                                  // underheater value is negative of overheat
+  double topOverheat[2] = {20, 20};               // overheat value of top heater
+  float temperatureOffset[6] = {0};               // temperature offset of bottom sensor 1, 2, 3, hotlid sensor 1, 2, 3,
+                                                  // ambient sensor, the usage is reading temperature + this value ->
+                                                  // output temperature
+  uint8_t hotlidPWM[2][2] = {{40, 80}, {40, 80}}; // PWM low and high value for hotlid
 
   // buzzer configuration
   uint8_t buzzerOn = 1; // on/off status, on is 1 while off is 0. "buzzer" "On"
@@ -413,6 +397,6 @@ struct parastructure
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "V2.1"; // PID calibration, pararead output json
+static String FirmwareVer = "V2.2"; // PID calibration, pararead output json
 
 #endif
