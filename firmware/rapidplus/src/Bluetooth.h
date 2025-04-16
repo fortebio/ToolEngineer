@@ -11,12 +11,11 @@
 #include <WiFiManager.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
-// #include "sensor6035.h"
+#include "sensor6035.h"
 
-
-struct parastructure;               //forward declaration
-extern String  ssid;
-extern String  password;
+struct parastructure; // forward declaration
+extern String ssid;
+extern String password;
 extern String id_device;
 extern String id;
 
@@ -25,12 +24,12 @@ extern BluetoothSerial SerialBT;
 void connectBLE();
 void BLEloop();
 // void saveParaToEEPROM();
-void saveJsonToEEPROM(char * jsondata, uint32_t jsonlen);
+void saveJsonToEEPROM(char *jsondata, uint32_t jsonlen);
 void readEEPROM();
 void paraDisplay(parastructure);
 void loadParaFromEEPROM();
 void loadJsonFromEEPROM();
-bool loadJsonFromEEPROM(char * jsondata);
+bool loadJsonFromEEPROM(char *jsondata);
 
 void connectWIFI();
 void saveSettingDevice();
@@ -40,19 +39,15 @@ void Read_language_fromEEPROM();
 
 /**
  * @brief Connect to WiFi using WiFiManager
- * @version 2.1 
- * 
+ * @version 2.1
+ *
  */
- void Wifi_Connect(void);
+void Wifi_Connect(void);
 
 /**
  * @brief googlesheet API
- * @version 2.2 
+ * @version 2.2
  */
 void postData_GoogleSheet(void);
- 
-
-
-
 
 #endif

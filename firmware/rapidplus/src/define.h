@@ -198,7 +198,7 @@ struct parastructure
 
   // heater configuration
   float lysisTemp = 82.0;                         //"lysis temperature"
-  float amplifTemp = 65.8;                        //"amplification temperature"
+  float amplifTemp = 65;                        //"amplification temperature"
   uint8_t bottomTemperatureSensorSq[3] = {0};     // bottom sensor 1, 2, 3. to be zero by default, need to calibrate it.
   uint8_t topTemperatureSensorSq[3] = {0};        // hotlid sensor 1, 2, 3, ambient sensor. to be zero by default, need
                                                   // to calibrate it.

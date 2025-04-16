@@ -335,31 +335,31 @@ void Wifi_Connect()
 
 void postData_GoogleSheet(void)
 {
-  // // Read data Amplifications from EEPROM
-  // word data[11][100] = {0};
-  // word tmp[10][100] = {0};
-  // parastructure para;
-  // // DynamicJsonDocument doc(3000); // support maximum 3K
-  // int CT_value[10];
-  // char result[10];
+  // Read data Amplifications from EEPROM
+  word data[11][100] = {0};
+  word tmp[10][100] = {0};
+  parastructure para;
+  // DynamicJsonDocument doc(3000); // support maximum 3K
+  int CT_value[10];
+  char result[10];
 
-  // EEPROM.begin(_EEPROM_SIZE);
-  // EEPROM.get(RECORDPOS, tmp);
-  // EEPROM.get(PARAMETERPOS, para);
-  // memcpy(_sensor6035.sensor67Value, tmp, sizeof(tmp));
-  // EEPROM.end();
+  EEPROM.begin(_EEPROM_SIZE);
+  EEPROM.get(RECORDPOS, tmp);
+  EEPROM.get(PARAMETERPOS, para);
+  memcpy(_sensor6035.sensor67Value, tmp, sizeof(tmp));
+  EEPROM.end();
 
-  // uint8_t loops = _ForteSetting.parameter.amplification_time;
-  // for (uint8_t i = 0; i < loops; i++)
-  // {
-  //   data[0][i] = i + 1; // loop number
-  //   info_displayf("loop %d", i + 1);
-  //   for (uint8_t j = 0; j < 10; j++)
-  //   {
-  //     data[j + 1][i] = _sensor6035.calCalibratedValue(j, i); // sensor value
-  //     info_displayf(", %d", data[j + 1][i]);
-  //   }
-  // }
+  uint8_t loops = _ForteSetting.parameter.amplification_time;
+  for (uint8_t i = 0; i < loops; i++)
+  {
+    data[0][i] = i + 1; // loop number
+    info_displayf("loop %d", i + 1);
+    for (uint8_t j = 0; j < 10; j++)
+    {
+      data[j + 1][i] = _sensor6035.calCalibratedValue(j, i); // sensor value
+      info_displayf(", %d", data[j + 1][i]);
+    }
+  }
 
   // bool flag = _sensor6035.bResultGet(CT_value, result);
 
