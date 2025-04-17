@@ -99,6 +99,7 @@ public:
     bool bSensorReadingGet();
 
     bool bResultGet(int * CT_value, char * result);
+    bool bResultPutToGoogleSheet(int * CT_value, char * result);
     void AlgLoop(char * recvData);
     
     void eSensorParaIni();

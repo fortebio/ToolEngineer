@@ -52,7 +52,7 @@ void buttonProcess(e_statusbutton index)
     }
     if (index == B_RED)
     {
-      buttonTicker[index].attach_ms(calibTime, &tickerHandler1, (uint8_t)index);
+      buttonTicker[index].attach_ms(3000, &tickerHandler1, (uint8_t)index);
     }
     buttonPressed[index] = true;
   }
@@ -153,6 +153,13 @@ void buttonProcess(e_statusbutton index)
         _sensor6035.skip2Maintain();
         dbg_button("green button - skip opto preheat");
       }
+      /** test postData to GoogleSheets */
+      else if(_displayCLD.type_infor == eSettingMenu)
+      {
+        _displayCLD.type_infor = eSettingLanguage;
+        _displayCLD.changeScreen = true;
+      }
+      
       break;
     }
 

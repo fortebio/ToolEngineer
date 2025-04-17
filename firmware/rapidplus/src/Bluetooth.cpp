@@ -1,4 +1,5 @@
 #include "Bluetooth.h"
+#include "sensor6035.h"
 #include <ArduinoJson.h>
 
 BluetoothSerial SerialBT;
@@ -318,96 +319,96 @@ void Wifi_Connect()
 //   return nameSick;
 // }
 
-// String getTime()
-// {
-//   struct tm timeinfo;
-//   char timeString[50];
+String getTime()
+{
+  struct tm timeinfo;
+  char timeString[50];
 
-//   // Get local time
-//   if (!getLocalTime(&timeinfo))
-//   {
-//     Serial.println("Failed to obtain time");
-//     return String("N/A");
-//   }
-//   strftime(timeString, sizeof(timeString), "%d-%m-%Y %H:%M:%S", &timeinfo);
-//   return String(timeString);
-// }
+  // Get local time
+  if (!getLocalTime(&timeinfo))
+  {
+    Serial.println("Failed to obtain time");
+    return String("N/A");
+  }
+  strftime(timeString, sizeof(timeString), "%d-%m-%Y %H:%M:%S", &timeinfo);
+  return String(timeString);
+}
 
 void postData_GoogleSheet(void)
 {
-  // Read data Amplifications from EEPROM
-  word data[11][100] = {0};
-  word tmp[10][100] = {0};
-  parastructure para;
-  // DynamicJsonDocument doc(3000); // support maximum 3K
   int CT_value[10];
   char result[10];
+  word *data_raw[11] = {0};
+  JsonDocument dataPostGoogleSheet;
+  String jsonPost = "";
 
-  EEPROM.begin(_EEPROM_SIZE);
-  EEPROM.get(RECORDPOS, tmp);
-  EEPROM.get(PARAMETERPOS, para);
-  memcpy(_sensor6035.sensor67Value, tmp, sizeof(tmp));
-  EEPROM.end();
+  info_displayln("Read data Amplifications from EEPROM");
+  // uint8_t loops = _ForteSetting.parameter.amplification_time;
+  // for (uint8_t i = 1; i < 11; i++)
+  // {
+  //   data_raw[i] = (word *)malloc(loops * sizeof(word));
+  //   for (uint8_t j = 0; j < loops; j++)
+  //   {
+  //     data_raw[0][i] = i + 1;
+  //     data_raw[i][j] = _sensor6035.sensor67Value[i-1][j];
+  //   }
+  // }
 
-  uint8_t loops = _ForteSetting.parameter.amplification_time;
-  for (uint8_t i = 0; i < loops; i++)
+  /* */
+  bool flag = _sensor6035.bResultPutToGoogleSheet(CT_value, result);
+
+  if (WiFi.status() == WL_CONNECTED)
   {
-    data[0][i] = i + 1; // loop number
-    info_displayf("loop %d", i + 1);
-    for (uint8_t j = 0; j < 10; j++)
+    HTTPClient http;
+    http.begin(serverName);
+    http.addHeader("Content-Type", "application/json");
+
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    String timeString = getTime();
+
+    dataPostGoogleSheet["method"] = "append";
+    dataPostGoogleSheet["id_device"] = id_device;
+    dataPostGoogleSheet["time"] = timeString;
+    dataPostGoogleSheet["version"] = FirmwareVer;
+
+    dataPostGoogleSheet["amplification_time"] = _ForteSetting.parameter.amplification_time;
+    dataPostGoogleSheet["lysis_time"] = _ForteSetting.parameter.lysisDuration;
+
+    JsonArray slopes_array = dataPostGoogleSheet.createNestedArray("slopes");
+    JsonArray origins_array = dataPostGoogleSheet.createNestedArray("origins");
+    JsonArray ledPower_array = dataPostGoogleSheet.createNestedArray("LED power");
+    JsonArray CT_value_array = dataPostGoogleSheet.createNestedArray("CT_value");
+    JsonArray result_array = dataPostGoogleSheet.createNestedArray("result");
+    for (int i = 0; i < OPTOCHANNELS; i++)
     {
-      data[j + 1][i] = _sensor6035.calCalibratedValue(j, i); // sensor value
-      info_displayf(", %d", data[j + 1][i]);
+      slopes_array.add(_ForteSetting.parameter.slopes[i]);
+      origins_array.add(_ForteSetting.parameter.origins[i]);
+      ledPower_array.add(_ForteSetting.parameter.led_power[i]);
+      CT_value_array.add(CT_value[i]);
+      result_array.add(deseaseConclusion(result[i]));
     }
+
+    // serializedJson(dataPostGoogleSheet, );
+    serializeJson(dataPostGoogleSheet, jsonPost);
+    Serial.println("Post data: " + jsonPost);
+    int httpResponseCode = http.POST(jsonPost);
+
+    if (httpResponseCode > 0)
+    {
+      String response = http.getString();
+      Serial.println("Response code: " + String(httpResponseCode));
+      Serial.println("Response: " + response);
+      Serial.println("Data posted successfully!");
+    }
+    else
+    {
+      Serial.println("Error on sending POST: " + String(httpResponseCode));
+    }
+
+    http.end();
   }
-
-  // bool flag = _sensor6035.bResultGet(CT_value, result);
-
-  // if (WiFi.status() == WL_CONNECTED)
-  // {
-  //   HTTPClient http;
-  //   http.begin(serverName);
-  //   http.addHeader("Content-Type", "application/json");
-
-  //   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  //   String timeString = getTime();
-
-  //   // String jsonData = "{"
-  //   //                   "\"method\":\"append\","
-  //   //                   "\"sick\":\"" +
-  //   //                   getName_ThresholdPositive(sick) + "\","
-  //   //                                                     "\"sensor_value1\":" +
-  //   //                   String(sensor_val1) + ","
-  //   //                                         "\"sensor_value2\":" +
-  //   //                   String(sensor_val2) + ","
-  //   //                                         "\"sensor_value3\":" +
-  //   //                   String(sensor_val3) + ","
-  //   //                                         "\"data_IDdevice\":\"" +
-  //   //                   id + "\","
-  //   //                        "\"date\":\"" +
-  //   //                   timeString + "\","
-  //   //                                "\"version\":\"" +
-  //   //                   FirmwareVer + "\""
-  //   //                                 "}";
-  //   // Serial.println("Data: " + jsonData);
-  //   // int httpResponseCode = http.POST(jsonData);
-
-  //   // if (httpResponseCode > 0)
-  //   // {
-  //   //   String response = http.getString();
-  //   //   Serial.println("Response code: " + String(httpResponseCode));
-  //   //   Serial.println("Response: " + response);
-  //   //   Serial.println("Data posted successfully!");
-  //   // }
-  //   // else
-  //   // {
-  //   //   Serial.println("Error on sending POST: " + String(httpResponseCode));
-  //   // }
-
-  //   http.end();
-  // }
-  // else
-  // {
-  //   Serial.println("WiFi disconnected!");
-  // }
+  else
+  {
+    Serial.println("WiFi disconnected!");
+  }
 }

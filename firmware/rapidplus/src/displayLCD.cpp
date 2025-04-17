@@ -1409,6 +1409,11 @@ void displayCLD::loop()
       this->changeScreen = false;
       break;
     }
+    case eSettingLanguage:
+    {
+      postData_GoogleSheet();
+      break;
+    }
       /*
             case escreenAverageResult:
               {

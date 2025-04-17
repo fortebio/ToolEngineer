@@ -3,16 +3,16 @@
   "PCB version": "V1.3",
   "opto calibration": {
     "slopes": [
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1
+      1.437,
+      1.265,
+      1.009,
+      0.927,
+      1.443,
+      1.546,
+      1.248,
+      1.153,
+      1.279,
+      1.518
     ],
     "origins": [
       0,
@@ -44,7 +44,7 @@
     "min sharpness": 5,
     "min slight positive time": 22,
     "detect shape": true,
-    "detection margin time": 6,
+    "detection margin time": 4,
     "arm percentile": 0.5,
     "transition percentile": 0.25,
     "sg order": 0,
@@ -60,16 +60,16 @@
   "time per loop": 60000,
   "amplification time": 40,
   "lysis temperature": 82,
-  "amplification temperature": 65,
+  "amplification temperature": 65.8,
   "bottom temperature sensor seq": [
-    1,
+    0,
     2,
-    0
+    1
   ],
   "top temperature sensor seq": [
-    2,
+    1,
     0,
-    1
+    2
   ],
   "PID parameter": [
     25,
@@ -79,7 +79,7 @@
   "PID2 parameter": [
     25,
     0.15,
-    70
+    60
   ],
   "Bottom overheat value": [
     5,
@@ -108,5 +108,5 @@
       100
     ]
   ],
-  "buzzer": "Off"
+  "buzzer": "On"
 }

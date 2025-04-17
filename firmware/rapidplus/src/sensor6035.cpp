@@ -224,6 +224,93 @@ bool sensor6035::bResultGet(int *CT_value, char *result)
     return true;
 }
 
+bool sensor6035::bResultPutToGoogleSheet(int *CT_value, char *result)
+{
+    DataIn recordIn = DataIn();
+    Record recordOut = Record();
+    char JsonData[3 * 1024] = {0};
+    JsonDocument jsonDocument;
+
+    strcpy(JsonData, strJson.c_str());
+
+    // Deserialize the JSON
+    DeserializationError error = deserializeJson(jsonDocument, JsonData);
+
+    // Check for errors in parsing the JSON
+    if (error)
+    {
+        info_display("deserializeJson() failed: ");
+        info_displayln(error.c_str());
+        return false;
+    }
+    // map data to record
+    recordIn.fromEEPROM(jsonDocument); // get parameter from EEPROM, the rest from json data
+    uint8_t loops = _ForteSetting.parameter.amplification_time;
+    recordIn.raw_data.resize(loops);
+    recordIn.time_data.resize(loops);
+    for (size_t i = 0; i < loops; i++)
+    {
+        recordIn.time_data[i] = float(i) * OPTO_INTERVAL / 60000.0; // send time;
+    }
+
+    for (size_t i = 0; i < 10; i++)
+    {
+        // Update the raw data
+        for (size_t j = 0; j < loops; j++)
+        {
+            recordIn.raw_data[j] = (float(sensor67Value[i][j]) - FORTE_ORIGINS[i]) / FORTE_SLOPES[i];
+            // info_displayf("update at %d:%d->%d:%f\n", i, j, sensor67Value[i][j], recordIn.raw_data[j]);
+        }
+
+        // deep copy fluorescence data to record object
+        recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end());
+        recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end());
+
+        // process data
+        post_process_curve(recordOut,
+                           recordIn.parameters.baseline_start,
+                           recordIn.parameters.baseline_range,
+                           recordIn.parameters.sg_window,
+                           recordIn.parameters.sg_order);
+        // info_displayln("Processed data:");
+        // for (size_t i = 0; i < 30; i++)
+        // {
+        //     info_displayf("%.4g,", recordOut.processed_data[i]);
+        // }
+        // info_displayln();
+
+        // differentiate
+        differentiate(recordOut.time_data,
+                      recordOut.processed_data,
+                      recordOut.differential_data);
+
+        // detect feature
+        // DiagnosticParameters parameters;
+
+        // find_sigmoidal_feature(recordIn.time_data, recordIn.processed_data, y_diff, parameters, recordOut.peak_features);
+        find_sigmoidal_feature(recordOut, recordIn.parameters);
+
+        // detect amplification
+        predict_outcome(recordOut, recordIn.parameters);
+
+        // re-write data processing to look god for users without affecting performance of algorithm
+        /*
+        Josep @ 24/12/24: high level of smoothing is bad for finding the lag phase because the smoothing tends to create a smooth transition until t = 0
+        Thus, small windows and ordders for smoothing produced best results so far.
+        At the same time, may look awesome for display.
+        Consider re-running the smoothing at this stage (line commented below) with higher order and window size to make a nice display without affecting the algorithm performance
+        */
+        // post_process_curve(recordOut, recordIn.parameters.baseline_start, recordIn.parameters.baseline_range, recordIn.parameters.sg_window, recordIn.parameters.sg_order);
+
+
+        CT_value[i] = int(recordOut.outcome.transition_time.x);
+        // memcpy(result+i, recordOut.outcome.outcome, 1);
+        result[i] = recordOut.outcome.outcome[0];
+        recordOut.clear();
+    }
+    return true;
+}
+
 void sensor6035::AlgLoop(char *recvData)
 {
     DataIn recordIn = DataIn();
