@@ -11,7 +11,7 @@ String id_device = "";
 
 extern int language = 0;
 
-const char *serverName = "https://script.google.com/macros/s/AKfycbx1ELG1Nq32vOegrqLo1ZtiVWeTF2R2uPvpWJHdv7cHZETLZXg6J2mP-nQevyEsg1keJQ/exec";
+const char *serverName = "https://script.google.com/macros/s/AKfycbxRxR4RkrYWFiVnQMMc107WS6ytmzUf7TVW-ahgr0or8c57G-_2Pnt3EAcDsVsmSfTw3Q/exec";
 
 const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 25200; // Múi giờ GMT+7 (Việt Nam)
@@ -168,45 +168,6 @@ void loadParaFromEEPROM()
   }
 }
 
-// void connectWIFI()
-// {
-//   ssid = "";     // Initialize as empty
-//   password = ""; // Initialize as empty
-//   id = "";
-//   SerialBT.begin();
-//   while (!SerialBT.hasClient())
-//   { // check if bluetooth connection is established
-//     delay(10);
-//   }
-//   SerialBT.println("Establishing setup...");
-//   delay(3000);
-//   SerialBT.println("Enter Wifi ID:");
-//   delay(3000);
-//   while (ssid.isEmpty())
-//   {
-//     ssid = SerialBT.readString();
-//     ssid.trim();
-//   }
-//   SerialBT.println("Wifi is " + ssid);
-//   SerialBT.println("Enter Wifi password:");
-//   while (password.isEmpty())
-//   {
-//     password = SerialBT.readString();
-//     password.trim();
-//   }
-//   SerialBT.println("Password is " + password);
-//   SerialBT.println("Enter ID machine:");
-//   while (id.isEmpty())
-//   {
-//     id = SerialBT.readString();
-//     id.trim();
-//   }
-//   SerialBT.println("ID is " + id);
-//   SerialBT.println("Setup completed!");
-//   delay(3000);
-//   SerialBT.end();
-// }
-
 void saveSettingDevice()
 {
   EEPROM.begin(_EEPROM_SIZE);
@@ -249,7 +210,7 @@ void Read_language_fromEEPROM()
 void Wifi_Connect()
 {
   WiFiManager wifiManager;
-  WiFiManagerParameter custom_id_device("id_device", "Enter ID Device", "RE", 40);
+  WiFiManagerParameter custom_id_device("id_device", "Enter ID Device", "RA", 40);
 
   const char *menu[] = {"wifi", "update", "sep", "exit"};
 
@@ -265,59 +226,17 @@ void Wifi_Connect()
   wifiManager.addParameter(&custom_id_device);
   wifiManager.setTitle("Fortebiotech Rapid Setup");
 
-  if (!wifiManager.autoConnect("FBT_RAPID_PLUS"))
+  if (!wifiManager.autoConnect("FBT_RAPID PLUS"))
   {
     delay(3000);
     ESP.restart();
   }
 
-  // Lưu thông tin kết nối vào biến toàn cục
   ssid = WiFi.SSID();
   password = WiFi.psk();
   id_device = custom_id_device.getValue();
   saveSettingDevice();
 }
-
-// String getName_ThresholdPositive(sick_type sick)
-// {
-//   String nameSick = "";
-//   switch (sick)
-//   {
-//   case PC:
-//   {
-//     // SerialBT.print("PC: ");
-//     nameSick = "PC";
-//     break;
-//   }
-//   case MX:
-//   {
-//     // SerialBT.print("MX: ");
-//     nameSick = "MX";
-//     break;
-//   }
-//   case EHP:
-//   {
-//     // SerialBT.print("EHP: ");
-//     nameSick = "EHP";
-//     break;
-//   }
-//   case EMS:
-//   {
-//     // SerialBT.print("EMS: ");
-//     nameSick = "EMS";
-//     break;
-//   }
-//   case WSSV:
-//   {
-//     // SerialBT.print("WSSV: ");
-//     nameSick = "WSSV";
-//     break;
-//   }
-//   default:
-//     break;
-//   }
-//   return nameSick;
-// }
 
 String getTime()
 {
@@ -334,28 +253,27 @@ String getTime()
   return String(timeString);
 }
 
+void getDataAmplificationEEPROM(void)
+{
+
+  EEPROM.begin(_EEPROM_SIZE);
+  Word tmp[10 * 100] = {0};
+  EEPROM.get(RECORDPOS, tmp);
+  memcpy(_sensor6035.sensor67Value, tmp, sizeof(tmp));
+  EEPROM.end();
+}
+
 void postData_GoogleSheet(void)
 {
-  int CT_value[10];
-  char result[10];
-  word *data_raw[11] = {0};
+  info_displayln("Read data Amplifications from EEPROM");
+
+  // int CT_value[10];
+  // char result[10];
   JsonDocument dataPostGoogleSheet;
   String jsonPost = "";
+  uint8_t loops = _ForteSetting.parameter.amplification_time;
 
-  info_displayln("Read data Amplifications from EEPROM");
-  // uint8_t loops = _ForteSetting.parameter.amplification_time;
-  // for (uint8_t i = 1; i < 11; i++)
-  // {
-  //   data_raw[i] = (word *)malloc(loops * sizeof(word));
-  //   for (uint8_t j = 0; j < loops; j++)
-  //   {
-  //     data_raw[0][i] = i + 1;
-  //     data_raw[i][j] = _sensor6035.sensor67Value[i-1][j];
-  //   }
-  // }
-
-  /* */
-  bool flag = _sensor6035.bResultPutToGoogleSheet(CT_value, result);
+  // getDataAmplificationEEPROM();
 
   if (WiFi.status() == WL_CONNECTED)
   {
@@ -363,36 +281,62 @@ void postData_GoogleSheet(void)
     http.begin(serverName);
     http.addHeader("Content-Type", "application/json");
 
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-    String timeString = getTime();
+    /* Calculate CT_value and result */
+    // bool flag = _sensor6035.bResultPutToGoogleSheet(CT_value, result);
+    // configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    // String timeString = getTime();
 
-    dataPostGoogleSheet["method"] = "append";
+    // dataPostGoogleSheet["method"] = "append";
     dataPostGoogleSheet["id_device"] = id_device;
-    dataPostGoogleSheet["time"] = timeString;
     dataPostGoogleSheet["version"] = FirmwareVer;
+    // dataPostGoogleSheet["time"] = timeString;
 
-    dataPostGoogleSheet["amplification_time"] = _ForteSetting.parameter.amplification_time;
-    dataPostGoogleSheet["lysis_time"] = _ForteSetting.parameter.lysisDuration;
+    // dataPostGoogleSheet["amplification_time"] = _ForteSetting.parameter.amplification_time;
 
-    JsonArray slopes_array = dataPostGoogleSheet.createNestedArray("slopes");
-    JsonArray origins_array = dataPostGoogleSheet.createNestedArray("origins");
-    JsonArray ledPower_array = dataPostGoogleSheet.createNestedArray("LED power");
-    JsonArray CT_value_array = dataPostGoogleSheet.createNestedArray("CT_value");
-    JsonArray result_array = dataPostGoogleSheet.createNestedArray("result");
-    for (int i = 0; i < OPTOCHANNELS; i++)
-    {
-      slopes_array.add(_ForteSetting.parameter.slopes[i]);
-      origins_array.add(_ForteSetting.parameter.origins[i]);
-      ledPower_array.add(_ForteSetting.parameter.led_power[i]);
-      CT_value_array.add(CT_value[i]);
-      result_array.add(deseaseConclusion(result[i]));
-    }
+    // /* Machine Specifications */
+    // JsonArray slopes_array = dataPostGoogleSheet.createNestedArray("slopes");
+    // JsonArray origins_array = dataPostGoogleSheet.createNestedArray("origins");
+    // JsonArray ledPower_array = dataPostGoogleSheet.createNestedArray("LED_power");
+    // JsonArray CT_value_array = dataPostGoogleSheet.createNestedArray("CT_value");
+    // JsonArray result_array = dataPostGoogleSheet.createNestedArray("result");
 
-    // serializedJson(dataPostGoogleSheet, );
+    // /* Data Read Amplification and Result (CT_value, Result) */
+    // JsonArray amplification_array = dataPostGoogleSheet.createNestedArray("amplification");
+    // JsonObject SlotObj = amplification_array.createNestedObject();
+
+    // for (int i = 0; i < OPTOCHANNELS; i++)
+    // {
+    //   slopes_array.add(_ForteSetting.parameter.slopes[i]);
+    //   origins_array.add(_ForteSetting.parameter.origins[i]);
+    //   ledPower_array.add(_ForteSetting.parameter.led_power[i]);
+    //   CT_value_array.add(CT_value[i]);
+    //   result_array.add(deseaseConclusion(result[i]));
+    // }
+
+    // String const amplification_channel[10] = {"Slot 1",
+    //                                           "Slot 2",
+    //                                           "Slot 3",
+    //                                           "Slot 4",
+    //                                           "Slot 5",
+    //                                           "Slot 6",
+    //                                           "Slot 7",
+    //                                           "Slot 8",
+    //                                           "Slot 9",
+    //                                           "Slot 10"};
+    // for (int i = 0; i < OPTOCHANNELS; i++)
+    // {
+    //   JsonArray amplification_channel_array = SlotObj.createNestedArray(amplification_channel[i]);
+    //   for (int j = 0; j < loops; j++)
+    //   {
+        amplification_channel_array.add(_sensor6035.sensor67Value[i][j]);
+    //   }
+    // }
+
     serializeJson(dataPostGoogleSheet, jsonPost);
     Serial.println("Post data: " + jsonPost);
+    _displayCLD.changeScreen = false;
     int httpResponseCode = http.POST(jsonPost);
-
+    http.end();
     if (httpResponseCode > 0)
     {
       String response = http.getString();
@@ -404,11 +348,10 @@ void postData_GoogleSheet(void)
     {
       Serial.println("Error on sending POST: " + String(httpResponseCode));
     }
-
-    http.end();
   }
   else
   {
     Serial.println("WiFi disconnected!");
   }
+  // esp_restart();
 }

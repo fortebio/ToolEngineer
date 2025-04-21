@@ -1,8 +1,8 @@
 /*
 Version 1.3 note: add function send wifi id and password via bluetooth
 Version 1.4 note: add function sellect language
-
 */
+
 #include "define.h"
 #include "displayCLD.h"
 #include "button.h"

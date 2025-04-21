@@ -1477,6 +1477,7 @@ void displayCLD::rerun()
 
 void displayCLD::setting_Menu(void)
 {
+  info_display("setting menu\n");
   this->display->fillScreen(BLACK);
 
   this->display->fillRect(108, 0, 108, 20, Forte_Green);

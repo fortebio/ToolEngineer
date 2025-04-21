@@ -8,7 +8,7 @@
 #error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
 #endif
 
-#include <NTPClient.h>
+#include "NTPClient.h"
 #include <WiFiManager.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
@@ -29,13 +29,14 @@ void readEEPROM();
 void paraDisplay(parastructure);
 void loadParaFromEEPROM();
 void loadJsonFromEEPROM();
-bool loadJsonFromEEPROM(char *jsondata);
+// bool loadJsonFromEEPROM(char *jsondata);
 
 void connectWIFI();
 void saveSettingDevice();
 void loadSettingDevice();
 void Write_language_ToEEPROM();
 void Read_language_fromEEPROM();
+void getDataAmplificationEEPROM(void);
 
 /**
  * @brief Connect to WiFi using WiFiManager

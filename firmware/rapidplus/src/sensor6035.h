@@ -1,6 +1,6 @@
 #ifndef _SENNSOR6035_H
 #define _SENNSOR6035_H
-//This is new opto sensor VML6035 to replace the old sensor TCS34725 
+// This is new opto sensor VML6035 to replace the old sensor TCS34725
 
 #include "./VEML6035/VEML6035.h"
 #include "./VEML6035/VEML6035_Prototypes.h"
@@ -17,7 +17,6 @@
 #include "acquisition.h"
 // #include "Alg/para.h"
 
-
 #define Config_ALS_IT VEML6035_ALS_IT_100ms
 #define Config_GAIN VEML6035_GAIN_1_DOUBLE
 #define Config_DG VEML6035_DG_0_NORMAL
@@ -26,11 +25,11 @@
 
 typedef enum
 {
-    eSensorwait,        //wait before it starts to work
-    eSensorpreheat,     //preheat for 15 mins during heater preheating to amp temperature
-    eSensormaintain,    //maintain after preheating
-    eSensorstart,       //start to initialize the opto
-    eSensor1stReading  //start to read the 1st stage opto data
+    eSensorwait,      // wait before it starts to work
+    eSensorpreheat,   // preheat for 15 mins during heater preheating to amp temperature
+    eSensormaintain,  // maintain after preheating
+    eSensorstart,     // start to initialize the opto
+    eSensor1stReading // start to read the 1st stage opto data
 } e_sensorStep;
 
 // struct sensorvalue
@@ -42,18 +41,18 @@ class sensor6035
 {
 private:
     // I2C multiplex channel number to sensor number(0~4)
-    uint8_t I2C_Channel[5] = {6, 0, 1, 2, 3};   //by default is old version(PCB V1.2), the sequence of new one is {6, 5, 1, 2, 3};
-    TCA9548A I2CMux;                  // Address can be passed into the constructor
-    TCA9548A I2CMux1 = TCA9548A(0x74);                  // Address can be passed into the constructor
+    uint8_t I2C_Channel[5] = {6, 0, 1, 2, 3}; // by default is old version(PCB V1.2), the sequence of new one is {6, 5, 1, 2, 3};
+    TCA9548A I2CMux;                          // Address can be passed into the constructor
+    TCA9548A I2CMux1 = TCA9548A(0x74);        // Address can be passed into the constructor
 
-    unsigned long START_INTERVAL_TIME = 0;      //this is to record the start time of 1 round/loop reading
+    unsigned long START_INTERVAL_TIME = 0; // this is to record the start time of 1 round/loop reading
 
     uint8_t COUNTER = 0;
-    bool flagCounterDisplay = false;        //control to display counter or timeZ
+    bool flagCounterDisplay = false; // control to display counter or timeZ
     e_sensorStep sensorStep = eSensorwait;
-    uint8_t iChannel = 0;       //record the channel that is reading
+    uint8_t iChannel = 0; // record the channel that is reading
 
-    Word SENSOR_DATA[7] = { 0 };
+    Word SENSOR_DATA[7] = {0};
     // float (* calMatrix)[2];// set to _ForteSetting.parameter.slopes later at begin()
 
     // variables for testing LOD
@@ -66,25 +65,33 @@ private:
     int _top_heater2_PWM = 0;
     int _top_heater3_PWM = 0;
 
-    bool bSensorReadingFlag = false;        //flag to inform heater to on/off hotlid23 heating, enable only when the sensor is reading, disable when it's not reading.
+    bool bSensorReadingFlag = false; // flag to inform heater to on/off hotlid23 heating, enable only when the sensor is reading, disable when it's not reading.
     unsigned long tic;
 
 public:
-
-    Word sensor67Value[10][100] = {0};
+    Word sensor67Value[10][100] = {{1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 1*/
+                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 2*/
+                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 3*/
+                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 4*/
+                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 5*/
+                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 6*/
+                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 7*/
+                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 8*/
+                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 9*/
+                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40}}; /* Slot 10*/
 
     sensor6035(/* args */);
     ~sensor6035();
     void begin();
     void loop();
-    
+
     void skip2Maintain();
     void rerun();
 
     void setStepeSensorpreheat();
     void setStepeSensorstart();
 
-    void clear();       //add later after supporting both of 5 and 10 channels
+    void clear(); // add later after supporting both of 5 and 10 channels
 
     void reConfigSensors();
 
@@ -98,10 +105,10 @@ public:
 
     bool bSensorReadingGet();
 
-    bool bResultGet(int * CT_value, char * result);
-    bool bResultPutToGoogleSheet(int * CT_value, char * result);
-    void AlgLoop(char * recvData);
-    
+    bool bResultGet(int *CT_value, char *result);
+    bool bResultPutToGoogleSheet(int *CT_value, char *result);
+    void AlgLoop(char *recvData);
+
     void eSensorParaIni();
     bool getSensorPreheatReady();
 
@@ -129,7 +136,7 @@ private:
     void SENS(String command);
     void Snapshot_loop_test();
     void Snapshot();
-    
+
     void eSensorPreheat();
     void eSensorMaintain();
     void eSensorstartFunc();
@@ -154,20 +161,19 @@ private:
     // bool flagCalibSensor = false;
     // bool flagformatCalib = false;
     // bool flagback = false;
-    
 };
 
 // LED ALS variable, configurable from para structure
-#define MEASUREMENTLOOPS    _ForteSetting.parameter.amplification_time
-#define LED_DELAY_TIME  _ForteSetting.parameter.LEDDuration
-#define LYSIS_DURATION  _ForteSetting.parameter.lysisDuration        //Duration of lysis in second.
-#define OPTO_INTERVAL   _ForteSetting.parameter.timePerLoop           //Duration per session
-#define PREHEATLOOPS    (_ForteSetting.parameter.optopreheatduration * 1000/OPTO_INTERVAL)
-#define AMPLIFICATION_DURATION  (MEASUREMENTLOOPS * OPTO_INTERVAL)
+#define MEASUREMENTLOOPS _ForteSetting.parameter.amplification_time
+#define LED_DELAY_TIME _ForteSetting.parameter.LEDDuration
+#define LYSIS_DURATION _ForteSetting.parameter.lysisDuration // Duration of lysis in second.
+#define OPTO_INTERVAL _ForteSetting.parameter.timePerLoop    // Duration per session
+#define PREHEATLOOPS (_ForteSetting.parameter.optopreheatduration * 1000 / OPTO_INTERVAL)
+#define AMPLIFICATION_DURATION (MEASUREMENTLOOPS * OPTO_INTERVAL)
 #define OPTO_DURATION_2 AMPLIFICATION_DURATION
 
-#define FORTE_SLOPES    _ForteSetting.parameter.slopes
-#define FORTE_ORIGINS    _ForteSetting.parameter.origins
+#define FORTE_SLOPES _ForteSetting.parameter.slopes
+#define FORTE_ORIGINS _ForteSetting.parameter.origins
 
 extern sensor6035 _sensor6035;
 #endif
