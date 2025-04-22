@@ -507,7 +507,7 @@ void displayCLD::waitLysis10min()
     {
       this->display->fillScreen(BLACK);
       this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-      this->display->drawBitmap(275, 7, logoFBT, 35, 34, Forte_Green);
+      this->display->drawBitmap(18, 5, logoFBT, 35, 34, Forte_Green);
       this->display->setTextSize(3);
       this->display->setTextColor(RED);
       this->display->setCursor(18, 90);
@@ -522,7 +522,7 @@ void displayCLD::waitLysis10min()
   this->display->fillRect(18, 150, 320, 90, BLACK);
   this->display->setCursor(90, 190);
   unsigned long timeleft = (timer10minEnd - now) / 1000;                // seconds left
-  this->display->printf("%dmin %dsec", timeleft / (60), timeleft % 60); // show the time left
+  this->display->printf("%dmin", timeleft / (60), timeleft % 60); // show the time left
 }
 
 void displayCLD::startHeating10mins()
@@ -646,7 +646,7 @@ void displayCLD::waitAmplification30min()
     {
       this->display->fillScreen(BLACK);
       this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-      this->display->drawBitmap(275, 7, logoFBT, 35, 34, Forte_Green);
+      this->display->drawBitmap(18, 5, logoFBT, 35, 34, Forte_Green);
       this->display->setTextSize(2);
       this->display->setTextColor(RED);
       this->display->setCursor(18, 90);
@@ -661,7 +661,7 @@ void displayCLD::waitAmplification30min()
   this->display->fillRect(18, 150, 320, 90, BLACK);
   this->display->setCursor(90, 190);
   unsigned long timeleft = (timer30minEnd - now) / 1000;                // seconds left
-  this->display->printf("%dmin %dsec", timeleft / (60), timeleft % 60); // show the time left
+  this->display->printf("%dmin", timeleft / (60), timeleft % 60); // show the time left
 }
 
 void displayCLD::prepare()
@@ -1362,6 +1362,7 @@ void displayCLD::loop()
     case escreenResult:
     {
       dbg_display("escreenResult lan %d", this->couter);
+      // postData_GoogleSheet();
       this->screen_Result();
       break;
     }
@@ -1411,7 +1412,7 @@ void displayCLD::loop()
     }
     case eSettingLanguage:
     {
-      postData_GoogleSheet();
+      // postData_GoogleSheet();
       break;
     }
       /*
@@ -1496,14 +1497,14 @@ void displayCLD::setting_Menu(void)
   this->display->fillCircle(55, 124, 16, GREEN);
   this->display->setTextColor(GREEN);
   this->display->setCursor(90, 135);
-  this->display->print("Language");
+  this->display->print("WiFi/Update");
 
   this->display->drawRoundRect(30, 170, 272, 60, 10, RED);
   this->display->drawCircle(55, 200, 20, RED);
   this->display->fillCircle(55, 200, 16, RED);
   this->display->setTextColor(RED);
   this->display->setCursor(90, 210);
-  this->display->print("WiFi/Update");
+  this->display->print("Language");
 
   this->display->setTextSize(2);
   this->display->setTextColor(WHITE);

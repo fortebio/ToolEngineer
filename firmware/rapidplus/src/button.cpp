@@ -117,7 +117,7 @@ void buttonProcess(e_statusbutton index)
       }
       else if (_displayCLD.type_infor == eSettingMenu)
       {
-        _displayCLD.type_infor = eSettingWifi;
+        _displayCLD.type_infor = eSettingLanguage;
         _displayCLD.changeScreen = true;
       }
       break;
@@ -156,7 +156,7 @@ void buttonProcess(e_statusbutton index)
       /** test postData to GoogleSheets */
       else if(_displayCLD.type_infor == eSettingMenu)
       {
-        _displayCLD.type_infor = eSettingLanguage;
+        _displayCLD.type_infor = eSettingWifi;
         _displayCLD.changeScreen = true;
       }
       

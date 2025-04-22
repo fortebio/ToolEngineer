@@ -350,12 +350,10 @@ struct parastructure
 //  temperature is not hot enough, used for both of Lysis and Amplification
 
 // before PID control
-#define DELTA_FULLPWM \
-  80 // full PWM output when the temperature difference from the target
-     // temperature is lower than it
-#define DELTA_HALFPWM \
-  80 // half PWM output when the temperature difference from the target
-     // temperature is lower than it
+#define DELTA_FULLPWM 80 // full PWM output when the temperature difference from the target
+                         // temperature is lower than it
+#define DELTA_HALFPWM 80 // half PWM output when the temperature difference from the target
+                         // temperature is lower than it
 
 // target temperature of top heater
 // #define HOTLID1_TEMP 60.0
@@ -378,9 +376,8 @@ struct parastructure
 
 // Quantity definition of temperature sensor
 #define HEATBLKQUANTITY 3 // 3 bottom temperature sensors
-#define HOTLIDQUANTITY \
-  3 // 3 top temperature sensors plus 1 ambient temperature sensor located at
-    // PCB
+#define HOTLIDQUANTITY 3  // 3 top temperature sensors plus 1 ambient temperature sensor located at
+                          // PCB
 
 // Button definition
 #define NumberButton 3
@@ -397,6 +394,6 @@ struct parastructure
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "V2.2"; // PID calibration, pararead output json
+static String FirmwareVer = "V2.2.1"; // PID calibration, pararead output json
 
 #endif
