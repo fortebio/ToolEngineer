@@ -73,12 +73,12 @@
   ],
   "PID parameter": [
     25,
-    0.1,
+    0.05,
     30
   ],
   "PID2 parameter": [
     25,
-    0.15,
+    0.1,
     60
   ],
   "Bottom overheat value": [
@@ -109,4 +109,4 @@
     ]
   ],
   "buzzer": "On"
-}
+}@

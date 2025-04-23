@@ -11,7 +11,9 @@ String id_device = "";
 
 extern int language = 0;
 
-const char *serverName = "https://script.google.com/macros/s/AKfycbyJhA5ZXUeFduVaUpTLi5vC-5TIr9mst5pZ9A0DkDARX1xlXVv7y-1w1BN3p0oBisKYXA/exec";
+const char *serverName = "https://script.google.com/macros/s/AKfycbw2VXXLX6fUMgmyRrSgNgEi3b4gSyE2bdctQe_DNOnlZ58EfPclQrXrlMenH0y7SH5X/exec";
+
+
 const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 25200; // Múi giờ GMT+7 (Việt Nam)
 const int daylightOffset_sec = 0;
@@ -263,6 +265,22 @@ void getDataAmplificationEEPROM(void)
   EEPROM.end();
 }
 
+String resultConfig(char result)
+{
+  if (result == 'N')
+  {
+    return "N";
+  }
+  else if (result == 'P')
+  {
+    return "P";
+  }
+  else if (result == 'S')
+  {
+    return "S";
+  }
+}
+
 void postData_GoogleSheet(void)
 {
   if (WiFi.status() == WL_CONNECTED)
@@ -304,35 +322,37 @@ void postData_GoogleSheet(void)
 
     /* Data Read Amplification and Result (CT_value, Result) */
     JsonArray amplification_array = dataPostGoogleSheet.createNestedArray("amplification");
-    JsonObject SlotObj = amplification_array.createNestedObject();
+    // JsonObject SlotObj = amplification_array.createNestedArray();
 
     for (int i = 0; i < OPTOCHANNELS; i++)
     {
-      // String result = String(CT_value[i]) + " | " + String(result[i]);
+      String resultConfig = String(CT_value[i]) + " | " + result[i];
       slopes_array.add(_ForteSetting.parameter.slopes[i]);
       origins_array.add(_ForteSetting.parameter.origins[i]);
       ledPower_array.add(_ForteSetting.parameter.led_power[i]);
       CT_value_array.add(CT_value[i]);
-      result_array.add(deseaseConclusion(result[i]));
+      result_array.add(resultConfig);
     }
 
-    String const amplification_channel[10] = {"Slot 1",
-                                              "Slot 2",
-                                              "Slot 3",
-                                              "Slot 4",
-                                              "Slot 5",
-                                              "Slot 6",
-                                              "Slot 7",
-                                              "Slot 8",
-                                              "Slot 9",
-                                              "Slot 10"};
+    // String const amplification_channel[10] = {"Slot 1",
+    //                                           "Slot 2",
+    //                                           "Slot 3",
+    //                                           "Slot 4",
+    //                                           "Slot 5",
+    //                                           "Slot 6",
+    //                                           "Slot 7",
+    //                                           "Slot 8",
+    //                                           "Slot 9",
+    //                                           "Slot 10"};
     for (int i = 0; i < OPTOCHANNELS; i++)
     {
-      JsonArray amplification_channel_array = SlotObj.createNestedArray(amplification_channel[i]);
+      // JsonArray amplification_channel_array = SlotObj.createNestedArray(amplification_channel[i]);
+      String data_raw = "";
       for (int j = 0; j < loops; j++)
       {
-        amplification_channel_array.add(_sensor6035.sensor67Value[i][j]);
+        data_raw += String(_sensor6035.sensor67Value[i][j]) + ",";
       }
+      amplification_array.add(data_raw);
     }
 
     serializeJson(dataPostGoogleSheet, jsonPost);
@@ -353,6 +373,8 @@ void postData_GoogleSheet(void)
     {
       Serial.println("Error on sending POST: " + String(httpResponseCode));
     }
+    delay(1000);
+    // ESP.restart();
   }
   else
   {

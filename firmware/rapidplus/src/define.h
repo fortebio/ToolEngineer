@@ -394,6 +394,6 @@ struct parastructure
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "V2.2.1"; // PID calibration, pararead output json
+static String FirmwareVer = "V2.2.2"; // PID calibration, pararead output json
 
 #endif

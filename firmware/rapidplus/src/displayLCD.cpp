@@ -521,9 +521,10 @@ void displayCLD::waitLysis10min()
   }
   this->display->fillRect(18, 150, 320, 90, BLACK);
   this->display->setCursor(90, 190);
-  unsigned long timeleft = (timer10minEnd - now) / 1000;                // seconds left
+  unsigned long timeleft = (timer10minEnd - now) / 1000; // seconds left
   // this->display->printf("%d minute", timeleft / (60), timeleft % 60); // show the time left
-  this->display->printf("%d minute", timeleft / (60)); // show the time left
+  this->display->printf("%d minute", ((timeleft / (60)) + 1)); // show the time left
+  // this->display->printf("%d minute", timeleft / (60)); // show the time left
 }
 
 void displayCLD::startHeating10mins()
@@ -661,9 +662,9 @@ void displayCLD::waitAmplification30min()
   }
   this->display->fillRect(18, 150, 320, 90, BLACK);
   this->display->setCursor(90, 190);
-  unsigned long timeleft = (timer30minEnd - now) / 1000;                // seconds left
+  unsigned long timeleft = (timer30minEnd - now) / 1000; // seconds left
   // this->display->printf("%dmin", timeleft / (60), timeleft % 60); // show the time left
-  this->display->printf("%d minute", timeleft / (60)); // show the time left
+  this->display->printf("%d minute", ((timeleft / (60)) + 1)); // show the time left
 }
 
 void displayCLD::prepare()
