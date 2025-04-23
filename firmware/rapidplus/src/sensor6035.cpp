@@ -259,7 +259,6 @@ bool sensor6035::bResultPutToGoogleSheet(int *CT_value, char *result)
         for (size_t j = 0; j < loops; j++)
         {
             recordIn.raw_data[j] = (float(sensor67Value[i][j]) - FORTE_ORIGINS[i]) / FORTE_SLOPES[i];
-            // info_displayf("update at %d:%d->%d:%f\n", i, j, sensor67Value[i][j], recordIn.raw_data[j]);
         }
 
         // deep copy fluorescence data to record object

@@ -308,6 +308,7 @@ void postData_GoogleSheet(void)
 
     for (int i = 0; i < OPTOCHANNELS; i++)
     {
+      // String result = String(CT_value[i]) + " | " + String(result[i]);
       slopes_array.add(_ForteSetting.parameter.slopes[i]);
       origins_array.add(_ForteSetting.parameter.origins[i]);
       ledPower_array.add(_ForteSetting.parameter.led_power[i]);
