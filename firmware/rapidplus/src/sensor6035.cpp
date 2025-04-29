@@ -301,7 +301,6 @@ bool sensor6035::bResultPutToGoogleSheet(int *CT_value, char *result)
         */
         // post_process_curve(recordOut, recordIn.parameters.baseline_start, recordIn.parameters.baseline_range, recordIn.parameters.sg_window, recordIn.parameters.sg_order);
 
-
         CT_value[i] = int(recordOut.outcome.transition_time.x);
         // memcpy(result+i, recordOut.outcome.outcome, 1);
         result[i] = recordOut.outcome.outcome[0];
@@ -1408,7 +1407,6 @@ void sensor6035::outputHeader()
 {
     // print tag to announce start of amplification
     info_displayln("<AmpStart>");
-    // SerialBT.println("<AmpStart>");
 
     // write metadata in a json file
     const size_t capacity = 1000; // total buffer capacity
@@ -1436,12 +1434,10 @@ void sensor6035::outputHeader()
     String output;
     serializeJson(metadata, output);
     info_displayln(output);
-    // SerialBT.println(output);
 
     // Print heading
     const String header = "Amplification Time[min],Sensor 1 Fluorescence[nM FAM],Sensor 2 Fluorescence[nM FAM],Sensor 3 Fluorescence[nM FAM],Sensor 4 Fluorescence[nM FAM],Sensor 5 Fluorescence[nM FAM],Temperature[C]";
     info_displayln(header);
-    // SerialBT.println(header);
 }
 
 void sensor6035::closeSensorChannel(int slot)
@@ -1535,8 +1531,6 @@ void sensor6035::eSensor1stReadingFunc()
             }
             info_display(",");
 
-            // SerialBT.print(float(COUNTER) *OPTO_INTERVAL / 60000);  //start time
-            // SerialBT.print(",");
             // Open LED channel
             iChannel = 0; // start reading from the 1st LED/Sensor
             _LED.LED_on(iChannel);

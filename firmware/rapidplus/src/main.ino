@@ -18,7 +18,6 @@ buttonManager _buttonManager;
 
 void setup()
 {
-  connectBLE();
   Serial.setRxBufferSize(3 * 1024);
   Serial.begin(115200);
   // configure the I2C IO

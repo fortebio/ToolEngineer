@@ -76,6 +76,21 @@ void show_IconWifi(void)
   }
 }
 
+void show_IconBluetooth(bool status_BT)
+{
+  // EEPROM.begin(_EEPROM_SIZE);
+  // EEPROM.get(ADDR_CHECK_BT, status_BT);
+  // EEPROM.end();
+  if (status_BT == true)
+  {
+    _displayCLD.display->drawBitmap(266, 8, image_BT_Connect, 14, 16, WHITE);
+  }
+  else
+  {
+    _displayCLD.display->drawBitmap(266, 8, image_BT_Disconnect, 14, 16, WHITE);
+  }
+}
+
 void displayCLD::screen_Start()
 {
   if (language == 0)
@@ -84,7 +99,7 @@ void displayCLD::screen_Start()
     this->display->fillScreen(BLACK);
     this->display->setTextSize(1);
     this->display->fillRect(108, 0, 108, 20, Forte_Green);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+    // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
     this->display->setCursor(110, 15);
     this->display->setTextColor(BLACK);
     this->display->println("FORTE BIOTECH");
@@ -112,7 +127,7 @@ void displayCLD::screen_Start()
     this->display->fillScreen(BLACK);
     this->display->setTextSize(1);
     this->display->fillRect(108, 0, 108, 20, Forte_Green);
-    this->display->drawRoundRect(10, 0, 302, 240, 10, Forte_Green);
+    // this->display->drawRoundRect(10, 0, 302, 240, 10, Forte_Green);
     this->display->setCursor(110, 15);
     this->display->setTextColor(BLACK);
     this->display->println("FORTE BIOTECH");
@@ -351,10 +366,6 @@ void displayCLD::preHeat67CLD_Header()
     }
     this->display->drawCircle(55, 180, 22, RED);
     this->display->fillCircle(55, 180, 17, RED);
-    // this->display->setTextSize(2);
-    // this->display->setTextColor(RED);
-    // this->display->setCursor(90, 175);
-    // this->display->println("Temperature");
     if (!_sensor6035.getSensorPreheatReady())
     {
       this->display->setTextSize(1);
@@ -420,8 +431,6 @@ void displayCLD::preHeat80CLD_Header()
     this->display->fillCircle(55, 180, 17, RED);
     this->display->setTextSize(2);
     this->display->setTextColor(RED);
-    // this->display->setCursor(90, 175);
-    // this->display->println("Temperature");
     bheadershow = false; // header has been showed
   }
 }
@@ -506,7 +515,7 @@ void displayCLD::waitLysis10min()
     else
     {
       this->display->fillScreen(BLACK);
-      this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+      // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
       this->display->drawBitmap(18, 5, logoFBT, 35, 34, Forte_Green);
       this->display->setTextSize(3);
       this->display->setTextColor(RED);
@@ -647,7 +656,7 @@ void displayCLD::waitAmplification30min()
     else
     {
       this->display->fillScreen(BLACK);
-      this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+      // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
       this->display->drawBitmap(18, 5, logoFBT, 35, 34, Forte_Green);
       this->display->setTextSize(2);
       this->display->setTextColor(RED);
@@ -662,9 +671,8 @@ void displayCLD::waitAmplification30min()
   }
   this->display->fillRect(18, 150, 320, 90, BLACK);
   this->display->setCursor(90, 190);
-  unsigned long timeleft = (timer30minEnd - now) / 1000; // seconds left
-  // this->display->printf("%dmin", timeleft / (60), timeleft % 60); // show the time left
-  this->display->printf("%d minute", ((timeleft / (60)) + 1)); // show the time left
+  unsigned long timeleft = (timer30minEnd - now) / 1000;     // seconds left
+  this->display->printf("%d Minute", (timeleft / (60) + 1)); // show the time left
 }
 
 void displayCLD::prepare()
@@ -679,7 +687,7 @@ void displayCLD::prepare()
   {
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+    // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
     this->display->setTextColor(Forte_Green);
     this->display->setCursor(25, 60);
     this->display->println("Đặt ống vào máy");
@@ -1200,7 +1208,7 @@ void displayCLD::set_connect_bluetooth()
   if (language == 0)
   {
     this->display->fillScreen(BLACK);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+    // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
     this->display->setTextSize(2);
     this->display->setTextColor(ORANGE);
     this->display->setCursor(70, 30);
@@ -1226,7 +1234,7 @@ void displayCLD::set_connect_bluetooth()
     this->display->print("Cài đặt thành công!");
     delay(2000);
     this->display->fillScreen(BLACK);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+    // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
     this->display->setTextSize(2);
     this->display->setTextColor(ORANGE);
     this->display->setCursor(70, 30);
@@ -1249,7 +1257,7 @@ void displayCLD::set_connect_bluetooth()
   {
     this->display->fillScreen(BLACK);
     // this->display->drawRect(0,0,320,240,BLUE);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+    // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
     this->display->setTextSize(2);
     this->display->setTextColor(ORANGE);
     this->display->setCursor(70, 30);
@@ -1276,7 +1284,7 @@ void displayCLD::set_connect_bluetooth()
     this->display->print("Succesfull!");
     delay(2000);
     this->display->fillScreen(BLACK);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+    // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
     this->display->setTextSize(2);
     this->display->setTextColor(ORANGE);
     this->display->setCursor(70, 30);
@@ -1296,17 +1304,34 @@ void displayCLD::set_connect_bluetooth()
     ESP.restart();
   }
 }
+
+void settingSucces(String title)
+{
+  _displayCLD.display->fillScreen(BLACK);
+  _displayCLD.display->setTextSize(2);
+  _displayCLD.display->setCursor(25, 120);
+  _displayCLD.display->setTextColor(GREEN);
+  _displayCLD.display->print(title);
+  delay(1000);
+  ESP.restart();
+}
+
 void displayCLD::loop()
 {
+  static bool turnOn_BT = false;
   if (this->changeScreen)
   {
     switch (this->type_infor)
     {
     case escreenStart:
     {
+      Serial.println("Truoc khi BT ket noi: " + String(ESP.getFreeHeap()));
+      connectBLE();
+      Serial.println("Sau khi BT ket noi: " + String(ESP.getFreeHeap()));
       dbg_display("escreenStart");
       this->screen_Start();
       // _sensor6035.clear();
+      turnOn_BT = true;
       this->changeScreen = false;
       break;
     }
@@ -1416,58 +1441,38 @@ void displayCLD::loop()
     case eSettingLanguage:
     {
       postData_GoogleSheet();
+      settingSucces("Up Data Success!");
       break;
     }
-      /*
-            case escreenAverageResult:
-              {
-                dbg_display("escreenAverageResult");
-                _sensor.Average_Result();
-                this->screen_Average_Result();
-                this->changeScreen = false;
-                break;
-              }
-
-            case ecalibSensor:
-              {
-                dbg_display("ecalibSensor");
-                this->screen_Calib();
-                this->changeScreen = false;
-                break;
-              }
-
-            case e_setting:
-              {
-
-                this->setting();
-                this->changeScreen = false;
-                break;
-              }
-            case e_connect_bluetooth:
-              {
-                this->set_connect_bluetooth();
-                this->changeScreen = false;
-                break;
-              }
-            case e_language:
-              {
-                this->set_language();
-                this->changeScreen = false;
-                break;
-              }
-
-            case logdata:
-              {
-                this->log_data();
-                this->screen_Average_Result();
-                _displayCLD.type_infor = escreenAverageResult;
-                this->changeScreen = false;
-                break;
-              }*/
+    case eSettingBluetooth:
+    {
+      connectBLE();
+      settingSucces("Settings Bluetoot Success!");
+      break;
+    }
     default:
       break;
     }
+
+    if (this->type_infor == escreenResult || this->type_infor == escreenStart)
+    {
+      // EEPROM.begin(_EEPROM_SIZE);
+      // EEPROM.get(ADDR_CHECK_BT, turnOn_BT);
+      turnOn_BT = true;
+    }
+    else
+    {
+      if (turnOn_BT == true)
+      {
+        Serial.println("Truoc khi BT ngat ket noi: " + String(ESP.getFreeHeap()));
+        SerialBT.end();
+        Serial.println("Sau khi BT ngat ket noi: " + String(ESP.getFreeHeap()));
+        turnOn_BT = false;
+      }
+    }
+    // EEPROM.end();
     show_IconWifi();
+    show_IconBluetooth(turnOn_BT);
     // this->changeScreen = false;
   }
 }
@@ -1485,7 +1490,7 @@ void displayCLD::setting_Menu(void)
   this->display->fillScreen(BLACK);
 
   this->display->fillRect(108, 0, 108, 20, Forte_Green);
-  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+  // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
   this->display->drawBitmap(18, 5, logoFBT, 35, 34, Forte_Green);
   this->display->setTextSize(1);
   this->display->setCursor(110, 15);
@@ -1495,26 +1500,45 @@ void displayCLD::setting_Menu(void)
   this->display->setTextWrap(false);
   this->display->setTextSize(2);
 
-  this->display->drawRoundRect(30, 94, 272, 60, 10, GREEN);
-  this->display->drawCircle(55, 124, 20, GREEN);
-  this->display->fillCircle(55, 124, 16, GREEN);
-  this->display->setTextColor(GREEN);
-  this->display->setCursor(90, 135);
-  this->display->print("WiFi/Update");
+  // this->display->drawRoundRect(30, 94, 272, 60, 10, GREEN);
+  // this->display->drawCircle(55, 124, 20, GREEN);
+  // this->display->fillCircle(55, 124, 16, GREEN);
+  // this->display->setTextColor(GREEN);
+  // this->display->setCursor(90, 135);
+  // this->display->print("WiFi/Update");
 
-  this->display->drawRoundRect(30, 170, 272, 60, 10, RED);
-  this->display->drawCircle(55, 200, 20, RED);
-  this->display->fillCircle(55, 200, 16, RED);
+  // this->display->drawRoundRect(30, 170, 272, 60, 10, RED);
+  // this->display->drawCircle(55, 200, 20, RED);
+  // this->display->fillCircle(55, 200, 16, RED);
+  // this->display->setTextColor(RED);
+  // this->display->setCursor(90, 210);
+  // this->display->print("Up data");
+
+  this->display->drawRoundRect(30, 78, 272, 50, 10, GREEN);
+  this->display->drawCircle(50, 100, 16, GREEN);
+  this->display->fillCircle(50, 100, 12, GREEN);
+  this->display->setTextColor(GREEN);
+  this->display->setCursor(70, 110);
+  this->display->print("Wifi/Update");
+
+  this->display->drawRoundRect(30, 130, 272, 50, 10, RED);
+  this->display->drawCircle(50, 155, 16, RED);
+  this->display->fillCircle(50, 155, 12, RED);
   this->display->setTextColor(RED);
-  this->display->setCursor(90, 210);
-  this->display->print("Up data");
+  this->display->setCursor(70, 165);
+  this->display->print("Up Data");
+
+  this->display->drawRoundRect(30, 185, 272, 50, 10, WHITE);
+  this->display->drawCircle(50, 210, 16, WHITE);
+  this->display->fillCircle(50, 210, 12, WHITE);
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(70, 220);
+  this->display->print("Bluetooth");
 
   this->display->setTextSize(2);
   this->display->setTextColor(WHITE);
   this->display->setCursor(45, 55);
-  this->display->print("Settings");
-  this->display->setCursor(45, 85);
-  this->display->print("RAPID Plus");
+  this->display->print("RAPID Settings");
 }
 
 void displayCLD::setting_Wifi(void)
@@ -1532,7 +1556,7 @@ void displayCLD::setting_Wifi(void)
   {
     this->display->fillScreen(BLACK);
     this->display->fillRect(108, 0, 108, 20, Forte_Green);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+    // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
     this->display->drawBitmap(18, 5, logoFBT, 35, 34, Forte_Green);
     this->display->setTextSize(1);
     this->display->setCursor(110, 15);
@@ -1564,7 +1588,7 @@ void displayCLD::setting_Wifi(void)
   {
     this->display->fillScreen(BLACK);
     this->display->fillRect(108, 0, 108, 20, Forte_Green);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+    // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
     this->display->drawBitmap(18, 5, logoFBT, 35, 34, Forte_Green);
 
     this->display->setTextWrap(false);

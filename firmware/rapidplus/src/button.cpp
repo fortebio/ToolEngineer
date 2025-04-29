@@ -71,23 +71,6 @@ void buttonProcess(e_statusbutton index)
       {
         return;
       }
-      /*if (_sensor.flagback == true) {
-        _displayCLD.couter++;
-        if (_displayCLD.couter == _displayCLD.instantStatus[0]) {
-          _sensor.flagback = false;
-          _displayCLD.type_infor = (e_statuslcd)_displayCLD.instantStatus[1];
-        } else {
-          _displayCLD.type_infor = escreenResult;
-        }
-        _displayCLD.changeScreen = true;
-      }
-
-      else if (_displayCLD.type_infor == ecalibSensor) {
-        dbg_button("nut RED - bat dau calib");
-        _sensor.flagCalibSensor = true;
-      }
-      //added function to start the lysis heating after red button is pressed
-      else */
       if (_displayCLD.type_infor == ewaitLysisTube)
       {
         _displayCLD.type_infor = eheatLysis;
@@ -137,7 +120,6 @@ void buttonProcess(e_statusbutton index)
         _PIDControl.setpid1startpreHeat80(); // check the current temperature is not over heat
         dbg_button("green button - start heating to 80");
       }
-
       else if (_displayCLD.type_infor == ewaitphase2)
       {
         _displayCLD.type_infor = epreheating67;
@@ -154,12 +136,12 @@ void buttonProcess(e_statusbutton index)
         dbg_button("green button - skip opto preheat");
       }
       /** test postData to GoogleSheets */
-      else if(_displayCLD.type_infor == eSettingMenu)
+      else if (_displayCLD.type_infor == eSettingMenu)
       {
         _displayCLD.type_infor = eSettingWifi;
         _displayCLD.changeScreen = true;
       }
-      
+
       break;
     }
 
@@ -173,6 +155,12 @@ void buttonProcess(e_statusbutton index)
       }
       if (_displayCLD.ErrorStatus())
       {
+        return;
+      }
+      if (_displayCLD.type_infor == eSettingMenu)
+      {
+        _displayCLD.type_infor = eSettingBluetooth;
+        _displayCLD.changeScreen= true;
         return;
       }
       if (_displayCLD.type_infor == escreenStart) // no need to restart as at the start screen already

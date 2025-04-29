@@ -13,7 +13,6 @@ extern int language = 0;
 
 const char *serverName = "https://script.google.com/macros/s/AKfycbw2VXXLX6fUMgmyRrSgNgEi3b4gSyE2bdctQe_DNOnlZ58EfPclQrXrlMenH0y7SH5X/exec";
 
-
 const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 25200; // Múi giờ GMT+7 (Việt Nam)
 const int daylightOffset_sec = 0;
@@ -21,7 +20,22 @@ const int daylightOffset_sec = 0;
 void connectBLE()
 {
   SerialBT.begin("RAPID PLUS -" + String(ESP.getEfuseMac())); // Bluetooth device name
-  // dbg_bluetooth("The device started with name BTDetector-%s, now you can pair it with bluetooth!\n", String(ESP.getEfuseMac()).c_str());
+  // bool status_BT = false;
+  // EEPROM.begin(_EEPROM_SIZE);
+  // EEPROM.get(ADDR_CHECK_BT, status_BT);
+  // if (status_BT == false)
+  // {
+  //   SerialBT.begin("RAPID PLUS -" + String(ESP.getEfuseMac())); // Bluetooth device name
+  //   status_BT = true;
+  //   EEPROM.put(ADDR_CHECK_BT, status_BT);
+  // }
+  // else
+  // {
+  //   SerialBT.end();
+  //   status_BT = false;
+  //   EEPROM.put(ADDR_CHECK_BT, status_BT);
+  // }
+  // EEPROM.end();
 }
 
 void BLEloop()
@@ -31,9 +45,7 @@ void BLEloop()
     SerialBT.printf("received data: %s\n", SerialBT.readString());
     dbg_bluetooth("receive data");
   }
-  // SerialBT.write('t');
   delay(300);
-  // }
 }
 
 void readEEPROM()
@@ -299,7 +311,7 @@ void postData_GoogleSheet(void)
     HTTPClient http;
     http.begin(serverName);
     http.addHeader("Content-Type", "application/json");
-    Serial.println("Truoc khi ket noi: " + String(ESP.getFreeHeap()));
+    // Serial.println("Truoc khi ket noi: " + String(ESP.getFreeHeap()));
 
     /* Calculate CT_value and result */
     bool flag = _sensor6035.bResultPutToGoogleSheet(CT_value, result);
@@ -359,7 +371,7 @@ void postData_GoogleSheet(void)
     Serial.println("Post data: " + jsonPost);
     // Kết nối HTTPS và gửi dữ liệu
     int httpResponseCode = http.POST(jsonPost);
-    Serial.println("Sau khi ket noi: " + String(ESP.getFreeHeap()));
+    // Serial.println("Sau khi ket noi: " + String(ESP.getFreeHeap()));
     _displayCLD.changeScreen = false;
     http.end();
     if (httpResponseCode > 0)
@@ -373,8 +385,6 @@ void postData_GoogleSheet(void)
     {
       Serial.println("Error on sending POST: " + String(httpResponseCode));
     }
-    delay(1000);
-    // ESP.restart();
   }
   else
   {

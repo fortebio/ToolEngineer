@@ -127,6 +127,7 @@
 #define ADDR_ID_DEVICE_BASE 170
 #define ADDR_CHECK_ID_DEVICE 210
 #define ADDR_CHECK_LANGUAGE 220
+#define ADDR_CHECK_BT 224
 
 struct parastructure
 {
@@ -394,6 +395,6 @@ struct parastructure
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "V2.2.2"; // PID calibration, pararead output json
+static String FirmwareVer = "V2.2.4"; // PID calibration, pararead output json
 
 #endif
