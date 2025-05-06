@@ -141,50 +141,45 @@ void PIDControl::loop()
     // info_displayln();
 
     _topThermometer.loop(); // low priority
-    // static bool skipError1st = false;
+    static bool skipError5s = false;
     if (_topThermometer.getNewTemperatureFlag())
     {
-        if ((_topThermometer.getTempSensorQuantity() != 3) && (!bheater1Simu))
+        if ((_topThermometer.getTempSensorQuantity() != HOTLIDQUANTITY) && (!bheater1Simu))
         {
             // if time out for 10 seconds, then stop all heating for safety concern
-            // if (topSensorRespTime < millis())
-            // {
-            //     // _bottomThermometer.begin();
-            //     _topThermometer.begin();
-            //     _displayCLD.ErrorProcess("No data from\n top sensor", "5sec");
-            //     info_displayln("No data from top sensor for 5~10sec");
-            //     // _ForteSetting.rerun();
-            //     _PIDControl.rerun();
-            // }
-            // return;
-            info_displayf("Only got %d/3 top sensor resp\n", _topThermometer.getTempSensorQuantity());
-            if (topSensorRespTime == 0)
+            if (topSensorRespTime < millis())
             {
-                info_displayln("Wrong data from top sensor for 5~10sec");
-                topSensorRespTime = millis() + 5 * 1000;
-                // _topThermometer.begin();
-                // _displayCLD.ErrorProcess("Wrong data from\n top sensor", "5sec");
-                // _PIDControl.rerun();
-            }
-            else if (topSensorRespTime < millis())
-            {
-                topSensorRespTime = millis() + 5 * 1000;
+                _displayCLD.ErrorProcess("No data from\n top sensor", "5sec");
+                info_displayf("Only got %d/3 top sensor resp\n", _topThermometer.getTempSensorQuantity());
+                info_displayln("No data from top sensor for 5~10sec");
                 _topThermometer.begin();
                 _PIDControl.rerun();
-                info_displayln("Wrong data from top sensor for 5~10sec");
-                _displayCLD.ErrorProcess("Wrong data from\n top sensor", "5sec");
-                info_displayln("Top heater is disconnected");
-                return;
             }
-            info_displayf("\nTop heater: %.4g:%.4g:%.4g\n", HotlidTemperature[0], HotlidTemperature[1], HotlidTemperature[2]);
+            return;
         }
         double *hotlidTemp = _topThermometer.getTemperature();
-        // static double hotlidTempOld[3] = hotlibTemp;
-        const double targetTemp[3] = {HOTLID23_TEMP + OVERHEAT_THRESHOLD_TOP2, HOTLID23_TEMP + OVERHEAT_THRESHOLD_TOP3, 80 + OVERHEAT_THRESHOLD_TOP2}; // last one is the ambient temperature
-        for (uint8_t i = 0; i < 3; i++)
+        const double targetTemp[HOTLIDQUANTITY] = {HOTLID23_TEMP + OVERHEAT_THRESHOLD_TOP2, HOTLID23_TEMP + OVERHEAT_THRESHOLD_TOP3, 80 + OVERHEAT_THRESHOLD_TOP2}; // last one is the ambient temperature
+        for (uint8_t i = 0; i < HOTLIDQUANTITY; i++)
         {
             if (HotlidTemperature[i] == -127.0 + _ForteSetting.parameter.temperatureOffset[i + 3])
             {
+                /* Hiển thị nhiệt độ cảm biến bị lỗi*/
+                info_displayf("\nTop heater: %.4g:%.4g:%.4g\n", HotlidTemperature[0], HotlidTemperature[1], HotlidTemperature[2]);
+                if (topSensorRespTime < millis() && skipError5s == false)
+                {
+                    skipError5s = true;
+                }
+                else if (topSensorRespTime < millis() && skipError5s == true)
+                {
+                    _topThermometer.begin();
+                    _displayCLD.ErrorProcess("Wrong data from\n top sensor", "5sec");
+                    _PIDControl.rerun();
+                    // info_displayf("\nTop heater: %.4g:%.4g:%.4g\n", HotlidTemperature[0], HotlidTemperature[1], HotlidTemperature[2]);
+                    info_displayln("Top heater is disconnected");
+                    return;
+                }
+                info_displayln("Wrong data from top sensor for 5~10sec");
+
                 // // topSensorRespTime = millis();
                 // if (topSensorRespTime < millis())
                 // {
@@ -197,27 +192,30 @@ void PIDControl::loop()
                 // info_displayln("Top heater is disconnected");
                 // return;
 
-                if (topSensorRespTime == 0)
-                {
-                    info_displayln("Wrong data from top sensor for 5~10sec");
-                    topSensorRespTime = millis() + 5 * 1000;
-                    // _topThermometer.begin();
-                    // _displayCLD.ErrorProcess("Wrong data from\n top sensor", "5sec");
-                    // _PIDControl.rerun();
-                }
-                else if (topSensorRespTime < millis())
-                {
-                    topSensorRespTime = millis() + 5 * 1000;
-                    _topThermometer.begin();
-                    _PIDControl.rerun();
-                    info_displayln("Wrong data from top sensor for 5~10sec");
-                    _displayCLD.ErrorProcess("Wrong data from\n top sensor", "5sec");
-                    info_displayln("Top heater is disconnected");
-                    return;
-                }
-                info_displayf("\nTop heater: %.4g:%.4g:%.4g\n", HotlidTemperature[0], HotlidTemperature[1], HotlidTemperature[2]);
+                // if (topSensorRespTime == 0)
+                // {
+                //     info_displayln("Wrong data from top sensor for 5~10sec");
+                //     topSensorRespTime = millis() + 5 * 1000;
+                //     // _topThermometer.begin();
+                //     // _displayCLD.ErrorProcess("Wrong data from\n top sensor", "5sec");
+                //     // _PIDControl.rerun();
+                // }
+                // else if (topSensorRespTime < millis())
+                // {
+                //     topSensorRespTime = millis() + 5 * 1000;
+                //     _topThermometer.begin();
+                //     _PIDControl.rerun();
+                //     info_displayln("Wrong data from top sensor for 5~10sec");
+                //     _displayCLD.ErrorProcess("Wrong data from\n top sensor", "5sec");
+                //     info_displayln("Top heater is disconnected");
+                //     return;
+                // }
             }
-            HotlidTemperature[i] = hotlidTemp[(int)_ForteSetting.parameter.topTemperatureSensorSq[i]] + _ForteSetting.parameter.temperatureOffset[3 + i];
+            else /* Nếu không có lỗi đọc giá trị trả về thì nhiệt độ được cập nhật mới */
+            {
+                HotlidTemperature[i] = hotlidTemp[(int)_ForteSetting.parameter.topTemperatureSensorSq[i]] + _ForteSetting.parameter.temperatureOffset[3 + i];
+            }
+
             if (targetTemp[i] < HotlidTemperature[i])
             {
                 stopAllHeating();
@@ -236,7 +234,7 @@ void PIDControl::loop()
                 return;
             }
         }
-        // topSensorRespTime = millis() + 5 * 1000;
+        topSensorRespTime = millis() + 5 * 1000;
         if (btemperatureOut)
         {
             info_displayf("\nTimeRT\t%.2f\tTopHeater\tReading\t%.4g\t%.4g\t%.4g\n", millis() / 1000.0, HotlidTemperature[0], HotlidTemperature[1], HotlidTemperature[2]);
@@ -244,16 +242,16 @@ void PIDControl::loop()
     }
     else
     {
-        // // if time out for 10 seconds, then stop all heating for safety concern
-        // if (topSensorRespTime < millis())
-        // {
-        //     _topThermometer.begin();
-        //     _displayCLD.ErrorProcess("No data from\n top sensor", "5sec");
-        info_displayln("No data from top sensor for 5~10sec");
-        //     // _ForteSetting.rerun();
-        //     _PIDControl.rerun();
-        //     return;
-        // }
+        // if time out for 10 seconds, then stop all heating for safety concern
+        if (topSensorRespTime < millis())
+        {
+            _topThermometer.begin();
+            _displayCLD.ErrorProcess("No data from\n top sensor", "5sec");
+            info_displayln("No data from top sensor for 5~10sec");
+            // _ForteSetting.rerun();
+            _PIDControl.rerun();
+            return;
+        }
     }
 
     // start to process after receive new tempeature

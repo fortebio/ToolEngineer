@@ -371,8 +371,6 @@ void postData_GoogleSheet(void)
     Serial.println("Post data: " + jsonPost);
     // Kết nối HTTPS và gửi dữ liệu
     int httpResponseCode = http.POST(jsonPost);
-    // Serial.println("Sau khi ket noi: " + String(ESP.getFreeHeap()));
-    _displayCLD.changeScreen = false;
     http.end();
     if (httpResponseCode > 0)
     {

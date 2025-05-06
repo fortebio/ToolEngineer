@@ -76,19 +76,44 @@ void show_IconWifi(void)
   }
 }
 
-void show_IconBluetooth(bool status_BT)
+void show_IconBluetooth(void)
 {
   // EEPROM.begin(_EEPROM_SIZE);
   // EEPROM.get(ADDR_CHECK_BT, status_BT);
   // EEPROM.end();
-  if (status_BT == true)
+  static bool turnOn_BT = false; // turn off BT when Process is runing and save BT state to turn off once
+  if (_displayCLD.type_infor == escreenResult || _displayCLD.type_infor == escreenStart)
   {
+    // EEPROM.begin(_EEPROM_SIZE);
+    // EEPROM.get(ADDR_CHECK_BT, turnOn_BT);
+    turnOn_BT = true;
     _displayCLD.display->drawBitmap(266, 8, image_BT_Connect, 14, 16, WHITE);
   }
   else
   {
+    if (turnOn_BT == true)
+    {
+      // Serial.println("Truoc khi BT ngat ket noi: " + String(ESP.getFreeHeap()));
+      turnOn_BT = false;
+      SerialBT.end();
+      // Serial.println("Sau khi BT ngat ket noi: " + String(ESP.getFreeHeap()));
+    }
     _displayCLD.display->drawBitmap(266, 8, image_BT_Disconnect, 14, 16, WHITE);
   }
+}
+void displayWaitingUpData(void)
+{
+  _displayCLD.display->fillScreen(BLACK);
+  _displayCLD.display->setTextSize(2);
+  _displayCLD.display->setTextColor(WHITE);
+  _displayCLD.display->setCursor(50, 100);
+  _displayCLD.display->print("Data Uploading...!");
+  _displayCLD.display->setTextSize(1);
+  _displayCLD.display->setCursor(50, 130);
+  _displayCLD.display->print("Please wait...");
+  show_IconWifi();
+  show_IconBluetooth();
+  delay(100);
 }
 
 void displayCLD::screen_Start()
@@ -1313,12 +1338,11 @@ void settingSucces(String title)
   _displayCLD.display->setTextColor(GREEN);
   _displayCLD.display->print(title);
   delay(1000);
-  ESP.restart();
+  // ESP.restart();
 }
 
 void displayCLD::loop()
 {
-  static bool turnOn_BT = false;
   if (this->changeScreen)
   {
     switch (this->type_infor)
@@ -1331,7 +1355,6 @@ void displayCLD::loop()
       dbg_display("escreenStart");
       this->screen_Start();
       // _sensor6035.clear();
-      turnOn_BT = true;
       this->changeScreen = false;
       break;
     }
@@ -1440,39 +1463,27 @@ void displayCLD::loop()
     }
     case eSettingLanguage:
     {
+      displayWaitingUpData();
       postData_GoogleSheet();
       settingSucces("Up Data Success!");
+      this->type_infor = escreenStart;
+      this->changeScreen = true;
       break;
     }
     case eSettingBluetooth:
     {
       connectBLE();
       settingSucces("Settings Bluetoot Success!");
+      ESP.restart();
       break;
     }
     default:
       break;
     }
 
-    if (this->type_infor == escreenResult || this->type_infor == escreenStart)
-    {
-      // EEPROM.begin(_EEPROM_SIZE);
-      // EEPROM.get(ADDR_CHECK_BT, turnOn_BT);
-      turnOn_BT = true;
-    }
-    else
-    {
-      if (turnOn_BT == true)
-      {
-        Serial.println("Truoc khi BT ngat ket noi: " + String(ESP.getFreeHeap()));
-        SerialBT.end();
-        Serial.println("Sau khi BT ngat ket noi: " + String(ESP.getFreeHeap()));
-        turnOn_BT = false;
-      }
-    }
     // EEPROM.end();
     show_IconWifi();
-    show_IconBluetooth(turnOn_BT);
+    show_IconBluetooth();
     // this->changeScreen = false;
   }
 }
@@ -1499,20 +1510,6 @@ void displayCLD::setting_Menu(void)
 
   this->display->setTextWrap(false);
   this->display->setTextSize(2);
-
-  // this->display->drawRoundRect(30, 94, 272, 60, 10, GREEN);
-  // this->display->drawCircle(55, 124, 20, GREEN);
-  // this->display->fillCircle(55, 124, 16, GREEN);
-  // this->display->setTextColor(GREEN);
-  // this->display->setCursor(90, 135);
-  // this->display->print("WiFi/Update");
-
-  // this->display->drawRoundRect(30, 170, 272, 60, 10, RED);
-  // this->display->drawCircle(55, 200, 20, RED);
-  // this->display->fillCircle(55, 200, 16, RED);
-  // this->display->setTextColor(RED);
-  // this->display->setCursor(90, 210);
-  // this->display->print("Up data");
 
   this->display->drawRoundRect(30, 78, 272, 50, 10, GREEN);
   this->display->drawCircle(50, 100, 16, GREEN);

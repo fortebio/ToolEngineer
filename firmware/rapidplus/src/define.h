@@ -358,7 +358,7 @@ struct parastructure
 
 // target temperature of top heater
 // #define HOTLID1_TEMP 60.0
-#define HOTLID23_TEMP 80.0
+#define HOTLID23_TEMP 70.0
 
 // GPIO used for bottom heater
 #define HEATER1IO 33 // heater1
@@ -377,7 +377,7 @@ struct parastructure
 
 // Quantity definition of temperature sensor
 #define HEATBLKQUANTITY 3 // 3 bottom temperature sensors
-#define HOTLIDQUANTITY 3  // 3 top temperature sensors plus 1 ambient temperature sensor located at
+#define HOTLIDQUANTITY 3  // 2 top temperature sensors plus 1 ambient temperature sensor located at
                           // PCB
 
 // Button definition
