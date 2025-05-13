@@ -320,6 +320,7 @@ struct parastructure
 #define PWM_FULL 255
 #define PWM_HALF 127
 #define PWM_Heater23 150
+#define PWM_HOTLIDFULL 110
 
 // GPIO used for LED driver
 #define LED_PWM_PORT 4 // control the pwm output for LED driver
@@ -395,6 +396,6 @@ struct parastructure
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "V2.2.4"; // PID calibration, pararead output json
+static String FirmwareVer = "V2.2.5"; // PID calibration, pararead output json
 
 #endif

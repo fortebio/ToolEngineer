@@ -86,6 +86,8 @@ public:
     void begin();
     void loop();
     void rerun();
+    void rerunPIDBottom(); // rerun the PID for bottom heater
+    void rerunPIDTop();    // rerun the PID for top heater
 
     void sensorSeq();
 
@@ -130,6 +132,8 @@ public:
     void StopHeating();
 
     void stopAllHeating();
+    void stopHeaterBottom(void);
+    void stopHeaterTop(void);
 };
 
 extern PIDControl _PIDControl;
