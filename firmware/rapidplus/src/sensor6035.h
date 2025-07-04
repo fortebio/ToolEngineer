@@ -29,7 +29,9 @@ typedef enum
     eSensorpreheat,   // preheat for 15 mins during heater preheating to amp temperature
     eSensormaintain,  // maintain after preheating
     eSensorstart,     // start to initialize the opto
-    eSensor1stReading // start to read the 1st stage opto data
+    eSensor1stReading, // start to read the 1st stage opto data
+
+    eSensorcalib    // calib
 } e_sensorStep;
 
 // struct sensorvalue
@@ -82,6 +84,7 @@ public:
 
     sensor6035(/* args */);
     ~sensor6035();
+    //e_sensorStep sensorStep = eSensorwait;
     void begin();
     void loop();
 
@@ -100,6 +103,16 @@ public:
     void disconnectFromSensor(int slot);
 
     void testShot(int slot);
+
+    /* Function calib *///////////////////////////////////////
+    float calib_sensor(int slot);
+    void calibration(int slot);
+    float result_calib[4] = {0, 0, 0, 0};
+    int type_calib = 0;
+    float cal_calib[3] = {0.0};
+    void calculate_calib(float y[]);
+    void setStepeSensorwait();
+    void setStepeSensorcalib();
 
     void OptoCommandProcess(char command);
 

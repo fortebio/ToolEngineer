@@ -62,6 +62,10 @@ void sensor6035::loop()
     case eSensor1stReading:
         eSensor1stReadingFunc();
         break;
+    
+    case eSensorcalib:
+        calibration(_displayCLD.slot);
+        break;
 
     default:
         break;
@@ -2405,6 +2409,111 @@ void sensor6035::OptoCommandProcess(char command)
 bool sensor6035::bSensorReadingGet()
 {
     return bSensorReadingFlag;
+}
+
+//////////////////Calibration
+float sensor6035::calib_sensor(int slot)
+{
+    _LED.LED_OFF_ALL();
+    _LED.LED_on(slot);
+
+    Word sensorResp;
+    bool flagres;
+    Word meanResponse = 0xFFFF;
+    openSensorChannel(slot);
+ 
+    acquisitionControl.clear();
+  
+    while (!acquisitionControl.isFinished())
+    {
+        sensorResp = 0xFFFF;
+        flagres = VEML6035_GET_ALS_DATA_I2C_Res(&sensorResp);
+       
+        if (!flagres)
+        {
+            acquisitionControl.store(sensorResp);
+        }
+        else
+        {
+            acquisitionControl.addErrorCount();
+        }
+        if (acquisitionControl.isMaxErrorReached())
+        {
+            _displayCLD.ErrorProcessatBegin("Opto sensor error\n Please power off/on", String(iChannel + 1));
+            return -1;
+        }
+        delay(100);
+    }
+
+    meanResponse = acquisitionControl.getSum();
+    
+    closeSensorChannel(slot);
+	_LED.LED_off(slot);
+
+    return (float) meanResponse;
+}
+
+void sensor6035::calibration(int slot)
+{
+    if (type_calib < 3)
+    {
+        _displayCLD.display_Waiting_Calib();
+        result_calib[type_calib] = calib_sensor(slot);
+        type_calib += 1;
+        _displayCLD.type_infor = eCalibrating;
+        _displayCLD.changeScreen = true;
+    }
+    else
+    {
+        _displayCLD.display_Waiting_Calib();
+        result_calib[type_calib] = calib_sensor(slot);
+        calculate_calib(result_calib);
+        type_calib = 0;
+        _displayCLD.type_infor = eCalibComplete;
+        _displayCLD.changeScreen = true;
+    }
+    setStepeSensorwait(); 
+}
+
+void sensor6035::calculate_calib(float y[])
+{
+    float x[4] = {300.0, 200.0, 100.0, 0.0};
+	int n = 4;
+    float sum_x = 0, sum_y = 0, sum_xy = 0, sum_x2 = 0, sum_y2 = 0, mean_x = 0, mean_y = 0;
+
+    for (int i = 0; i < n; i++)
+    {
+        sum_x += x[i];
+        sum_y += y[i];
+        sum_xy += x[i] * y[i];
+        sum_x2 += x[i] * x[i];
+		sum_y2 += y[i] * y[i];
+    }
+
+	// Tính toán giá trị trung bình
+    mean_x = sum_x / n;
+    mean_y = sum_y / n;
+
+	// Tính slope
+    float slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x);
+    cal_calib[0] = slope;
+	
+    // Tính RSQ
+    float RSQ = ((n * sum_xy - sum_x * sum_y) * (n * sum_xy - sum_x * sum_y)) / ((n * sum_x2 - sum_x * sum_x) * (n * sum_y2 - sum_y * sum_y));
+    cal_calib[1] = RSQ;
+	
+	// Tính origins
+	float origin = mean_y - slope * mean_x;
+    cal_calib[2] = origin;
+}
+
+void sensor6035::setStepeSensorcalib()
+{
+    sensorStep =  eSensorcalib; 
+}
+void sensor6035::setStepeSensorwait()
+{
+    sensorStep =  eSensorwait; 
 }
 
 int I2C_Bus = 3;

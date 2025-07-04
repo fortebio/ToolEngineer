@@ -3,6 +3,7 @@
 
 #include "define.h"
 #include "ForteSetting.h"
+#include "sensor6035.h"
 
 // typedef void (*hanler)();
 typedef void (*buttonCallback)();

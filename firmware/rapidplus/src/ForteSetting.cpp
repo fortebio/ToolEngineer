@@ -562,7 +562,7 @@ bool ForteSetting::resultOutput()
 }
 
 /// @brief Restart the system
-/// "Res" will restart the device
+/// "Res" will restart the devicex
 /// @return System restart
 bool ForteSetting::restart()
 {

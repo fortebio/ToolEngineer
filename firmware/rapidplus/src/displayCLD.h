@@ -1,6 +1,8 @@
 #ifndef _DISPLAY_LCD_H
 #define _DISPLAY_LCD_H
 #include "Arduino.h"
+#include "define.h"
+//#include "ForteSetting.h"
 // #include "U8g2lib.h"
 #include "Arduino_GFX_Library.h"
 // #include "bluetooth.h"
@@ -44,6 +46,15 @@ typedef enum
     eSettingLanguage,
     eSettingBluetooth,
     eSettingWifi,
+
+    eSelectMode,
+    eSelectSlot,    //display select slot calib
+    eCalibrating,   //display calib
+    eWaitingCalib,
+    eCalibComplete,
+    eSetPowerLed,
+    eSavePowerLed,
+    eSaveCalib   //display set power led
 } e_statuslcd;
 
 class displayCLD
@@ -116,6 +127,23 @@ public:
         void set_language();
         void setting();
     */
+
+    /* Calibration */
+    void display_Select_mode(void);
+    void display_Select_slot(void);
+    void display_Calib(void);
+    void display_Waiting_Calib(void);
+    void display_Calib_Complete(void);
+    void display_Set_powerled(void);
+
+    void calculate(void);
+    void saving_calib(void);
+
+    int slot = 0;
+    bool flag_calib_done = false;
+    uint8_t index = 0;
+    uint8_t led_power[3] = {0};
+
     void set_connect_bluetooth();
     //  e_statuslcd type_infor = escreenStart;
     e_statuslcd type_infor = escreenStart; // e_language;    //start directly
@@ -129,4 +157,5 @@ public:
     volatile int step = 1;
 };
 extern displayCLD _displayCLD;
+
 #endif

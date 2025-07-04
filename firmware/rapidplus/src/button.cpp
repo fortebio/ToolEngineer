@@ -7,9 +7,12 @@ typedef void (*hanler)();
 void buttonRedHandler();
 void buttonBlueHandler();
 void buttonWhiteHandler();
+
 static void tickerHandler(uint8_t index);
 static void tickerHandler1(uint8_t index);
-// static void tickerHandler2(uint8_t index);
+
+/* Function calib */
+static void tickerHandler2(uint8_t index);
 
 static uint8_t buttons[NumberButton];
 static hanler Hanler[NumberButton];
@@ -53,6 +56,10 @@ void buttonProcess(e_statusbutton index)
     if (index == B_RED)
     {
       buttonTicker[index].attach_ms(3000, &tickerHandler1, (uint8_t)index);
+    }
+    if (index == B_BLUE)
+    {
+      buttonTicker[index].attach_ms(3000, &tickerHandler2, (uint8_t)index);
     }
     buttonPressed[index] = true;
   }
@@ -103,6 +110,71 @@ void buttonProcess(e_statusbutton index)
         _displayCLD.type_infor = eSettingLanguage;
         _displayCLD.changeScreen = true;
       }
+
+      else if (_displayCLD.type_infor == eSelectSlot)
+      {
+        _displayCLD.slot++;
+        if (_displayCLD.slot == 10)
+        {
+          _displayCLD.slot = 0;
+        }
+        _displayCLD.type_infor = eSelectSlot;
+        _displayCLD.changeScreen = true;
+      }
+      else if (_displayCLD.type_infor == eSelectMode)
+      {
+        _displayCLD.type_infor = eCalibrating;
+        _displayCLD.changeScreen = true;
+      }
+      else if (_displayCLD.type_infor == eCalibrating)
+      {
+        _sensor6035.setStepeSensorcalib();
+      }
+      else if (_displayCLD.type_infor == eCalibComplete && !(_displayCLD.flag_calib_done))
+      {
+        _displayCLD.type_infor = eSetPowerLed;
+        _displayCLD.changeScreen = true;
+        _displayCLD.flag_calib_done = false;
+      }
+      
+      else if (_displayCLD.type_infor == eSetPowerLed)
+      {
+        switch (_displayCLD.index)
+        {
+          case 0:
+          {
+            _displayCLD.led_power[0]++;
+            if (_displayCLD.led_power[0] > 9)
+            {
+              _displayCLD.led_power[0] = 0;
+            }
+            break;
+          }
+          case 1:
+          {
+            _displayCLD.led_power[1]++;
+            if (_displayCLD.led_power[1] > 9)
+            {
+              _displayCLD.led_power[1] = 0;
+            }
+            break;
+          }
+          case 2:
+          {
+            _displayCLD.led_power[2]++;
+            if (_displayCLD.led_power[2] > 9)
+            {
+              _displayCLD.led_power[2] = 0;
+            }
+            break;
+          }
+          
+          default:
+            break;
+        }
+        _displayCLD.type_infor = eSetPowerLed;
+        _displayCLD.changeScreen = true;
+      }
       break;
     }
 
@@ -142,6 +214,55 @@ void buttonProcess(e_statusbutton index)
         _displayCLD.changeScreen = true;
       }
 
+      else if (_displayCLD.type_infor == eSelectSlot)
+      {
+        _displayCLD.type_infor = eSelectMode;
+        _displayCLD.changeScreen = true;
+      }
+      else if (_displayCLD.type_infor == eSelectMode)
+      {
+        _displayCLD.type_infor = eSetPowerLed;
+        _displayCLD.changeScreen = true;
+      }
+      else if (_displayCLD.type_infor == eCalibrating)
+      {
+        _displayCLD.type_infor = eSelectMode;
+        _displayCLD.changeScreen = true;
+      }
+      else if (_displayCLD.type_infor == eSetPowerLed)
+      {
+        _displayCLD.index++;
+        if (_displayCLD.index > 2)
+        {
+          _displayCLD.index = 0;
+        }
+        _displayCLD.type_infor = eSetPowerLed;
+        _displayCLD.changeScreen = true;
+      }
+      else if (_displayCLD.type_infor == eCalibComplete)
+      {
+        if (_displayCLD.flag_calib_done)
+        {
+          _displayCLD.type_infor = eSaveCalib;
+          _displayCLD.changeScreen = true;
+        }
+        else
+        {  
+          _displayCLD.type_infor = eCalibrating;
+          _displayCLD.changeScreen = true;
+        }
+        _displayCLD.flag_calib_done = false;
+      }
+      else if (_displayCLD.type_infor == eSavePowerLed)
+      {
+        _displayCLD.type_infor = eSelectSlot;
+        _displayCLD.changeScreen= true;
+      }
+      else if (_displayCLD.type_infor == eSaveCalib)
+      {
+        _displayCLD.type_infor = eSelectSlot;
+        _displayCLD.changeScreen= true;
+      }
       break;
     }
 
@@ -162,6 +283,22 @@ void buttonProcess(e_statusbutton index)
         _displayCLD.type_infor = eSettingBluetooth;
         _displayCLD.changeScreen= true;
         return;
+      }
+      if (_displayCLD.type_infor == eSetPowerLed)
+      {
+        _displayCLD.type_infor = eSavePowerLed;
+        _displayCLD.changeScreen= true;
+        return;
+      }
+      if (_displayCLD.type_infor == eSelectMode)
+      {
+        _displayCLD.type_infor = eSelectSlot;
+        _displayCLD.changeScreen= true;
+        return;
+      }
+      if (_displayCLD.type_infor == eSelectSlot)
+      {
+        ESP.restart();
       }
       if (_displayCLD.type_infor == escreenStart) // no need to restart as at the start screen already
       {
@@ -220,6 +357,21 @@ static void tickerHandler1(uint8_t index)
     dbg_button("nut Red - setting");
   }
 }
+
+/* Function Calib */
+static void tickerHandler2(uint8_t index)
+{
+  buttonTicker[index].detach();
+  if (!digitalRead(buttons[index]))
+  {
+    buttonPressed[index] = false;
+    _sensor6035.setStepeSensorwait();
+    _displayCLD.type_infor = eSelectSlot;
+    _displayCLD.changeScreen = true;
+    info_display("nut Green - calibrating");
+  }
+}
+
 
 void IRAM_ATTR buttonRedHandler()
 {

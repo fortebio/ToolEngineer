@@ -10,6 +10,7 @@
 #include "Bluetooth.h"
 #include "PIDControl.h"
 #include <string>
+//#include "sensor6035.h"
 
 #define Forte_Green 0x25F8
 #define VIOLET 0xA81F
@@ -1477,6 +1478,54 @@ void displayCLD::loop()
       ESP.restart();
       break;
     }
+    case eSelectMode:
+    {
+      this->display_Select_mode();
+      this->changeScreen = false;
+      break;
+    }
+    case eSelectSlot:
+    {
+      this->display_Select_slot();
+      this->changeScreen = false;
+      break;
+    }
+    case eCalibrating:
+    {
+      this->display_Calib();
+      this->changeScreen = false;
+      break;
+    }
+    case eWaitingCalib:
+    {
+      this->display_Waiting_Calib();
+      this->changeScreen = false;
+      break;
+    }
+    case eCalibComplete:
+    {
+      this->display_Calib_Complete();
+      this->changeScreen = false;
+      break;
+    }
+    case eSetPowerLed:
+    {
+      this->display_Set_powerled();
+      this->changeScreen = false;
+      break;
+    }
+    case eSavePowerLed:
+    {
+      this->calculate();
+      this->changeScreen = false;
+      break;
+    }
+    case eSaveCalib:
+    {
+      this->saving_calib();
+      this->changeScreen = false;
+      break;
+    }
     default:
       break;
     }
@@ -1617,5 +1666,279 @@ void displayCLD::setting_Wifi(void)
 void displayCLD::setting_Language(void)
 {
 }
+
+/* Function Calib */
+
+void displayCLD::display_Select_mode(void)
+{
+  this->display->fillScreen(BLACK);
+  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+  this->display->drawRoundRect(15, 40, 302, 170, 0, Forte_Green);
+
+  this->display->setTextColor(WHITE);
+  this->display->setTextSize(2);
+  this->display->setCursor(60, 30);
+  this->display->println("Select Mode");
+
+  this->display->setTextSize(2);
+  this->display->setTextColor(RED);
+  this->display->setCursor(40, 100);
+  this->display->print("Calibration");
+  this->display->setTextColor(GREEN);
+  this->display->setCursor(40, 140);
+  this->display->print("Setting LED power");
+
+  this->display->setTextSize(1);
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(275, 230);
+  this->display->println("Back");
+}
+
+void displayCLD::display_Select_slot(void)
+{
+  this->display->fillScreen(BLACK);
+  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+  this->display->drawRoundRect(15, 40, 302, 170, 0, Forte_Green);
+
+  this->display->setTextSize(2);
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(65, 30);
+  this->display->print("Calibration");
+
+  this->display->setCursor(60, 100);
+  this->display->print("Select slot:");
+  this->display->print(this->slot + 1);
+  this->display->setTextSize(1);
+  this->display->setTextColor(YELLOW);
+  this->display->setCursor(60, 140);
+  this->display->print("Slope:");
+  this->display->println(_ForteSetting.parameter.slopes[slot]);
+  this->display->setCursor(60, 160);
+  this->display->print("Origin:");
+  this->display->println(_ForteSetting.parameter.origins[slot]);
+  this->display->setCursor(60, 180);
+  this->display->print("LED power:");
+  this->display->println(_ForteSetting.parameter.led_power[slot]);
+  
+  this->display->setTextColor(RED);
+  this->display->setCursor(20, 230);
+  this->display->print("Up");
+  this->display->setTextColor(GREEN);
+  this->display->setCursor(140, 230);
+  this->display->print("Next");
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(275, 230);
+  this->display->print("Exit");
+}
+
+void displayCLD::display_Calib(void)
+{
+  this->display->fillScreen(BLACK);
+  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+
+  this->display->setTextSize(2);
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(30, 100);
+  this->display->print("Put the tube ");
+
+  switch (_sensor6035.type_calib)
+  {
+  case 0:
+    this->display->print("300");
+    break;
+  case 1:
+    this->display->print("200");
+    break;
+  case 2:
+    this->display->print("100");
+    break;
+  case 3:
+    this->display->print("0");
+    break;
+  default:
+    break;
+  }
+
+  this->display->setCursor(80, 130);
+  this->display->print("into slot ");
+  this->display->print(this->slot + 1);
+
+  this->display->setTextSize(1);
+  this->display->setTextColor(RED);
+  this->display->setCursor(20, 230);
+  this->display->print("Calib");
+  this->display->setTextColor(GREEN);
+  this->display->setCursor(275, 230);
+  this->display->print("Back");
+}
+
+void displayCLD::display_Waiting_Calib(void)
+{
+  this->display->fillScreen(BLACK);
+  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+
+  this->display->setTextSize(2);
+  this->display->setTextColor(RED);
+  this->display->setCursor(20, 90);
+  this->display->print("Calibrating");
+  this->display->setTextSize(2);
+  this->display->setTextColor(Forte_Green);
+  this->display->setCursor(40, 150);
+  this->display->println("Waitting...");
+}
+
+void displayCLD::display_Calib_Complete(void)
+{
+  this->display->fillScreen(BLACK);
+  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+
+  if ((_sensor6035.cal_calib[0] < 0.5) | (_sensor6035.cal_calib[0] > 3.5) | (_sensor6035.cal_calib[1] < 0.95)) 
+  {
+    this->display->setTextSize(2);
+    this->display->setTextColor(RED);
+    this->display->setCursor(25, 60);
+    this->display->print("Failed Calib!");
+    this->display->setTextSize(1);
+    this->display->setCursor(220, 230);
+    this->display->print("Setting LED");
+    this->display->setTextColor(GREEN);
+    this->display->setCursor(20, 230);
+    this->display->print("Calib again");
+  }
+  else
+  {
+    flag_calib_done = true;
+    this->display->setTextSize(2);
+    this->display->setTextColor(GREEN);
+    this->display->setCursor(25, 60);
+    this->display->print("Done Calib!");
+    this->display->setTextSize(1);
+    this->display->setCursor(20, 230);
+    this->display->print("Save");
+  }
+
+  this->display->setTextSize(2);
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(50, 120);
+  this->display->print("Slope:  ");
+  if (_sensor6035.cal_calib[0] < 0.5 | _sensor6035.cal_calib[0] > 3.5) 
+  {
+    this->display->setTextColor(RED);
+  }
+  this->display->println(_sensor6035.cal_calib[0], 3); //slope
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(50, 150);
+  this->display->print("RSQ:    ");
+  if (_sensor6035.cal_calib[1] < 0.95) 
+  {
+    this->display->setTextColor(RED);
+  }
+  this->display->println(_sensor6035.cal_calib[1], 3); //RSQ
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(50, 180);
+  this->display->print("Origin: ");
+  this->display->println(_sensor6035.cal_calib[2], 1); //origin  
+}
+
+void displayCLD::display_Set_powerled(void)
+{
+  this->display->fillScreen(BLACK);
+  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+  this->display->drawRoundRect(15, 40, 302, 170, 0, Forte_Green);
+
+  this->display->setTextSize(2);
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(65, 30);
+  this->display->println("Setting LED");
+
+  this->display->setTextSize(5);
+  this->display->setCursor(105, 140);
+  this->display->println(this->led_power[0]);
+  this->display->setCursor(145, 140);
+  this->display->println(this->led_power[1]);
+  this->display->setCursor(185, 140);
+  this->display->println(this->led_power[2]);
+
+  switch (this->index)
+  {
+    case 0:
+    {
+      this->display->fillTriangle(110, 65, 140, 65, 125, 85, WHITE);
+      break;
+    }
+    case 1:
+    {
+      this->display->fillTriangle(150, 65, 180, 65, 165, 85, WHITE);
+      break;
+    }
+    case 2:
+    {
+      this->display->fillTriangle(190, 65, 220, 65, 205, 85, WHITE);
+      break;
+    }
+    default:
+      break;
+  }
+
+  this->display->setTextSize(1);
+  this->display->setCursor(20, 230);
+  this->display->setTextColor(RED);
+  this->display->println("Up");
+  this->display->setCursor(140, 230);
+  this->display->setTextColor(GREEN);
+  this->display->println("Next");
+  this->display->setCursor(275, 230);
+  this->display->setTextColor(WHITE);
+  this->display->println("Save");
+}
+void displayCLD::calculate(void)
+{
+  this->display->fillScreen(BLACK);
+  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+
+  this->display->setTextSize(2);
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(40, 90);
+  this->display->print("Saved LED power!");
+ 
+  int tmp = 0;
+  for (int i = 0; i < 3; i++)
+  {
+    tmp = tmp * 10 + this->led_power[i];
+  }
+  _ForteSetting.parameter.led_power[this->slot] = tmp;
+  EEPROM.begin(_EEPROM_SIZE);
+  EEPROM.put(PARAMETERPOS, _ForteSetting.parameter);
+  EEPROM.commit();
+  EEPROM.end();
+
+  this->display->setTextSize(1);
+  this->display->setTextColor(GREEN);
+  this->display->setCursor(20, 230);
+  this->display->print("Next");
+}
+
+void displayCLD::saving_calib(void)
+{
+  this->display->fillScreen(BLACK);
+  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+
+  this->display->setTextSize(2);
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(40, 90);
+  this->display->print("Saved calibration!");
+
+  _ForteSetting.parameter.slopes[this->slot] = _sensor6035.cal_calib[0];
+  EEPROM.begin(_EEPROM_SIZE);
+  EEPROM.put(PARAMETERPOS, _ForteSetting.parameter);
+  EEPROM.commit();
+  EEPROM.end();
+
+  this->display->setTextSize(1);
+  this->display->setTextColor(GREEN);
+  this->display->setCursor(20, 230);
+  this->display->print("Next");
+}
+
 
 displayCLD _displayCLD;
