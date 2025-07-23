@@ -329,7 +329,7 @@ static void tickerHandler(uint8_t index)
     buttonPressed[index] = false;
 
     EEPROM.begin(_EEPROM_SIZE);
-    Word tmp[10 * 100] = {0};
+    Word tmp[10 * 130] = {0};
     EEPROM.get(RECORDPOS, tmp);
 
     memcpy(_sensor6035.sensor67Value, tmp, sizeof(tmp));

@@ -62,7 +62,7 @@ void sensor6035::loop()
     case eSensor1stReading:
         eSensor1stReadingFunc();
         break;
-    
+
     case eSensorcalib:
         calibration(_displayCLD.slot);
         break;
@@ -117,8 +117,8 @@ void sensor6035::setStepeSensorstart()
     // info_displayln("eSensorstart");
 }
 
-//double *processed_data[OPTOCHANNELS] = {NULL};
-bool sensor6035::bResultGet(int *CT_value, char *result)
+// double *processed_data[OPTOCHANNELS] = {NULL};
+bool sensor6035::bResultGet(float *CT_value, char *result)
 {
     // Define a vector of integers
     // std::vector<double> y_diff;
@@ -182,12 +182,12 @@ bool sensor6035::bResultGet(int *CT_value, char *result)
                            recordIn.parameters.sg_window,
                            recordIn.parameters.sg_order);
 
-        //info_displayln("Processed data Test:");
-        //for (size_t i = 0; i < loops; i++)
+        // info_displayln("Processed data Test:");
+        // for (size_t i = 0; i < loops; i++)
         //{
-            // info_displayf("%.4g,", recordOut.processed_data[i]);
+        //  info_displayf("%.4g,", recordOut.processed_data[i]);
         //}
-        //info_displayln();
+        // info_displayln();
 
         // differentiate
         differentiate(recordOut.time_data,
@@ -219,33 +219,33 @@ bool sensor6035::bResultGet(int *CT_value, char *result)
         serializeJson(jsonOut, Serial);
         info_displayln();
 
-       // processed_data[i] = (double *)malloc(sizeof(double) * loops);
-        //if (processed_data[i] == NULL)
+        // processed_data[i] = (double *)malloc(sizeof(double) * loops);
+        // if (processed_data[i] == NULL)
         //{
-           //info_displayln("Memory allocation failed for processed_data");
-            //return false;
+        // info_displayln("Memory allocation failed for processed_data");
+        // return false;
         //}
-        //memcpy(processed_data[i], recordOut.processed_data.data(), sizeof(double) * loops);
+        // memcpy(processed_data[i], recordOut.processed_data.data(), sizeof(double) * loops);
 
-        CT_value[i] = int(recordOut.outcome.transition_time.x);
+        CT_value[i] = float(recordOut.outcome.transition_time.x);
         // memcpy(result+i, recordOut.outcome.outcome, 1);
         result[i] = recordOut.outcome.outcome[0];
 
         // reset records
-        //recordIn.clear();
+        // recordIn.clear();
         recordOut.clear();
     }
 
-    //for (uint8_t i = 0; i < OPTOCHANNELS; i++)
+    // for (uint8_t i = 0; i < OPTOCHANNELS; i++)
     //{
-        //info_displayf("%d: ", i + 1);
-        //for (uint8_t j = 0; j < loops; j++)
-        //{
-            //info_displayf("%lf  ", processed_data[i][j]);
-        //}
-        //info_displayln();
+    // info_displayf("%d: ", i + 1);
+    // for (uint8_t j = 0; j < loops; j++)
+    //{
+    // info_displayf("%lf  ", processed_data[i][j]);
+    //}
+    // info_displayln();
 
-        //free(processed_data[i]);
+    // free(processed_data[i]);
     //}
 
     return true;
@@ -301,11 +301,10 @@ bool sensor6035::bResultPutToChart(int *CT_value, char *result, double **process
                            recordIn.parameters.sg_window,
                            recordIn.parameters.sg_order);
 
-
-        //for (int j = 0; j < loops; j++)
-       // {
-           // tmp[(loops * i) + j] = recordOut.processed_data[(loops * i) + j];
-           // info_displayln((loops * i) + j);
+        // for (int j = 0; j < loops; j++)
+        // {
+        // tmp[(loops * i) + j] = recordOut.processed_data[(loops * i) + j];
+        // info_displayln((loops * i) + j);
         //}
 
         // differentiate
@@ -344,13 +343,13 @@ bool sensor6035::bResultPutToChart(int *CT_value, char *result, double **process
         result[i] = recordOut.outcome.outcome[0];
 
         // reset records
-        //recordIn.clear();
+        // recordIn.clear();
         recordOut.clear();
     }
     return true;
 }
 
-bool sensor6035::bResultPutToGoogleSheet(int *CT_value, char *result)
+bool sensor6035::bResultPutToGoogleSheet(float *CT_value, char *result)
 {
     DataIn recordIn = DataIn();
     Record recordOut = Record();
@@ -427,8 +426,7 @@ bool sensor6035::bResultPutToGoogleSheet(int *CT_value, char *result)
         */
         // post_process_curve(recordOut, recordIn.parameters.baseline_start, recordIn.parameters.baseline_range, recordIn.parameters.sg_window, recordIn.parameters.sg_order);
 
-        CT_value[i] = int(recordOut.outcome.transition_time.x);
-        // memcpy(result+i, recordOut.outcome.outcome, 1);
+        CT_value[i] = float(recordOut.outcome.transition_time.x);
         result[i] = recordOut.outcome.outcome[0];
         recordOut.clear();
     }
@@ -1760,7 +1758,7 @@ void sensor6035::eSensor1stReadingFunc()
                             _displayCLD.bheadershow = true;
                             _displayCLD.changeScreen = true;
                             EEPROM.begin(_EEPROM_SIZE);
-                            Word tmp[10 * 100] = {0};
+                            Word tmp[10 * 130] = {0};
 
                             memcpy(tmp, sensor67Value, sizeof(tmp));
 
@@ -1795,268 +1793,6 @@ void sensor6035::eSensor1stReadingFunc()
                         }
                     }
                 }
-
-                // while (!acquisitionControl.isFinished())
-                // {
-                //     sensorResp = 0xFFFF;
-                //     flagres = VEML6035_GET_ALS_DATA_I2C_Res(&sensorResp);
-                //     // info_display(sensorResp);
-                //     // info_display(",");
-                //     if (!flagres)
-                //     {
-                //         acquisitionControl.store(sensorResp);
-                //     }
-                //     else
-                //     {
-                //         acquisitionControl.addErrorCount();
-                //     }
-                //     if (acquisitionControl.isMaxErrorReached())
-                //     {
-                //         _displayCLD.ErrorProcessatBegin("Opto sensor error\n Please power off/on", String(iChannel+1));
-                //         ESP.restart();
-                //         rerun();
-                //         _PIDControl.rerun();
-                //         _sensor6035.rerun();
-                //         return;
-                //     }
-                //     delay(100);
-                // }
-
-                // info_display("/>");
-                // meanResponse = acquisitionControl.getSum();
-
-                // info_display("<");
-
-                // while (acquisitionCounter < repeats)
-                // {
-                //     sensorResp = 0xFFFF;
-                //     flagres = VEML6035_GET_ALS_DATA_I2C_Res(&sensorResp);
-                //     if (sensorResp < 1000 || !flagres)
-                //     {
-                //         info_display(sensorResp);
-                //         info_display(",");
-                //         integratedResponse.push_back(sensorResp);
-                //         acquisitionCounter +=1;
-                //     }
-                //     else
-                //     {
-                //         errorCounter +=1;
-                //     }
-                //     if (errorCounter > 10)
-                //     {
-                //         _displayCLD.ErrorProcessatBegin("Opto sensor error\n Please power off/on", String(iChannel+1));
-                //         ESP.restart();
-                //         rerun();
-                //         _PIDControl.rerun();
-                //         _sensor6035.rerun();
-                //         return;
-                //     }
-                //     delay(100);
-                // }
-                // for(uint8_t i=0; i<repeats;i++)
-                // {
-                //     flagres = VEML6035_GET_ALS_DATA_I2C_Res(&sensorResp);
-                //     integratedResponse += sensorResp;
-                //     delay(100);
-                // }
-                // info_display("<");
-                // for(uint8_t j: integratedResponse)
-                // {
-                //     info_display(j);
-                //     info_display(", ");
-                //     meanResponse += j;
-
-                // }
-                // info_display("/>");
-                // meanResponse /= integratedResponse.size();
-                // closeSensorChannel(iChannel);
-                // bool flagres = VEML6035_GET_ALS_DATA_I2C_Res(&sensorResp);
-                // closeSensorChannel(iChannel);
-
-                // info_displayf("opto res: %d, flag: %d\n", sensorResp, flagres);
-                // Error checking
-                // if (flagres  || (sensorResp == 0xFFFF))     //if error happened, start the err process    || (sensorResp == 0)
-                // {
-                //     // info_displayf("Reading error. flag: %d; resp: %d\n", flagres, sensorResp);
-                //     errRereadTime = millis() + 400;     //try to read again after 100ms
-
-                //     errCnt++;
-                //     if (flagres)
-                //     {
-                //         errRecord[iChannel][0]++;
-                //     }
-                //     else if (sensorResp == 0)
-                //     {
-                //         errRecord[iChannel][1]++;
-                //     }
-                //     else
-                //     {
-                //         errRecord[iChannel][2]++;
-                //     }
-
-                //     // if (errCnt > 3)     //if err more than 3 times, then try to initialize it
-                //     // {
-                //     //     Reset_Sensor();
-                //     //     // Basic_Initialization_Auto_Mode();
-                //     //     VEML6035_SET_CHANNEL_EN(VEML6035_WHITE_CH_DIS);
-                //     //     // VEML6035_SET_CHANNEL_EN(VEML6035_WHITE_CH_EN);
-                //     //     //2.) Switch On the ALS Sensor
-                //     //     VEML6035_SET_SD(VEML6035_ALS_SD_ON);
-                //     //     delay(50);
-                //     //     // ChannelEnableProcess(ChannelEnableRead);        //read the initial value
-                //     //     ChannelEnableProcess(ChannelEnableSet);         //set the required value and read again
-                //     //     // ALS_IT_Process(ALSITRead);        //read the initial value
-                //     //     ALS_IT_Process(ALSITSet);         //set the required value and read again
-                //     //     // GainProcess(GAINRead);        //read the initial value
-                //     //     GainProcess(GAINSet);         //set the required value and read again
-                //     //     // DigitalGainProcess(DGRead);        //read the initial value
-                //     //     DigitalGainProcess(DGSet);         //set the required value and read again
-                //     //     // SENS(SENSRead);        //read the initial value
-                //     //     SENS(SENSSet);         //set the required value and read again
-                //     // }
-
-                //     if (errCnt > 10)
-                //     {
-                //         info_displayf("\n%dth opto sensor error!!! More details are shown as below:\n", iChannel+1);
-                //         for (uint8_t i = 0; i < 10; i++)
-                //         {
-                //             for (uint8_t j = 0; j < 3; j++)
-                //             {
-                //                 if (errRecord[i][j])
-                //                 {
-                //                     info_displayf("Opto sensor %d reading err type %d for %d times\n", i+1, j, errRecord[i][j]);
-                //                     errRecord[i][j] = 0;
-                //                 }
-                //             }
-                //         }
-                //         if (flagres)        // communication err
-                //         {
-                //             _displayCLD.ErrorProcessatBegin("Opto sensor error\n Please power off/on", String(iChannel+1));
-                //         }
-                //         else if (sensorResp == 0)   // sensor reading is zero, too dark or error
-                //         {
-                //             _displayCLD.ErrorProcessatBegin("Too dark\n Please check", String(iChannel+1));
-                //         }
-                //         else if (sensorResp == 0xFFFF)  //sensor reading maximum, too bright or error
-                //         {
-                //             _displayCLD.ErrorProcessatBegin("Too bright\n Please check", String(iChannel+1));
-                //         }
-                //         // ESP.restart();
-                //         // rerun();
-                //         _PIDControl.rerun();
-                //         _sensor6035.rerun();
-                //         return;
-                //     }
-                //     return;
-                // }
-                // Off LED only after no err happened
-
-                // if (flagres)
-                // {
-                //     info_displayln("[W] Re-measuring after communication breakdown.");
-                //     _LED.LED_off(iChannel);
-                //     reConfigSensors();
-
-                //     _LED.LED_on(iChannel);
-                //     // connectToSensor(iChannel);
-                //     //On next LED
-
-                //     // closeSensorChannel(iChannel);
-                //     sensor67ValueTime = millis() + LED_DELAY_TIME;
-                //     return;
-                // }
-
-                // if (COUNTER > 0)
-                // {
-                //     if (abs(float(sensorResp) - float(sensor67Value[iChannel][COUNTER-1])) > 300.0 && oddCnt < 2)
-                //     {
-                //         info_displayln("[W] Re-measuring after odd value...");
-                //         oddCnt++;
-                //         _LED.LED_off(iChannel);
-                //         reConfigSensors();
-                //         _LED.LED_on(iChannel);
-                //         // connectToSensor(iChannel);
-                //         //On next LED
-
-                //         // closeSensorChannel(iChannel);
-                //         sensor67ValueTime = millis() + LED_DELAY_TIME;
-                //         return;
-                //     }
-                // }
-
-                // _LED.LED_off(iChannel);
-                // // openSensorChannel(iChannel);
-                // // disconnectFromSensor(iChannel);
-                // //finish one session, clear the err counter
-                // errCnt = 0;
-                // oddCnt = 0;
-                // errRereadTime = 0;
-                // //convert the value and output
-                // sensor67Value[iChannel][COUNTER] = meanResponse;
-                // // sensor67Value[iChannel][COUNTER] = (float(sensorResp)-calMatrix[iChannel][1])/calMatrix[iChannel][0];
-                // info_display((float(meanResponse)-FORTE_ORIGINS[iChannel])/FORTE_SLOPES[iChannel]);
-                // info_display(",");
-
-                // iChannel++;
-                // if (iChannel < OPTOCHANNELS)
-                // {
-                //     _LED.LED_on(iChannel);
-                //     // connectToSensor(iChannel);
-                //     //On next LED
-
-                //     // closeSensorChannel(iChannel);
-                //     sensor67ValueTime = millis() + LED_DELAY_TIME;
-                // }
-                // else
-                // {
-                //     info_displayln(_PIDControl.getBottomTemperature()[1]);      //display current tempeature
-                //     bSensorReadingFlag = false;                         //finish one round reading, heating during the interval
-                //     COUNTER++;
-                //     if (COUNTER >= MEASUREMENTLOOPS)// OPTO_DURATION/OPTO_INTERVAL)
-                //     {
-                //         //finish the reading, update the step
-                //         sensorStep = eSensormaintain;                  //only read during amplification
-                //         // info_displayln("eSensormaintain");
-                //         COUNTER = 0;
-                //         // iChannel = 0;
-                //         _displayCLD.type_infor = escreenResult;
-                //         _displayCLD.bheadershow = true;
-                //         _displayCLD.changeScreen = true;
-                //         EEPROM.begin(_EEPROM_SIZE);
-                //         Word tmp[10*100] = {0};
-
-                //         memcpy(tmp, sensor67Value, sizeof(tmp));
-
-                //         EEPROM.put(RECORDPOS, tmp);
-                //         delay(100);
-                //         EEPROM.commit();
-                //         delay(100);
-                //         EEPROM.end();
-                //         delay(100);
-
-                //         _buzzer.BuzzerAlert();
-
-                //         // _PIDControl.StopHeating();       //comment here so the heater will maintainthe temperature
-                //         // _PIDControl.setepidfinish();       //comment here so the heater will maintainthe temperature
-
-                //         // Announce End of amplification
-                //         info_displayln("<AmpStart/>");
-                //         //check the opto read err
-                //         for (uint8_t i = 0; i < 10; i++)
-                //         {
-                //             for (uint8_t j = 0; j < 3; j++)
-                //             {
-                //                 if (errRecord[i][j])
-                //                 {
-                //                     info_displayf("Opto sensor %d reading err type %d for %d times\n", i+1, j, errRecord[i][j]);
-                //                     errRecord[i][j] = 0;
-                //                 }
-                //             }
-                //         }
-
-                //         return;
-                //     }
-                // }
             }
         }
     }
@@ -2543,14 +2279,14 @@ float sensor6035::calib_sensor(int slot)
     bool flagres;
     Word meanResponse = 0xFFFF;
     openSensorChannel(slot);
- 
+
     acquisitionControl.clear();
-  
+
     while (!acquisitionControl.isFinished())
     {
         sensorResp = 0xFFFF;
         flagres = VEML6035_GET_ALS_DATA_I2C_Res(&sensorResp);
-       
+
         if (!flagres)
         {
             acquisitionControl.store(sensorResp);
@@ -2568,11 +2304,11 @@ float sensor6035::calib_sensor(int slot)
     }
 
     meanResponse = acquisitionControl.getSum();
-    
-    closeSensorChannel(slot);
-	_LED.LED_off(slot);
 
-    return (float) meanResponse;
+    closeSensorChannel(slot);
+    _LED.LED_off(slot);
+
+    return (float)meanResponse;
 }
 
 void sensor6035::calibration(int slot)
@@ -2594,13 +2330,13 @@ void sensor6035::calibration(int slot)
         _displayCLD.type_infor = eCalibComplete;
         _displayCLD.changeScreen = true;
     }
-    setStepeSensorwait(); 
+    setStepeSensorwait();
 }
 
 void sensor6035::calculate_calib(float y[])
 {
     float x[4] = {300.0, 200.0, 100.0, 0.0};
-	int n = 4;
+    int n = 4;
     float sum_x = 0, sum_y = 0, sum_xy = 0, sum_x2 = 0, sum_y2 = 0, mean_x = 0, mean_y = 0;
 
     for (int i = 0; i < n; i++)
@@ -2609,33 +2345,33 @@ void sensor6035::calculate_calib(float y[])
         sum_y += y[i];
         sum_xy += x[i] * y[i];
         sum_x2 += x[i] * x[i];
-		sum_y2 += y[i] * y[i];
+        sum_y2 += y[i] * y[i];
     }
 
-	// Tính toán giá trị trung bình
+    // Tính toán giá trị trung bình
     mean_x = sum_x / n;
     mean_y = sum_y / n;
 
-	// Tính slope
+    // Tính slope
     float slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x);
     cal_calib[0] = slope;
-	
+
     // Tính RSQ
     float RSQ = ((n * sum_xy - sum_x * sum_y) * (n * sum_xy - sum_x * sum_y)) / ((n * sum_x2 - sum_x * sum_x) * (n * sum_y2 - sum_y * sum_y));
     cal_calib[1] = RSQ;
-	
-	// Tính origins
-	float origin = mean_y - slope * mean_x;
+
+    // Tính origins
+    float origin = mean_y - slope * mean_x;
     cal_calib[2] = origin;
 }
 
 void sensor6035::setStepeSensorcalib()
 {
-    sensorStep =  eSensorcalib; 
+    sensorStep = eSensorcalib;
 }
 void sensor6035::setStepeSensorwait()
 {
-    sensorStep =  eSensorwait; 
+    sensorStep = eSensorwait;
 }
 
 int I2C_Bus = 3;

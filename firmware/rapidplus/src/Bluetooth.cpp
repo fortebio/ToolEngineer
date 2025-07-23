@@ -274,7 +274,7 @@ void getDataAmplificationEEPROM(void)
 {
 
   EEPROM.begin(_EEPROM_SIZE);
-  Word tmp[10 * 100] = {0};
+  Word tmp[10 * 130] = {0};
   EEPROM.get(RECORDPOS, tmp);
   memcpy(_sensor6035.sensor67Value, tmp, sizeof(tmp));
   EEPROM.end();
@@ -302,7 +302,7 @@ void postData_GoogleSheet(void)
   {
     info_displayln("Read data Amplifications from EEPROM");
 
-    int CT_value[10];
+    float CT_value[10];
     char result[10];
     JsonDocument dataPostGoogleSheet;
     String jsonPost = "";
@@ -456,34 +456,6 @@ String getData_toChart(void)
 
   return JsonString;
 }
-
-/*
-
-void sendJsonInChunks(const String& json, size_t chunkSize)
-{
-  size_t totalLength = json.length();
-  size_t sentLength = 0;
-
-  while (sentLength < totalLength)
-  {
-    size_t remaining = totalLength - sentLength;
-    size_t toSend = (remaining < chunkSize) ? remaining : chunkSize;
-
-    server.sendContent(json.substring(sentLength, sentLength + toSend));
-    sentLength += toSend;
-
-    delay(10);
-  }
-}
-
-void handleGetData(void)
-{
-  String json = getData_toChart();
-  server.send(200, "application/json", "");
-  sendJsonInChunks(json, 100);
-}
-*/
-
 
 void postData_Chart(void)
 {

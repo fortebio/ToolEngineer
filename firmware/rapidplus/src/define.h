@@ -196,8 +196,8 @@ struct parastructure
 
   uint LEDDuration = 2 * 100;      // LED(time in ms) is on for 0.2s before sensor
                                    // reading###"LED Duration"
-  ulong timePerLoop = 60 * 1000;   // Duration(ms) of 1 loop ###"time per loop"
-  uint8_t amplification_time = 40; // quantity to measure during the amplification, "amplification_time"
+  ulong timePerLoop = 20 * 1000;   // Duration(ms) of 1 loop ###"time per loop"
+  uint8_t amplification_time = 120; // quantity to measure during the amplification, "amplification_time"
 
   // heater configuration
   float lysisTemp = 82.0;                         //"lysis temperature"
@@ -213,7 +213,7 @@ struct parastructure
   float temperatureOffset[6] = {0};               // temperature offset of bottom sensor 1, 2, 3, hotlid sensor 1, 2, 3,
                                                   // ambient sensor, the usage is reading temperature + this value ->
                                                   // output temperature
-  uint8_t hotlidPWM[2][2] = {{40, 80}, {40, 80}}; // PWM low and high value for hotlid
+  uint8_t hotlidPWM[2][2] = {{40, 90}, {40, 90}}; // PWM low and high value for hotlid
 
   // buzzer configuration
   uint8_t buzzerOn = 0; // on/off status, on is 1 while off is 0. "buzzer" "On"
@@ -398,6 +398,6 @@ struct parastructure
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "V2.2.6"; // add function calib
+static String FirmwareVer = "V2.2.7"; // add function calib
 
 #endif

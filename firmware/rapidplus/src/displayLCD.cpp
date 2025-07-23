@@ -10,7 +10,7 @@
 #include "Bluetooth.h"
 #include "PIDControl.h"
 #include <string>
-//#include "sensor6035.h"
+// #include "sensor6035.h"
 
 #define Forte_Green 0x25F8
 #define VIOLET 0xA81F
@@ -113,7 +113,7 @@ void displayWaitingUpData(void)
   _displayCLD.display->setCursor(50, 130);
   _displayCLD.display->print("Please wait...");
   show_IconWifi();
-  show_IconBluetooth();
+  // show_IconBluetooth();
   delay(100);
 }
 
@@ -775,7 +775,7 @@ void displayCLD::prepare()
 void displayCLD::screen_Result()
 {
   {
-    int CT_value[10] = {0};
+    float CT_value[10] = {0};
     char result[10] = {0};
 
     _sensor6035.outputHeader();
@@ -800,10 +800,10 @@ void displayCLD::screen_Result()
     this->display->setTextSize(2);
 
     // display the block number
-    this->display->setCursor(75, 30); // start position of each sensor value
-    this->display->printf("Left");
-    this->display->setCursor(190, 30); // start position of each sensor value
-    this->display->printf("Right");
+    this->display->setCursor(100, 30); // start position of each sensor value
+    this->display->printf("L");
+    this->display->setCursor(215, 30); // start position of each sensor value
+    this->display->printf("R");
     // const uint8_t channelName[] = {1,2,3,4,5};
     // display the list
     this->display->setTextColor(WHITE);
@@ -817,12 +817,12 @@ void displayCLD::screen_Result()
 
     for (u8_t i = 0; i < OPTOCHANNELS; i++)
     {
-      this->display->setCursor(75 + 120 * (i / 5), 70 + 35 * ((OPTOCHANNELS - i - 1) % 5)); // start position of each sensor value
+      this->display->setCursor(55 + 120 * (i / 5), 70 + 35 * ((OPTOCHANNELS - i - 1) % 5)); // start position of each sensor value
 
       if (result[i] == 'N')
       {
         this->display->setTextColor(Forte_Green);
-        this->display->printf("|--|");
+        this->display->printf("|----|");
       }
       else if (result[i] == 'S')
       {
@@ -844,391 +844,7 @@ void displayCLD::screen_Result()
     changeScreen = false;
   }
 }
-/*
-String encMeasureValue(const String& str) {
-  if (str == "Chứng dương") {
-    return "Chung%20duong";
-  } else if (str == "Chứng âm") {
-    return "Chung%20am";
-  } else if (str == "Đốm trắng") {
-    return "Dom%20trang";
-  } else return str;
-}
 
-void displayCLD::log_data() {
-
-  // Google script ID and required credentials
-  String GOOGLE_SCRIPT_ID = "1I85TPdAJ1Ghwmz8kIqZ1A6yFHOjA5X95kymyt6jaN_g/edit#gid=0";  // change Gscript ID
-  String encodedMeasureValue = encMeasureValue(measure_value);
-  String lan_1 = String(_sensor.result_Sensor[0][0]);
-  String lan_2 = String(_sensor.result_Sensor[0][1]);
-  String lan_3 = String(_sensor.result_Sensor[0][2]);
-  String trung_binh = String(_sensor.AverageResult[0]);
-  String ID = id;
-  //String urlFinal = "https://script.google.com/macros/s/AKfycbymqZg24T27Y9TKGP5zZMGKup7B0EBYgC42xWBCJEKOw06VFG8l1S8Zt0EBr9QzNOJ6Tw/exec?date=2023&lan_1=100&lan_2=200&lan_3=300&trung_binh=250";
-  String urlFinal = "https://script.google.com/macros/s/" + GOOGLE_SCRIPT_ID + "/exec?" + "&lan_1=" + lan_1
-                    + "&lan_2=" + lan_2 + "&lan_3=" + lan_3 + "&trung_binh=" + trung_binh + "&measure_value=" + encodedMeasureValue + "&ID=" + ID;
-  HTTPClient http;
-  http.begin(urlFinal.c_str());
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  int httpCode = http.GET();
-  if (httpCode > 0) {
-    // HTTP header has been send and Server response header has been handled
-    info_displayf("[HTTP] GET... code: %d\n", httpCode);
-    // file found at server
-    if (httpCode == HTTP_CODE_OK) {
-      String payload = http.getString();
-      info_displayln(payload);
-    }
-  } else {
-    info_displayf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
-  }
-  http.end();
-  if (language == 0) {
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(2);
-    this->display->setCursor(20, 120);
-    this->display->setTextColor(GREEN);
-    this->display->print("Gửi kq thành công!");
-    delay(5000);
-  } else {
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(2);
-    this->display->setCursor(20, 120);
-    this->display->setTextColor(GREEN);
-    this->display->print("Completed!");
-    delay(5000);
-  }
-}
-
-void displayCLD::screen_Average_Result() {
-  if (language == 0) {
-    this->display->fillScreen(BLACK);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->setTextSize(2);
-    //this->display->drawRect(0,0,320,240,BLUE);
-    this->display->setTextColor(WHITE);
-    this->display->setCursor(18, 30);
-    this->display->print("Ống đo:");
-    this->display->setCursor(125, 30);
-    this->display->print(measure_value);
-    this->display->drawLine(15, 45, 302, 45, Forte_Green);
-    this->display->setCursor(80, 80);
-    this->display->print("Kết quả đo");
-    this->display->setTextColor(RED);  // ong 1
-    this->display->setCursor(18, 110);
-    this->display->printf("Lần 1:  %d \n\r", _sensor.result_Sensor[0][0]);
-    this->display->setCursor(18, 140);
-    this->display->printf("Lần 2:  %d \n\r", _sensor.result_Sensor[0][1]);
-    this->display->setCursor(18, 170);
-    this->display->printf("Lần 3:  %d \n\r", _sensor.result_Sensor[0][2]);
-    this->display->setCursor(18, 200);
-    this->display->setTextColor(YELLOW);  // ong 1
-    this->display->printf("Trung Bình: %d", _sensor.AverageResult[0]);
-    this->display->setTextSize(1);
-    if (butt == 0) {
-      this->display->setTextColor(Forte_Green);
-    } else {
-      this->display->setTextColor(GREEN);
-    }
-    this->display->setCursor(18, 230);
-    this->display->print("Nút xanh:Bắt đầu lại ");
-    this->display->setCursor(200, 230);
-    this->display->setTextColor(WHITE);
-    this->display->print("Nút trắng:Gửi");
-  } else {
-    this->display->fillScreen(BLACK);
-
-    this->display->setTextSize(2);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->setCursor(18, 30);
-    this->display->setTextColor(WHITE);
-    this->display->print("Tube:");
-    this->display->setCursor(125, 30);
-    this->display->print(measure_value);
-    this->display->drawLine(18, 45, 296, 45, BLUE);
-    this->display->setCursor(115, 80);
-    this->display->print("Result");
-    this->display->setTextColor(RED);  // ong 1
-    this->display->setCursor(18, 110);
-    this->display->printf("1st:  %d \n\r", _sensor.result_Sensor[0][0]);
-    this->display->setCursor(18, 140);
-    this->display->printf("2nd:  %d \n\r", _sensor.result_Sensor[0][1]);
-    this->display->setCursor(18, 170);
-    this->display->printf("3rd:  %d \n\r", _sensor.result_Sensor[0][2]);
-    this->display->setCursor(18, 200);
-    this->display->setTextColor(YELLOW);  // ong 1
-    this->display->printf("Average: %d", _sensor.AverageResult[0]);
-    this->display->setTextSize(1);
-    this->display->setCursor(18, 230);
-    if (butt == 0) {
-      this->display->setTextColor(Forte_Green);  // ong 1
-      this->display->print("Blue: Startover ");
-    } else {
-      this->display->setTextColor(GREEN);  // ong 1
-      this->display->print("Green: Startover ");
-    }
-  }
-}
-
-void displayCLD::screen_Calib() {
-  // dbg_display("nhan do calib, nhan xanh ket thuc, nhan trang de format");
-  if (language == 0) {
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(2);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->setTextColor(WHITE);
-    this->display->setCursor(30, 35);
-    this->display->println("CHẾ ĐỘ CÂN CHỈNH");
-    this->display->setCursor(35, 80);
-    this->display->print("Mẫu đo ");
-    this->display->setTextColor(ORANGE);
-    if (_sensor.typecalib == 0) {
-      this->display->print("cao nhất");
-    } else {
-      this->display->print("thấp nhất");
-    }
-    this->display->setCursor(18, 190);
-    this->display->setTextSize(1);
-    if (butt == 0) {
-      this->display->setTextColor(Forte_Green);
-    } else {
-      this->display->setTextColor(GREEN);
-    }
-    this->display->println("Nút xanh: thoát");
-    this->display->setCursor(18, 210);
-    this->display->setTextColor(RED);
-    this->display->println("Nút Đỏ: cân chỉnh");
-    this->display->setCursor(18, 230);
-    this->display->setTextColor(WHITE);
-    this->display->println("Nút trắng: xoá cân chỉnh");
-  } else {
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(2);
-    this->display->setTextColor(WHITE);
-    this->display->setCursor(40, 35);
-    this->display->println("Calibration mode");
-    this->display->setCursor(40, 80);
-    this->display->print("Tube type:");
-    this->display->setTextColor(ORANGE);
-    if (_sensor.typecalib == 0)
-      this->display->print("Highest");
-    else
-      this->display->print("Lowest");
-
-    this->display->setCursor(18, 190);
-    this->display->setTextSize(1);
-    if (butt == 0) {
-      this->display->setTextColor(Forte_Green);
-      this->display->println("Blue: Exit");
-    } else {
-      this->display->setTextColor(GREEN);
-      this->display->println("Green: Exit");
-    }
-    this->display->setCursor(18, 210);
-    this->display->setTextColor(RED);
-    this->display->println("Red: Calibrate");
-    this->display->setCursor(18, 230);
-    this->display->setTextColor(WHITE);
-    this->display->println("White: Delete calibration");
-  }
-}
-void displayCLD::waiting_Calib() {
-  if (language == 0) {
-    this->display->fillScreen(BLACK);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->drawBitmap(275, 7, logoFBT, 35, 34, Forte_Green);
-    this->display->setTextSize(2);
-    this->display->setTextColor(RED);
-    this->display->setCursor(18, 90);
-    this->display->print("ĐANG CÂN CHỈNH");
-    this->display->setTextSize(2);
-    this->display->setTextColor(Forte_Green);
-    this->display->setCursor(18, 150);
-    this->display->println("Vui lòng chờ trong");
-    this->display->setCursor(85, 180);
-    this->display->println("giây lát!!!");
-  } else {
-    this->display->fillScreen(BLACK);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->drawBitmap(275, 7, logoFBT, 35, 34, Forte_Green);
-    this->display->setTextSize(2);
-    this->display->setTextColor(RED);
-    this->display->setCursor(18, 90);
-    this->display->print("Calibrating");
-    this->display->setTextSize(2);
-    this->display->setTextColor(Forte_Green);
-    this->display->setCursor(18, 150);
-    this->display->println("Waiting...");
-  }
-}
-void displayCLD::screen_Calib_Complete() {
-  if (language == 0) {
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(2);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->setTextColor(ORANGE);
-    this->display->setCursor(35, 35);
-    this->display->println("Chế độ cân chỉnh");
-    this->display->setTextSize(3);
-    this->display->setCursor(45, 130);
-    this->display->setTextColor(Forte_Green);
-    this->display->println("Thành Công");
-    delay(3000);
-  } else {
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(2);
-    this->display->setTextColor(ORANGE);
-    this->display->setCursor(35, 35);
-    this->display->println("Calibration mode");
-    this->display->setTextSize(3);
-    this->display->setCursor(45, 130);
-    this->display->setTextColor(Forte_Green);
-    this->display->println("Successful!");
-    delay(3000);
-  }
-}
-void displayCLD::setting() {
-  if (language == 0) {
-    this->display->fillScreen(BLACK);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->setTextSize(2);
-    this->display->setCursor(100, 40);
-    this->display->setTextColor(YELLOW);
-    this->display->print("Cài đặt");
-    this->display->drawRect(18, 60, 296, 50, GREEN);
-    this->display->setCursor(40, 90);
-    this->display->setTextColor(GREEN);
-    this->display->print("Cài đặt WIFI");
-    this->display->drawRect(18, 120, 296, 50, RED);
-    this->display->setCursor(40, 150);
-    this->display->setTextColor(RED);
-    this->display->print("Ngôn ngữ");
-  } else {
-    this->display->fillScreen(BLACK);
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->setTextSize(2);
-    this->display->setCursor(100, 40);
-    this->display->setTextColor(YELLOW);
-    this->display->print("Set up");
-    this->display->drawRect(18, 60, 296, 50, GREEN);
-    this->display->setCursor(40, 90);
-    this->display->setTextColor(GREEN);
-    this->display->print("WIFI Setup");
-    this->display->drawRect(18, 120, 296, 50, RED);
-    this->display->setCursor(40, 150);
-    this->display->setTextColor(RED);
-    this->display->print("Language");
-  }
-}
-void displayCLD::set_language() {
-  if (language == 0) {
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(1);
-    this->display->fillRect(108, 0, 108, 20, Forte_Green);
-    this->display->setCursor(110, 15);
-    this->display->setTextColor(BLACK);
-    this->display->println("FORTE BIOTECH");
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->drawBitmap(275, 200, shrimp, 35, 29, Forte_Green);
-    this->display->setTextSize(2);
-    this->display->setTextColor(YELLOW);
-    this->display->setCursor(30, 50);
-    this->display->print("Ngôn ngữ/Language");
-    if (language_state == Null) {
-      this->display->drawRect(18, 70, 296, 50, GREEN);
-      this->display->setCursor(90, 110);
-      this->display->setTextColor(GREEN);
-      this->display->print("Tiếng Việt");
-      this->display->drawRect(18, 130, 296, 50, RED);
-      this->display->setTextColor(RED);
-      this->display->setCursor(110, 170);
-      this->display->print("English");
-
-    } else if (language_state == VietNamese) {
-      this->display->drawRect(18, 70, 296, 50, GREEN);
-      this->display->setTextColor(GREEN);
-      this->display->fillTriangle(30, 75, 30, 115, 70, 95, GREEN);
-      this->display->fillTriangle(302, 75, 302, 115, 262, 95, GREEN);
-      this->display->setCursor(90, 110);
-      this->display->print("Tiếng Việt");
-      this->display->drawRect(18, 130, 296, 50, RED);
-      this->display->setTextColor(RED);
-      this->display->setCursor(110, 170);
-      this->display->print("English");
-    } else { // English
-      this->display->drawRect(18, 70, 296, 50, GREEN);
-      this->display->fillTriangle(30, 135, 30, 175, 70, 1555, RED);
-      this->display->fillTriangle(302, 135, 302, 175, 262, 155, RED);
-      this->display->setCursor(90, 110);
-      this->display->setTextColor(GREEN);
-      this->display->print("Tiếng Việt");
-      this->display->drawRect(18, 130, 296, 50, RED);
-      this->display->setTextColor(RED);
-      this->display->setCursor(110, 170);
-      this->display->print("English");
-    }
-    this->display->setTextColor(WHITE);
-    this->display->setTextSize(1);
-    this->display->setCursor(18, 230);
-    this->display->print("Nút trắng:bắt đầu");
-    Write_language_ToEEPROM();
-    // Read_language_fromEEPROM();
-
-  } else {
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(1);
-    this->display->fillRect(108, 0, 108, 20, Forte_Green);
-    this->display->setCursor(110, 15);
-    this->display->setTextColor(BLACK);
-    this->display->println("FORTE BIOTECH");
-    this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->drawBitmap(275, 200, shrimp, 35, 29, Forte_Green);
-    this->display->setTextSize(2);
-    this->display->setTextColor(YELLOW);
-    this->display->setCursor(30, 50);
-    this->display->print("Language/Ngôn ngữ");
-    if (language_state == Null) {
-      this->display->drawRect(18, 70, 296, 50, GREEN);
-      this->display->setCursor(90, 110);
-      this->display->setTextColor(GREEN);
-      this->display->print("Tiếng Việt");
-      this->display->drawRect(18, 130, 296, 50, RED);
-      this->display->setTextColor(RED);
-      this->display->setCursor(110, 170);
-      this->display->print("English");
-    } else if (language_state == VietNamese) {
-      this->display->drawRect(18, 70, 296, 50, GREEN);
-      this->display->fillTriangle(30, 75, 30, 115, 70, 95, GREEN);
-      this->display->fillTriangle(302, 75, 302, 115, 262, 95, GREEN);
-      this->display->setCursor(90, 110);
-      this->display->setTextColor(BLACK);
-      this->display->print("Tiếng Việt");
-      this->display->drawRect(18, 130, 296, 50, RED);
-      this->display->setTextColor(RED);
-      this->display->setCursor(110, 170);
-      this->display->print("English");
-    } else {
-      this->display->drawRect(18, 70, 296, 50, GREEN);
-      this->display->fillTriangle(30, 135, 30, 175, 70, 155, RED);
-      this->display->fillTriangle(302, 135, 302, 175, 262, 155, RED);
-      this->display->setCursor(90, 110);
-      this->display->setTextColor(GREEN);
-      this->display->print("Tiếng Việt");
-      this->display->drawRect(18, 130, 296, 50, RED);
-      this->display->setTextColor(RED);
-      this->display->setCursor(110, 170);
-      this->display->print("English");
-    }
-    this->display->setTextColor(WHITE);
-    this->display->setTextSize(1);
-    this->display->setCursor(18, 230);
-    this->display->print("White:start");
-    Write_language_ToEEPROM();
-    // Read_language_fromEEPROM();
-  }
-}
-*/
 void displayCLD::set_connect_bluetooth()
 {
   if (language == 0)
@@ -1541,7 +1157,7 @@ void displayCLD::loop()
 
     // EEPROM.end();
     show_IconWifi();
-    show_IconBluetooth();
+    // show_IconBluetooth();
     // this->changeScreen = false;
   }
 }
@@ -1721,7 +1337,6 @@ void displayCLD::display_Select_mode(void)
   this->display->setTextColor(RED);
   this->display->setCursor(40, 140);
   this->display->print("Setting LED power");
-  
 
   this->display->setTextSize(1);
   this->display->setTextColor(WHITE);
@@ -1754,7 +1369,7 @@ void displayCLD::display_Select_slot(void)
   this->display->setCursor(60, 180);
   this->display->print("LED power:");
   this->display->println(_ForteSetting.parameter.led_power[slot]);
-  
+
   this->display->setTextColor(GREEN);
   this->display->setCursor(20, 230);
   this->display->print("Select");
@@ -1828,25 +1443,25 @@ void displayCLD::display_Calib_Complete(void)
   this->display->setTextColor(WHITE);
   this->display->setCursor(50, 120);
   this->display->print("Slope:  ");
-  if (_sensor6035.cal_calib[0] < 0.5 | _sensor6035.cal_calib[0] > 3.5) 
+  if (_sensor6035.cal_calib[0] < 0.5 | _sensor6035.cal_calib[0] > 3.5)
   {
     this->display->setTextColor(RED);
   }
-  this->display->println(_sensor6035.cal_calib[0], 3); //slope
+  this->display->println(_sensor6035.cal_calib[0], 3); // slope
   this->display->setTextColor(WHITE);
   this->display->setCursor(50, 150);
   this->display->print("RSQ:    ");
-  if (_sensor6035.cal_calib[1] < 0.95) 
+  if (_sensor6035.cal_calib[1] < 0.95)
   {
     this->display->setTextColor(RED);
   }
-  this->display->println(_sensor6035.cal_calib[1], 3); //RSQ
+  this->display->println(_sensor6035.cal_calib[1], 3); // RSQ
   this->display->setTextColor(WHITE);
   this->display->setCursor(50, 180);
   this->display->print("Origin: ");
-  this->display->println(_sensor6035.cal_calib[2], 1); //origin 
+  this->display->println(_sensor6035.cal_calib[2], 1); // origin
 
-  if ((_sensor6035.cal_calib[0] < 0.5) | (_sensor6035.cal_calib[0] > 3.5) | (_sensor6035.cal_calib[1] < 0.95)) 
+  if ((_sensor6035.cal_calib[0] < 0.5) | (_sensor6035.cal_calib[0] > 3.5) | (_sensor6035.cal_calib[1] < 0.95))
   {
     this->display->setTextSize(2);
     this->display->setTextColor(RED);
@@ -1857,7 +1472,7 @@ void displayCLD::display_Calib_Complete(void)
     this->display->print("Setting LED");
     this->display->setTextColor(GREEN);
     this->display->setCursor(20, 230);
-    this->display->print("Calib again"); 
+    this->display->print("Calib again");
   }
   else
   {
@@ -1891,23 +1506,23 @@ void displayCLD::display_Set_powerled(void)
 
   switch (this->index)
   {
-    case 0:
-    {
-      this->display->fillTriangle(110, 65, 140, 65, 125, 85, WHITE);
-      break;
-    }
-    case 1:
-    {
-      this->display->fillTriangle(150, 65, 180, 65, 165, 85, WHITE);
-      break;
-    }
-    case 2:
-    {
-      this->display->fillTriangle(190, 65, 220, 65, 205, 85, WHITE);
-      break;
-    }
-    default:
-      break;
+  case 0:
+  {
+    this->display->fillTriangle(110, 65, 140, 65, 125, 85, WHITE);
+    break;
+  }
+  case 1:
+  {
+    this->display->fillTriangle(150, 65, 180, 65, 165, 85, WHITE);
+    break;
+  }
+  case 2:
+  {
+    this->display->fillTriangle(190, 65, 220, 65, 205, 85, WHITE);
+    break;
+  }
+  default:
+    break;
   }
 
   this->display->setTextSize(1);
@@ -1930,7 +1545,7 @@ void displayCLD::calculate(void)
   this->display->setTextColor(WHITE);
   this->display->setCursor(40, 90);
   this->display->print("Saved LED power!");
- 
+
   int tmp = 0;
   for (int i = 0; i < 3; i++)
   {
@@ -1976,6 +1591,5 @@ void displayCLD::set_flag_calib(void)
   _displayCLD.type_infor = eSaveCalib;
   _displayCLD.changeScreen = true;
 }
-
 
 displayCLD _displayCLD;
