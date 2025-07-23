@@ -33,7 +33,7 @@ void setup()
 
   //WiFi.mode(WIFI_STA);
   WiFi.begin(ssid.c_str(), password.c_str());
-  if (!MDNS.begin("rapidplus"))
+  /*if (!MDNS.begin("rapidplus"))
   {
     info_displayln("Error setting up MDNS responder!");
     while (1) {
@@ -41,6 +41,7 @@ void setup()
     }
   }
   info_displayln("MDNS Started");
+  */
 
   // Read_language_fromEEPROM();
 
