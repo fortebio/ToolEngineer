@@ -11,6 +11,11 @@
 #include <WiFiManager.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
+#include "LittleFS.h"
+
+
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 
 struct parastructure; // forward declaration
 extern String ssid;
@@ -19,6 +24,8 @@ extern String id_device;
 extern String id;
 
 extern BluetoothSerial SerialBT;
+
+extern WebServer server;
 
 void connectBLE();
 void BLEloop();
@@ -36,6 +43,12 @@ void loadSettingDevice();
 void Write_language_ToEEPROM();
 void Read_language_fromEEPROM();
 void getDataAmplificationEEPROM(void);
+void getData(void);
+String getData_toChart(void);
+String getCT_toChart(int tmp, char c);
+String getResult_toChart(char tmp);
+//void sendJsonInChunks(const String& json, size_t chunkSize);
+//void handleGetData(void);
 
 /**
  * @brief Connect to WiFi using WiFiManager
@@ -49,5 +62,11 @@ void Wifi_Connect(void);
  * @version 2.2
  */
 void postData_GoogleSheet(void);
+
+/**
+ * @brief postData_Chart
+ * 
+ */
+void postData_Chart(void);
 
 #endif

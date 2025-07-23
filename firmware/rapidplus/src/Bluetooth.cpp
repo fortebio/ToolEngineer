@@ -1,6 +1,7 @@
 #include "Bluetooth.h"
 #include "sensor6035.h"
 #include <ArduinoJson.h>
+#include "index.h"
 
 BluetoothSerial SerialBT;
 String ssid = "";
@@ -8,6 +9,8 @@ String password = "";
 uint64_t epsid = ESP.getEfuseMac();
 String id(String(epsid).c_str());
 String id_device = "";
+
+
 
 extern int language = 0;
 
@@ -387,5 +390,118 @@ void postData_GoogleSheet(void)
   else
   {
     Serial.println("WiFi disconnected!");
+  }
+}
+
+String getResult_toChart(char tmp)
+{
+  if (tmp == 'N')
+  {
+    return "Negative";
+  }
+  else if (tmp == 'P')
+  {
+    return "Positive";
+  }
+  else if (tmp == 'S')
+  {
+    return "Slide Positive";
+  }
+}
+
+String getCT_toChart(int tmp, char result)
+{
+  if (result == 'N')
+  {
+    return "N/A";
+  }
+  else
+  {
+    return String(tmp);
+  }
+}
+
+String getData_toChart(void)
+{
+  JsonDocument readings;
+  String JsonString = "";
+  int CT_value[10] = {0};
+  char result[10] = {0};
+  double *processed_data[10] = {NULL};
+
+  uint8_t loops = _ForteSetting.parameter.amplification_time;
+
+  readings["id_device"] = id_device;
+
+  getDataAmplificationEEPROM();
+
+  bool flag = _sensor6035.bResultPutToChart(CT_value, result, processed_data);
+  
+  for (size_t i = 0; i < OPTOCHANNELS; i++)
+  {
+    readings["CT_value"][i] = getCT_toChart(CT_value[i], result[i]);
+    readings["result"][i] = getResult_toChart(result[i]);
+
+    for (uint8_t j = 0; j < loops; j++)
+    {
+        readings[String("#") + String(i + 1)][j] = String(processed_data[i][j]);
+    }
+
+    free(processed_data[i]); 
+  }
+
+  serializeJson(readings, JsonString);
+
+  info_displayln(JsonString);
+
+  return JsonString;
+}
+
+/*
+
+void sendJsonInChunks(const String& json, size_t chunkSize)
+{
+  size_t totalLength = json.length();
+  size_t sentLength = 0;
+
+  while (sentLength < totalLength)
+  {
+    size_t remaining = totalLength - sentLength;
+    size_t toSend = (remaining < chunkSize) ? remaining : chunkSize;
+
+    server.sendContent(json.substring(sentLength, sentLength + toSend));
+    sentLength += toSend;
+
+    delay(10);
+  }
+}
+
+void handleGetData(void)
+{
+  String json = getData_toChart();
+  server.send(200, "application/json", "");
+  sendJsonInChunks(json, 100);
+}
+*/
+
+
+void postData_Chart(void)
+{
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    server.on("/", HTTP_GET, []() {
+      server.send(200, "text/html", index_html);});
+
+    server.on("/getdata", HTTP_GET,[]() {
+      String json = getData_toChart();
+      server.send(200, "application/json", json);
+    });
+    //server.on("/getdata", HTTP_GET, handleGetData);
+
+    server.begin();
+  }
+  else
+  {
+    Serial.println("Wifi disconected!");
   }
 }

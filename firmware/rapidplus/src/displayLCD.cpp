@@ -1478,6 +1478,12 @@ void displayCLD::loop()
       ESP.restart();
       break;
     }
+    case eSelectAmpli:
+    {
+      this->display_Select_menu_calib();
+      this->changeScreen = false;
+      break;
+    }
     case eSelectMode:
     {
       this->display_Select_mode();
@@ -1505,7 +1511,10 @@ void displayCLD::loop()
     case eCalibComplete:
     {
       this->display_Calib_Complete();
-      this->changeScreen = false;
+      if (!flag_calib_done)
+      {
+        this->changeScreen = false;
+      }
       break;
     }
     case eSetPowerLed:
@@ -1668,12 +1677,11 @@ void displayCLD::setting_Language(void)
 }
 
 /* Function Calib */
-
-void displayCLD::display_Select_mode(void)
+void displayCLD::display_Select_menu_calib(void)
 {
   this->display->fillScreen(BLACK);
-  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-  this->display->drawRoundRect(15, 40, 302, 170, 0, Forte_Green);
+  this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
+  this->display->drawRoundRect(8, 40, 305, 170, 0, Forte_Green);
 
   this->display->setTextColor(WHITE);
   this->display->setTextSize(2);
@@ -1681,12 +1689,39 @@ void displayCLD::display_Select_mode(void)
   this->display->println("Select Mode");
 
   this->display->setTextSize(2);
-  this->display->setTextColor(RED);
+  this->display->setTextColor(GREEN);
   this->display->setCursor(40, 100);
   this->display->print("Calibration");
+  this->display->setTextColor(RED);
+  this->display->setCursor(40, 140);
+  this->display->print("Amplification");
+  this->display->setCursor(40, 170);
+  this->display->print("Tube 0");
+
+  this->display->setTextSize(1);
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(275, 230);
+  this->display->println("Back");
+}
+void displayCLD::display_Select_mode(void)
+{
+  this->display->fillScreen(BLACK);
+  this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
+  this->display->drawRoundRect(8, 40, 305, 170, 0, Forte_Green);
+
+  this->display->setTextColor(WHITE);
+  this->display->setTextSize(2);
+  this->display->setCursor(60, 30);
+  this->display->println("Select Mode");
+
+  this->display->setTextSize(2);
   this->display->setTextColor(GREEN);
+  this->display->setCursor(40, 100);
+  this->display->print("Calibration");
+  this->display->setTextColor(RED);
   this->display->setCursor(40, 140);
   this->display->print("Setting LED power");
+  
 
   this->display->setTextSize(1);
   this->display->setTextColor(WHITE);
@@ -1697,8 +1732,8 @@ void displayCLD::display_Select_mode(void)
 void displayCLD::display_Select_slot(void)
 {
   this->display->fillScreen(BLACK);
-  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-  this->display->drawRoundRect(15, 40, 302, 170, 0, Forte_Green);
+  this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
+  this->display->drawRoundRect(8, 40, 305, 170, 0, Forte_Green);
 
   this->display->setTextSize(2);
   this->display->setTextColor(WHITE);
@@ -1720,11 +1755,11 @@ void displayCLD::display_Select_slot(void)
   this->display->print("LED power:");
   this->display->println(_ForteSetting.parameter.led_power[slot]);
   
-  this->display->setTextColor(RED);
-  this->display->setCursor(20, 230);
-  this->display->print("Up");
   this->display->setTextColor(GREEN);
-  this->display->setCursor(140, 230);
+  this->display->setCursor(20, 230);
+  this->display->print("Select");
+  this->display->setTextColor(RED);
+  this->display->setCursor(150, 230);
   this->display->print("Next");
   this->display->setTextColor(WHITE);
   this->display->setCursor(275, 230);
@@ -1734,7 +1769,7 @@ void displayCLD::display_Select_slot(void)
 void displayCLD::display_Calib(void)
 {
   this->display->fillScreen(BLACK);
-  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+  this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
 
   this->display->setTextSize(2);
   this->display->setTextColor(WHITE);
@@ -1764,18 +1799,15 @@ void displayCLD::display_Calib(void)
   this->display->print(this->slot + 1);
 
   this->display->setTextSize(1);
-  this->display->setTextColor(RED);
+  this->display->setTextColor(GREEN);
   this->display->setCursor(20, 230);
   this->display->print("Calib");
-  this->display->setTextColor(GREEN);
-  this->display->setCursor(275, 230);
-  this->display->print("Back");
 }
 
 void displayCLD::display_Waiting_Calib(void)
 {
   this->display->fillScreen(BLACK);
-  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+  this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
 
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
@@ -1790,32 +1822,7 @@ void displayCLD::display_Waiting_Calib(void)
 void displayCLD::display_Calib_Complete(void)
 {
   this->display->fillScreen(BLACK);
-  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-
-  if ((_sensor6035.cal_calib[0] < 0.5) | (_sensor6035.cal_calib[0] > 3.5) | (_sensor6035.cal_calib[1] < 0.95)) 
-  {
-    this->display->setTextSize(2);
-    this->display->setTextColor(RED);
-    this->display->setCursor(25, 60);
-    this->display->print("Failed Calib!");
-    this->display->setTextSize(1);
-    this->display->setCursor(220, 230);
-    this->display->print("Setting LED");
-    this->display->setTextColor(GREEN);
-    this->display->setCursor(20, 230);
-    this->display->print("Calib again");
-  }
-  else
-  {
-    flag_calib_done = true;
-    this->display->setTextSize(2);
-    this->display->setTextColor(GREEN);
-    this->display->setCursor(25, 60);
-    this->display->print("Done Calib!");
-    this->display->setTextSize(1);
-    this->display->setCursor(20, 230);
-    this->display->print("Save");
-  }
+  this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
 
   this->display->setTextSize(2);
   this->display->setTextColor(WHITE);
@@ -1837,14 +1844,37 @@ void displayCLD::display_Calib_Complete(void)
   this->display->setTextColor(WHITE);
   this->display->setCursor(50, 180);
   this->display->print("Origin: ");
-  this->display->println(_sensor6035.cal_calib[2], 1); //origin  
+  this->display->println(_sensor6035.cal_calib[2], 1); //origin 
+
+  if ((_sensor6035.cal_calib[0] < 0.5) | (_sensor6035.cal_calib[0] > 3.5) | (_sensor6035.cal_calib[1] < 0.95)) 
+  {
+    this->display->setTextSize(2);
+    this->display->setTextColor(RED);
+    this->display->setCursor(25, 60);
+    this->display->print("Failed Calib!");
+    this->display->setTextSize(1);
+    this->display->setCursor(140, 230);
+    this->display->print("Setting LED");
+    this->display->setTextColor(GREEN);
+    this->display->setCursor(20, 230);
+    this->display->print("Calib again"); 
+  }
+  else
+  {
+    flag_calib_done = true;
+    this->display->setTextSize(2);
+    this->display->setTextColor(GREEN);
+    this->display->setCursor(25, 60);
+    this->display->print("Done Calib!");
+    set_flag_calib();
+  }
 }
 
 void displayCLD::display_Set_powerled(void)
 {
   this->display->fillScreen(BLACK);
-  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-  this->display->drawRoundRect(15, 40, 302, 170, 0, Forte_Green);
+  this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
+  this->display->drawRoundRect(8, 40, 305, 170, 0, Forte_Green);
 
   this->display->setTextSize(2);
   this->display->setTextColor(WHITE);
@@ -1882,11 +1912,11 @@ void displayCLD::display_Set_powerled(void)
 
   this->display->setTextSize(1);
   this->display->setCursor(20, 230);
-  this->display->setTextColor(RED);
-  this->display->println("Up");
-  this->display->setCursor(140, 230);
   this->display->setTextColor(GREEN);
   this->display->println("Next");
+  this->display->setCursor(150, 230);
+  this->display->setTextColor(RED);
+  this->display->println("Up");
   this->display->setCursor(275, 230);
   this->display->setTextColor(WHITE);
   this->display->println("Save");
@@ -1921,7 +1951,7 @@ void displayCLD::calculate(void)
 void displayCLD::saving_calib(void)
 {
   this->display->fillScreen(BLACK);
-  this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
+  this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
 
   this->display->setTextSize(2);
   this->display->setTextColor(WHITE);
@@ -1938,6 +1968,13 @@ void displayCLD::saving_calib(void)
   this->display->setTextColor(GREEN);
   this->display->setCursor(20, 230);
   this->display->print("Next");
+}
+
+void displayCLD::set_flag_calib(void)
+{
+  delay(3000);
+  _displayCLD.type_infor = eSaveCalib;
+  _displayCLD.changeScreen = true;
 }
 
 

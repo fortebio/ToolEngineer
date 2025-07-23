@@ -47,6 +47,7 @@ typedef enum
     eSettingBluetooth,
     eSettingWifi,
 
+    eSelectAmpli,
     eSelectMode,
     eSelectSlot,    //display select slot calib
     eCalibrating,   //display calib
@@ -129,12 +130,14 @@ public:
     */
 
     /* Calibration */
+    void display_Select_menu_calib(void);
     void display_Select_mode(void);
     void display_Select_slot(void);
     void display_Calib(void);
     void display_Waiting_Calib(void);
     void display_Calib_Complete(void);
     void display_Set_powerled(void);
+    void set_flag_calib(void);
 
     void calculate(void);
     void saving_calib(void);

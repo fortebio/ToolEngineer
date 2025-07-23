@@ -96,7 +96,15 @@ void buttonProcess(e_statusbutton index)
         _sensor6035.setStepeSensorpreheat();
         dbg_button("red button - start amplification");
       }
-
+      
+      else if (_displayCLD.type_infor == eSelectAmpli)
+      {
+        _PIDControl.heatSimulation(0xFF);
+        _PIDControl.setPID23Ready();
+        _displayCLD.type_infor = ewaitampTube;
+        _displayCLD.bheadershow = true;
+        _displayCLD.changeScreen = true;
+      }
       else if (_displayCLD.type_infor == ewaitampTube)
       {
         _displayCLD.type_infor = eoptoreading;
@@ -123,18 +131,13 @@ void buttonProcess(e_statusbutton index)
       }
       else if (_displayCLD.type_infor == eSelectMode)
       {
-        _displayCLD.type_infor = eCalibrating;
+        _displayCLD.type_infor = eSetPowerLed;
         _displayCLD.changeScreen = true;
-      }
-      else if (_displayCLD.type_infor == eCalibrating)
-      {
-        _sensor6035.setStepeSensorcalib();
       }
       else if (_displayCLD.type_infor == eCalibComplete && !(_displayCLD.flag_calib_done))
       {
         _displayCLD.type_infor = eSetPowerLed;
         _displayCLD.changeScreen = true;
-        _displayCLD.flag_calib_done = false;
       }
       
       else if (_displayCLD.type_infor == eSetPowerLed)
@@ -214,6 +217,11 @@ void buttonProcess(e_statusbutton index)
         _displayCLD.changeScreen = true;
       }
 
+      else if (_displayCLD.type_infor == eSelectAmpli)
+      {
+        _displayCLD.type_infor = eSelectSlot;
+        _displayCLD.changeScreen = true;
+      }
       else if (_displayCLD.type_infor == eSelectSlot)
       {
         _displayCLD.type_infor = eSelectMode;
@@ -221,13 +229,12 @@ void buttonProcess(e_statusbutton index)
       }
       else if (_displayCLD.type_infor == eSelectMode)
       {
-        _displayCLD.type_infor = eSetPowerLed;
+        _displayCLD.type_infor = eCalibrating;
         _displayCLD.changeScreen = true;
       }
       else if (_displayCLD.type_infor == eCalibrating)
       {
-        _displayCLD.type_infor = eSelectMode;
-        _displayCLD.changeScreen = true;
+        _sensor6035.setStepeSensorcalib();
       }
       else if (_displayCLD.type_infor == eSetPowerLed)
       {
@@ -239,19 +246,10 @@ void buttonProcess(e_statusbutton index)
         _displayCLD.type_infor = eSetPowerLed;
         _displayCLD.changeScreen = true;
       }
-      else if (_displayCLD.type_infor == eCalibComplete)
-      {
-        if (_displayCLD.flag_calib_done)
-        {
-          _displayCLD.type_infor = eSaveCalib;
-          _displayCLD.changeScreen = true;
-        }
-        else
-        {  
+      else if (_displayCLD.type_infor == eCalibComplete && !(_displayCLD.flag_calib_done))
+      { 
           _displayCLD.type_infor = eCalibrating;
           _displayCLD.changeScreen = true;
-        }
-        _displayCLD.flag_calib_done = false;
       }
       else if (_displayCLD.type_infor == eSavePowerLed)
       {
@@ -262,6 +260,7 @@ void buttonProcess(e_statusbutton index)
       {
         _displayCLD.type_infor = eSelectSlot;
         _displayCLD.changeScreen= true;
+        _displayCLD.flag_calib_done = false;
       }
       break;
     }
@@ -366,7 +365,7 @@ static void tickerHandler2(uint8_t index)
   {
     buttonPressed[index] = false;
     _sensor6035.setStepeSensorwait();
-    _displayCLD.type_infor = eSelectSlot;
+    _displayCLD.type_infor = eSelectAmpli;
     _displayCLD.changeScreen = true;
     info_display("nut Green - calibrating");
   }

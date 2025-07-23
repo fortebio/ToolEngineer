@@ -84,7 +84,7 @@ public:
 
     sensor6035(/* args */);
     ~sensor6035();
-    //e_sensorStep sensorStep = eSensorwait;
+    
     void begin();
     void loop();
 
@@ -120,6 +120,7 @@ public:
 
     bool bResultGet(int *CT_value, char *result);
     bool bResultPutToGoogleSheet(int *CT_value, char *result);
+    bool bResultPutToChart(int *CT_value, char *result, double **processced_data);
     void AlgLoop(char *recvData);
 
     void eSensorParaIni();

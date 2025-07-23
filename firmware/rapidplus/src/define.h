@@ -110,6 +110,8 @@
 
 #include <Arduino.h>
 
+
+
 // Format of EEPROM:
 // 0~511:    previous Forte setting, 512 bytes
 // 512~1023: para with parastructure format, 512 bytes
