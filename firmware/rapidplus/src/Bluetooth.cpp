@@ -10,8 +10,6 @@ uint64_t epsid = ESP.getEfuseMac();
 String id(String(epsid).c_str());
 String id_device = "";
 
-
-
 extern int language = 0;
 
 const char *serverName = "https://script.google.com/macros/s/AKfycbw2VXXLX6fUMgmyRrSgNgEi3b4gSyE2bdctQe_DNOnlZ58EfPclQrXrlMenH0y7SH5X/exec";
@@ -427,7 +425,7 @@ String getData_toChart(void)
   String JsonString = "";
   int CT_value[10] = {0};
   char result[10] = {0};
-  double *processed_data[10] = {NULL};
+  float *processed_data[10] = {NULL};
 
   uint8_t loops = _ForteSetting.parameter.amplification_time;
 
@@ -436,7 +434,7 @@ String getData_toChart(void)
   getDataAmplificationEEPROM();
 
   bool flag = _sensor6035.bResultPutToChart(CT_value, result, processed_data);
-  
+
   for (size_t i = 0; i < OPTOCHANNELS; i++)
   {
     readings["CT_value"][i] = getCT_toChart(CT_value[i], result[i]);
@@ -444,15 +442,15 @@ String getData_toChart(void)
 
     for (uint8_t j = 0; j < loops; j++)
     {
-        readings[String("#") + String(i + 1)][j] = String(processed_data[i][j]);
+      readings[String("#") + String(i + 1)][j] = String(processed_data[i][j]);
     }
 
-    free(processed_data[i]); 
+    free(processed_data[i]);
   }
 
   serializeJson(readings, JsonString);
 
-  info_displayln(JsonString);
+  Serial.println(JsonString);
 
   return JsonString;
 }
@@ -461,15 +459,19 @@ void postData_Chart(void)
 {
   if (WiFi.status() == WL_CONNECTED)
   {
-    server.on("/", HTTP_GET, []() {
-      server.send(200, "text/html", index_html);});
+    /*turn off BT */
+    SerialBT.end();
 
-    server.on("/getdata", HTTP_GET,[]() {
+    server.on("/", HTTP_GET, []()
+              { server.send(200, "text/html", index_html); });
+
+    server.on("/getdata", HTTP_GET, []()
+              {
       String json = getData_toChart();
-      server.send(200, "application/json", json);
-    });
-    //server.on("/getdata", HTTP_GET, handleGetData);
-
+      server.send(200, "application/json", json); 
+    {
+      
+    } });
     server.begin();
   }
   else

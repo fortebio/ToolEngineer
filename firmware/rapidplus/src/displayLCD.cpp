@@ -88,7 +88,7 @@ void show_IconBluetooth(void)
     // EEPROM.begin(_EEPROM_SIZE);
     // EEPROM.get(ADDR_CHECK_BT, turnOn_BT);
     turnOn_BT = true;
-    _displayCLD.display->drawBitmap(266, 8, image_BT_Connect, 14, 16, WHITE);
+    // _displayCLD.display->drawBitmap(266, 8, image_BT_Connect, 14, 16, WHITE);
   }
   else
   {
@@ -96,10 +96,11 @@ void show_IconBluetooth(void)
     {
       // Serial.println("Truoc khi BT ngat ket noi: " + String(ESP.getFreeHeap()));
       turnOn_BT = false;
+      /* turn off bluetooth*/
       SerialBT.end();
       // Serial.println("Sau khi BT ngat ket noi: " + String(ESP.getFreeHeap()));
     }
-    _displayCLD.display->drawBitmap(266, 8, image_BT_Disconnect, 14, 16, WHITE);
+    // _displayCLD.display->drawBitmap(266, 8, image_BT_Disconnect, 14, 16, WHITE);
   }
 }
 void displayWaitingUpData(void)
@@ -827,12 +828,12 @@ void displayCLD::screen_Result()
       else if (result[i] == 'S')
       {
         this->display->setTextColor(YELLOW);
-        this->display->printf("|%02d|", CT_value[i]);
+        this->display->printf("|%3.01f|", CT_value[i]);
       }
       else if (result[i] == 'P')
       {
         this->display->setTextColor(RED);
-        this->display->printf("|%02d|", CT_value[i]);
+        this->display->printf("|%3.01f|", CT_value[i]);
       }
     }
 
@@ -966,9 +967,9 @@ void displayCLD::loop()
     {
     case escreenStart:
     {
-      Serial.println("Truoc khi BT ket noi: " + String(ESP.getFreeHeap()));
-      connectBLE();
-      Serial.println("Sau khi BT ket noi: " + String(ESP.getFreeHeap()));
+      // Serial.println("Truoc khi BT ket noi: " + String(ESP.getFreeHeap()));
+      // connectBLE();
+      // Serial.println("Sau khi BT ket noi: " + String(ESP.getFreeHeap()));
       dbg_display("escreenStart");
       this->screen_Start();
       // _sensor6035.clear();
@@ -1090,7 +1091,7 @@ void displayCLD::loop()
     case eSettingBluetooth:
     {
       connectBLE();
-      settingSucces("Settings Bluetoot Success!");
+      // settingSucces("Settings Bluetoot Success!");
       ESP.restart();
       break;
     }

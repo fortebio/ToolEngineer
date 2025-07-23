@@ -25,13 +25,13 @@
 
 typedef enum
 {
-    eSensorwait,      // wait before it starts to work
-    eSensorpreheat,   // preheat for 15 mins during heater preheating to amp temperature
-    eSensormaintain,  // maintain after preheating
-    eSensorstart,     // start to initialize the opto
+    eSensorwait,       // wait before it starts to work
+    eSensorpreheat,    // preheat for 15 mins during heater preheating to amp temperature
+    eSensormaintain,   // maintain after preheating
+    eSensorstart,      // start to initialize the opto
     eSensor1stReading, // start to read the 1st stage opto data
 
-    eSensorcalib    // calib
+    eSensorcalib // calib
 } e_sensorStep;
 
 // struct sensorvalue
@@ -84,7 +84,7 @@ public:
 
     sensor6035(/* args */);
     ~sensor6035();
-    
+
     void begin();
     void loop();
 
@@ -104,7 +104,7 @@ public:
 
     void testShot(int slot);
 
-    /* Function calib *///////////////////////////////////////
+    /* Function calib */ //////////////////////////////////////
     float calib_sensor(int slot);
     void calibration(int slot);
     float result_calib[4] = {0, 0, 0, 0};
@@ -120,7 +120,7 @@ public:
 
     bool bResultGet(float *CT_value, char *result);
     bool bResultPutToGoogleSheet(float *CT_value, char *result);
-    bool bResultPutToChart(int *CT_value, char *result, double **processced_data);
+    bool bResultPutToChart(int *CT_value, char *result, float **processced_data);
     void AlgLoop(char *recvData);
 
     void eSensorParaIni();

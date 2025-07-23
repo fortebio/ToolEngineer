@@ -251,7 +251,7 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
     return true;
 }
 
-bool sensor6035::bResultPutToChart(int *CT_value, char *result, double **processed_data)
+bool sensor6035::bResultPutToChart(int *CT_value, char *result, float **processed_data)
 {
     DataIn recordIn = DataIn();
     Record recordOut = Record();
@@ -330,16 +330,19 @@ bool sensor6035::bResultPutToChart(int *CT_value, char *result, double **process
         */
         // post_process_curve(recordOut, recordIn.parameters.baseline_start, recordIn.parameters.baseline_range, recordIn.parameters.sg_window, recordIn.parameters.sg_order);
 
-        processed_data[i] = (double *)malloc(sizeof(double) * loops);
+        processed_data[i] = (float *)malloc(sizeof(float ) * loops);
         if (processed_data[i] == NULL)
         {
             info_displayln("Memory alloccation failed for processed_data");
             return false;
         }
-        memcpy(processed_data[i], recordOut.processed_data.data(), sizeof(double) * loops);
-
+        // memcpy(processed_data[i], (float)recordOut.processed_data.data(), sizeof(float) * loops);
+        for (uint8_t j = 0; j < loops; j++)
+        {
+            processed_data[i][j] = (float)recordOut.processed_data[j];
+        }
+        
         CT_value[i] = int(recordOut.outcome.transition_time.x);
-        // memcpy(result+i, recordOut.outcome.outcome, 1);
         result[i] = recordOut.outcome.outcome[0];
 
         // reset records

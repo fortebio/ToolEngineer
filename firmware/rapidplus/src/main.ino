@@ -18,7 +18,6 @@ buttonManager _buttonManager;
 
 WebServer server(80);
 
-
 void setup()
 {
   Serial.setRxBufferSize(3 * 1024);
@@ -28,10 +27,10 @@ void setup()
   // configure the button
   _buttonManager.buttonStart();
 
-  //load ssid, password, id_device id from EEPROM
+  // load ssid, password, id_device id from EEPROM
   loadSettingDevice();
 
-  //WiFi.mode(WIFI_STA);
+  // WiFi.mode(WIFI_STA);
   WiFi.begin(ssid.c_str(), password.c_str());
   // if (!MDNS.begin("rapidplus"))
   // {
@@ -52,8 +51,9 @@ void setup()
   _Fan.begin();
   _PIDControl.timeoutSetting();
 
+  Serial.println("Truoc khi turn on WebSever: " + String(ESP.getFreeHeap()));
   postData_Chart();
-
+  Serial.println("Sau khi turn on WebSever: " + String(ESP.getFreeHeap()));
 
   // info_displayf("This is the Forte Heater&Reader %s on PCB %s @ %s %s\n", FirmwareVer, _ForteSetting.parameter.PCB_version, __DATE__, __TIME__);
 }
