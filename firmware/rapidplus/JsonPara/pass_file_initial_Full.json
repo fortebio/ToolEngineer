@@ -45,8 +45,8 @@
     "min slight positive time": 22,
     "detect shape": true,
     "detection margin time": 4,
-    "arm percentile": 0.5,
-    "transition percentile": 0.25,
+    "arm percentile": 0.9,
+    "transition percentile": 0.4,
     "sg order": 0,
     "sg window": 2,
     "baseline start": 3,
@@ -57,24 +57,14 @@
   "lysis duration": 600,
   "opto preheat time": 900,
   "LED Duration": 200,
-  "time per loop": 60000,
-  "amplification time": 40,
+  "time per loop": 20000,
+  "amplification time": 120,
   "lysis temperature": 82,
   "amplification temperature": 65.8,
-  "bottom temperature sensor seq": [
-    2,
-    0,
-    1
-  ],
-  "top temperature sensor seq": [
-    0,
-    1,
-    2
-  ],
   "PID parameter": [
-    30,
-    0.05,
-    30
+    40,
+    1,
+    60
   ],
   "PID2 parameter": [
     40,
