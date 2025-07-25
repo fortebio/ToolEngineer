@@ -234,6 +234,7 @@ void Wifi_Connect()
     WiFi.disconnect(true);
     delay(500);
   }
+  server.stop();
 
   wifiManager.resetSettings(); // Xóa thông tin kết nối cũ
   wifiManager.setDebugOutput(true);

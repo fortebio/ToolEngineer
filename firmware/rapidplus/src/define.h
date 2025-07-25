@@ -176,8 +176,8 @@ struct parastructure
   double min_slight_positive_time = 22.0; /*threshold for calling Slight Positive from Positive*/
   bool detect_shape = true;               // lag phase detection On/Off
   double detection_margin_time = 4.0;     // minimum main peak position to consider Ct value as positive
-  double arm_percentile = 0.5;            // percentile used for calculating lag phase
-  double transition_percentile = 0.25;    // percentile used for calcuating transition time (Ct) &
+  double arm_percentile = 0.9;            // percentile used for calculating lag phase
+  double transition_percentile = 0.4;    // percentile used for calcuating transition time (Ct) &
                                           // fluorescence increase
   uint8_t sg_order = 0;                   // interpolation smoothing order
   uint8_t sg_window = 2;                  // smoothing window size for algorithm
@@ -201,12 +201,12 @@ struct parastructure
 
   // heater configuration
   float lysisTemp = 82.0;                         //"lysis temperature"
-  float amplifTemp = 65;                          //"amplification temperature"
+  float amplifTemp = 65.8;                          //"amplification temperature"
   uint8_t bottomTemperatureSensorSq[3] = {0};     // bottom sensor 1, 2, 3. to be zero by default, need to calibrate it.
   uint8_t topTemperatureSensorSq[3] = {0};        // hotlid sensor 1, 2, 3, ambient sensor. to be zero by default, need
                                                   // to calibrate it.
-  double kpid[3] = {25, 0.1, 30};                 // PID parameter for bottom heater1(Lysis)
-  double kpid2[3] = {25, 0.1, 30};                // PID parameter for bottom heater2&3(Amplification)
+  double kpid[3] = {40, 1, 20};                 // PID parameter for bottom heater1(Lysis)
+  double kpid2[3] = {60, 0.1, 40};                // PID parameter for bottom heater2&3(Amplification)
   double bottomOverheat[3] = {2, 2, 2};           // overheat value of bottom heater,
                                                   // underheater value is negative of overheat
   double topOverheat[2] = {20, 20};               // overheat value of top heater
@@ -398,5 +398,5 @@ struct parastructure
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "V2.2.7.1"; // add function calib
+static String FirmwareVer = "V2.2.8"; // add function calib
 #endif

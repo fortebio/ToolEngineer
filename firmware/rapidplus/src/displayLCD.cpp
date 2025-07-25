@@ -181,11 +181,16 @@ void displayCLD::screen_Start()
 
     this->display->setTextSize(1);
     this->display->setTextColor(Forte_Green);
-    this->display->setCursor(20, 230);
-    this->display->print(FirmwareVer + "  " + ip);
+    // this->display->setCursor(20, 230);
+    // this->display->print(FirmwareVer + "  " + ip);
     info_displayln(ip);
+    // this->display->setCursor(20, 210);
+    // this->display->print("ID " + id);
+
     this->display->setCursor(20, 210);
-    this->display->print("ID " + id);
+    this->display->print(ip);
+    this->display->setCursor(20, 230);
+    this->display->print(FirmwareVer);
   }
   // dbg_display("Nhan nut do de bat dau");
   //   while (digitalRead(blueButton)) {} //NOTE: sua lai nut nhan

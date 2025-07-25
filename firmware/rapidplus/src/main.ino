@@ -13,6 +13,7 @@ Version 1.4 note: add function sellect language
 #include "PIDControl.h"
 #include "ForteSetting.h"
 #include "Fan.h"
+// #include <ESPmDNS.h>
 
 buttonManager _buttonManager;
 
@@ -30,18 +31,28 @@ void setup()
   // load ssid, password, id_device id from EEPROM
   loadSettingDevice();
 
-  // WiFi.mode(WIFI_STA);
   WiFi.begin(ssid.c_str(), password.c_str());
-  // if (!MDNS.begin("rapidplus"))
-  // {
-  //   info_displayln("Error setting up MDNS responder!");
-  //   while (1) {
-  //     delay(10);
-  //   }
-  // }
-  // info_displayln("MDNS Started");
+  int retries = 0;
+  while (WiFi.status() != WL_CONNECTED && retries < 20)
+  {
+    delay(50); // đợi 50ms mỗi lần
+    retries++;
+    Serial.print(".");
+  }
+  delay(100);
 
-  // // Read_language_fromEEPROM();
+  // if (WiFi.status() == WL_CONNECTED)
+  // {
+    if (!MDNS.begin("rpl"))
+    {
+      info_displayln("Error setting up MDNS responder!");
+      while (1)
+      {
+        delay(1000);
+      }
+    }
+    // MDNS.addService("http", "tcp", 80);
+  // }
 
   _displayCLD.begin();
   _ForteSetting.begin();
@@ -51,11 +62,7 @@ void setup()
   _Fan.begin();
   _PIDControl.timeoutSetting();
 
-  Serial.println("Truoc khi turn on WebSever: " + String(ESP.getFreeHeap()));
   postData_Chart();
-  Serial.println("Sau khi turn on WebSever: " + String(ESP.getFreeHeap()));
-
-  // info_displayf("This is the Forte Heater&Reader %s on PCB %s @ %s %s\n", FirmwareVer, _ForteSetting.parameter.PCB_version, __DATE__, __TIME__);
 }
 
 void loop()
