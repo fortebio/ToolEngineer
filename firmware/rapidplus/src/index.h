@@ -207,16 +207,66 @@ const char* index_html = R"rawliteral(
           renderTo: 'chart'
         },
         series: [
-          { name: '#1', type: 'line', color: '#00BFFF', marker: { symbol: 'circle', radius: 3, fillColor: '#00BFFF' }},
-          { name: '#2', type: 'line', color: '#FF0000', marker: { symbol: 'circle', radius: 3, fillColor: '#FF0000' }},
-          { name: '#3', type: 'line', color: '#FFFF00', marker: { symbol: 'circle', radius: 3, fillColor: '#FFFF00' }},
-          { name: '#4', type: 'line', color: '#32CD32', marker: { symbol: 'circle', radius: 3, fillColor: '#32CD32' }},
-          { name: '#5', type: 'line', color: '#D2691E', marker: { symbol: 'circle', radius: 3, fillColor: '#D2691E' }},
-          { name: '#6', type: 'line', color: '#00FFFF', marker: { symbol: 'circle', radius: 3, fillColor: '#00FFFF' }},
-          { name: '#7', type: 'line', color: '#9400D3', marker: { symbol: 'circle', radius: 3, fillColor: '#9400D3' }},
-          { name: '#8', type: 'line', color: '#9ACD32', marker: { symbol: 'circle', radius: 3, fillColor: '#9ACD32' }},
-          { name: '#9', type: 'line', color: '#0000FF', marker: { symbol: 'circle', radius: 3, fillColor: '#0000FF' }},
-          { name: '#10', type: 'line', color: '#FF69B4', marker: { symbol: 'circle', radius: 3, fillColor: '#FF69B4' }},
+          { name: '#1',
+            type: 'line',
+            color: '#00BFFF', 
+            marker: { symbol: 'circle', radius: 3, fillColor: '#00BFFF' },
+            dataLabels: { enabled: false } 
+          },
+          { name: '#2', 
+            type: 'line', 
+            color: '#FF0000', 
+            marker: { symbol: 'circle', radius: 3, fillColor: '#FF0000' },
+            dataLabels: { enabled: false } 
+          },
+          { name: '#3',
+            type: 'line', 
+            color: '#FFFF00', 
+            marker: { symbol: 'circle', radius: 3, fillColor: '#FFFF00' },
+            dataLabels: { enabled: false } 
+          },
+          { name: '#4',
+            type: 'line', 
+            color: '#32CD32', 
+            marker: { symbol: 'circle', radius: 3, fillColor: '#32CD32' },
+            dataLabels: { enabled: false } 
+          },
+          { name: '#5',
+            type: 'line', 
+            color: '#D2691E', 
+            marker: { symbol: 'circle', radius: 3, fillColor: '#D2691E' },
+            dataLabels: { enabled: false } 
+          },
+          { name: '#6',
+            type: 'line', 
+            color: '#00FFFF', 
+            marker: { symbol: 'circle', radius: 3, fillColor: '#00FFFF' },
+            dataLabels: { enabled: false } 
+          },
+          { name: '#7',
+            type: 'line', 
+            color: '#9400D3', 
+            marker: { symbol: 'circle', radius: 3, fillColor: '#9400D3' },
+            dataLabels: { enabled: false } 
+          },
+          { name: '#8',
+            type: 'line', 
+            color: '#9ACD32', 
+            marker: { symbol: 'circle', radius: 3, fillColor: '#9ACD32' },
+            dataLabels: { enabled: false } 
+          },
+          { name: '#9',
+            type: 'line', 
+            color: '#0000FF', 
+            marker: { symbol: 'circle', radius: 3, fillColor: '#0000FF' },
+            dataLabels: { enabled: false } 
+          },
+          { name: '#10',
+            type: 'line', 
+            color: '#FF69B4', 
+            marker: { symbol: 'circle', radius: 3, fillColor: '#FF69B4' },
+            dataLabels: { enabled: false } 
+          }
         ],
         title: { text: undefined },
         xAxis: {
@@ -229,22 +279,25 @@ const char* index_html = R"rawliteral(
       });
 
       function plotResult(jsonValue) {
+
         var keys = Object.keys(jsonValue);
-        var currentTime = (new Date()).getTime();
+        var totalPoints = 120;
+        var totalMinutes = 40;
 
         for (var i = 0; i < keys.length; i++) {
           var key = keys[i];
           var dataArray = jsonValue[key];
 
-          for (var j = 0; j < dataArray.length; j++) {
+          for (var j = 0; j < totalPoints; j++) {
+            
             var y = Number(dataArray[j]);
-            var x = j;
+            var x = (j / (totalPoints - 1)) * totalMinutes;
 
             if (i < chartT.series.length) {
-                chartT.series[i].addPoint([x, y], true, false, true);
-            }
+              chartT.series[i].addPoint([x, y], true, false, true);
+            }  
           }
-        }
+        }  
       }
 
       function updateDateOfMeasurement() {

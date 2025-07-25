@@ -45,7 +45,7 @@ void Read_language_fromEEPROM();
 void getDataAmplificationEEPROM(void);
 void getData(void);
 String getData_toChart(void);
-String getCT_toChart(int tmp, char c);
+String getCT_toChart(float tmp, char c);
 String getResult_toChart(char tmp);
 //void sendJsonInChunks(const String& json, size_t chunkSize);
 //void handleGetData(void);

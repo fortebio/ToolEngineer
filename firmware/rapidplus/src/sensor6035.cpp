@@ -251,7 +251,7 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
     return true;
 }
 
-bool sensor6035::bResultPutToChart(int *CT_value, char *result, float **processed_data)
+bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **processed_data)
 {
     DataIn recordIn = DataIn();
     Record recordOut = Record();
@@ -342,7 +342,7 @@ bool sensor6035::bResultPutToChart(int *CT_value, char *result, float **processe
             processed_data[i][j] = (float)recordOut.processed_data[j];
         }
         
-        CT_value[i] = int(recordOut.outcome.transition_time.x);
+        CT_value[i] = float(recordOut.outcome.transition_time.x);
         result[i] = recordOut.outcome.outcome[0];
 
         // reset records
