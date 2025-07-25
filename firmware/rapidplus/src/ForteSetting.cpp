@@ -531,31 +531,12 @@ bool ForteSetting::resultOutput()
         return false;
     }
     EEPROM.begin(_EEPROM_SIZE);
-    Word tmp[10 * 100] = {0};
+    Word tmp[10 * 130] = {0};
     EEPROM.get(RECORDPOS, tmp);
 
     memcpy(_sensor6035.sensor67Value, tmp, sizeof(tmp));
 
     EEPROM.end();
-
-    // _sensor6035.outputHeader();
-
-    // uint8_t loops = _ForteSetting.parameter.amplification_time;
-
-    // for (size_t i = 0; i < loops; i++) // cnt
-    // {
-    //     info_display(float(i) * OPTO_INTERVAL / 60000.0); // time
-    //     info_display(",");
-    //     for (size_t j = 0; j < 10; j++) // LED channel
-    //     {
-    //         info_display(_sensor6035.calCalibratedValue(j, i));
-    //         info_display(",");
-    //         delay(1);
-    //     }
-    //     info_displayln(_ForteSetting.parameter.amplifTemp);
-    // }
-    // info_displayln("<AmpStart/>");
-    // _displayCLD.screen_Result();
     _displayCLD.changeScreen = true;
     _displayCLD.type_infor = escreenResult;
     return true;
