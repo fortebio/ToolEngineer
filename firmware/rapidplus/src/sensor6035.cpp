@@ -342,7 +342,7 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
             processed_data[i][j] = (float)recordOut.processed_data[j];
         }
         
-        CT_value[i] = int(recordOut.outcome.transition_time.x);
+        CT_value[i] = float(recordOut.outcome.transition_time.x);
         result[i] = recordOut.outcome.outcome[0];
 
         // reset records
