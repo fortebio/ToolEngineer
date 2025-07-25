@@ -251,7 +251,7 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
     return true;
 }
 
-bool sensor6035::bResultPutToChart(int *CT_value, char *result, float **processed_data)
+bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **processed_data)
 {
     DataIn recordIn = DataIn();
     Record recordOut = Record();

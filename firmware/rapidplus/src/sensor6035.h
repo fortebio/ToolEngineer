@@ -120,7 +120,7 @@ public:
 
     bool bResultGet(float *CT_value, char *result);
     bool bResultPutToGoogleSheet(float *CT_value, char *result);
-    bool bResultPutToChart(int *CT_value, char *result, float **processced_data);
+    bool bResultPutToChart(float *CT_value, char *result, float **processced_data);
     void AlgLoop(char *recvData);
 
     void eSensorParaIni();

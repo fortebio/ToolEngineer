@@ -408,7 +408,7 @@ String getResult_toChart(char tmp)
   }
 }
 
-String getCT_toChart(int tmp, char result)
+String getCT_toChart(float tmp, char result)
 {
   if (result == 'N')
   {
@@ -424,7 +424,7 @@ String getData_toChart(void)
 {
   JsonDocument readings;
   String JsonString = "";
-  int CT_value[10] = {0};
+  float CT_value[10] = {0};
   char result[10] = {0};
   float *processed_data[10] = {NULL};
 
