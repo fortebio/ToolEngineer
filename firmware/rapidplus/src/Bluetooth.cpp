@@ -466,13 +466,10 @@ void postData_Chart(void)
     server.on("/", HTTP_GET, []()
               { server.send(200, "text/html", index_html); });
 
-    server.on("/getdata", HTTP_GET, []()
-              {
+    server.on("/getdata", HTTP_GET, [](){
       String json = getData_toChart();
-      server.send(200, "application/json", json); 
-    {
+      server.send(200, "application/json", json);});
       
-    } });
     server.begin();
   }
   else

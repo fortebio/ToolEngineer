@@ -140,52 +140,52 @@ const char* index_html = R"rawliteral(
 				</thead>
 				<tbody>
 					<tr>
-						<td>#1</td>
+						<td>1</td>
 						<td id="ct1"></td>
                         <td id="result1"></td>
 					</tr>
 					<tr>
-						<td>#2</td>
+						<td>2</td>
 						<td id="ct2"></td>
                         <td id="result2"></td>
 					</tr>
 					<tr>
-						<td>#3</td>
+						<td>3</td>
 						<td id="ct3"></td>
                         <td id="result3"></td>
 					</tr>
 					<tr>
-						<td>#4</td>
+						<td>4</td>
 						<td id="ct4"></td>
                         <td id="result4"></td>
 					</tr>
 					<tr>
-						<td>#5</td>
+						<td>5</td>
 						<td id="ct5"></td>
                         <td id="result5"></td>
 					</tr>
 					<tr>
-						<td>#6</td>
+						<td>6</td>
 						<td id="ct6"></td>
                         <td id="result6"></td>
 					</tr>
 					<tr>
-						<td>#7</td>
+						<td>7</td>
 						<td id="ct7"></td>
                         <td id="result7"></td>
 					</tr>
 					<tr>
-						<td>#8</td>
+						<td>8</td>
 						<td id="ct8"></td>
                         <td id="result8"></td>
 					</tr>
 					<tr>
-						<td>#9</td>
+						<td>9</td>
 						<td id="ct9"></td>
                         <td id="result9"></td>
 					</tr>
 					<tr>
-						<td>#10</td>
+						<td>10</td>
 						<td id="ct10"></td>
                         <td id="result10"></td>
 					</tr>
@@ -209,62 +209,62 @@ const char* index_html = R"rawliteral(
         series: [
           { name: '#1',
             type: 'line',
-            color: '#00BFFF', 
-            marker: { symbol: 'circle', radius: 3, fillColor: '#00BFFF' },
+            color: '#00BFFF',
+            marker: { enabled: false }, 
             dataLabels: { enabled: false } 
           },
           { name: '#2', 
             type: 'line', 
             color: '#FF0000', 
-            marker: { symbol: 'circle', radius: 3, fillColor: '#FF0000' },
+            marker: { enabled: false },
             dataLabels: { enabled: false } 
           },
           { name: '#3',
             type: 'line', 
             color: '#FFFF00', 
-            marker: { symbol: 'circle', radius: 3, fillColor: '#FFFF00' },
+            marker: { enabled: false },
             dataLabels: { enabled: false } 
           },
           { name: '#4',
             type: 'line', 
             color: '#32CD32', 
-            marker: { symbol: 'circle', radius: 3, fillColor: '#32CD32' },
+            marker: { enabled: false },
             dataLabels: { enabled: false } 
           },
           { name: '#5',
             type: 'line', 
             color: '#D2691E', 
-            marker: { symbol: 'circle', radius: 3, fillColor: '#D2691E' },
+            marker: { enabled: false },
             dataLabels: { enabled: false } 
           },
           { name: '#6',
             type: 'line', 
             color: '#00FFFF', 
-            marker: { symbol: 'circle', radius: 3, fillColor: '#00FFFF' },
+            marker: { enabled: false },
             dataLabels: { enabled: false } 
           },
           { name: '#7',
             type: 'line', 
             color: '#9400D3', 
-            marker: { symbol: 'circle', radius: 3, fillColor: '#9400D3' },
+            marker: { enabled: false },
             dataLabels: { enabled: false } 
           },
           { name: '#8',
             type: 'line', 
             color: '#9ACD32', 
-            marker: { symbol: 'circle', radius: 3, fillColor: '#9ACD32' },
+            marker: { enabled: false },
             dataLabels: { enabled: false } 
           },
           { name: '#9',
             type: 'line', 
             color: '#0000FF', 
-            marker: { symbol: 'circle', radius: 3, fillColor: '#0000FF' },
+            marker: { enabled: false },
             dataLabels: { enabled: false } 
           },
           { name: '#10',
             type: 'line', 
             color: '#FF69B4', 
-            marker: { symbol: 'circle', radius: 3, fillColor: '#FF69B4' },
+            marker: { enabled: false },
             dataLabels: { enabled: false } 
           }
         ],
@@ -312,11 +312,25 @@ const char* index_html = R"rawliteral(
                 document.getElementById(`ct${i + 1}`).innerText = jsonValue[keys[i]];
             }
       }
+
       function plotRe(jsonValue) {
         var keys = Object.keys(jsonValue);
         for (var i = 0; i < keys.length; i++) {
-                document.getElementById(`result${i + 1}`).innerText = jsonValue[keys[i]];
-            }
+          var valueStr = jsonValue[keys[i]];
+          var resultElement = document.getElementById(`result${i + 1}`);
+
+          resultElement.innerText = valueStr;
+
+          if (valueStr === "Positive") {
+              resultElement.style.color = 'red';
+          } 
+          else if (valueStr === "Slide Positive") {
+              resultElement.style.color = 'yellow';
+          }
+          else {
+              resultElement.style.color = 'black';
+          }
+        }
       }
 
       document.getElementById('reloadBtn').onclick = function() {

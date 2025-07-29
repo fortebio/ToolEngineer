@@ -330,7 +330,7 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
         */
         // post_process_curve(recordOut, recordIn.parameters.baseline_start, recordIn.parameters.baseline_range, recordIn.parameters.sg_window, recordIn.parameters.sg_order);
 
-        processed_data[i] = (float *)malloc(sizeof(float ) * loops);
+        processed_data[i] = (float *)malloc(sizeof(float) * loops);
         if (processed_data[i] == NULL)
         {
             info_displayln("Memory alloccation failed for processed_data");
