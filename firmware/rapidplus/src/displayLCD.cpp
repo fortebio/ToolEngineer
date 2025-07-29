@@ -833,12 +833,12 @@ void displayCLD::screen_Result()
       else if (result[i] == 'S')
       {
         this->display->setTextColor(YELLOW);
-        this->display->printf("|%3.01f|", CT_value[i]);
+        this->display->printf("|%04.01f|", CT_value[i]);
       }
       else if (result[i] == 'P')
       {
         this->display->setTextColor(RED);
-        this->display->printf("|%3.01f|", CT_value[i]);
+        this->display->printf("|%04.01f|", CT_value[i]);
       }
     }
 

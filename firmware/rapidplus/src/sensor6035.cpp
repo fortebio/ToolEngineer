@@ -114,31 +114,21 @@ void sensor6035::setStepeSensorpreheat()
 void sensor6035::setStepeSensorstart()
 {
     sensorStep = eSensorstart;
-    // info_displayln("eSensorstart");
 }
 
 // double *processed_data[OPTOCHANNELS] = {NULL};
 bool sensor6035::bResultGet(float *CT_value, char *result)
 {
     // Define a vector of integers
-    // std::vector<double> y_diff;
-
     DataIn recordIn = DataIn();
     Record recordOut = Record();
 
     char JsonData[3 * 1024] = {0};
-    // if(!loadJsonFromEEPROM(serialData))     //read from EEPROM, if not, then read from const string
     {
         info_displayln("load algo para from flash");
         strcpy(JsonData, strJson.c_str());
-        // info_displayln(strJson);
     }
-    // else
-    // {
-    //     info_displayln("load algo para from EEPROM");
-    // }
 
-    // String serialData = Serial.readStringUntil('@');  // add @ at end of JSON string because json strings already contain nelines and tabs
     JsonDocument jsonDocument;
 
     // Deserialize the JSON
@@ -152,7 +142,6 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         return false;
     }
     // map data to record
-    //  recordIn.fromJSON(jsonDocument);
     recordIn.fromEEPROM(jsonDocument); // get parameter from EEPROM, the rest from json data
     uint8_t loops = _ForteSetting.parameter.amplification_time;
     recordIn.raw_data.resize(loops);
@@ -168,7 +157,6 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         for (size_t j = 0; j < loops; j++)
         {
             recordIn.raw_data[j] = (float(sensor67Value[i][j]) - FORTE_ORIGINS[i]) / FORTE_SLOPES[i];
-            // info_displayf("update at %d:%d->%d:%f\n", i, j, sensor67Value[i][j], recordIn.raw_data[j]);
         }
 
         // deep copy fluorescence data to record object
@@ -181,13 +169,6 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
                            recordIn.parameters.baseline_range,
                            recordIn.parameters.sg_window,
                            recordIn.parameters.sg_order);
-
-        // info_displayln("Processed data Test:");
-        // for (size_t i = 0; i < loops; i++)
-        //{
-        //  info_displayf("%.4g,", recordOut.processed_data[i]);
-        //}
-        // info_displayln();
 
         // differentiate
         differentiate(recordOut.time_data,
@@ -210,43 +191,19 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         At the same time, may look awesome for display.
         Consider re-running the smoothing at this stage (line commented below) with higher order and window size to make a nice display without affecting the algorithm performance
         */
-        // post_process_curve(recordOut, recordIn.parameters.baseline_start, recordIn.parameters.baseline_range, recordIn.parameters.sg_window, recordIn.parameters.sg_order);
-
         JsonDocument jsonOut = recordOut.toJSON();
-
         serializeJson(jsonOut, SerialBT);
         delay(100);
         serializeJson(jsonOut, Serial);
         info_displayln();
 
-        // processed_data[i] = (double *)malloc(sizeof(double) * loops);
-        // if (processed_data[i] == NULL)
-        //{
-        // info_displayln("Memory allocation failed for processed_data");
-        // return false;
-        //}
-        // memcpy(processed_data[i], recordOut.processed_data.data(), sizeof(double) * loops);
 
         CT_value[i] = float(recordOut.outcome.transition_time.x);
-        // memcpy(result+i, recordOut.outcome.outcome, 1);
         result[i] = recordOut.outcome.outcome[0];
 
         // reset records
-        // recordIn.clear();
         recordOut.clear();
     }
-
-    // for (uint8_t i = 0; i < OPTOCHANNELS; i++)
-    //{
-    // info_displayf("%d: ", i + 1);
-    // for (uint8_t j = 0; j < loops; j++)
-    //{
-    // info_displayf("%lf  ", processed_data[i][j]);
-    //}
-    // info_displayln();
-
-    // free(processed_data[i]);
-    //}
 
     return true;
 }
@@ -301,12 +258,6 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
                            recordIn.parameters.sg_window,
                            recordIn.parameters.sg_order);
 
-        // for (int j = 0; j < loops; j++)
-        // {
-        // tmp[(loops * i) + j] = recordOut.processed_data[(loops * i) + j];
-        // info_displayln((loops * i) + j);
-        //}
-
         // differentiate
         differentiate(recordOut.time_data,
                       recordOut.processed_data,
@@ -336,7 +287,6 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
             info_displayln("Memory alloccation failed for processed_data");
             return false;
         }
-        // memcpy(processed_data[i], (float)recordOut.processed_data.data(), sizeof(float) * loops);
         for (uint8_t j = 0; j < loops; j++)
         {
             processed_data[i][j] = (float)recordOut.processed_data[j];
@@ -346,7 +296,6 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
         result[i] = recordOut.outcome.outcome[0];
 
         // reset records
-        // recordIn.clear();
         recordOut.clear();
     }
     return true;
@@ -399,12 +348,6 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value, char *result)
                            recordIn.parameters.baseline_range,
                            recordIn.parameters.sg_window,
                            recordIn.parameters.sg_order);
-        // info_displayln("Processed data:");
-        // for (size_t i = 0; i < 30; i++)
-        // {
-        //     info_displayf("%.4g,", recordOut.processed_data[i]);
-        // }
-        // info_displayln();
 
         // differentiate
         differentiate(recordOut.time_data,
