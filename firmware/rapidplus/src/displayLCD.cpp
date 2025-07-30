@@ -840,6 +840,11 @@ void displayCLD::screen_Result()
         this->display->setTextColor(RED);
         this->display->printf("|%04.01f|", CT_value[i]);
       }
+      else if (result[i] == 'E')
+      {
+        this->display->setTextColor(ORANGE);
+        this->display->printf("|  ! |", CT_value[i]);
+      }
     }
 
     this->display->setTextColor(WHITE);

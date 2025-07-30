@@ -110,8 +110,6 @@
 
 #include <Arduino.h>
 
-
-
 // Format of EEPROM:
 // 0~511:    previous Forte setting, 512 bytes
 // 512~1023: para with parastructure format, 512 bytes
@@ -158,16 +156,16 @@ struct parastructure
 
   float origins[10] = {0}; // origin value, "origins"
 
-  uint8_t led_power[10] = {0x78,  //
-                           0x78,  //
-                           0x78,  //
-                           0x78,  //
-                           0x78,  //
-                           0x78,  //
-                           0x78,  //
-                           0x78,  //
-                           0x78,  //
-                           0x78}; // PWM value to control the LED intensity,
+  uint8_t led_power[10] = {0x96,  //
+                           0x96,  //
+                           0x96,  //
+                           0x96,  //
+                           0x96,  //
+                           0x96,  //
+                           0x96,  //
+                           0x96,  //
+                           0x96,  //
+                           0x96}; // PWM value to control the LED intensity,
                                   // "led_power"
 
   // Alg parameter
@@ -177,7 +175,7 @@ struct parastructure
   bool detect_shape = true;               // lag phase detection On/Off
   double detection_margin_time = 4.0;     // minimum main peak position to consider Ct value as positive
   double arm_percentile = 0.9;            // percentile used for calculating lag phase
-  double transition_percentile = 0.4;    // percentile used for calcuating transition time (Ct) &
+  double transition_percentile = 0.4;     // percentile used for calcuating transition time (Ct) &
                                           // fluorescence increase
   uint8_t sg_order = 0;                   // interpolation smoothing order
   uint8_t sg_window = 2;                  // smoothing window size for algorithm
@@ -191,21 +189,21 @@ struct parastructure
 
   // Opto measurement configuration
   uint16_t lysisDuration = 600;           // duration of lysis, "lysis duration"
-  uint16_t optopreheatduration = 15 * 60; // duration for LED and opto sensor preheat in second. "opto
+  uint16_t optopreheatduration = 15 * 20; // duration for LED and opto sensor preheat in second. "opto
                                           // preheat time"
 
-  uint LEDDuration = 2 * 100;      // LED(time in ms) is on for 0.2s before sensor
-                                   // reading###"LED Duration"
-  ulong timePerLoop = 20 * 1000;   // Duration(ms) of 1 loop ###"time per loop"
+  uint LEDDuration = 2 * 100;       // LED(time in ms) is on for 0.2s before sensor
+                                    // reading###"LED Duration"
+  ulong timePerLoop = 20 * 1000;    // Duration(ms) of 1 loop ###"time per loop"
   uint8_t amplification_time = 120; // quantity to measure during the amplification, "amplification_time"
 
   // heater configuration
   float lysisTemp = 82.0;                         //"lysis temperature"
-  float amplifTemp = 65.8;                          //"amplification temperature"
+  float amplifTemp = 65.8;                        //"amplification temperature"
   uint8_t bottomTemperatureSensorSq[3] = {0};     // bottom sensor 1, 2, 3. to be zero by default, need to calibrate it.
   uint8_t topTemperatureSensorSq[3] = {0};        // hotlid sensor 1, 2, 3, ambient sensor. to be zero by default, need
                                                   // to calibrate it.
-  double kpid[3] = {40, 1, 20};                 // PID parameter for bottom heater1(Lysis)
+  double kpid[3] = {40, 1, 20};                   // PID parameter for bottom heater1(Lysis)
   double kpid2[3] = {60, 0.1, 40};                // PID parameter for bottom heater2&3(Amplification)
   double bottomOverheat[3] = {2, 2, 2};           // overheat value of bottom heater,
                                                   // underheater value is negative of overheat
@@ -398,5 +396,5 @@ struct parastructure
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "V2.2.8"; // add function calib
+static String FirmwareVer = "V2.2.9"; // add function calib
 #endif

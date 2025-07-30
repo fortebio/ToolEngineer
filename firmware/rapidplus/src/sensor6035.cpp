@@ -197,7 +197,6 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         serializeJson(jsonOut, Serial);
         info_displayln();
 
-
         CT_value[i] = float(recordOut.outcome.transition_time.x);
         result[i] = recordOut.outcome.outcome[0];
 
@@ -279,7 +278,6 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
         At the same time, may look awesome for display.
         Consider re-running the smoothing at this stage (line commented below) with higher order and window size to make a nice display without affecting the algorithm performance
         */
-        // post_process_curve(recordOut, recordIn.parameters.baseline_start, recordIn.parameters.baseline_range, recordIn.parameters.sg_window, recordIn.parameters.sg_order);
 
         processed_data[i] = (float *)malloc(sizeof(float) * loops);
         if (processed_data[i] == NULL)
@@ -291,7 +289,7 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
         {
             processed_data[i][j] = (float)recordOut.processed_data[j];
         }
-        
+
         CT_value[i] = float(recordOut.outcome.transition_time.x);
         result[i] = recordOut.outcome.outcome[0];
 
@@ -301,7 +299,10 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
     return true;
 }
 
-bool sensor6035::bResultPutToGoogleSheet(float *CT_value, char *result)
+bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
+                                         char *result,
+                                         struct DiagnosticOutcome *get_outcome,
+                                         struct FeatureDetection *get_peak_features)
 {
     DataIn recordIn = DataIn();
     Record recordOut = Record();
@@ -370,8 +371,9 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value, char *result)
         At the same time, may look awesome for display.
         Consider re-running the smoothing at this stage (line commented below) with higher order and window size to make a nice display without affecting the algorithm performance
         */
-        // post_process_curve(recordOut, recordIn.parameters.baseline_start, recordIn.parameters.baseline_range, recordIn.parameters.sg_window, recordIn.parameters.sg_order);
 
+        get_outcome[i] = recordOut.outcome;
+        get_peak_features[i] = recordOut.peak_features;
         CT_value[i] = float(recordOut.outcome.transition_time.x);
         result[i] = recordOut.outcome.outcome[0];
         recordOut.clear();

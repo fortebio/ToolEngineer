@@ -119,8 +119,12 @@ public:
     bool bSensorReadingGet();
 
     bool bResultGet(float *CT_value, char *result);
-    bool bResultPutToGoogleSheet(float *CT_value, char *result);
+    bool bResultPutToGoogleSheet(float *CT_value,
+                                             char *result,
+                                             struct DiagnosticOutcome *get_outcome,
+                                             struct FeatureDetection *get_peak_features);
     bool bResultPutToChart(float *CT_value, char *result, float **processced_data);
+
     void AlgLoop(char *recvData);
 
     void eSensorParaIni();
