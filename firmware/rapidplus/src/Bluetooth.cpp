@@ -368,7 +368,7 @@ void postData_GoogleSheet(void)
       char resultConfig[15] = {0};
       if (result[i] == 'E')
       {
-        sprintf(resultConfig, "-! | %c", result[i]);
+        sprintf(resultConfig, "!  | %c", result[i]);
       }
       else
       {
@@ -432,7 +432,7 @@ String getResult_toChart(char tmp)
   }
   else if (tmp == 'E')
   {
-    return OutcomeError;
+    return "E";
   }
 }
 

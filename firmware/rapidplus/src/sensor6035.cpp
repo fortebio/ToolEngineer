@@ -203,7 +203,6 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         // reset records
         recordOut.clear();
     }
-
     return true;
 }
 
@@ -397,53 +396,24 @@ void sensor6035::AlgLoop(char *recvData)
         return;
     }
     // map data to record
-    recordIn.fromJSON(jsonDocument);
-
-    // test codes
-    // Serial.println("Record In data:");
-    // Serial.println(recordIn.outcome.outcome);
-    // Serial.println(recordIn.outcome.transition_time.x);
-    // Serial.print('[');
-    // for (double value : recordIn.raw_data) {
-    //   Serial.print(value);
-    //   Serial.print(", ");
-    // }
-    // Serial.println(']');
+    recordIn.fromEEPROM(jsonDocument);
 
     // deep copy fluorescence data to record object
     recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end());
     recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end());
-    // recordOut.time_data = recordIn.time_data;
-    // recordOut.raw_data = recordIn.raw_data;
-
-    // Serial.println("values copied to record");
 
     // process data
     post_process_curve(recordOut, recordIn.parameters.baseline_start, recordIn.parameters.baseline_range, recordIn.parameters.sg_window, recordIn.parameters.sg_order);
 
-    // Serial.println("processing data output:\n[");
-    // for (double value : recordOut.processed_data) {
-    //   Serial.print(value);
-    //   Serial.print(", ");
-    // }
-    // Serial.println(']');
-
     // differntiatie
     differentiate(recordOut.time_data, recordOut.processed_data, recordOut.differential_data);
-    // for (double value : recordOut.differential_data) {
-    //   Serial.print(value);
-    // }
+
     // detect feature
     find_sigmoidal_feature(recordOut, recordIn.parameters);
+
     // detect amplification
     predict_outcome(recordOut, recordIn.parameters);
-    // Serial.println(recordOut.outcome.outcome);
-    // Serial.print("Outcome is: ");
-    // Serial.println(recordOut.outcome.outcome);
-    // Serial.print("Ct is: ");
-    // Serial.println(recordOut.outcome.transition_time.x);
 
-    // re-write data processing to look god for users without affecting performance of algorithm
     /*
     Josep @ 24/12/24: high level of smoothing is bad for finding the lag phase because the smoothing tends to create a smooth transition until t = 0
     Thus, small windows and ordders for smoothing produced best results so far.
@@ -451,13 +421,8 @@ void sensor6035::AlgLoop(char *recvData)
     Consider re-running the smoothing at this stage (line commented below) with higher order and window size to make a nice display without affecting the algorithm performance
     */
     // post_process_curve(recordOut, recordIn.parameters.baseline_start, recordIn.parameters.baseline_range, recordIn.parameters.sg_window, recordIn.parameters.sg_order);
-
-    // JsonDocument jsonOut;
-    // JsonDocument jsonOut = recordOut.toJSON();
-
     JsonDocument jsonOut = recordOut.toJSON();
-    // jsonOut["test"] = 56;
-    // Serial.println("Record Out:");
+
     // Print the parsed JSON dictionary
     serializeJson(jsonOut, Serial);
     Serial.println();

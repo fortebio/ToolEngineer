@@ -28,16 +28,17 @@
     ]
   },
   "LED power": [
-    120,
-    120,
-    120,
-    120,
-    120,
-    120,
-    120,
-    120,
-    120,
-    120
+    150,
+    150,
+    150,
+    150,
+    150,
+    150,
+    150,
+    150,
+    150,
+    150,
+    150
   ],
   "parameters": {
     "min increase": 20,
@@ -55,7 +56,7 @@
   "units": "nM FAM",
   "device ID": "proto 0",
   "lysis duration": 600,
-  "opto preheat time": 900,
+  "opto preheat time": 300,
   "LED Duration": 200,
   "time per loop": 20000,
   "amplification time": 120,
