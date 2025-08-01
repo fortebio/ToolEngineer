@@ -396,5 +396,5 @@ struct parastructure
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "V2.3"; // add function calib
+static String FirmwareVer = "V2.3.0"; // add function calib
 #endif
