@@ -327,6 +327,10 @@ void predict_outcome(Record &record, DiagnosticParameters &parameters)
                 // Serial.println("Shape On -  yes");
                 strcpy(record.outcome.outcome, OutcomePositive);
             }
+            else if (record.peak_features.detected_ea())
+            {
+                strcpy(record.outcome.outcome, OutcomeError);
+            }
         }
     }
 

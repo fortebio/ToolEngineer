@@ -1,0 +1,461 @@
+var sheet_id = "1Glrc-5CLi9WzEZ4pBjXXR-6PV94JBFrnEi-b1djlxeU";
+var folderId = "1nAQT5LBkFJZ1OXIVOHqSRL-ZhkzcWwgH"; // ID của thư mục trên Google Drive
+
+function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    if (data.method === "append") {
+      sheetResult(data); // Ghi dữ liệu vào sheet Result
+      sheetData(data); // Ghi dữ liệu vào sheet Data
+      saveAmplificationToFolder(data);
+      highlightAmplificationRows();
+    }
+
+    return ContentService.createTextOutput("Data received").setMimeType(
+      ContentService.MimeType.TEXT
+    );
+  } catch (err) {
+    return ContentService.createTextOutput("Error: " + err).setMimeType(
+      ContentService.MimeType.TEXT
+    );
+  }
+}
+
+function sheetData(data) {
+  var sheet_name_data =
+    SpreadsheetApp.openById(sheet_id).getSheetByName("Data");
+  var lastRow_sheetData = sheet_name_data.getLastRow();
+  var startRow_sheetData = lastRow_sheetData + 1;
+
+  sheet_name_data
+    .getRange(startRow_sheetData + 3, 12)
+    .setValue(data.id_device || "N/A"); // Cột M
+  sheet_name_data
+    .getRange(startRow_sheetData + 3, 13)
+    .setValue(data.version || "Unknown"); // Cột N
+  sheet_name_data
+    .getRange(startRow_sheetData + 3, 14)
+    .setValue(new Date() || "N/A"); // Cột O
+
+  // Ghi Slopes, Origin, LED power
+  sheet_name_data.getRange(startRow_sheetData, 1).setValue("Slopes");
+  sheet_name_data
+    .getRange(startRow_sheetData, 2, 1, data.slopes.length)
+    .setValues([data.slopes]);
+  sheet_name_data.getRange(startRow_sheetData + 1, 1).setValue("Origin");
+  sheet_name_data
+    .getRange(startRow_sheetData + 1, 2, 1, data.origins.length)
+    .setValues([data.origins]);
+  sheet_name_data.getRange(startRow_sheetData + 2, 1).setValue("LED Power");
+  sheet_name_data
+    .getRange(startRow_sheetData + 2, 2, 1, data.LED_power.length)
+    .setValues([data.LED_power]);
+  // Ghi amplification time
+  sheet_name_data.getRange(startRow_sheetData + 3, 1).setValue("Amplification");
+  sheet_name_data
+    .getRange(startRow_sheetData + 3, 2, 1, data.amplification.length)
+    .setValues([data.amplification]);
+}
+
+function sheetResult(data) {
+  var sheet_name_result =
+    SpreadsheetApp.openById(sheet_id).getSheetByName("Result");
+  var lastRow_sheetResult = sheet_name_result.getLastRow();
+  var startRow_sheetResult = lastRow_sheetResult + 1;
+
+  sheet_name_result
+    .getRange(startRow_sheetResult, 11)
+    .setValue(data.id_device || "N/A"); // Cột M
+  sheet_name_result
+    .getRange(startRow_sheetResult, 12)
+    .setValue(data.version || "Unknown"); // Cột N
+  sheet_name_result
+    .getRange(startRow_sheetResult, 13)
+    .setValue(new Date() || "N/A"); // Cột O
+
+  // Ghi CT Values và Results
+  sheet_name_result
+    .getRange(startRow_sheetResult, 1, 1, data.result.length)
+    .setValues([data.result]);
+}
+
+function saveAmplificationToFolder(data) {
+  var folder = DriveApp.getFolderById(folderId);
+  var fileName =
+    "Log_" +
+    data.id_device +
+    "-" +
+    (data.time || new Date().toISOString()) +
+    ".txt";
+  var file = folder.getFilesByName(fileName);
+
+  var jsonString = JSON.stringify(data, null, 2);
+
+  if (file.hasNext()) {
+    var existingFile = file.next();
+    existingFile.setContent(jsonString); // Ghi đè nội dung
+    Logger.log("File already exists. Overwritten.");
+  } else {
+    folder.createFile(fileName, jsonString, MimeType.PLAIN_TEXT);
+    Logger.log("File created.");
+  }
+}
+
+function test_saveAmplificationToFolder() {
+  var testData = {
+    method: "append",
+    id_device: "RPL250701",
+    version: "V2.2.9",
+    time: "30-07-2025 11:18:59",
+    slopes: [1.367, 1.482, 1.364, 1.316, 1.505, 1.472, 1.3, 1.33, 1.532, 1.548],
+    origins: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    LED_power: [150, 150, 150, 150, 150, 150, 150, 150, 150, 150],
+    CT_value: [3, 31, 25.3, 30.7, 30.7, 25.3, 30.3, 39.3, 30.3, 25.3],
+    result: [
+      "-- | N",
+      "-- | N",
+      "-- | N",
+      "-- | N",
+      "-- | N",
+      "-- | N",
+      "-- | N",
+      "-- | N",
+      "-- | N",
+      "-- | N",
+    ],
+    outcome: [
+      {
+        transition_time: {
+          x: 3,
+          y: -3.7,
+          i: 9,
+        },
+        plateau_point: {
+          x: 5,
+          y: 1.1,
+          i: 15,
+        },
+        increase: 4.8,
+      },
+      {
+        transition_time: {
+          x: 31,
+          y: -2.8,
+          i: 93,
+        },
+        plateau_point: {
+          x: 32.7,
+          y: 3.5,
+          i: 98,
+        },
+        increase: 6.3,
+      },
+      {
+        transition_time: {
+          x: 25.3,
+          y: -4.4,
+          i: 76,
+        },
+        plateau_point: {
+          x: 27,
+          y: 0.7,
+          i: 81,
+        },
+        increase: 5.1,
+      },
+      {
+        transition_time: {
+          x: 30.7,
+          y: -3.8,
+          i: 92,
+        },
+        plateau_point: {
+          x: 32.7,
+          y: 2.1,
+          i: 98,
+        },
+        increase: 5.9,
+      },
+      {
+        transition_time: {
+          x: 30.7,
+          y: -2.3,
+          i: 92,
+        },
+        plateau_point: {
+          x: 32.3,
+          y: 1.1,
+          i: 97,
+        },
+        increase: 3.5,
+      },
+      {
+        transition_time: {
+          x: 25.3,
+          y: -3.3,
+          i: 76,
+        },
+        plateau_point: {
+          x: 27,
+          y: 1.1,
+          i: 81,
+        },
+        increase: 4.3,
+      },
+      {
+        transition_time: {
+          x: 30.3,
+          y: -0.4,
+          i: 91,
+        },
+        plateau_point: {
+          x: 32.3,
+          y: 3.3,
+          i: 97,
+        },
+        increase: 3.7,
+      },
+      {
+        transition_time: {
+          x: 39.3,
+          y: -0.3,
+          i: 118,
+        },
+        plateau_point: {
+          x: 39.7,
+          y: 1.2,
+          i: 119,
+        },
+        increase: 1.5,
+      },
+      {
+        transition_time: {
+          x: 30.3,
+          y: -2.1,
+          i: 91,
+        },
+        plateau_point: {
+          x: 32.3,
+          y: 2.5,
+          i: 97,
+        },
+        increase: 4.6,
+      },
+      {
+        transition_time: {
+          x: 25.3,
+          y: -3.2,
+          i: 76,
+        },
+        plateau_point: {
+          x: 27,
+          y: 0.7,
+          i: 81,
+        },
+        increase: 3.9,
+      },
+    ],
+    peak_features: [
+      {
+        main_peak: {
+          x: 4.3,
+          y: 3.3,
+          i: 13,
+        },
+        right_arm: {
+          x: 4.7,
+          y: 2.6,
+          i: 14,
+        },
+        left_arm: {
+          x: 4,
+          y: 2.2,
+          i: 12,
+        },
+      },
+      {
+        main_peak: {
+          x: 32.3,
+          y: 4,
+          i: 97,
+        },
+        right_arm: {
+          x: 32.7,
+          y: 0.8,
+          i: 98,
+        },
+        left_arm: {
+          x: 31.3,
+          y: 3.4,
+          i: 94,
+        },
+      },
+      {
+        main_peak: {
+          x: 26.3,
+          y: 4.6,
+          i: 79,
+        },
+        right_arm: {
+          x: 26.7,
+          y: 3.3,
+          i: 80,
+        },
+        left_arm: {
+          x: 26,
+          y: 3.3,
+          i: 78,
+        },
+      },
+      {
+        main_peak: {
+          x: 31.3,
+          y: 4.1,
+          i: 94,
+        },
+        right_arm: {
+          x: 32,
+          y: 3.6,
+          i: 96,
+        },
+        left_arm: {
+          x: 31,
+          y: 2.1,
+          i: 93,
+        },
+      },
+      {
+        main_peak: {
+          x: 31.7,
+          y: 3.2,
+          i: 95,
+        },
+        right_arm: {
+          x: 32,
+          y: 2.2,
+          i: 96,
+        },
+        left_arm: {
+          x: 31.3,
+          y: 2.4,
+          i: 94,
+        },
+      },
+      {
+        main_peak: {
+          x: 26.3,
+          y: 4.3,
+          i: 79,
+        },
+        right_arm: {
+          x: 26.7,
+          y: 1.8,
+          i: 80,
+        },
+        left_arm: {
+          x: 26,
+          y: 3.7,
+          i: 78,
+        },
+      },
+      {
+        main_peak: {
+          x: 31.7,
+          y: 2.8,
+          i: 95,
+        },
+        right_arm: {
+          x: 32,
+          y: 1.6,
+          i: 96,
+        },
+        left_arm: {
+          x: 31,
+          y: 1.8,
+          i: 93,
+        },
+      },
+      {
+        main_peak: {
+          x: 39.7,
+          y: 4.5,
+          i: 119,
+        },
+        right_arm: {
+          x: -1,
+          y: -1,
+          i: -1,
+        },
+        left_arm: {
+          x: 39.3,
+          y: 1.4,
+          i: 118,
+        },
+      },
+      {
+        main_peak: {
+          x: 31,
+          y: 3.1,
+          i: 93,
+        },
+        right_arm: {
+          x: 31.3,
+          y: 2.3,
+          i: 94,
+        },
+        left_arm: {
+          x: 30.7,
+          y: 2,
+          i: 92,
+        },
+      },
+      {
+        main_peak: {
+          x: 26,
+          y: 3.3,
+          i: 78,
+        },
+        right_arm: {
+          x: 26.7,
+          y: 1.7,
+          i: 80,
+        },
+        left_arm: {
+          x: 25.7,
+          y: 2.1,
+          i: 77,
+        },
+      },
+    ],
+    amplification: [
+      "212,212,214,215,217,218,311,312,307,312,312,309,315,315,316,318,318,318,316,315,318,319,318,318,315,313,313,313,320,314,312,314,312,314,314,318,319,319,316,319,313,312,312,312,312,308,314,311,309,306,308,314,310,313,312,313,310,312,310,312,311,314,313,312,313,314,312,312,312,312,308,309,313,313,307,305,310,309,306,307,311,312,309,303,304,308,312,311,305,305,310,311,307,307,307,308,312,311,310,311,313,305,305,310,304,307,306,309,306,306,311,314,312,308,308,306,314,313,309,310,",
+      "415,420,420,419,421,422,559,555,554,556,555,558,557,562,564,564,564,560,560,560,561,561,564,563,560,557,560,555,560,563,557,562,557,563,563,566,566,568,563,564,559,554,555,557,553,556,558,560,559,559,555,559,557,558,559,560,555,559,559,560,562,560,560,562,561,565,560,563,564,566,560,557,568,558,559,557,558,557,558,556,563,568,566,559,559,560,560,561,556,558,558,557,556,555,556,556,566,564,565,565,567,559,559,560,559,558,556,559,560,562,566,567,563,565,567,564,564,560,560,560,",
+      "307,307,310,310,312,312,439,439,439,440,440,441,440,443,448,443,448,444,447,445,442,444,448,448,448,442,442,442,447,447,445,447,444,448,446,448,448,446,444,444,441,440,437,440,440,438,443,440,440,441,442,441,440,440,444,444,442,444,444,441,444,444,440,442,439,443,444,447,448,446,439,438,446,437,435,439,439,437,437,440,444,449,448,441,439,440,444,443,441,441,442,440,443,441,440,444,448,446,448,443,445,440,439,440,439,439,438,437,441,438,446,445,441,445,445,448,447,447,443,444,",
+      "303,304,306,305,305,304,416,416,416,416,415,417,419,420,423,422,423,421,422,423,421,424,423,423,424,420,417,419,423,423,418,421,420,424,423,424,424,426,421,421,415,412,419,417,417,416,417,418,416,415,416,416,416,416,416,416,416,420,418,416,416,419,418,420,423,421,424,421,423,419,416,416,422,415,417,419,418,417,417,424,421,423,424,417,416,412,420,418,414,417,418,413,415,415,416,418,422,424,424,423,423,416,416,417,416,417,417,416,417,418,422,420,420,423,422,420,424,419,419,420,",
+      "293,291,294,295,297,294,408,407,407,402,407,407,408,407,409,409,408,412,410,410,411,413,410,413,411,408,405,410,409,409,408,407,408,411,415,413,415,409,413,411,408,406,405,404,402,404,408,404,405,404,406,407,406,405,405,405,404,408,408,407,408,408,407,407,408,408,411,410,412,413,407,408,413,408,405,407,408,407,406,408,412,411,413,405,404,408,409,406,404,405,405,408,405,403,405,408,412,413,411,408,411,408,406,408,407,406,408,407,407,408,411,412,410,411,408,410,408,407,408,408,",
+      "325,324,328,328,328,328,442,441,446,447,448,448,445,448,452,450,451,448,448,448,450,449,454,452,449,446,448,448,449,450,448,446,450,454,455,450,451,452,448,449,442,444,442,443,442,441,446,443,448,447,448,445,446,448,447,449,448,445,447,448,447,447,446,449,448,451,451,451,451,448,445,441,452,442,443,444,443,444,445,448,450,455,453,445,442,443,452,447,443,441,448,448,446,443,448,453,453,452,456,451,451,447,448,450,448,448,445,446,449,447,453,451,447,449,450,450,452,449,448,449,",
+      "428,435,432,430,430,428,510,511,514,512,511,511,513,512,513,514,516,513,512,512,513,514,512,514,514,512,512,512,512,512,512,513,516,515,512,513,513,512,512,512,509,509,508,511,510,510,510,512,510,511,512,512,512,512,509,512,513,515,514,514,514,512,514,514,516,517,515,517,514,512,512,511,515,508,510,511,511,510,509,512,512,513,515,511,512,512,519,511,512,512,514,511,512,512,514,518,515,519,517,516,520,511,512,512,515,514,512,513,513,515,516,515,515,515,513,516,514,512,512,512,",
+      "280,280,280,280,282,286,378,379,380,382,377,382,383,383,383,384,385,384,383,380,384,381,383,384,380,380,380,376,384,386,384,380,384,385,385,382,384,384,385,385,377,377,377,376,377,378,376,379,378,378,378,378,377,378,380,378,378,375,376,376,376,382,376,378,382,383,384,385,385,384,376,376,384,378,378,376,378,380,380,383,380,384,380,377,378,380,380,378,377,377,376,378,377,377,378,383,383,380,379,378,379,376,376,381,382,376,376,377,383,378,383,382,380,384,384,384,383,383,380,384,",
+      "352,358,352,352,352,351,453,454,451,454,451,456,457,456,457,458,459,461,458,456,463,463,463,460,459,456,456,458,457,460,460,456,462,460,458,459,461,456,457,457,453,453,453,454,451,454,454,455,452,455,456,455,456,456,457,456,458,457,459,456,456,459,455,459,458,459,460,460,461,458,456,456,458,456,454,457,456,456,456,459,458,460,462,455,453,452,460,454,455,454,455,452,455,456,456,463,460,459,463,462,459,455,455,457,459,455,454,456,456,457,461,460,457,458,457,459,457,458,455,455,",
+      "329,336,335,330,332,336,454,455,456,456,457,458,463,456,461,462,463,461,464,459,463,464,464,464,462,462,461,462,460,462,463,461,468,458,461,461,462,462,462,460,458,456,458,456,456,456,457,456,456,457,458,457,463,458,457,460,460,463,460,459,461,462,463,464,464,464,462,463,464,460,455,456,457,459,454,456,456,456,456,458,463,466,463,458,457,456,462,457,456,456,457,456,457,459,458,463,465,463,464,463,461,456,459,460,459,458,458,458,458,461,462,462,462,463,464,461,464,461,457,459,",
+    ],
+  };
+  // sheetResult(testData); // Ghi dữ liệu vào sheet Result
+  // sheetData(testData); // Ghi dữ liệu vào sheet Data
+  saveAmplificationToFolder(testData);
+  // highlightAmplificationRows();
+}
+
+function highlightAmplificationRows() {
+  var sheet = SpreadsheetApp.openById(sheet_id).getSheetByName("Data");
+  var range = sheet.getDataRange(); // lấy toàn bộ dữ liệu
+  var values = range.getValues(); // mảng giá trị
+  var numCols = range.getNumColumns();
+
+  for (var i = 0; i < values.length; i++) {
+    if (values[i][0] === "Amplification") {
+      // kiểm tra cột A
+      sheet.getRange(i + 1, 1, 1, numCols).setBackground("#cfe9ff"); // tô hàng đó màu vàng (mã hex)
+    }
+  }
+}

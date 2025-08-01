@@ -8,9 +8,10 @@
 // #include "..\ForteSetting.h"
 
 // Define Point class
-class Point {
-    public:
-        double x;
+class Point
+{
+public:
+       double x;
         double y;
         int i;
         Point() { clear();}
@@ -59,6 +60,12 @@ class FeatureDetection {
             */
             if (main_peak.i != -1 && left_arm.i != -1 ) {  // and right_arm.i != -1:
                 return true;} else {return false;}
+        }
+        bool detected_ea() {
+            /*
+            :param peak_features: a peak feature structure object
+            */
+            if ((main_peak.i != -1) && (left_arm.i == -1)) {return true;} else {return false;}
         }
 
         JsonDocument toJSON() {

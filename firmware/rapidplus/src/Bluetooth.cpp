@@ -224,7 +224,7 @@ void Read_language_fromEEPROM()
 void Wifi_Connect()
 {
   WiFiManager wifiManager;
-  WiFiManagerParameter custom_id_device("id_device", "Enter ID Device", "RA", 40);
+  WiFiManagerParameter custom_id_device("id_device", "Enter ID Device", "RPL", 40);
 
   const char *menu[] = {"wifi", "update", "sep", "exit"};
 
@@ -279,20 +279,9 @@ void getDataAmplificationEEPROM(void)
   EEPROM.end();
 }
 
-String resultConfig(char result)
+float rounded(float value)
 {
-  if (result == 'N')
-  {
-    return "N";
-  }
-  else if (result == 'P')
-  {
-    return "P";
-  }
-  else if (result == 'S')
-  {
-    return "S";
-  }
+  return round(value * 10.0) / 10.0f; // Round to 1 decimal place
 }
 
 void postData_GoogleSheet(void)
@@ -303,6 +292,9 @@ void postData_GoogleSheet(void)
 
     float CT_value[10];
     char result[10];
+    struct DiagnosticOutcome outcome[10];
+    struct FeatureDetection peak_features[10];
+
     JsonDocument dataPostGoogleSheet;
     String jsonPost = "";
     uint8_t loops = _ForteSetting.parameter.amplification_time;
@@ -316,7 +308,7 @@ void postData_GoogleSheet(void)
     // Serial.println("Truoc khi ket noi: " + String(ESP.getFreeHeap()));
 
     /* Calculate CT_value and result */
-    bool flag = _sensor6035.bResultPutToGoogleSheet(CT_value, result);
+    bool flag = _sensor6035.bResultPutToGoogleSheet(CT_value, result, outcome, peak_features);
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
     String timeString = getTime();
 
@@ -324,8 +316,6 @@ void postData_GoogleSheet(void)
     dataPostGoogleSheet["id_device"] = id_device;
     dataPostGoogleSheet["version"] = FirmwareVer;
     dataPostGoogleSheet["time"] = timeString;
-
-    // dataPostGoogleSheet["amplification_time"] = _ForteSetting.parameter.amplification_time;
 
     /* Machine Specifications */
     JsonArray slopes_array = dataPostGoogleSheet.createNestedArray("slopes");
@@ -335,29 +325,63 @@ void postData_GoogleSheet(void)
     JsonArray result_array = dataPostGoogleSheet.createNestedArray("result");
 
     /* Data Read Amplification and Result (CT_value, Result) */
+    JsonArray recordOut_array = dataPostGoogleSheet.createNestedArray("record_out");
     JsonArray amplification_array = dataPostGoogleSheet.createNestedArray("amplification");
-    // JsonObject SlotObj = amplification_array.createNestedArray();
+
+    for (uint8_t i = 0; i < OPTOCHANNELS; i++)
+    {
+      String slotName = "Slot_" + String(i + 1);
+      JsonObject recordOutSlot = recordOut_array.createNestedObject();
+      JsonObject peak_featuresObj= recordOutSlot[slotName].createNestedObject("peak_features");
+      JsonObject outcomeObj= recordOutSlot[slotName].createNestedObject("outcome");
+      // JsonObject outcomeObj = outcomeSlot[slotName].createNestedObject();
+      // JsonObject outcomeObj[] = outcomeSlot.create;
+      outcome[i].transition_time.x = rounded((float)outcome[i].transition_time.x);
+      outcome[i].transition_time.y = rounded((float)outcome[i].transition_time.y);
+      outcome[i].plateau_point.x = rounded((float)outcome[i].plateau_point.x);
+      outcome[i].plateau_point.y = rounded((float)outcome[i].plateau_point.y);
+      outcome[i].increase = rounded((float)outcome[i].increase);
+      outcomeObj["transition_time"] = outcome[i].transition_time.toJSON();
+      outcomeObj["plateau_point"] = outcome[i].plateau_point.toJSON();
+      outcomeObj["increase"] = outcome[i].increase;
+
+      peak_features[i].main_peak.x = rounded((float)peak_features[i].main_peak.x);
+      peak_features[i].main_peak.y = rounded((float)peak_features[i].main_peak.y);
+      peak_features[i].right_arm.x = rounded((float)peak_features[i].right_arm.x);
+      peak_features[i].right_arm.y = rounded((float)peak_features[i].right_arm.y);
+      peak_features[i].left_arm.x = rounded((float)peak_features[i].left_arm.x);
+      peak_features[i].left_arm.y = rounded((float)peak_features[i].left_arm.y);
+      peak_featuresObj["main_peak"] = peak_features[i].main_peak.toJSON();
+      peak_featuresObj["right_arm"] = peak_features[i].right_arm.toJSON();
+      peak_featuresObj["left_arm"] = peak_features[i].left_arm.toJSON();
+    }
+
+    for (uint8_t i = 0; i < OPTOCHANNELS; i++)
+    {
+      // String slotName = "Peak_Slot_" + String(i + 1);
+      // JsonObject peak_featuresSlot = peak_features_array.createNestedObject();
+      // JsonObject peak_featuresObj = peak_featuresSlot[slotName].createNestedObject();
+    }
 
     for (int i = 0; i < OPTOCHANNELS; i++)
     {
-      String resultConfig = String(CT_value[i]) + " | " + result[i];
+      char resultConfig[15] = {0};
+      if (result[i] == 'E')
+      {
+        sprintf(resultConfig, "-! | %c", result[i]);
+      }
+      else
+      {
+        sprintf(resultConfig, "%04.01f | %c", CT_value[i], result[i]);
+      }
+
       slopes_array.add(_ForteSetting.parameter.slopes[i]);
       origins_array.add(_ForteSetting.parameter.origins[i]);
       ledPower_array.add(_ForteSetting.parameter.led_power[i]);
-      CT_value_array.add(CT_value[i]);
+      CT_value_array.add(rounded(CT_value[i]));
       result_array.add(resultConfig);
     }
 
-    // String const amplification_channel[10] = {"Slot 1",
-    //                                           "Slot 2",
-    //                                           "Slot 3",
-    //                                           "Slot 4",
-    //                                           "Slot 5",
-    //                                           "Slot 6",
-    //                                           "Slot 7",
-    //                                           "Slot 8",
-    //                                           "Slot 9",
-    //                                           "Slot 10"};
     for (int i = 0; i < OPTOCHANNELS; i++)
     {
       // JsonArray amplification_channel_array = SlotObj.createNestedArray(amplification_channel[i]);
@@ -371,7 +395,7 @@ void postData_GoogleSheet(void)
 
     serializeJson(dataPostGoogleSheet, jsonPost);
     Serial.println("Post data: " + jsonPost);
-    // Kết nối HTTPS và gửi dữ liệu
+    //// Kết nối HTTPS và gửi dữ liệu
     int httpResponseCode = http.POST(jsonPost);
     http.end();
     if (httpResponseCode > 0)
@@ -405,6 +429,10 @@ String getResult_toChart(char tmp)
   else if (tmp == 'S')
   {
     return "Slide Positive";
+  }
+  else if (tmp == 'E')
+  {
+    return OutcomeError;
   }
 }
 
@@ -466,10 +494,11 @@ void postData_Chart(void)
     server.on("/", HTTP_GET, []()
               { server.send(200, "text/html", index_html); });
 
-    server.on("/getdata", HTTP_GET, [](){
+    server.on("/getdata", HTTP_GET, []()
+              {
       String json = getData_toChart();
-      server.send(200, "application/json", json);});
-      
+      server.send(200, "application/json", json); });
+
     server.begin();
   }
   else
