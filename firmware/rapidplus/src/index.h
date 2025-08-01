@@ -16,6 +16,7 @@ const char* index_html = R"rawliteral(
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.4/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.5.0-beta4/html2canvas.min.js"></script>
+    <script src="https://code.highcharts.com/modules/accessibility.js"></script>
     <style>
       html {
         font-family: Arial, Helvetica, sans-serif;
@@ -40,7 +41,7 @@ const char* index_html = R"rawliteral(
         color: #034078;
 	  }
 	  table {
-        width: 60%;
+        width: 80%;
         border-collapse: collapse;
         margin: 20px auto;
       }
@@ -120,7 +121,7 @@ const char* index_html = R"rawliteral(
   </head>
   <body>
     <div class="topnav">
-      <h1>RAPID KIT TEST</h1>
+      <h1>RAPID PLUS</h1>
     </div>
     <div class="content" id="content">
       <div class="card-grid">
@@ -130,7 +131,7 @@ const char* index_html = R"rawliteral(
           <p class="idDevice" id="Device">Device ID:</p>
           <p class="time" id="dateOfMeasurement">Date of measurement:</p>
 		  <h2>PCR Result Table</h2>
-			<table>
+			<table id="table">
 				<thead>
 					<tr>
 						<th>Slot</th>
@@ -270,9 +271,24 @@ const char* index_html = R"rawliteral(
         ],
         title: { text: undefined },
         xAxis: {
+          plotLines: [{
+            value: 0,
+            color: 'black',
+            width: 2,
+            zIndex: 5 }], 
           title: { text: 'Time (minutes)' },
+          labels: {
+            style: {
+                fontSize: '14px'
+            }
+          }
         },
         yAxis: {
+          plotLines: [{
+            value: 0,
+            color: 'black',
+            width: 2,
+            zIndex: 5 }],
           title: { text: 'Fluorescent (nm FAM)' },
         },
         credits: { enabled: false }
