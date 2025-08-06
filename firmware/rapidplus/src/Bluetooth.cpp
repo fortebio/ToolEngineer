@@ -314,7 +314,7 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
     dataPostGoogleSheet["id_device"] = id_device;
     dataPostGoogleSheet["version"] = FirmwareVer;
     dataPostGoogleSheet["time"] = timeString;
-    dataPostGoogleSheet["kitId"] = _ForteSetting.parameter.kitId;
+    dataPostGoogleSheet["kitId"] = String(_ForteSetting.parameter.kitId);
 
     /* Machine Specifications */
     JsonArray slopes_array = dataPostGoogleSheet.createNestedArray("slopes");

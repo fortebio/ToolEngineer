@@ -647,14 +647,14 @@ void displayCLD::waitAmpTube()
     this->display->setTextSize(2);
     this->display->setTextColor(RED);
     this->display->setCursor(90, 175);
-    // this->display->println("Press red");
-    // this->display->setCursor(90, 205);
-    // this->display->print("to measure #");
-    // this->display->print(this->couter);
     this->display->println("Press Red to");
     this->display->setCursor(90, 205);
     this->display->print("Measure");
-    // this->display->print(this->couter);
+    this->display->setTextColor(WHITE);
+    this->display->setTextSize(1);
+    this->display->setCursor(30,20);
+    this->display->print("Kit ID: ");
+    this->display->print(String(_ForteSetting.parameter.kitId));
   }
 }
 
