@@ -155,8 +155,16 @@ void paraDisplay(parastructure para)
     {
       row.add(para.hotlidPWM[i][j]);
     }
+
   }
   paradata["buzzer"] = para.buzzerOn ? "On" : "Off";
+  paradata["kitId"] = para.kitId;
+
+  JsonArray empty = paradata.createNestedArray("empty");
+  for (uint8_t i = 0; i < 5; i++)
+  {
+    empty.add(para.empty[i]);
+  }
 
   // Output metadata
   String output;
@@ -284,38 +292,29 @@ float rounded(float value)
   return round(value * 10.0) / 10.0f; // Round to 1 decimal place
 }
 
-void postData_GoogleSheet(void)
+void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
 {
   if (WiFi.status() == WL_CONNECTED)
   {
-    info_displayln("Read data Amplifications from EEPROM");
-
-    float CT_value[10];
-    char result[10];
     struct DiagnosticOutcome outcome[10];
     struct FeatureDetection peak_features[10];
-
     JsonDocument dataPostGoogleSheet;
     String jsonPost = "";
-    uint8_t loops = _ForteSetting.parameter.amplification_time;
+    String timeString = getTime();
 
-    getDataAmplificationEEPROM();
-
-    SerialBT.end();
     HTTPClient http;
     http.begin(serverName);
     http.addHeader("Content-Type", "application/json");
-    // Serial.println("Truoc khi ket noi: " + String(ESP.getFreeHeap()));
 
     /* Calculate CT_value and result */
     bool flag = _sensor6035.bResultPutToGoogleSheet(CT_value, result, outcome, peak_features);
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-    String timeString = getTime();
 
     dataPostGoogleSheet["method"] = "append";
     dataPostGoogleSheet["id_device"] = id_device;
     dataPostGoogleSheet["version"] = FirmwareVer;
     dataPostGoogleSheet["time"] = timeString;
+    dataPostGoogleSheet["kitId"] = _ForteSetting.parameter.kitId;
 
     /* Machine Specifications */
     JsonArray slopes_array = dataPostGoogleSheet.createNestedArray("slopes");
@@ -332,8 +331,8 @@ void postData_GoogleSheet(void)
     {
       String slotName = "Slot_" + String(i + 1);
       JsonObject recordOutSlot = recordOut_array.createNestedObject();
-      JsonObject peak_featuresObj= recordOutSlot[slotName].createNestedObject("peak_features");
-      JsonObject outcomeObj= recordOutSlot[slotName].createNestedObject("outcome");
+      JsonObject peak_featuresObj = recordOutSlot[slotName].createNestedObject("peak_features");
+      JsonObject outcomeObj = recordOutSlot[slotName].createNestedObject("outcome");
       // JsonObject outcomeObj = outcomeSlot[slotName].createNestedObject();
       // JsonObject outcomeObj[] = outcomeSlot.create;
       outcome[i].transition_time.x = rounded((float)outcome[i].transition_time.x);
@@ -410,9 +409,8 @@ void postData_GoogleSheet(void)
       Serial.println("Error on sending POST: " + String(httpResponseCode));
     }
   }
-  else
+  else if (WiFi.status() == WL_DISCONNECTED)
   {
-    Serial.println("WiFi disconnected!");
   }
 }
 

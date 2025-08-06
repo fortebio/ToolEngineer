@@ -13,7 +13,6 @@
 #include <HTTPClient.h>
 #include "LittleFS.h"
 
-
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
@@ -47,8 +46,8 @@ void getData(void);
 String getData_toChart(void);
 String getCT_toChart(float tmp, char c);
 String getResult_toChart(char tmp);
-//void sendJsonInChunks(const String& json, size_t chunkSize);
-//void handleGetData(void);
+// void sendJsonInChunks(const String& json, size_t chunkSize);
+// void handleGetData(void);
 
 /**
  * @brief Connect to WiFi using WiFiManager
@@ -61,11 +60,11 @@ void Wifi_Connect(void);
  * @brief googlesheet API
  * @version 2.2
  */
-void postData_GoogleSheet(void);
+void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops);
 
 /**
  * @brief postData_Chart
- * 
+ *
  */
 void postData_Chart(void);
 

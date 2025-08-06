@@ -370,6 +370,11 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
         At the same time, may look awesome for display.
         Consider re-running the smoothing at this stage (line commented below) with higher order and window size to make a nice display without affecting the algorithm performance
         */
+        JsonDocument jsonOut = recordOut.toJSON();
+        serializeJson(jsonOut, SerialBT);
+        delay(100);
+        serializeJson(jsonOut, Serial);
+        info_displayln();
 
         get_outcome[i] = recordOut.outcome;
         get_peak_features[i] = recordOut.peak_features;
@@ -1456,7 +1461,6 @@ void sensor6035::outputHeader()
     {
         slopes.add(FORTE_SLOPES[i]);
         origins.add(FORTE_ORIGINS[i]);
-        // slopes.add(calMatrix[i][1]);
         uint8_t *LED_PWM_VALUE_SETTING = _ForteSetting.parameter.led_power;
         ledPower.add(LED_PWM_VALUE_SETTING[i]);
     }
@@ -1667,7 +1671,7 @@ void sensor6035::eSensor1stReadingFunc()
                             // info_displayln("eSensormaintain");
                             COUNTER = 0;
                             // iChannel = 0;
-                            _displayCLD.type_infor = escreenResult;
+                            _displayCLD.type_infor = escreenFinished;
                             _displayCLD.bheadershow = true;
                             _displayCLD.changeScreen = true;
                             EEPROM.begin(_EEPROM_SIZE);

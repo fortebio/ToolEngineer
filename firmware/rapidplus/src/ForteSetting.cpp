@@ -464,6 +464,26 @@ bool ForteSetting::JsonDataConfig()
                 }
             }
 
+            if (json_document.containsKey("kitId"))
+            {
+                double kitId = json_document["kitId"];
+                parameter.kitId = kitId;
+                info_displayln("kitId: " + String(kitId));
+            }
+
+            if (json_document.containsKey("empty"))
+            {
+                JsonArray empty = json_document["empty"];
+                info_displayln("empty: ");
+                for (uint8_t i = 0; i < empty.size(); i++)
+                {
+                    double tmp = double(empty[i]);
+                    parameter.empty[i] = tmp;
+                    info_displayln(tmp)
+                }
+                
+            }
+
             if (json_document.containsKey("counter")) // for test purpose only, to show the diagram better, it won't be saved in the EEPROM
             {
                 _sensor6035.setCounterDisplayflag(true);
@@ -538,7 +558,7 @@ bool ForteSetting::resultOutput()
 
     EEPROM.end();
     _displayCLD.changeScreen = true;
-    _displayCLD.type_infor = escreenResult;
+    _displayCLD.type_infor = escreenReview;
     return true;
 }
 

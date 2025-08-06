@@ -31,6 +31,8 @@ typedef enum
     // eincreaseto80,  //
     eprepare,
     escreenResult,
+    escreenFinished,
+    escreenReview,
     errprocess, // error process display, for button to check err status
     // eErrResart,          //restart after the button is pressed
     escreenRestart,  // used for restart display
@@ -79,7 +81,7 @@ public:
     void logoFortebiotech();
     void screen_Start();
     // void screen_Complete();
-    void screen_Result();
+    void screen_Result(char key);
     // void screen_Average_Result();
     // void waiting_Readsensor();
 

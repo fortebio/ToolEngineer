@@ -310,7 +310,7 @@ bool displayCLD::ErrorStatus()
 
 bool displayCLD::FinishStatus()
 {
-  return _displayCLD.type_infor == escreenResult;
+  return _displayCLD.type_infor == escreenFinished;
 }
 
 void displayCLD::TemperatureBottomSeqDisplay()
@@ -767,26 +767,24 @@ void displayCLD::prepare()
     this->display->setTextSize(2);
     this->display->setTextColor(RED);
     this->display->setCursor(90, 175);
-    // this->display->println("Press red");
-    // this->display->setCursor(90, 205);
-    // this->display->print("to measure #");
-    // this->display->print(this->couter);
     this->display->println("Press Red to");
     this->display->setCursor(90, 205);
     this->display->print("measure");
-    // this->display->print(this->couter);
   }
 }
 
-void displayCLD::screen_Result()
+void displayCLD::screen_Result(char key)
 {
   {
     float CT_value[10] = {0};
     char result[10] = {0};
-
-    _sensor6035.outputHeader();
     uint8_t loops = _ForteSetting.parameter.amplification_time;
+    SerialBT.end();
 
+    getDataAmplificationEEPROM();
+
+    info_displayln("<AmpStart/>");
+    _sensor6035.outputHeader();
     for (size_t i = 0; i < loops; i++) // cnt
     {
       info_display(float(i) * OPTO_INTERVAL / 60000.0); // time
@@ -799,18 +797,25 @@ void displayCLD::screen_Result()
       }
       info_displayln(_ForteSetting.parameter.amplifTemp);
     }
-    info_displayln("<AmpStart/>");
 
-    bool flag = _sensor6035.bResultGet(CT_value, result);
+    if ((WiFi.status() == WL_CONNECTED) && (key == 'f'))
+    {
+      postData_GoogleSheet(CT_value, result, loops);
+    }
+    else
+    {
+      bool flag = _sensor6035.bResultGet(CT_value, result);
+    }
+
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
 
     // display the block number
+    this->display->setTextColor(WHITE);
     this->display->setCursor(100, 30); // start position of each sensor value
     this->display->printf("L");
     this->display->setCursor(215, 30); // start position of each sensor value
     this->display->printf("R");
-    // const uint8_t channelName[] = {1,2,3,4,5};
     // display the list
     this->display->setTextColor(WHITE);
     for (u8_t i = 0; i < (OPTOCHANNELS / 2); i++)
@@ -1041,8 +1046,18 @@ void displayCLD::loop()
     case escreenResult:
     {
       dbg_display("escreenResult lan %d", this->couter);
-      // postData_GoogleSheet();
-      this->screen_Result();
+      // this->screen_Result();
+      break;
+    }
+    case escreenFinished:
+    {
+      this->screen_Result('f');
+      break;
+    }
+    case escreenReview:
+    {
+      settingSucces("Waiting......!");
+      this->screen_Result('r');
       break;
     }
     case errprocess:
@@ -1092,10 +1107,11 @@ void displayCLD::loop()
     case eSettingLanguage:
     {
       displayWaitingUpData();
-      postData_GoogleSheet();
-      settingSucces("Up Data Success!");
-      this->type_infor = escreenStart;
-      this->changeScreen = true;
+      // postData_GoogleSheet();
+      this->screen_Result('f');
+      // settingSucces("Up Data Success!");
+      // this->type_infor = escreenStart;
+      // this->changeScreen = true;
       break;
     }
     case eSettingBluetooth:

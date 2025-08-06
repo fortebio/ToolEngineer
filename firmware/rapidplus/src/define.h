@@ -177,8 +177,8 @@ struct parastructure
   double arm_percentile = 0.9;            // percentile used for calculating lag phase
   double transition_percentile = 0.4;     // percentile used for calcuating transition time (Ct) &
                                           // fluorescence increase
-  uint8_t sg_order = 0;                   // interpolation smoothing order
-  uint8_t sg_window = 2;                  // smoothing window size for algorithm
+  uint8_t sg_order = 2;                   // interpolation smoothing order
+  uint8_t sg_window = 4;                  // smoothing window size for algorithm
   // int sg_window_display = 2;              // window size for display to users
   uint8_t baseline_start = 3; // start of baselining (minutes)
   uint8_t baseline_range = 4; // range of baselining (minutes)
@@ -205,17 +205,16 @@ struct parastructure
                                                   // to calibrate it.
   double kpid[3] = {40, 1, 20};                   // PID parameter for bottom heater1(Lysis)
   double kpid2[3] = {60, 0.1, 40};                // PID parameter for bottom heater2&3(Amplification)
-  double bottomOverheat[3] = {2, 2, 2};           // overheat value of bottom heater,
+  double bottomOverheat[3] = {5, 5, 5};           // overheat value of bottom heater,
                                                   // underheater value is negative of overheat
   double topOverheat[2] = {20, 20};               // overheat value of top heater
   float temperatureOffset[6] = {0};               // temperature offset of bottom sensor 1, 2, 3, hotlid sensor 1, 2, 3,
                                                   // ambient sensor, the usage is reading temperature + this value ->
                                                   // output temperature
   uint8_t hotlidPWM[2][2] = {{40, 90}, {40, 90}}; // PWM low and high value for hotlid
-
-  // buzzer configuration
-  uint8_t buzzerOn = 0; // on/off status, on is 1 while off is 0. "buzzer" "On"
-                        // is on, others is off
+  uint8_t buzzerOn = 0;                           // on/off status, on is 1 while off is 0. "buzzer" "On"
+  double kitId = 10.0;                            // lưu thông tin kid test
+  double empty[5] = {0.0};                       // nở vùng dữ liệu để dự phòng
 };
 
 #define cDebug (0)

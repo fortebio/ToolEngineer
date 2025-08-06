@@ -327,21 +327,8 @@ static void tickerHandler(uint8_t index)
   if (!digitalRead(buttons[index]))
   {
     buttonPressed[index] = false;
-
-    EEPROM.begin(_EEPROM_SIZE);
-    Word tmp[10 * 130] = {0};
-    EEPROM.get(RECORDPOS, tmp);
-
-    memcpy(_sensor6035.sensor67Value, tmp, sizeof(tmp));
-
-    EEPROM.end();
-
-    // _displayCLD.screen_Result();
-
-    // _ForteSetting.recvData = "getResult";
     _displayCLD.changeScreen = true;
-    _displayCLD.type_infor = escreenResult;
-    //_displayCLD.screen_Result();
+    _displayCLD.type_infor = escreenReview;
     dbg_button("nut WHITE huhu");
   }
 }
