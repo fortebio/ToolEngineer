@@ -114,7 +114,6 @@ void displayWaitingUpData(void)
   _displayCLD.display->setCursor(50, 130);
   _displayCLD.display->print("Please wait...");
   show_IconWifi();
-  // show_IconBluetooth();
   delay(100);
 }
 
@@ -192,8 +191,6 @@ void displayCLD::screen_Start()
     this->display->setCursor(20, 230);
     this->display->print(FirmwareVer);
   }
-  // dbg_display("Nhan nut do de bat dau");
-  //   while (digitalRead(blueButton)) {} //NOTE: sua lai nut nhan
 }
 
 void displayCLD::ErrorProcessatBegin(String strDescript, String strValue)
@@ -650,11 +647,11 @@ void displayCLD::waitAmpTube()
     this->display->println("Press Red to");
     this->display->setCursor(90, 205);
     this->display->print("Measure");
-    this->display->setTextColor(WHITE);
-    this->display->setTextSize(1);
-    this->display->setCursor(30,20);
-    this->display->print("Kit ID: ");
-    this->display->print(String(_ForteSetting.parameter.kitId));
+    // this->display->setTextColor(WHITE);
+    // this->display->setTextSize(1);
+    // this->display->setCursor(30, 20);
+    // this->display->print("Kit ID: ");
+    // this->display->print(String(_ForteSetting.parameter.kitId));
   }
 }
 
@@ -798,8 +795,18 @@ void displayCLD::screen_Result(char key)
       info_displayln(_ForteSetting.parameter.amplifTemp);
     }
 
+    /* Kiểm tra Wifi trước khi tính toán kết quả và gửi lên Sheet */
+    int retries = 0;
+    while (WiFi.status() != WL_CONNECTED && retries < 50)
+    {
+      delay(100);
+      retries++;
+      Serial.print(".");
+    }
+
     if ((WiFi.status() == WL_CONNECTED) && (key == 'f'))
     {
+      /* Xuất kết quả lên google Sheet khi có wifi */
       postData_GoogleSheet(CT_value, result, loops);
     }
     else
@@ -1104,7 +1111,7 @@ void displayCLD::loop()
       this->changeScreen = false;
       break;
     }
-    case eSettingLanguage:
+    case eUpLoadData:
     {
       displayWaitingUpData();
       // postData_GoogleSheet();

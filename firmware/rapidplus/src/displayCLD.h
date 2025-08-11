@@ -45,7 +45,7 @@ typedef enum
     // e_language,
     // logdata
     eSettingMenu,
-    eSettingLanguage,
+    eUpLoadData,
     eSettingBluetooth,
     eSettingWifi,
 

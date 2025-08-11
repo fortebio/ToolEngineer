@@ -115,7 +115,7 @@ void buttonProcess(e_statusbutton index)
       }
       else if (_displayCLD.type_infor == eSettingMenu)
       {
-        _displayCLD.type_infor = eSettingLanguage;
+        _displayCLD.type_infor = eUpLoadData;
         _displayCLD.changeScreen = true;
       }
 

@@ -41,19 +41,6 @@ void setup()
   }
   delay(100);
 
-  // if (WiFi.status() == WL_CONNECTED)
-  // {
-  // if (!MDNS.begin("rpl"))
-  // {
-  //   info_displayln("Error setting up MDNS responder!");
-  //   while (1)
-  //   {
-  //     delay(1000);
-  //   }
-  // }
-  // MDNS.addService("http", "tcp", 80);
-  // }
-
   _displayCLD.begin();
   _ForteSetting.begin();
   _PIDControl.begin();

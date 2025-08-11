@@ -155,7 +155,6 @@ void paraDisplay(parastructure para)
     {
       row.add(para.hotlidPWM[i][j]);
     }
-
   }
   paradata["buzzer"] = para.buzzerOn ? "On" : "Off";
   paradata["kitId"] = para.kitId;
@@ -315,6 +314,18 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
     dataPostGoogleSheet["version"] = FirmwareVer;
     dataPostGoogleSheet["time"] = timeString;
     dataPostGoogleSheet["kitId"] = String(_ForteSetting.parameter.kitId);
+    if (_displayCLD.type_infor == eUpLoadData)
+    {
+      dataPostGoogleSheet["type_Upload"] = "Manual";
+    }
+    else if (_displayCLD.type_infor == escreenFinished)
+    {
+      dataPostGoogleSheet["type_Upload"] = "Auto";
+    }
+    else
+    {
+      dataPostGoogleSheet["type_Upload"] = "N/A";
+    }
 
     /* Machine Specifications */
     JsonArray slopes_array = dataPostGoogleSheet.createNestedArray("slopes");
@@ -357,9 +368,6 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
 
     for (uint8_t i = 0; i < OPTOCHANNELS; i++)
     {
-      // String slotName = "Peak_Slot_" + String(i + 1);
-      // JsonObject peak_featuresSlot = peak_features_array.createNestedObject();
-      // JsonObject peak_featuresObj = peak_featuresSlot[slotName].createNestedObject();
     }
 
     for (int i = 0; i < OPTOCHANNELS; i++)

@@ -213,7 +213,7 @@ struct parastructure
                                                   // output temperature
   uint8_t hotlidPWM[2][2] = {{40, 90}, {40, 90}}; // PWM low and high value for hotlid
   uint8_t buzzerOn = 0;                           // on/off status, on is 1 while off is 0. "buzzer" "On"
-  double kitId = 10.0;                            // lưu thông tin kid test
+  double kitId = 0.0;                             // lưu thông tin kid test
   double empty[5] = {0.0};                        // nở vùng dữ liệu để dự phòng
 };
 
