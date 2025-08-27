@@ -802,6 +802,7 @@ void displayCLD::screen_Result(char key)
       delay(100);
       retries++;
       Serial.print(".");
+      WiFi.begin(ssid.c_str(), password.c_str());
     }
 
     if ((WiFi.status() == WL_CONNECTED) && (key == 'f'))
