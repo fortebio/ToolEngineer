@@ -77,7 +77,7 @@ void PIDControl::begin()
 
 void PIDControl::loop()
 {
-#define TIMEOUT 30 * 1000 // 30s
+#define TIMEOUT 60 * 1000 // time delay sensorTop error 
     /* Bottom ***********************************************************************************/
     _bottomThermometer.loop();
     if (!_bottomThermometer.getNewTemperatureFlag()) // if new temperature is not ready, then return directly. here need add the time out process!!!!!!
@@ -133,8 +133,7 @@ void PIDControl::loop()
             return;
         }
     }
-    bottomSensorRespTime = millis() + TIMEOUT; // timeout is 30s
-    // info_displayln();
+    bottomSensorRespTime = millis() + TIMEOUT; 
 
     /* Top **********************************************************************************/
     _topThermometer.loop(); // low priority
@@ -207,7 +206,7 @@ void PIDControl::loop()
             return;
         }
     }
-    topSensorRespTime = millis() + TIMEOUT; // timeout is 30s
+    topSensorRespTime = millis() + TIMEOUT; 
 
     if (btemperatureOut)
     {
@@ -217,7 +216,6 @@ void PIDControl::loop()
 
     // start to process after receive new tempeature
     _bottomThermometer.clearNewTemperatureFlag(); // this may need to be clear after the process?
-    // _topThermometer.clearNewTemperatureFlag();    // this may need to be clear after the process?
 
     if (_displayCLD.temperatureShow) // if the screen show the tempeature now, then update the new tempeature value
     {
@@ -371,7 +369,6 @@ void PIDControl::sensorSeq()
             _displayCLD.ErrorProcess("Bottom sensors\n connect error", String(_bottomThermometer.getTempSensorQuantity()));
             // _displayCLD.type_infor = escreenStart;
             _PIDControl.rerun();
-            // delay(5000);
             return;
         }
 

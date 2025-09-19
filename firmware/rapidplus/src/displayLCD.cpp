@@ -1262,13 +1262,18 @@ void displayCLD::setting_Wifi(void)
   {
     this->display->fillScreen(BLACK);
     this->display->fillRect(108, 0, 108, 20, Forte_Green);
-    // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
     this->display->drawBitmap(18, 5, logoFBT, 35, 34, Forte_Green);
     this->display->setTextSize(1);
     this->display->setCursor(110, 15);
     this->display->setTextColor(BLACK);
     this->display->println("FORTE BIOTECH");
     this->display->setTextWrap(false);
+    this->display->setTextSize(2);
+    this->display->setCursor(45, 55);
+    this->display->print("Settings");
+    this->display->setCursor(45, 85);
+    this->display->print("Device/Update");
+
     this->display->setTextSize(1);
     this->display->drawRoundRect(29, 106, 272, 30, 10, RED);
     this->display->setTextColor(WHITE);
@@ -1278,17 +1283,10 @@ void displayCLD::setting_Wifi(void)
     this->display->setCursor(35, 200);
     this->display->print("password :");
     this->display->print(String(password));
-
     this->display->drawRoundRect(30, 158, 272, 60, 10, GREEN);
     this->display->setCursor(35, 123);
     this->display->print("id device:");
     this->display->print(String(id_device));
-
-    this->display->setTextSize(2);
-    this->display->setCursor(45, 55);
-    this->display->print("Settings");
-    this->display->setCursor(45, 85);
-    this->display->print("Device/Update");
   }
   Wifi_Connect();
   {
@@ -1297,6 +1295,12 @@ void displayCLD::setting_Wifi(void)
     // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
     this->display->drawBitmap(18, 5, logoFBT, 35, 34, Forte_Green);
 
+    this->display->setTextSize(2);
+    this->display->setCursor(45, 55);
+    this->display->print("Settings");
+    this->display->setCursor(45, 85);
+    this->display->print("Device/Update");
+
     this->display->setTextWrap(false);
     this->display->setTextSize(1);
     this->display->drawRoundRect(29, 106, 272, 30, 10, RED);
@@ -1307,17 +1311,10 @@ void displayCLD::setting_Wifi(void)
     this->display->setCursor(35, 200);
     this->display->print("password :");
     this->display->print(String(password));
-
     this->display->drawRoundRect(30, 158, 272, 60, 10, GREEN);
     this->display->setCursor(35, 123);
     this->display->print("id device:");
     this->display->print(String(id_device));
-
-    this->display->setTextSize(2);
-    this->display->setCursor(45, 55);
-    this->display->print("Settings");
-    this->display->setCursor(45, 85);
-    this->display->print("Device/Update");
   }
   delay(1000);
   esp_restart();
