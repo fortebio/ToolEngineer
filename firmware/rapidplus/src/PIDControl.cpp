@@ -77,7 +77,7 @@ void PIDControl::begin()
 
 void PIDControl::loop()
 {
-#define TIMEOUT 60 * 1000 // time delay sensorTop error 
+#define TIMEOUT 60 * 1000 // time delay sensorTop error
     /* Bottom ***********************************************************************************/
     _bottomThermometer.loop();
     if (!_bottomThermometer.getNewTemperatureFlag()) // if new temperature is not ready, then return directly. here need add the time out process!!!!!!
@@ -133,7 +133,7 @@ void PIDControl::loop()
             return;
         }
     }
-    bottomSensorRespTime = millis() + TIMEOUT; 
+    bottomSensorRespTime = millis() + TIMEOUT;
 
     /* Top **********************************************************************************/
     _topThermometer.loop(); // low priority
@@ -168,7 +168,7 @@ void PIDControl::loop()
     }
     const double targetTempHotlid[HOTLIDQUANTITY] = {HOTLID23_TEMP + OVERHEAT_THRESHOLD_TOP2, // Hotlid 2
                                                      HOTLID23_TEMP + OVERHEAT_THRESHOLD_TOP3, // Hotlid 3
-                                                     80 + OVERHEAT_THRESHOLD_TOP2};           // last one is the ambient temperature
+                                                     50 + OVERHEAT_THRESHOLD_TOP2};           // last one is the ambient temperature
     for (uint8_t i = 0; i < HOTLIDQUANTITY; i++)
     {
         HotlidTemperature[i] = _topThermometer.getTemperature()[(int)_ForteSetting.parameter.topTemperatureSensorSq[i]] + _ForteSetting.parameter.temperatureOffset[3 + i];
@@ -206,7 +206,7 @@ void PIDControl::loop()
             return;
         }
     }
-    topSensorRespTime = millis() + TIMEOUT; 
+    topSensorRespTime = millis() + TIMEOUT;
 
     if (btemperatureOut)
     {
@@ -238,8 +238,8 @@ void PIDControl::loop()
         //     // HeatHotlid1();
     case epid1ready: // pid1 is ready, wait user to put lysis tube, continue at maintain 80
         pid1Maintain80();
-        // MaintainHotlid1();
         break;
+        // MaintainHotlid1();
     // case epid1maintain80:       //maintain, but no need change status, previous one should be enough
     //     pid1Maintain80();
     //     MaintainHotlid1();
@@ -255,9 +255,11 @@ void PIDControl::loop()
         break;
     }
     case epid3startpreHeat67:
+    {
         Maintain2_67();
         StartPreheat3_67();
         break;
+    }
     case epid3preHeat67:
     {
         Maintain2_67();

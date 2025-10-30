@@ -203,8 +203,10 @@ struct parastructure
   uint8_t bottomTemperatureSensorSq[3] = {0};     // bottom sensor 1, 2, 3. to be zero by default, need to calibrate it.
   uint8_t topTemperatureSensorSq[3] = {0};        // hotlid sensor 1, 2, 3, ambient sensor. to be zero by default, need
                                                   // to calibrate it.
-  double kpid[3] = {40, 1, 20};                   // PID parameter for bottom heater1(Lysis)
-  double kpid2[3] = {60, 0.1, 40};                // PID parameter for bottom heater2&3(Amplification)
+  // double kpid[3] = {40, 1, 20};                   // PID parameter for bottom heater1(Lysis)
+  // double kpid2[3] = {60, 0.1, 40};                // PID parameter for bottom heater2&3(Amplification)
+  double kpid[3] = {30, 0.05, 30};                   // PID parameter for bottom heater1(Lysis)
+  double kpid2[3] = {35, 0.1, 40};                // PID parameter for bottom heater2&3(Amplification)
   double bottomOverheat[3] = {5, 5, 5};           // overheat value of bottom heater,
                                                   // underheater value is negative of overheat
   double topOverheat[2] = {20, 20};               // overheat value of top heater
@@ -212,7 +214,7 @@ struct parastructure
                                                   // ambient sensor, the usage is reading temperature + this value ->
                                                   // output temperature
   uint8_t hotlidPWM[2][2] = {{40, 90}, {40, 90}}; // PWM low and high value for hotlid
-  uint8_t buzzerOn = 0;                           // on/off status, on is 1 while off is 0. "buzzer" "On"
+  uint8_t buzzerOn = 1;                           // on/off status, on is 1 while off is 0. "buzzer" "On"
   double kitId = 0.0;                             // lưu thông tin kid test
   double empty[5] = {0.0};                        // nở vùng dữ liệu để dự phòng
 };

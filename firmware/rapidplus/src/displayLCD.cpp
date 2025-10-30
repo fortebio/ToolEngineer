@@ -1059,6 +1059,7 @@ void displayCLD::loop()
     }
     case escreenFinished:
     {
+      _PIDControl.rerun();
       this->screen_Result('f');
       break;
     }
