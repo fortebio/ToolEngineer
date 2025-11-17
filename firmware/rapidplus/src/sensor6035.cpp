@@ -176,13 +176,24 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
                       recordOut.differential_data);
 
         // detect feature
-        // DiagnosticParameters parameters;
+        // DiagnosticParameters parameters;CYAN
+        // differentiate(recordOut.time_data,
+        //               recordOut.raw_data,
+        //               recordOut.differential_dataRaw);
+        // for (size_t i = 0; i < loops; i++)
+        // {
+        //     Serial.print(recordOut.differential_dataRaw[i]);
+        //     Serial.println();
+        // }
+        // Serial.println();
 
         // find_sigmoidal_feature(recordIn.time_data, recordIn.processed_data, y_diff, parameters, recordOut.peak_features);
+        // find_sigmoidal_feature_dataRaw(recordOut, recordIn.parameters);
         find_sigmoidal_feature(recordOut, recordIn.parameters);
 
         // detect amplification
         predict_outcome(recordOut, recordIn.parameters);
+        // predict_outcome_dataRaw(recordOut, recordIn.parameters);
 
         // re-write data processing to look god for users without affecting performance of algorithm
         /*
@@ -203,6 +214,7 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         // reset records
         recordOut.clear();
     }
+
     return true;
 }
 

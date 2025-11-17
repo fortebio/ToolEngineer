@@ -26,8 +26,10 @@ void differentiate(const std::vector<double>& x_array, const std::vector<double>
 size_t argmax(std::vector<double> &_vector, size_t startIndex);
 
 void find_sigmoidal_feature(Record &record, DiagnosticParameters &parameters);
-
 void predict_outcome(Record &record, DiagnosticParameters& parameters);
+
+void find_sigmoidal_feature_dataRaw(Record &record, DiagnosticParameters &parameters);
+void predict_outcome_dataRaw(Record &record, DiagnosticParameters& parameters);
 
 const String strJson =
 {

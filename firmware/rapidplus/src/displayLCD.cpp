@@ -858,6 +858,11 @@ void displayCLD::screen_Result(char key)
         this->display->setTextColor(ORANGE);
         this->display->printf("|  ! |", CT_value[i]);
       }
+      else if (result[i] == 'B')
+      {
+        this->display->setTextColor(CYAN);
+        this->display->printf("|  - |", CT_value[i]);
+            }
     }
 
     this->display->setTextColor(WHITE);

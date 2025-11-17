@@ -38,6 +38,7 @@ const char OutcomePositive[] = "Positive";
 const char OutcomeNegative[] = "Negative";
 const char OutcomeSlightPositive[] = "Slight Positive";
 const char OutcomeError[] = "Error";
+const char OutcomeBreak[] = "Break";
 
 
 // Define FeatureDetection class
@@ -253,6 +254,7 @@ class Record {
         std::vector<double> raw_data;
         std::vector<double> processed_data;
         std::vector<double> differential_data;
+        std::vector<double> differential_dataRaw;
 
         JsonDocument toJSON() {
             JsonDocument _doc;
@@ -293,6 +295,7 @@ class Record {
             time_data.clear();
             processed_data.clear();
             differential_data.clear();
+            differential_dataRaw.clear();
         }       
 
     private:
