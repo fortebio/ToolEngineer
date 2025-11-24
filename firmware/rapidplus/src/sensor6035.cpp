@@ -170,30 +170,26 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
                            recordIn.parameters.sg_window,
                            recordIn.parameters.sg_order);
 
-        // differentiate
+        // DiagnosticParameters parameters;
         differentiate(recordOut.time_data,
-                      recordOut.processed_data,
-                      recordOut.differential_data);
+                      recordOut.raw_data,
+                      recordOut.differential_dataRaw);
+        find_sigmoidal_feature_dataRaw(recordOut, recordIn.parameters);
+        predict_outcome_dataRaw(recordOut, recordIn.parameters);
 
-        // detect feature
-        // DiagnosticParameters parameters;CYAN
-        // differentiate(recordOut.time_data,
-        //               recordOut.raw_data,
-        //               recordOut.differential_dataRaw);
-        // for (size_t i = 0; i < loops; i++)
-        // {
-        //     Serial.print(recordOut.differential_dataRaw[i]);
-        //     Serial.println();
-        // }
-        // Serial.println();
+        if (recordOut.outcome.outcome[0] != 'B')
+        {
+            // differentiate
+            differentiate(recordOut.time_data,
+                          recordOut.processed_data,
+                          recordOut.differential_data);
 
-        // find_sigmoidal_feature(recordIn.time_data, recordIn.processed_data, y_diff, parameters, recordOut.peak_features);
-        // find_sigmoidal_feature_dataRaw(recordOut, recordIn.parameters);
-        find_sigmoidal_feature(recordOut, recordIn.parameters);
+            // detect feature
+            find_sigmoidal_feature(recordOut, recordIn.parameters);
 
-        // detect amplification
-        predict_outcome(recordOut, recordIn.parameters);
-        // predict_outcome_dataRaw(recordOut, recordIn.parameters);
+            // detect amplification
+            predict_outcome(recordOut, recordIn.parameters);
+        }
 
         // re-write data processing to look god for users without affecting performance of algorithm
         /*
@@ -268,19 +264,29 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
                            recordIn.parameters.sg_window,
                            recordIn.parameters.sg_order);
 
-        // differentiate
-        differentiate(recordOut.time_data,
-                      recordOut.processed_data,
-                      recordOut.differential_data);
-
-        // detect feature
         // DiagnosticParameters parameters;
+        differentiate(recordOut.time_data,
+                      recordOut.raw_data,
+                      recordOut.differential_dataRaw);
+        find_sigmoidal_feature_dataRaw(recordOut, recordIn.parameters);
+        predict_outcome_dataRaw(recordOut, recordIn.parameters);
 
-        // find_sigmoidal_feature(recordIn.time_data, recordIn.processed_data, y_diff, parameters, recordOut.peak_features);
-        find_sigmoidal_feature(recordOut, recordIn.parameters);
+        if (recordOut.outcome.outcome[0] != 'B')
+        {
+            // differentiate
+            differentiate(recordOut.time_data,
+                          recordOut.processed_data,
+                          recordOut.differential_data);
 
-        // detect amplification
-        predict_outcome(recordOut, recordIn.parameters);
+            // detect feature
+            // DiagnosticParameters parameters;
+
+            // find_sigmoidal_feature(recordIn.time_data, recordIn.processed_data, y_diff, parameters, recordOut.peak_features);
+            find_sigmoidal_feature(recordOut, recordIn.parameters);
+
+            // detect amplification
+            predict_outcome(recordOut, recordIn.parameters);
+        }
 
         // re-write data processing to look god for users without affecting performance of algorithm
         /*
@@ -361,19 +367,29 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
                            recordIn.parameters.sg_window,
                            recordIn.parameters.sg_order);
 
-        // differentiate
-        differentiate(recordOut.time_data,
-                      recordOut.processed_data,
-                      recordOut.differential_data);
-
-        // detect feature
         // DiagnosticParameters parameters;
+        differentiate(recordOut.time_data,
+                      recordOut.raw_data,
+                      recordOut.differential_dataRaw);
+        find_sigmoidal_feature_dataRaw(recordOut, recordIn.parameters);
+        predict_outcome_dataRaw(recordOut, recordIn.parameters);
 
-        // find_sigmoidal_feature(recordIn.time_data, recordIn.processed_data, y_diff, parameters, recordOut.peak_features);
-        find_sigmoidal_feature(recordOut, recordIn.parameters);
+        if (recordOut.outcome.outcome[0] != 'B')
+        {
+            // differentiate
+            differentiate(recordOut.time_data,
+                          recordOut.processed_data,
+                          recordOut.differential_data);
 
-        // detect amplification
-        predict_outcome(recordOut, recordIn.parameters);
+            // detect feature
+            // DiagnosticParameters parameters;
+
+            // find_sigmoidal_feature(recordIn.time_data, recordIn.processed_data, y_diff, parameters, recordOut.peak_features);
+            find_sigmoidal_feature(recordOut, recordIn.parameters);
+
+            // detect amplification
+            predict_outcome(recordOut, recordIn.parameters);
+        }
 
         // re-write data processing to look god for users without affecting performance of algorithm
         /*

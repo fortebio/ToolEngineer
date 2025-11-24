@@ -647,125 +647,52 @@ void setData(const std::vector<double> &data, uint8_t loop)
 
 bool ForteSetting::start_amplification_simulation()
 {
-    if (strncasecmp(recvData, "Amplify", 7))
+    uint8_t slot;
+    uint8_t loops = this->parameter.amplification_time;
+    if (strncasecmp(recvData, "{", 1))
     {
         return false;
     }
-    DataIn sml_dataIn = DataIn();
-    Record sml_recordOut = Record();
 
-    // Initialize a float variable "counter" with a value of 0
-    // float counter = 0;
-    // volatile int pass;
-
-    // // Initialize an unsigned long variable "duration" and "interval"
-    // unsigned long interval = 10 * 1000;
-    // unsigned long duration = interval * 30;
-
-    // // Initialize an unsigned long variable "start_time" and "start_duration"
-    // unsigned long start_time = 0;
-    // unsigned long start_duration = 0;
-
-    // ; // Initialize an integer variable "time_delay", "time_delay_test",
-    // // "temp_delay"
-    // int time_delay = 1000;
-    // int time_delay_test = 4000;
-
-    // const float count_time[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
-    //                             10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
-    //                             20, 21, 22, 23, 24, 25, 26, 27, 28, 29};
-
-    char JsonData[3 * 1024] = {0};
+    if (recvData[recvLen - 1] >= '0' && recvData[recvLen - 1] <= '9')
     {
-        info_displayln("load algo para from flash");
-        strcpy(JsonData, strJson.c_str());
+        slot = recvData[recvLen - 1] - '0';
+        recvData[recvLen - 1] = '\0';
+        recvLen--;
+    }
+    else
+    {
+        return false;
     }
 
-    JsonDocument jsonDocument;
+    getDataAmplificationEEPROM();
 
-    // Deserialize the JSON
-    DeserializationError error = deserializeJson(jsonDocument, JsonData);
+    info_display("Json data received\n");
+    DynamicJsonDocument json_document(1024 * 3);
+    DeserializationError error = deserializeJson(json_document, recvData);
     if (error)
     {
-        info_displayln("Failed to parse JSON for algo para");
+        info_display("Error parsing JSON: ");
+        info_displayln(error.c_str());
         return false;
     }
-    sml_dataIn.fromEEPROM(jsonDocument); // get parameter from EEPROM, the rest from json data
-    uint8_t loops = this->parameter.amplification_time;
-    sml_dataIn.raw_data.resize(loops);
-    sml_dataIn.time_data.resize(loops);
-
-    for (size_t i = 0; i < loops; i++)
+    else
     {
-        sml_dataIn.time_data[i] = float(i) * OPTO_INTERVAL / 60000.0; // send time;
+        if (json_document.containsKey("Slot"))
+        {
+            for (size_t i = 0; i < loops; i++)
+            {
+                _sensor6035.sensor67Value[slot][i] = json_document["Slot"][i];
+            }
+        }
     }
-
-    // info_displayln("<AmpStart>");
-    // info_displayln("{\"calibration\":{\"slopes\":[1.92,0.68,0.48,1.15,0.8,0.56,1.40,0.46,0."
-    //                "36,0.4],\"origins\":[-42.25,-31.23,18.65,29.45,29.34,28.41,23.34,1.52,1."
-    //                "64,-11.68]},\"led_power\":[154,77,77,154,77,77,154,77,90,77],\"units\":"
-    //                "\"nM FAM\",\"device_id\":\"proto "
-    //                "1\",\"slots\":10,\"amplification_time\":30,\"measurement_interval\":5,"
-    //                "\"software_version\":\"0.0\"}");
-    // // Print Phase 1 LED and ALS start message with process and interval details
-    // info_displayln("=================================================================");
-    // info_displayln("Start Phase 1 PID LED and ALS");
-    // info_display("Duration of process: ");
-    // info_display(float(duration) / 60000); // Convert millis to minutes
-    // info_displayln(" minute(s)");
-    // info_display("Interval of process: ");
-    // info_display(float(interval) / 60000); // Convert millis to minutes
-    // info_displayln(" minute(s)");
-    // info_displayln("=================================================================");
-
-    // // Print heading
-    // info_displayln("Amplification Time[min],Sensor 1 Fluorescence[nM FAM],Sensor 2 "
-    //                "Fluorescence[nM FAM],Sensor 3 Fluorescence[nM FAM],Sensor 4 "
-    //                "Fluorescence[nM FAM],Sensor 5 Fluorescence[nM FAM],Temperature[C]");
-    // start_time = start_duration = millis();
-    // while (millis() - start_duration < duration)
-    // {
-    //     while (counter == 0 || millis() - start_time >= interval)
-    //     {
-    //         start_time = millis();
-    //         info_display(count_time[(int)counter]);
-    //         info_display(",");
-    //         turn_on_led();
-    //         info_display(count_1[(int)counter]);
-    //         info_display(",");
-    //         turn_on_led();
-    //         info_display(count_2[(int)counter]);
-    //         info_display(",");
-    //         turn_on_led();
-    //         info_display(count_3[(int)counter]);
-    //         info_display(",");
-    //         turn_on_led();
-    //         info_display(count_4[(int)counter]);
-    //         info_display(",");
-    //         turn_on_led();
-    //         info_display(count_5[(int)counter]);
-    //         info_display(",");
-    //         turn_on_led();
-    //         info_display(count_6[(int)counter]);
-    //         info_display(",");
-    //         turn_on_led();
-    //         info_display(count_7[(int)counter]);
-    //         info_display(",");
-    //         turn_on_led();
-    //         info_display(count_8[(int)counter]);
-    //         info_display(",");
-    //         turn_on_led();
-    //         info_display(count_9[(int)counter]);
-    //         info_display(",");
-    //         turn_on_led();
-    //         info_display(count_10[(int)counter]);
-    //         info_display(",");
-    //         info_displayln(count_temp[(int)counter]);
-    //         counter++;
-    //     }
-    // }
-    // // Reset variables
-    // start_time = start_duration = counter = 0;
+    EEPROM.begin(_EEPROM_SIZE);
+    Word tmp[10 * 130] = {0};
+    memcpy(tmp, _sensor6035.sensor67Value, sizeof(tmp));
+    EEPROM.put(RECORDPOS, tmp);
+    delay(100);
+    EEPROM.commit();
+    EEPROM.end();
 
     return true;
 }
@@ -872,6 +799,12 @@ void ForteSetting::loop()
                             len--;
                             info_displayln("\nReceive long json data in 1 receiving");
                         }
+                        else if (recvData[len + recvLen - 1] == '#')
+                        {
+                            recvTime = 0;
+                            len--;
+                            info_displayln("\nReceive long json data in 1 receiving");
+                        }
                         else
                         {
                             moreMsg = true;
@@ -884,6 +817,13 @@ void ForteSetting::loop()
                 {
                     moreMsg = false;
                     len--; // remove the end character '@'
+                    recvTime = 0;
+                    info_displayln("\nLong json data finished, process it now");
+                }
+                else if (recvData[len + recvLen - 1] == '#') // finish receiving
+                {
+                    moreMsg = false;
+                    len--; // remove the end character '#'
                     recvTime = 0;
                     info_displayln("\nLong json data finished, process it now");
                 }
@@ -1011,6 +951,10 @@ void ForteSetting::loop()
         else if (HeaterStepSet())
         {
         }
+
+        else if (start_amplification_simulation())
+        {
+        }
         /// "{...}@"" to analyze the json data with parameter inside, then write into EEPROM
         /// input the right whole json data directly, then it will get all elements and write into EEPROM
         else if (JsonDataConfig())
@@ -1028,9 +972,6 @@ void ForteSetting::loop()
         else if (resultOutput())
         {
         }
-        // else if (start_amplification_simulation())
-        // {
-        // }
         /// "Res" will restart the device
         else if (restart())
         {

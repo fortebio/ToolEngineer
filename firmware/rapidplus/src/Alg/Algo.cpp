@@ -294,16 +294,6 @@ void predict_outcome_dataRaw(Record &record, DiagnosticParameters &parameters)
         return;
     }
 
-    // // calculate transition time ("Ct value")
-    // record.outcome.transition_time.i = find_crossing_lower_than_reversed(
-    //     record.differential_data,
-    //     record.peak_features.main_peak.y * parameters.transition_percentile,
-    //     record.peak_features.main_peak.i);
-    // // if no point found, then assign to first point (really rare occurrence)
-    // if (record.outcome.transition_time.i == -1)
-    // {
-    //     record.outcome.transition_time.i = 0;
-    // }
     for (size_t i = 0; i < 12; i += 1)
     {
         double crossing = record.peak_features.main_peak.y * parameters.transition_percentile * thresholdIncreaseRate;
@@ -366,10 +356,16 @@ void predict_outcome_dataRaw(Record &record, DiagnosticParameters &parameters)
                 // Serial.println("Shape Off - Yes");
                 strcpy(record.outcome.outcome, OutcomePositive);
             }
-            else if ((record.outcome.plateau_point.x == record.peak_features.right_arm.x) && (record.outcome.transition_time.x == record.peak_features.left_arm.x))
+            else if ((record.outcome.plateau_point.x == record.peak_features.right_arm.x) &&
+                     (record.outcome.transition_time.x == record.peak_features.left_arm.x) &&
+                     (record.outcome.plateau_point.x - record.outcome.transition_time.x <= 1.0))
             {
                 strcpy(record.outcome.outcome, OutcomeBreak);
             }
+            // else if ((record.outcome.plateau_point.x - record.outcome.transition_time.x) < 3.0)
+            // {
+            //     strcpy(record.outcome.outcome, OutcomeBreak);
+            // }
             else if (record.peak_features.detected_shape())
             { // if using shape detected, check if the shape is right
                 // Serial.println("Shape On -  yes");
@@ -383,10 +379,10 @@ void predict_outcome_dataRaw(Record &record, DiagnosticParameters &parameters)
     }
 
     //  if positive, check if slight positive (transition time beyond a certain time i.e. t = 22 min)
-    if (strcmp(record.outcome.outcome, OutcomePositive) == 0 && record.outcome.transition_time.x >= parameters.min_slight_positive_time)
-    {
-        strcpy(record.outcome.outcome, OutcomeSlightPositive);
-    }
+    // if (strcmp(record.outcome.outcome, OutcomePositive) == 0 && record.outcome.transition_time.x >= parameters.min_slight_positive_time)
+    // {
+    //     strcpy(record.outcome.outcome, OutcomeSlightPositive);
+    // }
     //  if positive, turn negative if main peak is at the last point in array
     // 22/04/2024: originally created to disable potential spike at long Ct, but removed to detect low conc cts
     // if (strcmp(outcome.outcome, OutcomeSlightPositive) == 0 && peak_features.left_arm.i >= y_data.size()-2) {
@@ -485,10 +481,10 @@ void predict_outcome(Record &record, DiagnosticParameters &parameters)
                 // Serial.println("Shape Off - Yes");
                 strcpy(record.outcome.outcome, OutcomePositive);
             }
-            else if ((record.outcome.plateau_point.x - record.outcome.transition_time.x) < 3)
-            {
-                strcpy(record.outcome.outcome, OutcomeBreak);
-            }
+            // else if ((record.outcome.plateau_point.x - record.outcome.transition_time.x) < 3)
+            // {
+            //     strcpy(record.outcome.outcome, OutcomeBreak);
+            // }
             else if (record.peak_features.detected_shape())
             { // if using shape detected, check if the shape is right
                 // Serial.println("Shape On -  yes");

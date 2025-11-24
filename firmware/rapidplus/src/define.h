@@ -116,6 +116,7 @@
 // 1024~4095: record, 3K
 
 #define _EEPROM_SIZE 4096              // add additional for para, record and json file storage.
+// #define _EEPROM_SIZE 8192              // add additional for para, record and json file storage.
 #define PARAMETERPOS 512               // Record start at 512 with length to be 1800(store 90 rounds data), the
                                        // first 512 is reserved for Forte to use
 #define RECORDPOS (PARAMETERPOS + 512) // parameter start after record, the length of parameter is 336
@@ -198,14 +199,14 @@ struct parastructure
   uint8_t amplification_time = 120; // quantity to measure during the amplification, "amplification_time"
 
   // heater configuration
-  float lysisTemp = 82.0;                         //"lysis temperature"
-  float amplifTemp = 65.8;                        //"amplification temperature"
-  uint8_t bottomTemperatureSensorSq[3] = {0};     // bottom sensor 1, 2, 3. to be zero by default, need to calibrate it.
-  uint8_t topTemperatureSensorSq[3] = {0};        // hotlid sensor 1, 2, 3, ambient sensor. to be zero by default, need
-                                                  // to calibrate it.
+  float lysisTemp = 82.0;                     //"lysis temperature"
+  float amplifTemp = 65.8;                    //"amplification temperature"
+  uint8_t bottomTemperatureSensorSq[3] = {0}; // bottom sensor 1, 2, 3. to be zero by default, need to calibrate it.
+  uint8_t topTemperatureSensorSq[3] = {0};    // hotlid sensor 1, 2, 3, ambient sensor. to be zero by default, need
+                                              // to calibrate it.
   // double kpid[3] = {40, 1, 20};                   // PID parameter for bottom heater1(Lysis)
   // double kpid2[3] = {60, 0.1, 40};                // PID parameter for bottom heater2&3(Amplification)
-  double kpid[3] = {30, 0.05, 30};                   // PID parameter for bottom heater1(Lysis)
+  double kpid[3] = {30, 0.05, 30};                // PID parameter for bottom heater1(Lysis)
   double kpid2[3] = {35, 0.1, 40};                // PID parameter for bottom heater2&3(Amplification)
   double bottomOverheat[3] = {5, 5, 5};           // overheat value of bottom heater,
                                                   // underheater value is negative of overheat
@@ -397,5 +398,5 @@ struct parastructure
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "V2.3.3"; // add function calib
+static String FirmwareVer = "V2.3.4"; // add function calib
 #endif
