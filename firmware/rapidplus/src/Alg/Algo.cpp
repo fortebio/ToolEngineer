@@ -106,6 +106,7 @@ void DiagnosticParameters::fromEEPROM()
     min_sharpness = _ForteSetting.parameter.min_sharpness;
     min_slight_positive_time = _ForteSetting.parameter.min_slight_positive_time;
     detect_shape = _ForteSetting.parameter.detect_shape;
+    // detection_margin_time = ((_ForteSetting.parameter.detection_margin_time + (60000 / _ForteSetting.parameter.timePerLoop)) * _ForteSetting.parameter.timePerLoop) / 60000;
     detection_margin_time = _ForteSetting.parameter.detection_margin_time;
     arm_percentile = _ForteSetting.parameter.arm_percentile;
     transition_percentile = _ForteSetting.parameter.transition_percentile;
@@ -198,6 +199,7 @@ void find_sigmoidal_feature(Record &record, DiagnosticParameters &parameters)
 
     // find the highest peak after discard time in minutes
     int discard_index = find_crossing_higher_than(record.time_data, parameters.detection_margin_time, 0);
+    // Serial.printf("discard_index: %d\r\n", discard_index);
     // find the global maximum after the detection margin time in minutes
 
     record.peak_features.main_peak.i = argmax(record.differential_data, discard_index);
@@ -242,6 +244,7 @@ void find_sigmoidal_feature_dataRaw(Record &record, DiagnosticParameters &parame
 
     // find the highest peak after discard time in minutes
     int discard_index = find_crossing_higher_than(record.time_data, parameters.detection_margin_time, 0);
+    // Serial.printf("discard_index: %d\r\n", discard_index);
     // find the global maximum after the detection margin time in minutes
 
     record.peak_features.main_peak.i = argmax(record.differential_dataRaw, discard_index);
@@ -257,6 +260,7 @@ void find_sigmoidal_feature_dataRaw(Record &record, DiagnosticParameters &parame
                                                                         record.peak_features.main_peak.y * parameters.arm_percentile,
                                                                         record.peak_features.main_peak.i,
                                                                         discard_index - 1);
+    // uint8_t tmp = ;
     if (record.peak_features.left_arm.i != -1)
     {
         record.peak_features.left_arm.x = record.time_data[record.peak_features.left_arm.i];
