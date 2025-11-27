@@ -284,7 +284,8 @@ struct parastructure
 
 // sensor setting
 #define ChannelEnableSet ChannelEnableSetBoth
-#define ALSITSet ALSITSet100
+// #define ALSITSet ALSITSet100
+#define ALSITSet ALSITSet200
 #define GAINSet GAINSetDouble
 #define DGSet DGSetNormal
 #define SENSSet SENSSetHigh

@@ -1532,7 +1532,7 @@ void sensor6035::openSensorChannel(int slot)
     {
         I2CMux.openChannel(I2C_Channel[4 - slot]);
     }
-    delay(100);
+    delay(50);
 }
 
 void sensor6035::eSensorstartFunc()
