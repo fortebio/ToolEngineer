@@ -106,7 +106,6 @@ void DiagnosticParameters::fromEEPROM()
     min_sharpness = _ForteSetting.parameter.min_sharpness;
     min_slight_positive_time = _ForteSetting.parameter.min_slight_positive_time;
     detect_shape = _ForteSetting.parameter.detect_shape;
-    // detection_margin_time = ((_ForteSetting.parameter.detection_margin_time + (60000 / _ForteSetting.parameter.timePerLoop)) * _ForteSetting.parameter.timePerLoop) / 60000;
     detection_margin_time = _ForteSetting.parameter.detection_margin_time;
     arm_percentile = _ForteSetting.parameter.arm_percentile;
     transition_percentile = _ForteSetting.parameter.transition_percentile;
@@ -188,6 +187,36 @@ size_t argmax(std::vector<double> &_vector, size_t startIndex)
     return max_i;
 }
 
+bool check_breakData(std::vector<double> &_array, double crossing, int start_index)
+{
+    size_t countIncreases = 0;
+    if (start_index <= 4)
+    {
+        return true;
+    }
+    for (size_t i = start_index; i < _array.size(); i++)
+    {
+        if ((_array[i] - _array[i - 1]) >= 0)
+        {
+            countIncreases++;
+            if ((_array[i + 1] - _array[i]) <= 0)
+            {
+                countIncreases = 0;
+            }
+            if (countIncreases >= 6)
+            {
+                break;
+            }
+        }
+    }
+    Serial.printf("Break data increases count: %d\n", countIncreases);
+    if (countIncreases == 0)
+    {
+        return false;
+    }
+    return true;
+}
+
 void find_sigmoidal_feature(Record &record, DiagnosticParameters &parameters)
 {
     /*
@@ -199,9 +228,8 @@ void find_sigmoidal_feature(Record &record, DiagnosticParameters &parameters)
 
     // find the highest peak after discard time in minutes
     int discard_index = find_crossing_higher_than(record.time_data, parameters.detection_margin_time, 0);
-    // Serial.printf("discard_index: %d\r\n", discard_index);
+    // Serial.printf("Discard index: %d\n", discard_index);
     // find the global maximum after the detection margin time in minutes
-
     record.peak_features.main_peak.i = argmax(record.differential_data, discard_index);
     // if no peak found, return result in a default state
     if (record.peak_features.main_peak.i == -1)
@@ -244,9 +272,9 @@ void find_sigmoidal_feature_dataRaw(Record &record, DiagnosticParameters &parame
 
     // find the highest peak after discard time in minutes
     int discard_index = find_crossing_higher_than(record.time_data, parameters.detection_margin_time, 0);
-    // Serial.printf("discard_index: %d\r\n", discard_index);
-    // find the global maximum after the detection margin time in minutes
+    Serial.printf("Discard index: %d\n", discard_index);
 
+    // find the global maximum after the detection margin time in minutes
     record.peak_features.main_peak.i = argmax(record.differential_dataRaw, discard_index);
     // if no peak found, return result in a default state
     if (record.peak_features.main_peak.i == -1)
@@ -257,10 +285,9 @@ void find_sigmoidal_feature_dataRaw(Record &record, DiagnosticParameters &parame
     record.peak_features.main_peak.y = record.differential_dataRaw[record.peak_features.main_peak.i];
     // find the percentile crossing in the left arm of the gaussian peak (if none, it returns -1)
     record.peak_features.left_arm.i = find_crossing_lower_than_reversed(record.differential_dataRaw,
-                                                                        record.peak_features.main_peak.y * parameters.arm_percentile,
+                                                                        record.peak_features.main_peak.y * (parameters.arm_percentile),
                                                                         record.peak_features.main_peak.i,
                                                                         discard_index - 1);
-    // uint8_t tmp = ;
     if (record.peak_features.left_arm.i != -1)
     {
         record.peak_features.left_arm.x = record.time_data[record.peak_features.left_arm.i];
@@ -269,7 +296,7 @@ void find_sigmoidal_feature_dataRaw(Record &record, DiagnosticParameters &parame
 
     // find the percentile crossing in the right arm of the gaussian peak (if none, it returns -1)
     record.peak_features.right_arm.i = find_crossing_lower_than(record.differential_dataRaw,
-                                                                record.peak_features.main_peak.y * parameters.arm_percentile,
+                                                                record.peak_features.main_peak.y * (parameters.arm_percentile),
                                                                 record.peak_features.main_peak.i);
     if (record.peak_features.right_arm.i != -1)
     {
@@ -346,8 +373,13 @@ void predict_outcome_dataRaw(Record &record, DiagnosticParameters &parameters)
     // Serial.println("About to detect");
     // Serial.println(record.outcome.increase);
 
+    // if ((!check_breakData(record.raw_data, parameters.min_increase, record.outcome.transition_time.i))
+    if (!check_breakData(record.raw_data, parameters.min_increase, record.outcome.transition_time.i))
+    {
+        strcpy(record.outcome.outcome, OutcomeBreak);
+    }
     // Test 2: Check for fluorescence increase above threshold
-    if (record.outcome.increase > parameters.min_increase)
+    else if (record.outcome.increase > parameters.min_increase)
     { // check for fluorescence increase
         // Serial.println("Increase yes");
         // test 3: Test for min sharpness
@@ -360,15 +392,14 @@ void predict_outcome_dataRaw(Record &record, DiagnosticParameters &parameters)
                 // Serial.println("Shape Off - Yes");
                 strcpy(record.outcome.outcome, OutcomePositive);
             }
-            else if ((record.outcome.plateau_point.x == record.peak_features.right_arm.x) &&
-                     (record.outcome.transition_time.x == record.peak_features.left_arm.x) &&
-                     (record.outcome.plateau_point.x - record.outcome.transition_time.x <= 1.0))
-            {
-                strcpy(record.outcome.outcome, OutcomeBreak);
-            }
-            // else if ((record.outcome.plateau_point.x - record.outcome.transition_time.x) < 3.0)
+            // else if ((record.outcome.plateau_point.x == record.peak_features.right_arm.x) ||
+            //          (record.outcome.transition_time.x == record.peak_features.left_arm.x))
             // {
-            //     strcpy(record.outcome.outcome, OutcomeBreak);
+            //     if (((record.outcome.plateau_point.x - record.outcome.transition_time.x) <= 1.1) &&
+            //         ((record.outcome.plateau_point.x - record.outcome.transition_time.x) >= 0.9))
+            //     {
+            //         strcpy(record.outcome.outcome, OutcomeBreak);
+            //     }
             // }
             else if (record.peak_features.detected_shape())
             { // if using shape detected, check if the shape is right
@@ -381,17 +412,6 @@ void predict_outcome_dataRaw(Record &record, DiagnosticParameters &parameters)
             }
         }
     }
-
-    //  if positive, check if slight positive (transition time beyond a certain time i.e. t = 22 min)
-    // if (strcmp(record.outcome.outcome, OutcomePositive) == 0 && record.outcome.transition_time.x >= parameters.min_slight_positive_time)
-    // {
-    //     strcpy(record.outcome.outcome, OutcomeSlightPositive);
-    // }
-    //  if positive, turn negative if main peak is at the last point in array
-    // 22/04/2024: originally created to disable potential spike at long Ct, but removed to detect low conc cts
-    // if (strcmp(outcome.outcome, OutcomeSlightPositive) == 0 && peak_features.left_arm.i >= y_data.size()-2) {
-    //     strcpy(outcome.outcome, OutcomeNegative);
-    // }
     return;
 }
 void predict_outcome(Record &record, DiagnosticParameters &parameters)

@@ -169,26 +169,20 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
                            recordIn.parameters.baseline_range,
                            recordIn.parameters.sg_window,
                            recordIn.parameters.sg_order);
+        // differentiate
+        differentiate(recordOut.time_data, recordOut.processed_data, recordOut.differential_data);
 
-        // DiagnosticParameters parameters;
-        differentiate(recordOut.time_data,
-                      recordOut.raw_data,
-                      recordOut.differential_dataRaw);
-        find_sigmoidal_feature_dataRaw(recordOut, recordIn.parameters);
-        predict_outcome_dataRaw(recordOut, recordIn.parameters);
+        // detect feature
+        find_sigmoidal_feature(recordOut, recordIn.parameters);
 
-        if (recordOut.outcome.outcome[0] != 'B')
+        // detect amplification
+        predict_outcome(recordOut, recordIn.parameters);
+        if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S'))
         {
-            // differentiate
-            differentiate(recordOut.time_data,
-                          recordOut.processed_data,
-                          recordOut.differential_data);
-
-            // detect feature
-            find_sigmoidal_feature(recordOut, recordIn.parameters);
-
-            // detect amplification
-            predict_outcome(recordOut, recordIn.parameters);
+            if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.y, recordOut.outcome.transition_time.i))
+            {
+                strcpy(recordOut.outcome.outcome, "Break");
+            }
         }
 
         // re-write data processing to look god for users without affecting performance of algorithm
@@ -257,35 +251,26 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
         recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end());
         recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end());
 
-        // process data
+       // process data
         post_process_curve(recordOut,
                            recordIn.parameters.baseline_start,
                            recordIn.parameters.baseline_range,
                            recordIn.parameters.sg_window,
                            recordIn.parameters.sg_order);
+        // differentiate
+        differentiate(recordOut.time_data, recordOut.processed_data, recordOut.differential_data);
 
-        // DiagnosticParameters parameters;
-        differentiate(recordOut.time_data,
-                      recordOut.raw_data,
-                      recordOut.differential_dataRaw);
-        find_sigmoidal_feature_dataRaw(recordOut, recordIn.parameters);
-        predict_outcome_dataRaw(recordOut, recordIn.parameters);
+        // detect feature
+        find_sigmoidal_feature(recordOut, recordIn.parameters);
 
-        if (recordOut.outcome.outcome[0] != 'B')
+        // detect amplification
+        predict_outcome(recordOut, recordIn.parameters);
+        if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S'))
         {
-            // differentiate
-            differentiate(recordOut.time_data,
-                          recordOut.processed_data,
-                          recordOut.differential_data);
-
-            // detect feature
-            // DiagnosticParameters parameters;
-
-            // find_sigmoidal_feature(recordIn.time_data, recordIn.processed_data, y_diff, parameters, recordOut.peak_features);
-            find_sigmoidal_feature(recordOut, recordIn.parameters);
-
-            // detect amplification
-            predict_outcome(recordOut, recordIn.parameters);
+            if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.y, recordOut.outcome.transition_time.i))
+            {
+                strcpy(recordOut.outcome.outcome, "Break");
+            }
         }
 
         // re-write data processing to look god for users without affecting performance of algorithm
@@ -360,37 +345,28 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
         recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end());
         recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end());
 
-        // process data
+       // process data
         post_process_curve(recordOut,
                            recordIn.parameters.baseline_start,
                            recordIn.parameters.baseline_range,
                            recordIn.parameters.sg_window,
                            recordIn.parameters.sg_order);
+        // differentiate
+        differentiate(recordOut.time_data, recordOut.processed_data, recordOut.differential_data);
 
-        // DiagnosticParameters parameters;
-        differentiate(recordOut.time_data,
-                      recordOut.raw_data,
-                      recordOut.differential_dataRaw);
-        find_sigmoidal_feature_dataRaw(recordOut, recordIn.parameters);
-        predict_outcome_dataRaw(recordOut, recordIn.parameters);
+        // detect feature
+        find_sigmoidal_feature(recordOut, recordIn.parameters);
 
-        if (recordOut.outcome.outcome[0] != 'B')
+        // detect amplification
+        predict_outcome(recordOut, recordIn.parameters);
+        if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S'))
         {
-            // differentiate
-            differentiate(recordOut.time_data,
-                          recordOut.processed_data,
-                          recordOut.differential_data);
-
-            // detect feature
-            // DiagnosticParameters parameters;
-
-            // find_sigmoidal_feature(recordIn.time_data, recordIn.processed_data, y_diff, parameters, recordOut.peak_features);
-            find_sigmoidal_feature(recordOut, recordIn.parameters);
-
-            // detect amplification
-            predict_outcome(recordOut, recordIn.parameters);
+            if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.y, recordOut.outcome.transition_time.i))
+            {
+                strcpy(recordOut.outcome.outcome, "Break");
+            }
         }
-
+        
         // re-write data processing to look god for users without affecting performance of algorithm
         /*
         Josep @ 24/12/24: high level of smoothing is bad for finding the lag phase because the smoothing tends to create a smooth transition until t = 0
@@ -1532,7 +1508,7 @@ void sensor6035::openSensorChannel(int slot)
     {
         I2CMux.openChannel(I2C_Channel[4 - slot]);
     }
-    delay(50);
+    // delay(200);
 }
 
 void sensor6035::eSensorstartFunc()

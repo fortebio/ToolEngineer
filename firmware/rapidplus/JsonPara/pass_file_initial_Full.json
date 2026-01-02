@@ -3,16 +3,16 @@
   "PCB version": "V1.3",
   "opto calibration": {
     "slopes": [
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1,
-      1
+      1.637,
+      1.638,
+      1.565,
+      1.428,
+      1.421,
+      1.698,
+      1.399,
+      1.429,
+      1.47,
+      1.575
     ],
     "origins": [
       0,
@@ -37,7 +37,6 @@
     150,
     150,
     150,
-    150,
     150
   ],
   "parameters": {
@@ -48,8 +47,8 @@
     "detection margin time": 4,
     "arm percentile": 0.9,
     "transition percentile": 0.4,
-    "sg order": 0,
-    "sg window": 2,
+    "sg order": 2,
+    "sg window": 4,
     "baseline start": 3,
     "baseline range": 4
   },
@@ -62,10 +61,20 @@
   "amplification time": 120,
   "lysis temperature": 82,
   "amplification temperature": 65.8,
-  "PID parameter": [
-    40,
+  "bottom temperature sensor seq": [
+    2,
     1,
-    60
+    0
+  ],
+  "top temperature sensor seq": [
+    2,
+    1,
+    0
+  ],
+  "PID parameter": [
+    30,
+    0.05,
+    30
   ],
   "PID2 parameter": [
     40,
@@ -92,12 +101,20 @@
   "top heater PWM": [
     [
       40,
-      100
+      90
     ],
     [
       40,
-      100
+      90
     ]
   ],
-  "buzzer": "On"
-}
+  "buzzer": "On",
+  "kitId": 0,
+  "empty": [
+    0,
+    0,
+    0,
+    0,
+    0
+  ]
+}@

@@ -285,7 +285,6 @@ struct parastructure
 // sensor setting
 #define ChannelEnableSet ChannelEnableSetBoth
 #define ALSITSet ALSITSet100
-// #define ALSITSet ALSITSet200
 #define GAINSet GAINSetDouble
 #define DGSet DGSetNormal
 #define SENSSet SENSSetHigh
@@ -399,5 +398,5 @@ struct parastructure
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "V2.3.5"; // add function calib
+static String FirmwareVer = "V2.3.5_new"; // add function calib
 #endif
