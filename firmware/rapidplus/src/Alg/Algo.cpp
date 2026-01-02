@@ -190,7 +190,7 @@ size_t argmax(std::vector<double> &_vector, size_t startIndex)
 bool check_breakData(std::vector<double> &_array, double crossing, int start_index)
 {
     size_t countIncreases = 0;
-    if (start_index <= 4)
+    if (crossing <= 4)
     {
         return true;
     }

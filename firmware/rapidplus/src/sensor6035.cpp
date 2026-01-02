@@ -179,7 +179,7 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         predict_outcome(recordOut, recordIn.parameters);
         if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S'))
         {
-            if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.y, recordOut.outcome.transition_time.i))
+            if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.x, recordOut.outcome.transition_time.i))
             {
                 strcpy(recordOut.outcome.outcome, "Break");
             }
@@ -251,7 +251,7 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
         recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end());
         recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end());
 
-       // process data
+        // process data
         post_process_curve(recordOut,
                            recordIn.parameters.baseline_start,
                            recordIn.parameters.baseline_range,
@@ -267,7 +267,7 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
         predict_outcome(recordOut, recordIn.parameters);
         if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S'))
         {
-            if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.y, recordOut.outcome.transition_time.i))
+            if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.x, recordOut.outcome.transition_time.i))
             {
                 strcpy(recordOut.outcome.outcome, "Break");
             }
@@ -345,7 +345,7 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
         recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end());
         recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end());
 
-       // process data
+        // process data
         post_process_curve(recordOut,
                            recordIn.parameters.baseline_start,
                            recordIn.parameters.baseline_range,
@@ -361,12 +361,12 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
         predict_outcome(recordOut, recordIn.parameters);
         if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S'))
         {
-            if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.y, recordOut.outcome.transition_time.i))
+            if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.x, recordOut.outcome.transition_time.i))
             {
                 strcpy(recordOut.outcome.outcome, "Break");
             }
         }
-        
+
         // re-write data processing to look god for users without affecting performance of algorithm
         /*
         Josep @ 24/12/24: high level of smoothing is bad for finding the lag phase because the smoothing tends to create a smooth transition until t = 0
