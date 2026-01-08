@@ -177,12 +177,27 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
 
         // detect amplification
         predict_outcome(recordOut, recordIn.parameters);
-        if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S'))
+
+        if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S') || (recordOut.outcome.outcome[0] == 'E'))
         {
             if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.x, recordOut.outcome.transition_time.i))
             {
-                strcpy(recordOut.outcome.outcome, "Break");
+                // if (recordOut.outcome.outcome[0] == 'E')
+                // {
+                // }
+                // else
+                // {
+                    strcpy(recordOut.outcome.outcome, "Break");
+                // }
             }
+            // else if (recordOut.outcome.outcome[0] == 'P')
+            // {
+            //     info_displayln("Positive detected");
+            // }
+            // else if (recordOut.outcome.outcome[0] == 'S')
+            // {
+            //     info_displayln("Slight Positive detected");
+            // }
         }
 
         // re-write data processing to look god for users without affecting performance of algorithm
@@ -265,7 +280,7 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
 
         // detect amplification
         predict_outcome(recordOut, recordIn.parameters);
-        if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S'))
+        if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S') || (recordOut.outcome.outcome[0] == 'E'))
         {
             if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.x, recordOut.outcome.transition_time.i))
             {
@@ -359,7 +374,7 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
 
         // detect amplification
         predict_outcome(recordOut, recordIn.parameters);
-        if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S'))
+        if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S')|| (recordOut.outcome.outcome[0] == 'E'))
         {
             if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.x, recordOut.outcome.transition_time.i))
             {
