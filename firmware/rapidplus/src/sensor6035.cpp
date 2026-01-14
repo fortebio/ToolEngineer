@@ -159,10 +159,48 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
             recordIn.raw_data[j] = (float(sensor67Value[i][j]) - FORTE_ORIGINS[i]) / FORTE_SLOPES[i];
         }
 
-        // deep copy fluorescence data to record object
+        /* ----------------------------- */
+        // size_t breakIndex = check_breakData(recordIn.raw_data, recordIn.parameters.min_increase, recordIn.parameters.min_sharpness);
+        // if (breakIndex != 0)
+        // {
+        //     // std::vector<double> break_data;
+        //     if (breakIndex > 100)
+        //     {
+        //         recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end() + breakIndex);
+        //         // break_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.begin() + breakIndex);
+        //         recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end() + breakIndex);
+        //     }
+        //     else
+        //     {
+        //         recordOut.time_data.assign(recordIn.time_data.begin() + breakIndex, recordIn.time_data.end());
+        //         // break_data.assign(recordIn.raw_data.begin() + breakIndex, recordIn.raw_data.end());
+        //         recordOut.raw_data.assign(recordIn.raw_data.begin() + breakIndex, recordIn.raw_data.end());
+        //     }
+
+        //     // Serial.printf("Break Data:\nIndex\n|");
+        //     // for (size_t i = 0; i < break_data.size(); i++)
+        //     // {
+        //     //     Serial.printf(" %lf \t|", break_data[i]);
+        //     // }
+        //     // Serial.printf("\nFluorescence\n|");
+        //     // for (size_t i = 0; i < recordOut.raw_data.size(); i++)
+        //     // {
+        //     //     Serial.printf(" %lf\t|", recordOut.raw_data[i]);
+        //     // }
+
+        //     strcpy(recordOut.outcome.outcome, OutcomeBreak);
+        //     Serial.printf("\nIndex Break data : %d\n", breakIndex);
+        //     // break_data.clear();
+        // }
+        // else
+        // {
+        //     // deep copy fluorescence data to record object
+        //     recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end());
+        //     recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end());
+        // }
+
         recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end());
         recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end());
-
         // process data
         post_process_curve(recordOut,
                            recordIn.parameters.baseline_start,
@@ -171,6 +209,7 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
                            recordIn.parameters.sg_order);
         // differentiate
         differentiate(recordOut.time_data, recordOut.processed_data, recordOut.differential_data);
+        // differentiate(recordOut.time_data, recordOut.raw_data, recordOut.differential_dataRaw);
 
         // detect feature
         find_sigmoidal_feature(recordOut, recordIn.parameters);
@@ -178,27 +217,57 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         // detect amplification
         predict_outcome(recordOut, recordIn.parameters);
 
-        if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S') || (recordOut.outcome.outcome[0] == 'E'))
+        // detect feature
+        // find_sigmoidal_feature_dataRaw(recordOut, recordIn.parameters);
+
+        // detect amplification
+        // predict_outcome_dataRaw(recordOut, recordIn.parameters);
+
+        size_t breakIndex = check_breakData(recordIn.raw_data, recordIn.parameters.min_increase, recordIn.parameters.min_sharpness);
+
+        Serial.printf("Slot %d:\n", i+1);
+        Serial.printf("Outcome before check break: %s\n", recordOut.outcome.outcome);
+        Serial.printf("Index Break data : %d\n", breakIndex);
+        Serial.printf("Index Transition time: %d\n", recordOut.outcome.transition_time.i);
+
+        if (recordOut.outcome.transition_time.i == breakIndex)
         {
-            if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.x, recordOut.outcome.transition_time.i))
-            {
-                // if (recordOut.outcome.outcome[0] == 'E')
-                // {
-                // }
-                // else
-                // {
-                    strcpy(recordOut.outcome.outcome, "Break");
-                // }
-            }
-            // else if (recordOut.outcome.outcome[0] == 'P')
-            // {
-            //     info_displayln("Positive detected");
-            // }
-            // else if (recordOut.outcome.outcome[0] == 'S')
-            // {
-            //     info_displayln("Slight Positive detected");
-            // }
+            strcpy(recordOut.outcome.outcome, "Break");
         }
+
+        /**************************************************************************** */
+
+        // if (recordOut.outcome.outcome[0] == 'B')
+        // {
+        // }
+
+        // // detect feature
+        // find_sigmoidal_feature(recordOut, recordIn.parameters);
+
+        // // detect amplification
+        // predict_outcome(recordOut, recordIn.parameters);
+
+        // if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S') || (recordOut.outcome.outcome[0] == 'E'))
+        // {
+        //     if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.x, recordOut.outcome.transition_time.i))
+        //     {
+        //         // if (recordOut.outcome.outcome[0] == 'E')
+        //         // {
+        //         // }
+        //         // else
+        //         // {
+        //             strcpy(recordOut.outcome.outcome, "Break");
+        //         // }
+        //     }
+        //     // else if (recordOut.outcome.outcome[0] == 'P')
+        //     // {
+        //     //     info_displayln("Positive detected");
+        //     // }
+        //     // else if (recordOut.outcome.outcome[0] == 'S')
+        //     // {
+        //     //     info_displayln("Slight Positive detected");
+        //     // }
+        // }
 
         // re-write data processing to look god for users without affecting performance of algorithm
         /*
@@ -207,11 +276,11 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         At the same time, may look awesome for display.
         Consider re-running the smoothing at this stage (line commented below) with higher order and window size to make a nice display without affecting the algorithm performance
         */
-        JsonDocument jsonOut = recordOut.toJSON();
-        serializeJson(jsonOut, SerialBT);
-        delay(100);
-        serializeJson(jsonOut, Serial);
-        info_displayln();
+        // JsonDocument jsonOut = recordOut.toJSON();
+        // serializeJson(jsonOut, SerialBT);
+        // delay(100);
+        // serializeJson(jsonOut, Serial);
+        // info_displayln();
 
         CT_value[i] = float(recordOut.outcome.transition_time.x);
         result[i] = recordOut.outcome.outcome[0];
@@ -368,19 +437,26 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
                            recordIn.parameters.sg_order);
         // differentiate
         differentiate(recordOut.time_data, recordOut.processed_data, recordOut.differential_data);
+        differentiate(recordOut.time_data, recordOut.raw_data, recordOut.differential_dataRaw);
 
-        // detect feature
-        find_sigmoidal_feature(recordOut, recordIn.parameters);
-
-        // detect amplification
-        predict_outcome(recordOut, recordIn.parameters);
-        if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S')|| (recordOut.outcome.outcome[0] == 'E'))
+        /* ----------------------------- */
+        find_sigmoidal_feature_dataRaw(recordOut, recordIn.parameters);
+        predict_outcome_dataRaw(recordOut, recordIn.parameters);
+        if (recordOut.outcome.outcome[0] == 'B')
         {
-            if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.x, recordOut.outcome.transition_time.i))
-            {
-                strcpy(recordOut.outcome.outcome, "Break");
-            }
         }
+        // // detect feature
+        // find_sigmoidal_feature(recordOut, recordIn.parameters);
+
+        // // detect amplification
+        // predict_outcome(recordOut, recordIn.parameters);
+        // if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S')|| (recordOut.outcome.outcome[0] == 'E'))
+        // {
+        //     if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.x, recordOut.outcome.transition_time.i))
+        //     {
+        //         strcpy(recordOut.outcome.outcome, "Break");
+        //     }
+        // }
 
         // re-write data processing to look god for users without affecting performance of algorithm
         /*
