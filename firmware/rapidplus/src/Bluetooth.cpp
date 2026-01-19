@@ -401,21 +401,21 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
     }
 
     serializeJson(dataPostGoogleSheet, jsonPost);
-    Serial.println("Post data: " + jsonPost);
+    // Serial.println("Post data: " + jsonPost);
     //// Kết nối HTTPS và gửi dữ liệu
     int httpResponseCode = http.POST(jsonPost);
     http.end();
-    if (httpResponseCode > 0)
-    {
-      String response = http.getString();
-      Serial.println("Response code: " + String(httpResponseCode));
-      Serial.println("Response: " + response);
-      Serial.println("Data posted successfully!");
-    }
-    else
-    {
-      Serial.println("Error on sending POST: " + String(httpResponseCode));
-    }
+    // if (httpResponseCode > 0)
+    // {
+    //   String response = http.getString();
+    //   Serial.println("Response code: " + String(httpResponseCode));
+    //   Serial.println("Response: " + response);
+    //   Serial.println("Data posted successfully!");
+    // }
+    // else
+    // {
+    //   Serial.println("Error on sending POST: " + String(httpResponseCode));
+    // }
   }
   else if (WiFi.status() == WL_DISCONNECTED)
   {

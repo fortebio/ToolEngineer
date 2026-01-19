@@ -27,14 +27,10 @@ size_t argmax(std::vector<double> &_vector, size_t startIndex);
 
 size_t check_breakData(std::vector<double> &_array, double crossing, int start_index);
 
+size_t check_risingData(std::vector<double> &_array, int start_index, int window);
+
 void find_sigmoidal_feature(Record &record, DiagnosticParameters &parameters);
 void predict_outcome(Record &record, DiagnosticParameters &parameters);
-
-void find_sigmoidal_feature_dataRaw(Record &record, DiagnosticParameters &parameters);
-void predict_outcome_dataRaw(Record &record, DiagnosticParameters &parameters);
-
-void find_sigmoidal_feature_break(Record &record, DiagnosticParameters &parameters, std::vector<double> &break_data);
-void predict_outcome_break(Record &record, DiagnosticParameters &parameters,std::vector<double> &break_data);
 
 const String strJson =
     {

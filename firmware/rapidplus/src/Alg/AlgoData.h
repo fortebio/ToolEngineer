@@ -254,7 +254,6 @@ class Record {
         std::vector<double> raw_data;
         std::vector<double> processed_data;
         std::vector<double> differential_data;
-        std::vector<double> differential_dataRaw;
 
         JsonDocument toJSON() {
             JsonDocument _doc;
@@ -295,7 +294,6 @@ class Record {
             time_data.clear();
             processed_data.clear();
             differential_data.clear();
-            differential_dataRaw.clear();
         }       
 
     private:

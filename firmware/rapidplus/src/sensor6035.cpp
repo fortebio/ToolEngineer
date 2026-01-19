@@ -116,7 +116,8 @@ void sensor6035::setStepeSensorstart()
     sensorStep = eSensorstart;
 }
 
-// double *processed_data[OPTOCHANNELS] = {NULL};
+#define BREAKING_START_INDEX 5
+#define RISING_WINDOW 6
 bool sensor6035::bResultGet(float *CT_value, char *result)
 {
     // Define a vector of integers
@@ -160,114 +161,79 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         }
 
         /* ----------------------------- */
-        // size_t breakIndex = check_breakData(recordIn.raw_data, recordIn.parameters.min_increase, recordIn.parameters.min_sharpness);
-        // if (breakIndex != 0)
-        // {
-        //     // std::vector<double> break_data;
-        //     if (breakIndex > 100)
-        //     {
-        //         recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end() + breakIndex);
-        //         // break_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.begin() + breakIndex);
-        //         recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end() + breakIndex);
-        //     }
-        //     else
-        //     {
-        //         recordOut.time_data.assign(recordIn.time_data.begin() + breakIndex, recordIn.time_data.end());
-        //         // break_data.assign(recordIn.raw_data.begin() + breakIndex, recordIn.raw_data.end());
-        //         recordOut.raw_data.assign(recordIn.raw_data.begin() + breakIndex, recordIn.raw_data.end());
-        //     }
+        size_t breakIndex = check_breakData(recordIn.raw_data, recordIn.parameters.min_increase, BREAKING_START_INDEX);
+        size_t risingIndex = check_risingData(recordIn.raw_data, recordIn.parameters.detection_margin_time * (60000 / OPTO_INTERVAL), RISING_WINDOW);
 
-        //     // Serial.printf("Break Data:\nIndex\n|");
-        //     // for (size_t i = 0; i < break_data.size(); i++)
-        //     // {
-        //     //     Serial.printf(" %lf \t|", break_data[i]);
-        //     // }
-        //     // Serial.printf("\nFluorescence\n|");
-        //     // for (size_t i = 0; i < recordOut.raw_data.size(); i++)
-        //     // {
-        //     //     Serial.printf(" %lf\t|", recordOut.raw_data[i]);
-        //     // }
+        // --------------------------------------------------
+        auto timeBegin = recordIn.time_data.begin();
+        auto timeEnd = recordIn.time_data.end();
+        auto rawBegin = recordIn.raw_data.begin();
+        auto rawEnd = recordIn.raw_data.end();
 
-        //     strcpy(recordOut.outcome.outcome, OutcomeBreak);
-        //     Serial.printf("\nIndex Break data : %d\n", breakIndex);
-        //     // break_data.clear();
-        // }
-        // else
-        // {
-        //     // deep copy fluorescence data to record object
-        //     recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end());
-        //     recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end());
-        // }
+        bool validForDetection = true;
 
+        if (breakIndex)
+        {
+            if (risingIndex)
+            {
+                if (breakIndex > risingIndex)
+                {
+                    timeEnd = recordIn.time_data.begin() + breakIndex;
+                    rawEnd = recordIn.raw_data.begin() + breakIndex;
+                }
+                else
+                {
+                    timeBegin = recordIn.time_data.begin() + breakIndex;
+                    rawBegin = recordIn.raw_data.begin() + breakIndex;
+                }
+            }
+            else
+            {
+                validForDetection = false;
+            }
+        }
+
+        // --------------------------------------------------
+        if (validForDetection)
+        {
+            recordOut.time_data.assign(timeBegin, timeEnd);
+            recordOut.raw_data.assign(rawBegin, rawEnd);
+
+            post_process_curve(recordOut,
+                               recordIn.parameters.baseline_start,
+                               recordIn.parameters.baseline_range,
+                               recordIn.parameters.sg_window,
+                               recordIn.parameters.sg_order);
+
+            differentiate(recordOut.time_data,
+                          recordOut.processed_data,
+                          recordOut.differential_data);
+
+            find_sigmoidal_feature(recordOut, recordIn.parameters);
+            predict_outcome(recordOut, recordIn.parameters);
+        }
+        else
+        {
+            recordOut.peak_features.clear();
+            recordOut.outcome.transition_time.clear();
+            recordOut.outcome.plateau_point.clear();
+            strcpy(recordOut.outcome.outcome, "Break");
+        }
+
+        // --------------------------------------------------
+        // Luôn post-process toàn bộ dữ liệu gốc (giữ logic cũ)
+        // --------------------------------------------------
         recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end());
         recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end());
-        // process data
         post_process_curve(recordOut,
                            recordIn.parameters.baseline_start,
                            recordIn.parameters.baseline_range,
                            recordIn.parameters.sg_window,
                            recordIn.parameters.sg_order);
-        // differentiate
-        differentiate(recordOut.time_data, recordOut.processed_data, recordOut.differential_data);
-        // differentiate(recordOut.time_data, recordOut.raw_data, recordOut.differential_dataRaw);
 
-        // detect feature
-        find_sigmoidal_feature(recordOut, recordIn.parameters);
-
-        // detect amplification
-        predict_outcome(recordOut, recordIn.parameters);
-
-        // detect feature
-        // find_sigmoidal_feature_dataRaw(recordOut, recordIn.parameters);
-
-        // detect amplification
-        // predict_outcome_dataRaw(recordOut, recordIn.parameters);
-
-        size_t breakIndex = check_breakData(recordIn.raw_data, recordIn.parameters.min_increase, recordIn.parameters.min_sharpness);
-
-        Serial.printf("Slot %d:\n", i+1);
-        Serial.printf("Outcome before check break: %s\n", recordOut.outcome.outcome);
-        Serial.printf("Index Break data : %d\n", breakIndex);
-        Serial.printf("Index Transition time: %d\n", recordOut.outcome.transition_time.i);
-
-        if (recordOut.outcome.transition_time.i == breakIndex)
-        {
-            strcpy(recordOut.outcome.outcome, "Break");
-        }
-
-        /**************************************************************************** */
-
-        // if (recordOut.outcome.outcome[0] == 'B')
-        // {
-        // }
-
-        // // detect feature
-        // find_sigmoidal_feature(recordOut, recordIn.parameters);
-
-        // // detect amplification
-        // predict_outcome(recordOut, recordIn.parameters);
-
-        // if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S') || (recordOut.outcome.outcome[0] == 'E'))
-        // {
-        //     if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.x, recordOut.outcome.transition_time.i))
-        //     {
-        //         // if (recordOut.outcome.outcome[0] == 'E')
-        //         // {
-        //         // }
-        //         // else
-        //         // {
-        //             strcpy(recordOut.outcome.outcome, "Break");
-        //         // }
-        //     }
-        //     // else if (recordOut.outcome.outcome[0] == 'P')
-        //     // {
-        //     //     info_displayln("Positive detected");
-        //     // }
-        //     // else if (recordOut.outcome.outcome[0] == 'S')
-        //     // {
-        //     //     info_displayln("Slight Positive detected");
-        //     // }
-        // }
+        differentiate(recordOut.time_data,
+                      recordOut.processed_data,
+                      recordOut.differential_data);
 
         // re-write data processing to look god for users without affecting performance of algorithm
         /*
@@ -276,11 +242,16 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         At the same time, may look awesome for display.
         Consider re-running the smoothing at this stage (line commented below) with higher order and window size to make a nice display without affecting the algorithm performance
         */
-        // JsonDocument jsonOut = recordOut.toJSON();
-        // serializeJson(jsonOut, SerialBT);
-        // delay(100);
-        // serializeJson(jsonOut, Serial);
-        // info_displayln();
+        Serial.printf("Slot %d:\n", i + 1);
+        Serial.printf("Outcome check: %s\n", recordOut.outcome.outcome);
+        Serial.printf("Index Rising data : %f\n", (double)risingIndex / 3);
+        Serial.printf("Index Break data : %f\n", (double)breakIndex / 3);
+        Serial.printf("Index Transition time: %f\n", (double)recordOut.outcome.transition_time.i / 3);
+        JsonDocument jsonOut = recordOut.toJSON();
+        delay(100);
+        serializeJson(jsonOut, Serial);
+        info_displayln();
+        info_displayln();
 
         CT_value[i] = float(recordOut.outcome.transition_time.x);
         result[i] = recordOut.outcome.outcome[0];
@@ -425,38 +396,80 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
             recordIn.raw_data[j] = (float(sensor67Value[i][j]) - FORTE_ORIGINS[i]) / FORTE_SLOPES[i];
         }
 
-        // deep copy fluorescence data to record object
+        /* ----------------------------- */
+        size_t breakIndex = check_breakData(recordIn.raw_data, recordIn.parameters.min_increase, BREAKING_START_INDEX);
+        size_t risingIndex = check_risingData(recordIn.raw_data, recordIn.parameters.detection_margin_time * (60000 / OPTO_INTERVAL), RISING_WINDOW);
+
+        // --------------------------------------------------
+        auto timeBegin = recordIn.time_data.begin();
+        auto timeEnd = recordIn.time_data.end();
+        auto rawBegin = recordIn.raw_data.begin();
+        auto rawEnd = recordIn.raw_data.end();
+
+        bool validForDetection = true;
+
+        if (breakIndex)
+        {
+            if (risingIndex)
+            {
+                if (breakIndex > risingIndex)
+                {
+                    timeEnd = recordIn.time_data.begin() + breakIndex;
+                    rawEnd = recordIn.raw_data.begin() + breakIndex;
+                }
+                else
+                {
+                    timeBegin = recordIn.time_data.begin() + breakIndex;
+                    rawBegin = recordIn.raw_data.begin() + breakIndex;
+                }
+            }
+            else
+            {
+                validForDetection = false;
+            }
+        }
+
+        // --------------------------------------------------
+        if (validForDetection)
+        {
+            recordOut.time_data.assign(timeBegin, timeEnd);
+            recordOut.raw_data.assign(rawBegin, rawEnd);
+
+            post_process_curve(recordOut,
+                               recordIn.parameters.baseline_start,
+                               recordIn.parameters.baseline_range,
+                               recordIn.parameters.sg_window,
+                               recordIn.parameters.sg_order);
+
+            differentiate(recordOut.time_data,
+                          recordOut.processed_data,
+                          recordOut.differential_data);
+
+            find_sigmoidal_feature(recordOut, recordIn.parameters);
+            predict_outcome(recordOut, recordIn.parameters);
+        }
+        else
+        {
+            recordOut.peak_features.clear();
+            recordOut.outcome.transition_time.clear();
+            recordOut.outcome.plateau_point.clear();
+            strcpy(recordOut.outcome.outcome, "Break");
+        }
+
+        // --------------------------------------------------
+        // Luôn post-process toàn bộ dữ liệu gốc (giữ logic cũ)
+        // --------------------------------------------------
         recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end());
         recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end());
-
-        // process data
         post_process_curve(recordOut,
                            recordIn.parameters.baseline_start,
                            recordIn.parameters.baseline_range,
                            recordIn.parameters.sg_window,
                            recordIn.parameters.sg_order);
-        // differentiate
-        differentiate(recordOut.time_data, recordOut.processed_data, recordOut.differential_data);
-        differentiate(recordOut.time_data, recordOut.raw_data, recordOut.differential_dataRaw);
 
-        /* ----------------------------- */
-        find_sigmoidal_feature_dataRaw(recordOut, recordIn.parameters);
-        predict_outcome_dataRaw(recordOut, recordIn.parameters);
-        if (recordOut.outcome.outcome[0] == 'B')
-        {
-        }
-        // // detect feature
-        // find_sigmoidal_feature(recordOut, recordIn.parameters);
-
-        // // detect amplification
-        // predict_outcome(recordOut, recordIn.parameters);
-        // if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S')|| (recordOut.outcome.outcome[0] == 'E'))
-        // {
-        //     if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.x, recordOut.outcome.transition_time.i))
-        //     {
-        //         strcpy(recordOut.outcome.outcome, "Break");
-        //     }
-        // }
+        differentiate(recordOut.time_data,
+                      recordOut.processed_data,
+                      recordOut.differential_data);
 
         // re-write data processing to look god for users without affecting performance of algorithm
         /*
@@ -465,10 +478,15 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
         At the same time, may look awesome for display.
         Consider re-running the smoothing at this stage (line commented below) with higher order and window size to make a nice display without affecting the algorithm performance
         */
+        Serial.printf("Slot %d:\n", i + 1);
+        Serial.printf("Outcome check: %s\n", recordOut.outcome.outcome);
+        Serial.printf("Index Rising data : %f\n", (double)risingIndex / 3);
+        Serial.printf("Index Break data : %f\n", (double)breakIndex / 3);
+        Serial.printf("Index Transition time: %f\n", (double)recordOut.outcome.transition_time.i / 3);
         JsonDocument jsonOut = recordOut.toJSON();
-        serializeJson(jsonOut, SerialBT);
         delay(100);
         serializeJson(jsonOut, Serial);
+        info_displayln();
         info_displayln();
 
         get_outcome[i] = recordOut.outcome;
@@ -477,6 +495,7 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
         result[i] = recordOut.outcome.outcome[0];
         recordOut.clear();
     }
+
     return true;
 }
 
