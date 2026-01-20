@@ -8,7 +8,8 @@ String ssid = "";
 String password = "";
 uint64_t epsid = ESP.getEfuseMac();
 String id(String(epsid).c_str());
-String id_device = "";
+// String id_device = "";
+String id_device = "RAPIDPlus";
 
 extern int language = 0;
 
@@ -195,6 +196,7 @@ void saveSettingDevice()
   EEPROM.writeString(ADDR_SSID, ssid);
   EEPROM.writeString(ADDR_PASSWORD, password);
   EEPROM.writeString(ADDR_ID_DEVICE_BASE, id_device);
+  EEPROM.writeBool(ADDR_CHECK_ID_DEVICE, false);
   EEPROM.commit();
   EEPROM.end();
 }
@@ -247,9 +249,30 @@ void Wifi_Connect()
   wifiManager.setDebugOutput(true);
   wifiManager.setMenu(menu, 4);
   wifiManager.addParameter(&custom_id_device);
-  wifiManager.setTitle("Fortebiotech Rapid Setup");
+  wifiManager.setTitle("Fortebiotech RAPID Setup");
 
-  if (!wifiManager.autoConnect("FBT_RAPID PLUS"))
+  // if (id_device == NULL)
+  // {
+  //   id_device = "RAPIDPlus";
+  // }
+  String apName = "";
+  char *tmp = "";
+  // strcmp(id_check, "RPL");
+
+  EEPROM.begin(_EEPROM_SIZE);
+  if (!EEPROM.readBool(ADDR_CHECK_ID_DEVICE) ||
+      (strncmp(id_device.c_str(), "RPL", 3) == 0))
+  {
+    apName = "FBT " + id_device;
+  }
+  else
+  {
+    apName = "FBT RAPIDPlus";
+  }
+  EEPROM.end();
+
+  // if (!wifiManager.autoConnect("FBT_RAPID PLUS"))
+  if (!wifiManager.autoConnect(apName.c_str()))
   {
     delay(3000);
     ESP.restart();
