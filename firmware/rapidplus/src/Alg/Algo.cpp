@@ -3,7 +3,7 @@
 #include "AlgoData.h"
 #include "Algo.h"
 #include "sgsmooth.h"
-#include "..\ForteSetting.h"
+#include "../ForteSetting.h"
 
 size_t find_crossing_higher_than(const std::vector<double> &_array, double crossing, int start_index)
 {

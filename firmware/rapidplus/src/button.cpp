@@ -178,6 +178,11 @@ void buttonProcess(e_statusbutton index)
         _displayCLD.type_infor = eSetPowerLed;
         _displayCLD.changeScreen = true;
       }
+      else if (_displayCLD.type_infor == eUpdateOTA)
+      {
+        flag_check_Update = false;
+        flagUpdate = true;
+      }
       break;
     }
 
@@ -261,6 +266,13 @@ void buttonProcess(e_statusbutton index)
         _displayCLD.type_infor = eSelectSlot;
         _displayCLD.changeScreen= true;
         _displayCLD.flag_calib_done = false;
+      }
+      else if (_displayCLD.type_infor == eUpdateOTA)
+      {
+        flag_check_Update = false;
+        flagUpdate = false;
+        _displayCLD.type_infor = escreenStart;
+        _displayCLD.changeScreen = true;
       }
       break;
     }
