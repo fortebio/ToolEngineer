@@ -1192,6 +1192,13 @@ void displayCLD::loop()
       this->changeScreen = false;
       break;
     }
+    case eUpdateOTA:
+    {
+      this->display_UpdateOTA();
+      this->changeScreen = false;
+      break;
+    }
+
     default:
       break;
     }
@@ -1628,6 +1635,47 @@ void displayCLD::set_flag_calib(void)
   delay(3000);
   _displayCLD.type_infor = eSaveCalib;
   _displayCLD.changeScreen = true;
+}
+
+void displayCLD::display_UpdateOTA(void)
+{
+  this->display->fillScreen(BLACK);
+  this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
+
+  this->display->setTextSize(2);
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(40, 60);
+  this->display->println("You have a");
+  this->display->setCursor(70, 90);
+  this->display->println("new update!");
+
+  this->display->setTextSize(1);
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(40, 120);
+  this->display->println("Version: " + fwVer);
+  this->display->setCursor(40, 150);
+  this->display->println("Detail: " + fwCont);
+
+  this->display->setTextSize(1);
+  this->display->setTextColor(RED);
+  this->display->setCursor(40, 180);
+  this->display->println("Press red button: Update");
+
+  this->display->setTextSize(1);
+  this->display->setTextColor(GREEN);
+  this->display->setCursor(40, 210);
+  this->display->println("Press green button: Skip");
+}
+
+void displayCLD::waittingUpdate(void)
+{
+  this->display->fillScreen(BLACK);
+  this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
+
+  this->display->setTextSize(2);
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(40, 100);
+  this->display->print("Waitting...");
 }
 
 displayCLD _displayCLD;

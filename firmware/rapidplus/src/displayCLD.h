@@ -57,7 +57,8 @@ typedef enum
     eCalibComplete,
     eSetPowerLed,
     eSavePowerLed,
-    eSaveCalib   //display set power led
+    eSaveCalib,   //display set power led
+    eUpdateOTA
 } e_statuslcd;
 
 class displayCLD
@@ -143,6 +144,9 @@ public:
 
     void calculate(void);
     void saving_calib(void);
+
+    void display_UpdateOTA(void);
+    void waittingUpdate(void);
 
     int slot = 0;
     bool flag_calib_done = false;

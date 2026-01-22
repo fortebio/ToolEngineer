@@ -50,10 +50,16 @@ void setup()
   _PIDControl.timeoutSetting();
 
   postData_Chart();
+  checkFirmware();
 }
 
 void loop()
 {
+  if (flag_check_Update == true)
+  {
+    _displayCLD.type_infor = eUpdateOTA;
+  }
+  
   _PIDControl.loop();
   _sensor6035.loop();
   _displayCLD.loop();
@@ -62,4 +68,5 @@ void loop()
   _Fan.loop(); // keep open the Fan
 
   server.handleClient();
+  updateFirmware();
 }
