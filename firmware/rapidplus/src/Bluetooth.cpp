@@ -251,13 +251,8 @@ void Wifi_Connect()
   wifiManager.addParameter(&custom_id_device);
   wifiManager.setTitle("Fortebiotech RAPID Setup");
 
-  // if (id_device == NULL)
-  // {
-  //   id_device = "RAPIDPlus";
-  // }
   String apName = "";
   char *tmp = "";
-  // strcmp(id_check, "RPL");
 
   EEPROM.begin(_EEPROM_SIZE);
   if (!EEPROM.readBool(ADDR_CHECK_ID_DEVICE) ||
@@ -271,7 +266,6 @@ void Wifi_Connect()
   }
   EEPROM.end();
 
-  // if (!wifiManager.autoConnect("FBT_RAPID PLUS"))
   if (!wifiManager.autoConnect(apName.c_str()))
   {
     delay(3000);
