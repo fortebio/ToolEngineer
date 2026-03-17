@@ -1,93 +1,385 @@
-# Project Austin Part 3 of 6: Ink Smoothing
-[Eric Brumer - MSFT](https://devblogs.microsoft.com/cppblog/author/ericbrumer)
-October 5, 2012
+# PRV-Reader - Rapid Disease Detection System
+
+Thiết bị đọc nhanh phát hiện bệnh trên động vật nuôi (tôm, cá, heo, gà) sử dụng cảm biến màu quang học, tích hợp kết nối cloud và hỗ trợ đa ngôn ngữ.
+
+**Firmware version:** v2.6.6
 
 ---
-Hi, my name is Eric Brumer. I’m a developer on the C++ compiler optimizer, but I’ve spent some time working on Project Code Name Austin to help showcase the power and performance of C++ in a real world program. For a general overview of the project, please check out the [introduction blog post](http://blogs.msdn.com/b/vcblog/archive/2012/09/11/10348466.aspx).
 
-This blog post describes how we perform ink smoothing.
+## Mục lục
 
-Consider a straightforward ink drawing mechanism: draw straight lines between each stylus input point that is sampled. The devices and drivers we have been using on Windows 8 sample 120 input points per second. This may seem like a lot, but very swift strokes can sometimes cause visible straight edges. Here’s a sample from the app (without ink smoothing) which shows some straight edges:
+- [Tổng quan hệ thống](#tổng-quan-hệ-thống)
+- [Phần cứng](#phần-cứng)
+- [Cấu trúc thư mục](#cấu-trúc-thư-mục)
+- [Kiến trúc phần mềm](#kiến-trúc-phần-mềm)
+- [Luồng hoạt động](#luồng-hoạt-động)
+- [Giao thức truyền thông](#giao-thức-truyền-thông)
+- [Quản lý bộ nhớ EEPROM](#quản-lý-bộ-nhớ-eeprom)
+- [Hệ thống động vật & bệnh](#hệ-thống-động-vật--bệnh)
+- [Đa ngôn ngữ](#đa-ngôn-ngữ)
+- [Build & Deploy](#build--deploy)
 
-[![Image 2234 image001](https://devblogs.microsoft.com/cppblog/wp-content/uploads/sites/9/2012/10/2234.image001.jpg)](https://devblogs.microsoft.com/cppblog/wp-content/uploads/sites/9/2012/10/2234.image001.jpg)
+---
 
-Here is the same set of ink strokes, but with the ink stroke smoothed.
+## Tổng quan hệ thống
 
-[![Image 6064 image002](https://devblogs.microsoft.com/cppblog/wp-content/uploads/sites/9/2012/10/6064.image002.jpg)](https://devblogs.microsoft.com/cppblog/wp-content/uploads/sites/9/2012/10/6064.image002.jpg)
+PRV-Reader là thiết bị IoT nhúng sử dụng ESP32 để đọc mẫu xét nghiệm bệnh trên động vật nuôi thông qua cảm biến màu TCS34725. Kết quả đo được hiển thị trên màn hình LCD, truyền qua Bluetooth đến ứng dụng di động, và đẩy lên Google Sheets để lưu trữ.
 
-**Spline**
+### Sơ đồ kiến trúc tổng quan
 
-We are using a spline technique to do real time ink smoothing. Other options were considered, but the spline (a) can be done in real time so the strokes you draw are always smooth as new input points are sampled and (b) are computationally feasible.
-
-There is plenty of literature online about spline smoothing techniques, but in my (limited) research I have either found descriptions that are too simplistic, or descriptions that require a degree in computer graphics to understand. So here’s my shot at something in the middle…
-
-Before computers, a technique was used to create smoothed curves using a tool called a [spline](http://en.wikipedia.org/wiki/Flat_spline). This was a flexible material (heavy rope, a flexible piece of wood, etc) that could bend into shape, but also be fixed at certain locations along its body. For example, you could take a piece of heavy rope, pin the rope to a wall using a bunch of pins in different locations along the rope, then trace the outline of the bendy rope to yield a spline-smoothed curve.
-
-Fast forward several decades and now we are using the same principles to create a smoothed line between a set of points. Say we have a line with many points P0, P1, P2, … To smooth it using a spline, we take the first 4 points (P0, P1, P2, P3) and draw a smooth curve that passes through P1 & P2. Then we move the window of 4 points to (P1, P2, P3, P4) and draw a smooth curve that passes through P2 & P3. Rinse and repeat for the entire curve. The reason it’s a spline technique is that we consider the two points as being ‘pinned’, just like pinning some rope to a wall.
-
-Before going into how we draw the smoothed line between those points, let’s examine the benefits:
-
-1. We only need four points to draw a smoothed line between the middle two. As you are drawing an ink stroke with your stylus, we are constantly able to smooth the stroke. I.e. we can do real time smoothing.
-2. The computation is bounded, and by some neat compiler optimizations and limiting the number of samples when drawing the smoothed line (see item 2 below) we can ensure ink smoothing won’t be on the critical path of performance.
-
-There are a few things to keep in mind:
-
-1. We need to handle drawing a smoothed line between the first two points (P0 & P1), as well as drawing the smoothed line between the last two points on the curve. I do these by faking up those points and applying the same spline technique.
-2. I keep writing “draw a smoothed line between two points”. We can’t draw a smoothed line; we can only draw a bunch of straight lines that look smooth. So when I say “draw a smoothed line between two points” what I mean to say is “draw many straight lines that look smooth which connect two points”. We just sample points along the curved line at regular intervals which are known to look smooth at the pixel level.
-
-**Cubic Spline & Cardinal Spline**
-
-Now on to the mathematical meat… When a graphics person says that a line is smooth at a given point, what they are saying is that the line is contiguous at that point, the first derivative of the line is contiguous at that point, and the second derivative is contiguous at that point. Apologies if I’m bringing back horrible memories of high school or college calculus.
-
-Here’s a visual of five points with the smoothed line already drawn in blue.
-
-[![Image 8540 Page 0](https://devblogs.microsoft.com/cppblog/wp-content/uploads/sites/9/2012/10/8540.Page-0.jpg)](https://devblogs.microsoft.com/cppblog/wp-content/uploads/sites/9/2012/10/8540.Page-0.jpg)
-
-We can define each segment of the smoothed blue curve as being parameterized by a parameter “t” which goes from 0 to 1. So the blue line is the concatenation of 4 curves given by:
-
-P01(t) where t ranges from 0 to 1 for the first segment (from P0 to P1)  
-P12(t) where t ranges from 0 to 1 for the second segment (from P1 to P2)  
-… etc …
-
-Using the ` character to mean derivative, applying the definition of smooth at the endpoints of each of the segments yields a bunch of equations:
-
-P01(t=1) = P12(t=0)                         P\`01(t=1) = P\`12(t=0)                      P“01(t=1) = P“12(t=0)  
-P12(t=1) = P23(t=0)                         P\`12(t=1) = P\`23(t=0)                      P“12(t=1) = P“23(t=0)  
-        … etc …
-
-Solving those equations _exactly_ is trying. See [spline interpolation](http://en.wikipedia.org/wiki/Spline_interpolation). In general, if you are looking for a polynomial to satisfy an equation with second derivatives, you are shopping for a polynomial of degree 3, aka a cubic polynomial. Hence the ‘cubic’ in cubic spline.
-
-The Wikipedia page shows a solution to fit the smoothness equations, but a lot of work has been done in this space to come up with a _more computationally feasible_ solution that _looks just as smooth_. Basically, we lessen the second derivative equations and say P“01(t=1) ~= P“12(t=0), etc. This opens up many possibilities – look up any cubic spline and you’ll see many options.
-
-After much experimenting, I found that the Cardinal spline works best for our ink strokes. The cardinal spline solution for the smoothed curve between 4 points P0, P1, P2, P3 is as follows:
-
-[![Image 4035 formula](https://devblogs.microsoft.com/cppblog/wp-content/uploads/sites/9/2012/10/4035.formula.png)](https://devblogs.microsoft.com/cppblog/wp-content/uploads/sites/9/2012/10/4035.formula.png)
-
-The factor L is used to simulate the “tension in the heavy rope”, and can be tuned as you see fit. We chose a value around 0.5. If you are so inclined, you can also write out P23(t), take a bunch of derivatives and see this fits the smoothness equations. If you are a high school calculus teacher, please don’t make your students do this for homework.
-
-The formula can be expressed in C++:
-``` cpp style: smoth.c
-    for (int i=0; i<numPoints; i++)  
-    {  
-        float t = (float)i/(float)(numPoints-1);  
-        smoothedPoints_X[i] =     (2*t*t*t – 3*t*t + 1)  * p2x  
-                                + (-2*t*t*t + 3*t*t)     * p3x  
-                                + (t*t*t – 2*t*t + t)    * L*(p3x-p1x)  
-                                + (t*t*t – t*t)          * L*(p4x-p2x);
-
-        smoothedPoints_Y[i] =     (2*t*t*t – 3*t*t + 1)  * p2y  
-                                + (-2*t*t*t + 3*t*t)     * p3y  
-                                + (t*t*t – 2*t*t + t)    * L*(p3y-p1y)  
-                                + (t*t*t – t*t)          * L*(p4y-p2y);  
-    }
+```text
+┌─────────────────────────────────────────────────────┐
+│                    ESP32 DevKit-C v4                 │
+│                                                     │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────────┐  │
+│  │ TCS34725 │  │ ILI9341  │  │   3 Buttons       │  │
+│  │  Sensor  │  │   LCD    │  │  RED/BLUE/WHITE   │  │
+│  │  (I2C)   │  │  (SPI)   │  │  (GPIO 13/16/4)   │  │
+│  └──────────┘  └──────────┘  └───────────────────┘  │
+│                                                     │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────────┐  │
+│  │  WiFi    │  │Bluetooth │  │   LED (GPIO 25)   │  │
+│  │          │  │ Classic  │  │                   │  │
+│  └────┬─────┘  └────┬─────┘  └───────────────────┘  │
+└───────┼──────────────┼──────────────────────────────┘
+        │              │
+        ▼              ▼
+  ┌───────────┐  ┌───────────┐
+  │  Google   │  │  Mobile   │
+  │  Sheets   │  │   App     │
+  │  (HTTPS)  │  │  (BT)    │
+  └───────────┘  └───────────┘
 ```
 
+---
 
+## Phần cứng
 
-numPoints (the number of points to sample on our smoothed line) is based on the minimum interval for what we thought looked good.
+| Thành phần | Model | Giao tiếp | Mô tả |
+| --- | --- | --- | --- |
+| MCU | ESP32-DevKit-C v4 | - | Vi điều khiển lõi kép, WiFi + BT |
+| Màn hình | ILI9341 TFT LCD | SPI | 240x320 pixels, xoay 90° |
+| Cảm biến màu | TCS34725 | I2C | Đo RGB, lux, nhiệt độ màu |
+| Nút bấm | 3 nút vật lý | GPIO | RED (13), BLUE (16), WHITE (4) |
+| LED trạng thái | LED đơn | GPIO 25 | Chỉ thị trạng thái hoạt động |
 
-**Performance**
+### Sơ đồ chân (Pin Map)
 
-Like I mentioned before, we do real-time ink smoothing. That is to say an ink stroke is smoothed as it is drawn. We need to make sure that drawing a smooth line does not take too long otherwise we’ll notice a drop in frame rate where the ink stroke lags behind your stylus.
+```text
+ESP32 GPIO    Thiết bị
+─────────────────────────
+GPIO 13  ──→  Nút RED (xuống/chọn)
+GPIO 16  ──→  Nút BLUE (lên)
+GPIO  4  ──→  Nút WHITE (quay lại)
+GPIO 25  ──→  LED trạng thái
+SPI Bus  ──→  ILI9341 LCD
+I2C Bus  ──→  TCS34725 Sensor
+```
 
-One of the benefits of writing this app in C++ is the opportunity for compiler optimizations to kick in. In this particular case, the cardinal spline equations are auto-vectorized by the Visual Studio 2012 C++ compiler. This yields a **30% performance boost** when smoothing ink strokes, ensuring we can smooth ink points as fast as Windows can sample them. Also, any extra computing time saved lets us (a) do more computations to make the app better, or (b) finish our computations early, putting the app to sleep thus saving power.
+---
+
+## Cấu trúc thư mục
+
+```text
+reader/
+├── src/                          # Mã nguồn chính
+│   ├── main.cpp                  # Entry point: setup() & loop()
+│   ├── define.h                  # Hằng số, macro, cấu hình chân GPIO, EEPROM map
+│   ├── sensor.cpp / sensor.h     # Logic cảm biến TCS34725, Kalman filter
+│   ├── displayLCD.cpp / .h       # Quản lý giao diện LCD, các màn hình UI
+│   ├── button.cpp / button.h     # Xử lý nút bấm, interrupt
+│   ├── menu.cpp / menu.h         # Hệ thống menu điều hướng
+│   ├── Sample.cpp / Sample.h     # Dữ liệu động vật, định nghĩa bệnh
+│   ├── Bluetooth.cpp / .h        # Bluetooth, WiFi, cloud integration
+│   ├── displayresources.h        # Tài nguyên UI (font, icon)
+│   ├── tcs.h                     # Auto-ranging logic cho TCS34725
+│   └── Icon/iconSample.h         # Bitmap icon
+├── platformio.ini                # Cấu hình build PlatformIO
+├── wokwi.toml                    # Cấu hình simulator Wokwi
+├── diagram.json                  # Sơ đồ phần cứng (Wokwi)
+└── .vscode/                      # Cấu hình VS Code
+```
+
+---
+
+## Kiến trúc phần mềm
+
+### Module và trách nhiệm
+
+```text
+┌─────────────────────────────────────────────┐
+│                  main.cpp                   │
+│            (setup + loop chính)             │
+├──────────┬──────────┬───────────┬───────────┤
+│ display  │  sensor  │  button   │ Bluetooth │
+│  LCD.cpp │  .cpp    │  .cpp     │   .cpp    │
+├──────────┼──────────┼───────────┼───────────┤
+│ menu.cpp │  tcs.h   │           │           │
+│          │ (auto-   │           │           │
+│          │  range)  │           │           │
+├──────────┴──────────┴───────────┴───────────┤
+│               Sample.cpp                    │
+│     (Dữ liệu động vật & định nghĩa bệnh)  │
+├─────────────────────────────────────────────┤
+│               define.h                      │
+│  (Hằng số, macro, EEPROM map, pin config)   │
+└─────────────────────────────────────────────┘
+```
+
+### Chi tiết từng module
+
+#### `main.cpp` — Entry Point
+
+- `setup()`: Khởi tạo Serial, EEPROM, WiFi, cảm biến, LCD, database động vật
+- `loop()`: Gọi vòng lặp display và sensor liên tục
+
+#### `sensor.cpp` — Cảm biến màu
+
+- Đọc giá trị RGB từ TCS34725
+- Auto-ranging: tự động điều chỉnh gain (1x, 4x, 16x, 60x) và integration time (154ms - 614ms)
+- Bộ lọc Kalman cho tín hiệu ổn định
+- Phát hiện bão hòa (ngưỡng 75%)
+- Tính toán lux và nhiệt độ màu
+
+#### `displayLCD.cpp` — Giao diện người dùng
+
+- Quản lý tất cả màn hình UI (>15 trạng thái)
+- Render font Unicode (Tiếng Việt, Trung Quốc, Đài Loan) qua U8g2
+- Hiển thị kết quả đo, biểu đồ, trạng thái
+
+#### `button.cpp` — Xử lý nút bấm
+
+- 3 nút: RED (xuống/chọn), BLUE (lên), WHITE (quay lại)
+- Hỗ trợ nhấn giữ (5s cho calibration)
+- Callback-based event handling
+
+#### `menu.cpp` — Điều hướng menu
+
+- Menu phân cấp với cuộn trang
+- Chọn mục bằng icon
+- Hiệu ứng cursor hoạt hình
+
+#### `Sample.cpp` — Dữ liệu mẫu
+
+- Định nghĩa 4 nhóm động vật và các bệnh tương ứng
+- Parse JSON → cấu trúc dữ liệu trong bộ nhớ
+- Quản lý ngưỡng (threshold) cho từng bệnh
+
+#### `Bluetooth.cpp` — Kết nối
+
+- Bluetooth Classic: giao tiếp với ứng dụng di động
+- WiFi: kết nối mạng qua WiFiManager (AP mode)
+- HTTPS: đẩy dữ liệu lên Google Sheets
+- OTA: cập nhật firmware qua mạng
+- NTP: đồng bộ thời gian (GMT+7)
+
+---
+
+## Luồng hoạt động
+
+### Quy trình đo mẫu
+
+```text
+ ① Khởi động
+    │
+ ② Chọn nhóm động vật (Tôm / Cá / Heo / Gà)
+    │
+ ③ Chọn loại mẫu (mô, nước, ...)
+    │
+ ④ Chọn loại bệnh cần xét nghiệm
+    │
+ ⑤ Đặt ống mẫu vào khe đọc
+    │
+ ⑥ Đo lần 1 → Hiển thị kết quả
+    │
+ ⑦ Đo lần 2 → Hiển thị kết quả
+    │
+ ⑧ Đo lần 3 → Hiển thị kết quả
+    │
+ ⑨ Tính trung bình 3 lần đo
+    │
+ ⑩ Hiển thị kết quả cuối + trạng thái (Dương tính / Âm tính)
+    │
+ ⑪ Đẩy dữ liệu lên Google Sheets (tùy chọn)
+```
+
+### Các trạng thái màn hình (Screen States)
+
+| Trạng thái | Mô tả |
+| --- | --- |
+| `escreenStart` | Màn hình khởi động |
+| `echooseAnimals` | Chọn nhóm động vật |
+| `echooseSample` | Chọn loại mẫu |
+| `echoosetube` | Chọn ống xét nghiệm |
+| `eprepare` | Chờ đặt ống mẫu |
+| `ewaitingReadsensor` | Đang đọc cảm biến |
+| `escreenResult` | Kết quả từng lần đo |
+| `escreenAverageResult` | Kết quả trung bình |
+| `ecalibSensor` | Chế độ hiệu chuẩn |
+| `e_setting` | Menu cài đặt |
+| `e_settingWifi` | Cấu hình WiFi |
+| `e_settingUpdate` | Cập nhật firmware OTA |
+| `e_language` | Chọn ngôn ngữ |
+| `e_setThreshold` | Cấu hình ngưỡng |
+| `e_loginCalib` | Nhập mật khẩu hiệu chuẩn |
+| `e_groupData` | Theo dõi đo theo nhóm |
+| `logdata` | Xem log dữ liệu |
+
+---
+
+## Giao thức truyền thông
+
+### Bluetooth Classic
+
+- Tên thiết bị: `ESP_READER-<MAC_ADDRESS>`
+- Giao tiếp serial qua BluetoothSerial
+- Dùng để: cấu hình ngưỡng, truyền kết quả đến app
+
+### WiFi & Cloud
+
+- Kết nối WiFi qua WiFiManager (AP mode khi chưa cấu hình)
+- Mật khẩu AP mặc định: `FBT`
+- Đẩy dữ liệu lên Google Sheets qua Google Apps Script (HTTPS POST)
+
+### Cấu trúc dữ liệu gửi lên Cloud
+
+```json
+{
+  "method": "append",
+  "sick": "EHP",
+  "sensor_value1": 125.5,
+  "sensor_value2": 130.2,
+  "sensor_value3": 128.0,
+  "data_IDdevice": "DEVICE_001",
+  "date": "17-03-2026 14:30:00",
+  "version": "v2.6.6"
+}
+```
+
+---
+
+## Quản lý bộ nhớ EEPROM
+
+Tổng dung lượng: **1024 bytes** (partition: `min_spiffs.csv`)
+
+| Địa chỉ | Dữ liệu | Kích thước |
+| --- | --- | --- |
+| 0 - 1 | Giá trị hiệu chuẩn Min | 2 bytes |
+| 2 - 7 | Giá trị hiệu chuẩn Max | 2 bytes |
+| 8 - 11 | Slope (hệ số góc) | 4 bytes |
+| 12 - 15 | Origin (gốc tọa độ) | 4 bytes |
+| 16 - 35 | Ngưỡng bệnh (5 bệnh × 4 bytes) | 20 bytes |
+| 36 - 39 | Cài đặt ngôn ngữ | 4 bytes |
+| 40 - 59 | Device ID | 20 bytes |
+| 60 - 94 | WiFi SSID | 35 bytes |
+| 95 - 129 | WiFi Password | 35 bytes |
+| 130 - 149 | Bluetooth ID | 20 bytes |
+| 200+ | Checksum / Status Flags | varies |
+| 512+ | Dữ liệu mẫu theo nhóm | 100 bytes/nhóm |
+
+### Hệ thống hiệu chuẩn (Calibration)
+
+- Phạm vi giá trị: 0 - 3000
+- Tính slope và origin cho ánh xạ tuyến tính
+- Kích hoạt bằng giữ nút RED 5 giây
+- Bảo vệ bằng mật khẩu
+
+---
+
+## Hệ thống động vật & bệnh
+
+### Các nhóm được hỗ trợ
+
+| Nhóm | Mẫu | Bệnh phát hiện |
+| --- | --- | --- |
+| **Tôm (PRAWN)** | 3 loại mẫu | PC, EHP, EMS, WSSV, TPD |
+| **Cá (FISH)** | 2 loại mẫu | ISKNV, TILV, PC |
+| **Heo (PIG)** | 3 loại mẫu | PC, ASF |
+| **Gà (CHICKEN)** | 3 loại mẫu | (đang phát triển) |
+
+### Cấu trúc dữ liệu
+
+```text
+group_t (Nhóm)
+├── name: tên nhóm
+└── animal_t[] (Mẫu)
+    ├── sample_name: tên mẫu
+    └── sick_t[] (Bệnh)
+        ├── name: tên bệnh (20 bytes)
+        ├── threshold: ngưỡng phát hiện (mặc định 500)
+        └── color: màu hiển thị
+```
+
+---
+
+## Đa ngôn ngữ
+
+| Ngôn ngữ | Mô tả |
+| --- | --- |
+| Tiếng Việt | Mặc định |
+| English | Tiếng Anh |
+| 中文 | Tiếng Trung (Giản thể) |
+| 繁體中文 | Tiếng Đài Loan (Phồn thể) |
+
+Sử dụng thư viện **U8g2** để render font Unicode trên LCD.
+
+---
+
+## Build & Deploy
+
+### Yêu cầu
+
+- [PlatformIO](https://platformio.org/) (VS Code extension hoặc CLI)
+- ESP32 DevKit-C v4
+
+### Thư viện phụ thuộc
+
+| Thư viện | Mục đích |
+| --- | --- |
+| U8g2lib | Font Unicode đa ngôn ngữ |
+| Arduino_GFX_Library | Render đồ họa |
+| Adafruit_ILI9341 | Driver LCD |
+| Adafruit_TCS34725 | Driver cảm biến màu |
+| WiFiManager | Cấu hình WiFi qua AP |
+| ArduinoJson | Parse/generate JSON |
+| NTPClient | Đồng bộ thời gian |
+
+### Build & Upload
+
+```bash
+# Build firmware
+pio run
+
+# Upload qua USB Serial
+pio run --target upload
+
+# Monitor serial output
+pio device monitor --baud 115200
+```
+
+### Mô phỏng (Simulation)
+
+Hỗ trợ [Wokwi Simulator](https://wokwi.com/) - cấu hình trong `wokwi.toml` và `diagram.json`.
+
+```bash
+# File firmware cho simulator
+.pio/build/esp32dev/firmware.bin
+.pio/build/esp32dev/firmware.elf
+```
+
+### Cập nhật OTA
+
+Thiết bị hỗ trợ cập nhật firmware Over-The-Air qua WiFi sử dụng `HTTPUpdate`. Thiết bị tự kiểm tra phiên bản mới từ server và tải về tự động.
+
+---
+
+## Bảo mật
+
+- Hiệu chuẩn được bảo vệ bằng mật khẩu
+- WiFi credentials lưu trong EEPROM
+- Bluetooth yêu cầu ghép nối (pairing) tiêu chuẩn
+- OTA update có kiểm tra phiên bản
+
+---
+
+Forte Biotech - PRV-Reader Disease Detection System
