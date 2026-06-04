@@ -23,6 +23,9 @@
 #define Config_SENS VEML6035_SENS_0_x1
 #define Config_CHANNEL VEML6035_WHITE_CH_EN
 
+static char resultData[10] = {0};
+static float CT_valueData[10] = {0};
+
 typedef enum
 {
     eSensorwait,       // wait before it starts to work
@@ -33,11 +36,6 @@ typedef enum
 
     eSensorcalib // calib
 } e_sensorStep;
-
-// struct sensorvalue
-// {
-//     Word value[10][30] = {0};
-// };
 
 class sensor6035
 {
@@ -97,6 +95,14 @@ public:
     void clear(); // add later after supporting both of 5 and 10 channels
 
     void reConfigSensors();
+    void reConfigSingleSlotSensor(uint8_t slot)
+    {
+        closeSensorChannel(slot);
+        delay(20);
+        ResetSingleSensor(slot);
+        delay(20);
+        reConfigSingleSensor(slot);
+    }
 
     void connectToSensor(int slot);
 
@@ -120,9 +126,9 @@ public:
 
     bool bResultGet(float *CT_value, char *result);
     bool bResultPutToGoogleSheet(float *CT_value,
-                                             char *result,
-                                             struct DiagnosticOutcome *get_outcome,
-                                             struct FeatureDetection *get_peak_features);
+                                 char *result,
+                                 struct DiagnosticOutcome *get_outcome,
+                                 struct FeatureDetection *get_peak_features);
     bool bResultPutToChart(float *CT_value, char *result, float **processced_data);
 
     void AlgLoop(char *recvData);
@@ -142,6 +148,14 @@ private:
     void Power_Saving_Mode();
     void setI2CChannelSeq();
     void ResetAllSensors();
+    void ResetSingleSensor(uint8_t slot)
+    {
+        openSensorChannel(slot);
+        /* Reset Sensor to default value */
+        Reset_Sensor();
+        Basic_Initialization_Auto_Mode();
+        closeSensorChannel(slot);
+    }
     void ChannelEnableProcess_loop();
     void ChannelEnableProcess(String command);
     void ALS_IT_Process_loop();

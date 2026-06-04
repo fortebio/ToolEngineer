@@ -10,6 +10,8 @@
 #define LED_ON  LOW     //LED on is LOW, may change it in the future
 #define LED_OFF HIGH    //LED off is HIGH, may change it in the future
 
+#define LED_I2C_MUTEX_TIMEOUT_MS 30
+
 class LED
 {
 private:
@@ -19,6 +21,8 @@ private:
 
     // All PWM variables, configurable
     int PWM_ON = 10;
+
+    void _mcp_digitalWrite(uint8_t pin, uint8_t val);
     
     
 public:
@@ -33,6 +37,10 @@ public:
     void BuzzerOff();
     uint8_t getPWMValue(int LEDChannel);
     void setPWMValue(int LEDChannel, uint8_t value);
+
+    void LED_on_unguarded(int channel);
+    void LED_off_unguarded(int channel);
+    void LED_OFF_ALL_unguarded();
 };
 extern LED _LED;
 

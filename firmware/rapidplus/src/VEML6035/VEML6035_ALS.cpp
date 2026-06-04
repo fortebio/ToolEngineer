@@ -307,6 +307,7 @@ bool VEML6035_GET_ALS_DATA_I2C_Res(Word * RData)
 	VEML6035_Data.Select_I2C_Bus = I2C_Bus;
 	bool flagI2C = ReadI2C_Bus(&VEML6035_Data);
 	*RData = ((VEML6035_Data.RData[1]<<8)|VEML6035_Data.RData[0]);
+	// *RData = VEML6035_Data.RData;
 	return flagI2C;
 }
 

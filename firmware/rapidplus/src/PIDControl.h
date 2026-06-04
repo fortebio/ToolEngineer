@@ -27,8 +27,8 @@ typedef enum
     epidready,           // ready to start
     epid1startpreHeat80, // make sure it's not overheat
     epid1preheat80,      // heat heat1 to 80
-    epid1hotlid,         // activate the hotlid
-    epid1ready,          // lysis is ready
+    // epid1hotlid,         // activate the hotlid
+    epid1ready, // lysis is ready
     // epid1maintain80,    //maintain heat1 to 80 for 10mins, and check the hotlid temperature and make sure it's won't overheat
     epid1finish,         // time out for 10mins, wait for next step
     epid2startpreHeat67, // check before preheat heater2 to 67

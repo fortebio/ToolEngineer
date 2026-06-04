@@ -31,7 +31,7 @@ int WriteI2C_Bus(struct TransferData *Data)
 		case 1:
 			//Send I2C Write Command as shown in Fig. 10 in the Datasheet Page 7.
 			//Step 1) Initiate the Wire library and join the I2C bus as a master or slave. This should normally be called only once.
-			Wire.begin();
+			//Wire.begin();
 
 			/*Step 2)  Send the 7-bit slave address to begin a transmission to the slave.
 			*Wire.beginTransmission(uint8_t SlaveAddress) - Begin a transmission to the I2C slave device with the given address.
@@ -100,7 +100,7 @@ int WriteI2C_Bus(struct TransferData *Data)
 		default:
 			//Send I2C Write Command as shown in Fig. 10 in the Datasheet Page 7.
 			//Step 1) Initiate the Wire library and join the I2C bus as a master or slave. This should normally be called only once.
-			Wire.begin(SDA_Forte, SCL_Forte);		//update here in 5 Jan 2024
+			//Wire.begin(SDA_Forte, SCL_Forte);		//update here in 5 Jan 2024
 
 			/*Step 2) Send the 7-bit slave address to begin a transmission to the slave.
 			*Wire.beginTransmission(uint8_t SlaveAddress) - Begin a transmission to the I2C slave device with the given address.
@@ -149,7 +149,7 @@ int ReadI2C_Bus(struct TransferData *Data)
 		case 1:
 			//Send I2C Read Command as shown in Fig. 10 in the Datasheet Page 7.
 			//Step 1) Initiate the Wire library and join the I2C bus as a master or slave. This should normally be called only once.
-			Wire.begin();
+			//Wire.begin();
 
 			/*Step 2) Send the 7-bit slave address to begin a transmission to the slave.
 			*Wire.beginTransmission(uint8_t SlaveAddress) - Begin a transmission to the I2C slave device with the given address.
@@ -196,7 +196,7 @@ int ReadI2C_Bus(struct TransferData *Data)
 			case 2:
 				//Send I2C Read Command as shown in Fig. 10 in the Datasheet Page 7.
 				//Step 1) Initiate the Wire library and join the I2C bus as a master or slave. This should normally be called only once.
-				Wire1.begin();
+				//Wire1.begin();
 
 				/*Step 2) Send the 7-bit slave address to begin a transmission to the slave.
 				*Wire.beginTransmission(uint8_t SlaveAddress) - Begin a transmission to the I2C slave device with the given address.
@@ -244,7 +244,7 @@ int ReadI2C_Bus(struct TransferData *Data)
 		default:
 			//Send I2C Read Command as shown in Fig. 10 in the Datasheet Page 7.
 			//Step 1) Initiate the Wire library and join the I2C bus as a master or slave. This should normally be called only once.
-			Wire.begin(14, 27);
+			//Wire.begin(14, 27);
 
 			/*Step 2) Send the 7-bit slave address to begin a transmission to the slave.
 			*Wire.beginTransmission(uint8_t SlaveAddress) - Begin a transmission to the I2C slave device with the given address.

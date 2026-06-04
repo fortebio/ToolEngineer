@@ -116,7 +116,7 @@
 // 512~1023: para with parastructure format, 512 bytes
 // 1024~4095: record, 3K
 
-#define _EEPROM_SIZE 4096              // add additional for para, record and json file storage.
+#define _EEPROM_SIZE 4096 // add additional for para, record and json file storage.
 // #define _EEPROM_SIZE 8192              // add additional for para, record and json file storage.
 #define PARAMETERPOS 512               // Record start at 512 with length to be 1800(store 90 rounds data), the
                                        // first 512 is reserved for Forte to use
@@ -131,6 +131,59 @@
 #define ADDR_CHECK_LANGUAGE 220
 #define ADDR_CHECK_BT 224
 
+#define ADDR_ERROR_NUMBER_UNIT 244 // the size of the error record, used to check if the error record is valid or not. If the value read from EEPROM is not equal to it, then it's not valid, and need to be cleared.
+#define ADDR_ERROR_FLAG 250
+#define ADDR_ERROR_RECORD (ADDR_ERROR_FLAG + 1) // record the error type and times, used for error process
+typedef enum
+{
+  /*************************************
+   * 0: Sensor Error None
+   * 1: Sensor Amplification Right
+   * 2: Sensor Amplification Left
+   * 3: Sensor Heater Right
+   * 4: Sensor Heater Left
+   * 5: Sensor Heater TopRight
+   * 6: Sensor Heater TopLeft */
+  errorNone = 0,
+  errorAmplificationRight,
+  errorAmplificationLeft,
+  errorHeaterRight,
+  errorHeaterLeft,
+  errorHeaterTopRight,
+  errorHeaterTopLeft,
+} errorModule;
+
+// #pragma pack(2)
+typedef struct
+{
+  uint8_t errorModule = 0;           /*************************************
+                                      * 0: Sensor Error None
+                                      * 1: Sensor Amplification Right
+                                      * 2: Sensor Amplification Left
+                                      * 3: Sensor Heater Right
+                                      * 4: Sensor Heater Left
+                                      * 5: Sensor Heater TopRight
+                                      * 6: Sensor Heater TopLeft */
+  uint8_t errorType = 0;             /*************************************
+                                      * Sensor Amplification
+                                      *   0: No error
+                                      *   1: no data from sensor
+                                      *   2: not all data from sensors
+                                      *   3: wrong data from sensor
+                                      *   4: Sensor too dark
+                                      *   5: Sensor too bright
+                                      * Sensor Heater
+                                      *   0: No error
+                                      *   1: Overheat
+                                      *   2: Underheat
+                                      *   3: Heater disconnected
+                                      *   4: Wrong data from sensor */
+  uint8_t errorSlot = 0xFF;          /* record which slot has error, used for error process. For example, if the error is "no data from sensor", then record which slot has no data, so that we can do more specific error process. The value is the same as the slot number, starting from 0. If it's not related to specific slot, then set it to 0xFF. */
+  uint8_t errorProcessStep = 0;      /* record which step of the error process, used for error process. For example, if the error is "no data from sensor", then we can do different process for different step, such as first time, second time, third time, etc. The value is starting from 0, and increase by 1 each time the same error happened. */
+  unsigned long long errorTimes = 0; /* times of the same error happened, used for error process */
+} ErrorRecord;                       /* define the structure for recording the error type and times, used for opto sensor reading error process */
+
+// #pragma pack(0)
 struct parastructure
 {
   int length = 0; // length of the structure, to indicate EEPROM has parameter
@@ -206,19 +259,20 @@ struct parastructure
   uint8_t topTemperatureSensorSq[3] = {0};    // hotlid sensor 1, 2, 3, ambient sensor. to be zero by default, need
                                               // to calibrate it.
   // double kpid[3] = {40, 1, 20};                   // PID parameter for bottom heater1(Lysis)
-  // double kpid2[3] = {60, 0.1, 40};                // PID parameter for bottom heater2&3(Amplification)
-  double kpid[3] = {30, 0.05, 30};                // PID parameter for bottom heater1(Lysis)
-  double kpid2[3] = {35, 0.1, 40};                // PID parameter for bottom heater2&3(Amplification)
-  double bottomOverheat[3] = {5, 5, 5};           // overheat value of bottom heater,
-                                                  // underheater value is negative of overheat
-  double topOverheat[2] = {20, 20};               // overheat value of top heater
-  float temperatureOffset[6] = {0};               // temperature offset of bottom sensor 1, 2, 3, hotlid sensor 1, 2, 3,
-                                                  // ambient sensor, the usage is reading temperature + this value ->
-                                                  // output temperature
-  uint8_t hotlidPWM[2][2] = {{40, 90}, {40, 90}}; // PWM low and high value for hotlid
-  uint8_t buzzerOn = 1;                           // on/off status, on is 1 while off is 0. "buzzer" "On"
-  double kitId = 0.0;                             // lưu thông tin kid test
-  double empty[5] = {0.0};                        // nở vùng dữ liệu để dự phòng
+  double kpid[3] = {30, 0.05, 30}; // PID parameter for bottom heater1(Lysis)
+  double kpid2[3] = {60, 0.1, 40}; // PID parameter for bottom heater2&3(Amplification)
+  // double kpid2[3] = {35, 0.1, 40};                // PID parameter for bottom heater2&3(Amplification)
+  double bottomOverheat[3] = {5, 5, 5}; // overheat value of bottom heater,
+                                        // underheater value is negative of overheat
+  double topOverheat[2] = {20, 20};     // overheat value of top heater
+  float temperatureOffset[6] = {0};     // temperature offset of bottom sensor 1, 2, 3, hotlid sensor 1, 2, 3,
+                                        // ambient sensor, the usage is reading temperature + this value ->
+                                        // output temperature
+  // uint8_t hotlidPWM[2][2] = {{40, 90}, {40, 90}}; // PWM low and high value for hotlid
+  uint8_t hotlidPWM[2][2] = {{40, 100}, {40, 100}}; // PWM low and high value for hotlid
+  uint8_t buzzerOn = 1;                             // on/off status, on is 1 while off is 0. "buzzer" "On"
+  double kitId = 0.0;                               // lưu thông tin kid test
+  double empty[5] = {0.0};                          // nở vùng dữ liệu để dự phòng
 };
 
 #define cDebug (0)
@@ -252,22 +306,32 @@ struct parastructure
       ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) \
       : NULL
 
+// Set true once the Bluetooth Classic stack has been permanently torn down
+// (esp_bt_mem_release). After that point ANY SerialBT call posts to a freed
+// bluedroid thread and triggers `assert failed: osi_thread_post (thread != NULL)`,
+// which reboots the device. Every SerialBT access below (and in the tasks) is
+// gated on this flag. Defined in Bluetooth.cpp.
+extern volatile bool gBtReleased;
+
 // below macro function can support the data print via both of serial port and
 // BLE
-#define info_displayf(...)         \
-  {                                \
-    DEBUG_COM.printf(__VA_ARGS__); \
-    SerialBT.printf(__VA_ARGS__);  \
+#define info_displayf(...)            \
+  {                                   \
+    DEBUG_COM.printf(__VA_ARGS__);    \
+    if (!gBtReleased)                 \
+      SerialBT.printf(__VA_ARGS__);   \
   }
-#define info_displayln(...)         \
-  {                                 \
-    DEBUG_COM.println(__VA_ARGS__); \
-    SerialBT.println(__VA_ARGS__);  \
+#define info_displayln(...)           \
+  {                                   \
+    DEBUG_COM.println(__VA_ARGS__);   \
+    if (!gBtReleased)                 \
+      SerialBT.println(__VA_ARGS__);  \
   }
-#define info_display(...)         \
-  {                               \
-    DEBUG_COM.print(__VA_ARGS__); \
-    SerialBT.print(__VA_ARGS__);  \
+#define info_display(...)             \
+  {                                   \
+    DEBUG_COM.print(__VA_ARGS__);     \
+    if (!gBtReleased)                 \
+      SerialBT.print(__VA_ARGS__);    \
   }
 
 // GPIO used for LCD
@@ -348,6 +412,7 @@ struct parastructure
 
 // GPIO used for Fan
 #define FANIO 12
+// #define FANIO 5
 
 // Threshold value of overheat and underheat delta value -> move to PIDControl.h
 //  #define OVERHEAT_THRESHOLD  2.0           //If temperature is too hot, used
@@ -362,7 +427,7 @@ struct parastructure
 
 // target temperature of top heater
 // #define HOTLID1_TEMP 60.0
-#define HOTLID23_TEMP 70.0
+#define HOTLID23_TEMP 75.0
 
 // GPIO used for bottom heater
 #define HEATER1IO 33 // heater1
@@ -399,5 +464,8 @@ struct parastructure
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "v2.3.6"; // add function calib
+static String FirmwareVer = "v2.4.1"; // add function calib
+
+extern SemaphoreHandle_t gI2CMutex;
+extern SemaphoreHandle_t gSPIMutex;
 #endif

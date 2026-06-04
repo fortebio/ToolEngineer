@@ -849,7 +849,7 @@ void ForteSetting::loop()
         recvData[recvLen] = '\0';
         // info_displayln(recvData);
     }
-    else if (SerialBT.available() > 0)
+    else if (!gBtReleased && SerialBT.available() > 0)
     {
         info_displayln("data received from BT");
         recvLen = 0;

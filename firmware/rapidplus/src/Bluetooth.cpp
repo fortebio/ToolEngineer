@@ -1,9 +1,15 @@
 #include "Bluetooth.h"
 #include "sensor6035.h"
 #include <ArduinoJson.h>
+#include <WiFiClientSecure.h>
+#include <esp_bt.h>
+#include <esp_bt_main.h>
+#include <esp32-hal.h>
 #include "index.h"
+#include "errorCheck.h"
 
 BluetoothSerial SerialBT;
+volatile bool gBtReleased = false; // see releaseBluetoothStack() / define.h
 String ssid = "";
 String password = "";
 uint64_t epsid = ESP.getEfuseMac();
@@ -21,6 +27,12 @@ const int daylightOffset_sec = 0;
 
 void connectBLE()
 {
+  // Once releaseBluetoothStack() has freed the controller memory, the stack
+  // cannot be re-initialised without a reboot. The only caller (eSettingBluetooth)
+  // does ESP.restart() right after, so just skip begin() to avoid asserting on
+  // a dead stack; BT comes back fresh after the restart.
+  if (gBtReleased)
+    return;
   SerialBT.begin("RAPID PLUS -" + String(ESP.getEfuseMac())); // Bluetooth device name
   // bool status_BT = false;
   // EEPROM.begin(_EEPROM_SIZE);
@@ -227,11 +239,63 @@ void Read_language_fromEEPROM()
 }
 
 /**
+ * @brief Idempotent teardown of the Bluetooth Classic stack.
+ *
+ * esp_bt_mem_release() PERMANENTLY hands the controller + bluedroid memory
+ * (~60KB) back to the general heap and may only be called ONCE: a second call
+ * re-adds the already-freed regions and corrupts the heap. Just as bad, any
+ * SerialBT call after deinit posts to a freed bluedroid thread and trips
+ * `assert failed: osi_thread_post (thread != NULL)` -> reboot.
+ *
+ * Three flows tear BT down (auto upload in screen_Result, manual upload, and
+ * WiFi setup in Wifi_Connect) and none is guaranteed to end in a restart, so
+ * they can run one after another within a single power cycle. The gBtReleased
+ * guard makes this safe to call from any of them in any order, and lets the
+ * info_display* macros + SettingTask stop touching SerialBT afterwards.
+ */
+void releaseBluetoothStack()
+{
+  if (gBtReleased)
+    return;
+
+  SerialBT.end();
+  if (esp_bluedroid_get_status() != ESP_BLUEDROID_STATUS_UNINITIALIZED)
+  {
+    esp_bluedroid_disable();
+    esp_bluedroid_deinit();
+  }
+  if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE)
+  {
+    esp_bt_controller_disable();
+    esp_bt_controller_deinit();
+  }
+  esp_bt_mem_release(ESP_BT_MODE_BTDM);
+
+  // Set LAST: from here on, no further SerialBT access is allowed.
+  gBtReleased = true;
+}
+
+/**
  * @brief Connect to WiFi using WiFiManager
  *
  */
 void Wifi_Connect()
 {
+  // Hard-release Bluetooth Classic stack BEFORE WiFiManager starts. SerialBT.end()
+  // alone leaves controller + bluedroid (~60KB) resident; WiFiManager's AP + DNS +
+  // captive-portal HTTP server can OOM during the phone's first request and reset
+  // the device. Idempotent: a prior auto/manual upload may already have released
+  // BT this power cycle, so this must not double-free or re-touch SerialBT.
+  releaseBluetoothStack();
+  Serial.printf("Before WiFiManager: free=%u, largest=%u\n",
+                ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+
+  // WiFiManager.autoConnect() blocks DisplayTask (Core 0) inside an internal
+  // loop that doesn't yield enough to IDLE-0 → Task Watchdog fires (~5s default)
+  // while user is on the captive portal. setting_Wifi() always ends with
+  // esp_restart(), so we don't need to re-enable.
+  disableCore0WDT();
+
   WiFiManager wifiManager;
   WiFiManagerParameter custom_id_device("id_device", "Enter ID Device", "RPL", 40);
 
@@ -239,7 +303,6 @@ void Wifi_Connect()
 
   if (WiFi.status() == WL_CONNECTED)
   {
-    SerialBT.end();
     WiFi.disconnect(true);
     delay(500);
   }
@@ -310,26 +373,31 @@ float rounded(float value)
 
 void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
 {
-  if (WiFi.status() == WL_CONNECTED)
+  if (WiFi.status() != WL_CONNECTED)
   {
-    struct DiagnosticOutcome outcome[10];
-    struct FeatureDetection peak_features[10];
+    Serial.println("postData_GoogleSheet: WiFi not connected, skip");
+    return;
+  }
+
+  struct DiagnosticOutcome outcome[10];
+  struct FeatureDetection peak_features[10];
+
+  /* Calculate CT_value and result */
+  bool flag = _sensor6035.bResultPutToGoogleSheet(CT_value, result, outcome, peak_features);
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+  // Build JSON inside a nested scope so the JsonDocument is destructed
+  // (and its ~25-40KB internal pool freed) BEFORE we open the TLS socket.
+  // mbedTLS needs a big contiguous free block; building the doc and the
+  // serialized String at the same time as the TLS handshake causes
+  // X509 alloc failures (-10368) on a fragmented heap.
+  String jsonPost;
+  {
     JsonDocument dataPostGoogleSheet;
-    String jsonPost = "";
-    String timeString = getTime();
-
-    HTTPClient http;
-    http.begin(serverName);
-    http.addHeader("Content-Type", "application/json");
-
-    /* Calculate CT_value and result */
-    bool flag = _sensor6035.bResultPutToGoogleSheet(CT_value, result, outcome, peak_features);
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
     dataPostGoogleSheet["method"] = "append";
     dataPostGoogleSheet["id_device"] = id_device;
     dataPostGoogleSheet["version"] = FirmwareVer;
-    dataPostGoogleSheet["time"] = timeString;
     dataPostGoogleSheet["kitId"] = String(_ForteSetting.parameter.kitId);
     if (_displayCLD.type_infor == eUpLoadData)
     {
@@ -361,8 +429,6 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
       JsonObject recordOutSlot = recordOut_array.createNestedObject();
       JsonObject peak_featuresObj = recordOutSlot[slotName].createNestedObject("peak_features");
       JsonObject outcomeObj = recordOutSlot[slotName].createNestedObject("outcome");
-      // JsonObject outcomeObj = outcomeSlot[slotName].createNestedObject();
-      // JsonObject outcomeObj[] = outcomeSlot.create;
       outcome[i].transition_time.x = rounded((float)outcome[i].transition_time.x);
       outcome[i].transition_time.y = rounded((float)outcome[i].transition_time.y);
       outcome[i].plateau_point.x = rounded((float)outcome[i].plateau_point.x);
@@ -383,14 +449,25 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
       peak_featuresObj["left_arm"] = peak_features[i].left_arm.toJSON();
     }
 
-    for (uint8_t i = 0; i < OPTOCHANNELS; i++)
-    {
-    }
-
     for (int i = 0; i < OPTOCHANNELS; i++)
     {
       char resultConfig[15] = {0};
-      if (result[i] == 'E')
+      /* Check Sensor Errors */
+      if (error.searchError(errorLightSensor, errorNoData, eSensor1stReading, i) != 255 ||
+          error.searchError(errorLightSensor, errorWrongData, eSensor1stReading, i) != 255 ||
+          error.searchError(errorLightSensor, errorTooDark, eSensor1stReading, i) != 255 ||
+          error.searchError(errorLightSensor, errorTooBright, eSensor1stReading, i) != 255)
+      {
+        if (result[i] == 'P' || result[i] == 'S')
+        {
+          sprintf(resultConfig, "%2.0f | /E", CT_value[i], result[i]);
+        }
+        else
+        {
+          sprintf(resultConfig, "- | /E");
+        }
+      }
+      else if (result[i] == 'E')
       {
         sprintf(resultConfig, "!  | %c", result[i]);
       }
@@ -408,7 +485,6 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
 
     for (int i = 0; i < OPTOCHANNELS; i++)
     {
-      // JsonArray amplification_channel_array = SlotObj.createNestedArray(amplification_channel[i]);
       String data_raw = "";
       for (int j = 0; j < loops; j++)
       {
@@ -418,25 +494,66 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
     }
 
     serializeJson(dataPostGoogleSheet, jsonPost);
-    // Serial.println("Post data: " + jsonPost);
-    //// Kết nối HTTPS và gửi dữ liệu
-    int httpResponseCode = http.POST(jsonPost);
-    http.end();
-    // if (httpResponseCode > 0)
-    // {
-    //   String response = http.getString();
-    //   Serial.println("Response code: " + String(httpResponseCode));
-    //   Serial.println("Response: " + response);
-    //   Serial.println("Data posted successfully!");
-    // }
-    // else
-    // {
-    //   Serial.println("Error on sending POST: " + String(httpResponseCode));
-    // }
-  }
-  else if (WiFi.status() == WL_DISCONNECTED)
+
+    Serial.printf("Heap before doc free: %u, largest: %u\n",
+                  ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+  } // <- JsonDocument destructed here, ~25-40KB returned to heap
+
+  Serial.printf("Heap after doc free:  %u, largest: %u, jsonPost=%u bytes\n",
+                ESP.getFreeHeap(), ESP.getMaxAllocHeap(), jsonPost.length());
+
+  // Now open TLS with the maximum free heap available.
+  // setInsecure() skips cert chain validation -> smaller mbedTLS allocation.
+  WiFiClientSecure client;
+  client.setInsecure();
+  client.setTimeout(60);   // socket-level timeout in seconds (Arduino-ESP32 WiFiClient API)
+  client.setHandshakeTimeout(30);
+
+  HTTPClient http;
+  // DO NOT follow redirects: GAS /exec returns 302 -> script.googleusercontent.com.
+  // HTTPClient re-POSTs the body to the redirect URL, but that host rejects POST
+  // (returns Google's generic "400 Bad Request" HTML page).
+  // We don't need the redirect target's body anyway — GAS has already processed
+  // the POST data by the time it issues the 302, so 302 == success for us.
+  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+  http.setReuse(false);
+  http.useHTTP10(true);
+  if (!http.begin(client, serverName))
   {
+    Serial.println("http.begin() failed");
+    return;
   }
+  // GAS /exec only emits the 302 AFTER doPost() finishes appending to the sheet,
+  // which currently takes ~35-40s (Data sheet has grown large). The old 30s cut us
+  // off mid-execution -> code=-11 (read Timeout) even though the write was fine.
+  // 60s leaves margin above the observed GAS latency. (Root fix: speed up doPost.)
+  http.setTimeout(60000);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Connection", "close");
+
+  Serial.printf("POSTing %u bytes...\n", jsonPost.length());
+  uint32_t t0 = millis();
+  int httpResponseCode = http.POST(jsonPost);
+  uint32_t dt = millis() - t0;
+
+  // 2xx = direct success; 302 from GAS = script accepted and processed the data.
+  bool ok = (httpResponseCode >= 200 && httpResponseCode < 300) ||
+            (httpResponseCode == HTTP_CODE_FOUND);   // 302
+  if (ok)
+  {
+    Serial.printf("POST OK in %u ms, code=%d\n", dt, httpResponseCode);
+  }
+  else if (httpResponseCode > 0)
+  {
+    Serial.printf("POST HTTP error in %u ms, code=%d, response=%s\n",
+                  dt, httpResponseCode, http.getString().c_str());
+  }
+  else
+  {
+    Serial.printf("POST FAIL in %u ms, code=%d (%s)\n",
+                  dt, httpResponseCode, http.errorToString(httpResponseCode).c_str());
+  }
+  http.end();
 }
 
 String getResult_toChart(char tmp)
@@ -512,7 +629,8 @@ void postData_Chart(void)
   if (WiFi.status() == WL_CONNECTED)
   {
     /*turn off BT */
-    SerialBT.end();
+    if (!gBtReleased)
+      SerialBT.end();
 
     server.on("/", HTTP_GET, []()
               { server.send(200, "text/html", index_html); });

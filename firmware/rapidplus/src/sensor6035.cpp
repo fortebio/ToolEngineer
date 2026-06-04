@@ -3,6 +3,7 @@
 #include "define.h"
 #include "PIDControl.h"
 #include "Bluetooth.h"
+#include "errorCheck.h"
 // #include "ArduinoJson.h"
 
 sensor6035::sensor6035(/* args */)
@@ -36,7 +37,7 @@ void sensor6035::begin()
 
     COUNTER = 0;
     sensorStep = eSensorpreheat;
-    _LED.LED_on(0); // turn on the first LED
+    _LED.LED_on_unguarded(0); // turn on the first LED
     iChannel = 0;
     sensor67ValueTime = millis() + LED_DELAY_TIME; // initialize the timer
     START_INTERVAL_TIME = millis();                // as start preheat immediatly, need to record the time together
@@ -90,7 +91,7 @@ void sensor6035::rerun()
     if (sensorStep > eSensorpreheat) // if opto has preheat, then just maintain it
     {
         // info_displayln("sensor only need to maintain status");
-        _LED.LED_OFF_ALL();
+        _LED.LED_OFF_ALL_unguarded();
         clear();
         sensorStep = eSensormaintain;
     }
@@ -113,10 +114,19 @@ void sensor6035::setStepeSensorpreheat()
 
 void sensor6035::setStepeSensorstart()
 {
-    sensorStep = eSensorstart;
+    // Idempotent guard: only transition forward into eSensorstart from a
+    // pre-measurement state. Once the sensor has reached eSensor1stReading,
+    // calling this again must NOT roll it back — doing so would re-enter
+    // eSensorstartFunc() which zeroes COUNTER, clears acquired data and
+    // wipes the error EEPROM. Critical for the manual chord-reinit and
+    // any future caller during an active 40-min amplification run.
+    if (sensorStep < eSensorstart)
+    {
+        sensorStep = eSensorstart;
+    }
 }
 
-#define BREAKING_START_INDEX 5
+#define BREAKING_START_INDEX 6
 #define RISING_WINDOW 6
 bool sensor6035::bResultGet(float *CT_value, char *result)
 {
@@ -161,8 +171,6 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         }
 
         /* ----------------------------- */
-        size_t breakIndex = check_breakData(recordIn.raw_data, recordIn.parameters.min_increase, BREAKING_START_INDEX);
-        size_t risingIndex = check_risingData(recordIn.raw_data, recordIn.parameters.detection_margin_time * (60000 / OPTO_INTERVAL), RISING_WINDOW);
 
         // --------------------------------------------------
         auto timeBegin = recordIn.time_data.begin();
@@ -172,6 +180,10 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
 
         bool validForDetection = true;
 
+        /*  Check if there is a valid break and rising data
+            If a BREAK is detected in POSITIVE data, process the data array to exclude the BREAK.*/
+        size_t breakIndex = check_breakData(recordIn.raw_data, recordIn.parameters.min_increase / FORTE_SLOPES[i], BREAKING_START_INDEX);
+        size_t risingIndex = check_risingData(recordIn.raw_data, recordIn.parameters.detection_margin_time, RISING_WINDOW);
         if (breakIndex)
         {
             if (risingIndex)
@@ -189,6 +201,7 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
             }
             else
             {
+                /* No valid rising data found */
                 validForDetection = false;
             }
         }
@@ -301,103 +314,8 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
         {
             recordIn.raw_data[j] = (float(sensor67Value[i][j]) - FORTE_ORIGINS[i]) / FORTE_SLOPES[i];
         }
-
-        // deep copy fluorescence data to record object
-        recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end());
-        recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end());
-
-        // process data
-        post_process_curve(recordOut,
-                           recordIn.parameters.baseline_start,
-                           recordIn.parameters.baseline_range,
-                           recordIn.parameters.sg_window,
-                           recordIn.parameters.sg_order);
-        // differentiate
-        differentiate(recordOut.time_data, recordOut.processed_data, recordOut.differential_data);
-
-        // detect feature
-        find_sigmoidal_feature(recordOut, recordIn.parameters);
-
-        // detect amplification
-        predict_outcome(recordOut, recordIn.parameters);
-        if ((recordOut.outcome.outcome[0] == 'P') || (recordOut.outcome.outcome[0] == 'S') || (recordOut.outcome.outcome[0] == 'E'))
-        {
-            if (!check_breakData(recordOut.raw_data, recordOut.outcome.transition_time.x, recordOut.outcome.transition_time.i))
-            {
-                strcpy(recordOut.outcome.outcome, "Break");
-            }
-        }
-
-        // re-write data processing to look god for users without affecting performance of algorithm
-        /*
-        Josep @ 24/12/24: high level of smoothing is bad for finding the lag phase because the smoothing tends to create a smooth transition until t = 0
-        Thus, small windows and ordders for smoothing produced best results so far.
-        At the same time, may look awesome for display.
-        Consider re-running the smoothing at this stage (line commented below) with higher order and window size to make a nice display without affecting the algorithm performance
-        */
-
-        processed_data[i] = (float *)malloc(sizeof(float) * loops);
-        if (processed_data[i] == NULL)
-        {
-            info_displayln("Memory alloccation failed for processed_data");
-            return false;
-        }
-        for (uint8_t j = 0; j < loops; j++)
-        {
-            processed_data[i][j] = (float)recordOut.processed_data[j];
-        }
-
-        CT_value[i] = float(recordOut.outcome.transition_time.x);
-        result[i] = recordOut.outcome.outcome[0];
-
-        // reset records
-        recordOut.clear();
-    }
-    return true;
-}
-
-bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
-                                         char *result,
-                                         struct DiagnosticOutcome *get_outcome,
-                                         struct FeatureDetection *get_peak_features)
-{
-    DataIn recordIn = DataIn();
-    Record recordOut = Record();
-    char JsonData[3 * 1024] = {0};
-    JsonDocument jsonDocument;
-
-    strcpy(JsonData, strJson.c_str());
-
-    // Deserialize the JSON
-    DeserializationError error = deserializeJson(jsonDocument, JsonData);
-
-    // Check for errors in parsing the JSON
-    if (error)
-    {
-        info_display("deserializeJson() failed: ");
-        info_displayln(error.c_str());
-        return false;
-    }
-    // map data to record
-    recordIn.fromEEPROM(jsonDocument); // get parameter from EEPROM, the rest from json data
-    uint8_t loops = _ForteSetting.parameter.amplification_time;
-    recordIn.raw_data.resize(loops);
-    recordIn.time_data.resize(loops);
-    for (size_t i = 0; i < loops; i++)
-    {
-        recordIn.time_data[i] = float(i) * OPTO_INTERVAL / 60000.0; // send time;
-    }
-
-    for (size_t i = 0; i < 10; i++)
-    {
-        // Update the raw data
-        for (size_t j = 0; j < loops; j++)
-        {
-            recordIn.raw_data[j] = (float(sensor67Value[i][j]) - FORTE_ORIGINS[i]) / FORTE_SLOPES[i];
-        }
-
         /* ----------------------------- */
-        size_t breakIndex = check_breakData(recordIn.raw_data, recordIn.parameters.min_increase, BREAKING_START_INDEX);
+        size_t breakIndex = check_breakData(recordIn.raw_data, recordIn.parameters.min_increase / FORTE_SLOPES[i], BREAKING_START_INDEX);
         size_t risingIndex = check_risingData(recordIn.raw_data, recordIn.parameters.detection_margin_time * (60000 / OPTO_INTERVAL), RISING_WINDOW);
 
         // --------------------------------------------------
@@ -483,9 +401,161 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
         Serial.printf("Index Rising data : %f\n", (double)risingIndex / 3);
         Serial.printf("Index Break data : %f\n", (double)breakIndex / 3);
         Serial.printf("Index Transition time: %f\n", (double)recordOut.outcome.transition_time.i / 3);
-        JsonDocument jsonOut = recordOut.toJSON();
+        // JsonDocument jsonOut = recordOut.toJSON();
         delay(100);
-        serializeJson(jsonOut, Serial);
+        // serializeJson(jsonOut, Serial);
+        info_displayln();
+        info_displayln();
+        processed_data[i] = (float *)malloc(sizeof(float) * loops);
+        if (processed_data[i] == NULL)
+        {
+            info_displayln("Memory alloccation failed for processed_data");
+            return false;
+        }
+        for (uint8_t j = 0; j < loops; j++)
+        {
+            processed_data[i][j] = (float)recordOut.processed_data[j];
+        }
+
+        CT_value[i] = float(recordOut.outcome.transition_time.x);
+        result[i] = recordOut.outcome.outcome[0];
+
+        // reset records
+        recordOut.clear();
+    }
+    return true;
+}
+
+bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
+                                         char *result,
+                                         struct DiagnosticOutcome *get_outcome,
+                                         struct FeatureDetection *get_peak_features)
+{
+    DataIn recordIn = DataIn();
+    Record recordOut = Record();
+    char JsonData[3 * 1024] = {0};
+    JsonDocument jsonDocument;
+
+    strcpy(JsonData, strJson.c_str());
+
+    // Deserialize the JSON
+    DeserializationError error = deserializeJson(jsonDocument, JsonData);
+
+    // Check for errors in parsing the JSON
+    if (error)
+    {
+        info_display("deserializeJson() failed: ");
+        info_displayln(error.c_str());
+        return false;
+    }
+    // map data to record
+    recordIn.fromEEPROM(jsonDocument); // get parameter from EEPROM, the rest from json data
+    uint8_t loops = _ForteSetting.parameter.amplification_time;
+    recordIn.raw_data.resize(loops);
+    recordIn.time_data.resize(loops);
+    for (size_t i = 0; i < loops; i++)
+    {
+        recordIn.time_data[i] = float(i) * OPTO_INTERVAL / 60000.0; // send time;
+    }
+
+    for (size_t i = 0; i < 10; i++)
+    {
+        // Update the raw data
+        for (size_t j = 0; j < loops; j++)
+        {
+            recordIn.raw_data[j] = (float(sensor67Value[i][j]) - FORTE_ORIGINS[i]) / FORTE_SLOPES[i];
+        }
+
+        /* ----------------------------- */
+        size_t breakIndex = check_breakData(recordIn.raw_data, recordIn.parameters.min_increase / FORTE_SLOPES[i], BREAKING_START_INDEX);
+        size_t risingIndex = check_risingData(recordIn.raw_data, recordIn.parameters.detection_margin_time * (60000 / OPTO_INTERVAL), RISING_WINDOW);
+
+        // --------------------------------------------------
+        auto timeBegin = recordIn.time_data.begin();
+        auto timeEnd = recordIn.time_data.end();
+        auto rawBegin = recordIn.raw_data.begin();
+        auto rawEnd = recordIn.raw_data.end();
+
+        bool validForDetection = true;
+
+        if (breakIndex)
+        {
+            if (risingIndex)
+            {
+                if (breakIndex > risingIndex)
+                {
+                    timeEnd = recordIn.time_data.begin() + breakIndex;
+                    rawEnd = recordIn.raw_data.begin() + breakIndex;
+                }
+                else
+                {
+                    timeBegin = recordIn.time_data.begin() + breakIndex;
+                    rawBegin = recordIn.raw_data.begin() + breakIndex;
+                }
+            }
+            else
+            {
+                validForDetection = false;
+            }
+        }
+
+        // --------------------------------------------------
+        if (validForDetection)
+        {
+            recordOut.time_data.assign(timeBegin, timeEnd);
+            recordOut.raw_data.assign(rawBegin, rawEnd);
+
+            post_process_curve(recordOut,
+                               recordIn.parameters.baseline_start,
+                               recordIn.parameters.baseline_range,
+                               recordIn.parameters.sg_window,
+                               recordIn.parameters.sg_order);
+
+            differentiate(recordOut.time_data,
+                          recordOut.processed_data,
+                          recordOut.differential_data);
+
+            find_sigmoidal_feature(recordOut, recordIn.parameters);
+            predict_outcome(recordOut, recordIn.parameters);
+        }
+        else
+        {
+            recordOut.peak_features.clear();
+            recordOut.outcome.transition_time.clear();
+            recordOut.outcome.plateau_point.clear();
+            strcpy(recordOut.outcome.outcome, "Break");
+        }
+
+        // --------------------------------------------------
+        // Luôn post-process toàn bộ dữ liệu gốc (giữ logic cũ)
+        // --------------------------------------------------
+        recordOut.time_data.assign(recordIn.time_data.begin(), recordIn.time_data.end());
+        recordOut.raw_data.assign(recordIn.raw_data.begin(), recordIn.raw_data.end());
+        post_process_curve(recordOut,
+                           recordIn.parameters.baseline_start,
+                           recordIn.parameters.baseline_range,
+                           recordIn.parameters.sg_window,
+                           recordIn.parameters.sg_order);
+
+        differentiate(recordOut.time_data,
+                      recordOut.processed_data,
+                      recordOut.differential_data);
+
+        // re-write data processing to look god for users without affecting performance of algorithm
+        /*
+        Josep @ 24/12/24: high level of smoothing is bad for finding the lag phase because the smoothing tends to create a smooth transition until t = 0
+        Thus, small windows and ordders for smoothing produced best results so far.
+        At the same time, may look awesome for display.
+        Consider re-running the smoothing at this stage (line commented below) with higher order and window size to make a nice display without affecting the algorithm performance
+        */
+        Serial.printf("Slot %d:\n", i + 1);
+        Serial.printf("Outcome check: %s\n", recordOut.outcome.outcome);
+        Serial.printf("Index Rising data : %f\n", (double)risingIndex / 3);
+        Serial.printf("Index Break data : %f\n", (double)breakIndex / 3);
+        Serial.printf("Index Transition time: %f\n", (double)recordOut.outcome.transition_time.i / 3);
+        // JsonDocument jsonOut = recordOut.toJSON();
+        delay(100);
+        // serializeJson(jsonOut, Serial);
         info_displayln();
         info_displayln();
 
@@ -558,7 +628,7 @@ void sensor6035::eSensorParaIni()
     iChannel = 0;
     if (sensor67ValueTime == 0) // only for the first time when sensor67ValueTime is not initialized yet
     {
-        _LED.LED_on(0);                                // turn on the first LED
+        _LED.LED_on_unguarded(0);                                // turn on the first LED
         sensor67ValueTime = millis() + LED_DELAY_TIME; // initialize the timer
         info_display("Set sensor67ValueTime when it's zero\n");
     }
@@ -1055,7 +1125,7 @@ void sensor6035::Snapshot_loop_test()
     // _LED.LED_PWM_Set(LED_PWM_VALUE);        //switch on the LED driver before testing
     for (iChannel = 0; iChannel < 10; iChannel++)
     {
-        _LED.LED_on(iChannel);
+        _LED.LED_on_unguarded(iChannel);
         delay(800);
         if (iChannel < 5)
         {
@@ -1098,15 +1168,19 @@ void sensor6035::Snapshot_loop_test()
                 case 0:
                     /* code */
                     _displayCLD.ErrorProcessatBegin("Opto sensor error\n Please power off/on", String(iChannel + 1));
+                    error.addError(errorLightSensor, errorNoData, sensorStep, iChannel);
                     break;
                 case 1:
                     _displayCLD.ErrorProcessatBegin("Too dark\n Please check", String(iChannel + 1));
+                    error.addError(errorLightSensor, errorTooDark, sensorStep, iChannel);
                     break;
                 case 2:
                     _displayCLD.ErrorProcessatBegin("Too bright\n Please check", String(iChannel + 1));
+                    error.addError(errorLightSensor, errorTooBright, sensorStep, iChannel);
                     break;
                 default:
                     _displayCLD.ErrorProcessatBegin("Unknown Err\n Please power off/on", String(iChannel + 1));
+                    error.addError(errorLightSensor, errorNoData, sensorStep, iChannel);
                     break;
                 }
                 sleep(3);
@@ -1114,7 +1188,7 @@ void sensor6035::Snapshot_loop_test()
                 // errCnt = 1;     //recheck after 3 seconds
             }
         }
-        _LED.LED_off(iChannel);
+        _LED.LED_off_unguarded(iChannel);
         if (iChannel < 5)
         {
             I2CMux.closeChannel(I2C_Channel[4 - iChannel]);
@@ -1265,7 +1339,7 @@ void sensor6035::eSensorPreheat()
             // Open LED channel
             iChannel = 0; // start reading from the 1st LED/Sensor
             // info_displayln("turn on 1st one");
-            _LED.LED_on(iChannel);
+            _LED.LED_on_unguarded(iChannel);
             sensor67ValueTime = millis() + LED_DELAY_TIME + acquisitionControl.getRepeats() * 100;
         }
         else if (iChannel < OPTOCHANNELS) // if still reading 0~9
@@ -1356,7 +1430,7 @@ void sensor6035::eSensorPreheat()
                 // info_displayf("%f, ", sensorvalue);
 
                 // Off LED
-                _LED.LED_off(iChannel);
+                _LED.LED_off_unguarded(iChannel);
 
                 // Close channel
                 // if(iChannel > 4)
@@ -1372,7 +1446,7 @@ void sensor6035::eSensorPreheat()
                 if (iChannel < OPTOCHANNELS)
                 {
                     // On next LED
-                    _LED.LED_on(iChannel);
+                    _LED.LED_on_unguarded(iChannel);
                     sensor67ValueTime = millis() + LED_DELAY_TIME + acquisitionControl.getRepeats() * 100;
                 }
                 else
@@ -1440,7 +1514,7 @@ void sensor6035::eSensorMaintain()
         START_INTERVAL_TIME += OPTO_INTERVAL; // millis();
         // Open LED channel
         iChannel = 0; // start reading from the 1st LED/Sensor
-        _LED.LED_on(iChannel);
+        _LED.LED_on_unguarded(iChannel);
         sensor67ValueTime = millis() + LED_DELAY_TIME + acquisitionControl.getRepeats() * 100;
     }
     else if (iChannel < OPTOCHANNELS) // if still reading 0~9
@@ -1531,7 +1605,7 @@ void sensor6035::eSensorMaintain()
             // info_displayf("%f, ", sensorvalue);
 
             // Off LED
-            _LED.LED_off(iChannel);
+            _LED.LED_off_unguarded(iChannel);
 
             // Close channel
             // if(iChannel > 4)
@@ -1547,7 +1621,7 @@ void sensor6035::eSensorMaintain()
             if (iChannel < OPTOCHANNELS)
             {
                 // On next LED
-                _LED.LED_on(iChannel);
+                _LED.LED_on_unguarded(iChannel);
                 sensor67ValueTime = millis() + LED_DELAY_TIME + acquisitionControl.getRepeats() * 100;
             }
             else
@@ -1626,7 +1700,7 @@ void sensor6035::eSensorstartFunc()
     // switch off all LED first, in case some is still open
     for (uint8_t i = 0; i < 10; i++)
     {
-        _LED.LED_off(i); // turn off the LED
+        _LED.LED_off_unguarded(i); // turn off the LED
         // openSensorChannel(i);
         // VEML6035_SET_SD(VEML6035_ALS_SD_OFF);
         // closeSensorChannel(i);
@@ -1637,6 +1711,8 @@ void sensor6035::eSensorstartFunc()
     I2CMux1.closeAll();
 
     acquisitionControl.clear();
+    error.clear();
+    error.clearEEPROM();
 
     // reConfigSensors();
 
@@ -1656,7 +1732,7 @@ void sensor6035::eSensorstartFunc()
     // // VEML6035_SET_ALS_IT(VEML6035_ALS_IT_800ms);
     // VEML6035_SET_SD(VEML6035_ALS_SD_ON);
     // delay(200);
-    _LED.LED_on(iChannel); // turn on the 1st LED
+    _LED.LED_on_unguarded(iChannel); // turn on the 1st LED
     acquisitionControl.clear();
     // closeSensorChannel(iChannel);
     sensor67ValueTime = millis() + LED_DELAY_TIME; // the time that sensor can read
@@ -1688,7 +1764,7 @@ void sensor6035::eSensor1stReadingFunc()
 
             // Open LED channel
             iChannel = 0; // start reading from the 1st LED/Sensor
-            _LED.LED_on(iChannel);
+            _LED.LED_on_unguarded(iChannel);
             tic = millis();
             // _LED.LED_on(iChannel);
             sensor67ValueTime = millis() + LED_DELAY_TIME;
@@ -1710,7 +1786,6 @@ void sensor6035::eSensor1stReadingFunc()
                 if (acquisitionControl.isClear())
                 {
                     openSensorChannel(iChannel);
-                    // info_display("<");
                 }
 
                 if (!acquisitionControl.isFinished())
@@ -1719,28 +1794,62 @@ void sensor6035::eSensor1stReadingFunc()
                     bool flagres;
                     Word sensorResp = 0xFFFF;
                     flagres = VEML6035_GET_ALS_DATA_I2C_Res(&sensorResp);
-                    if (!flagres)
+                    if (sensorResp == 0)
+                    {
+                        this->reConfigSingleSlotSensor(iChannel);
+                        this->openSensorChannel(iChannel);
+                        flagres = VEML6035_GET_ALS_DATA_I2C_Res(&sensorResp);
+                    }
+                    if (!flagres && sensorResp != 0) // if read successfully, store the value
                     {
                         acquisitionControl.store(sensorResp);
-                        // info_display(sensorResp);
-                        // info_display(",");
-                        // info_display("<");
-                        // info_display(millis() - tic);
-                        // info_display(">");
                         tic = millis();
                     }
-                    else
+                    else if (flagres || sensorResp <= 2) // if error happened, start the err process
                     {
                         acquisitionControl.addErrorCount();
                     }
+                    // Serial.printf("channel %d, count %d, value: %d, flag: %d\n", iChannel, acquisitionControl.getSizeValues(), sensorResp, flagres);
+
                     if (acquisitionControl.isMaxErrorReached())
                     {
-                        _displayCLD.ErrorProcessatBegin("Opto sensor error\n Please power off/on", String(iChannel + 1));
-                        ESP.restart();
-                        rerun();
-                        _PIDControl.rerun();
-                        _sensor6035.rerun();
-                        return;
+                        this->reConfigSingleSlotSensor(iChannel);
+                        this->openSensorChannel(iChannel);
+                        if (acquisitionControl.getSizeValues() > 0)
+                        {
+                            acquisitionControl.fixValuesErrors();
+                        }
+                        else
+                        {
+                            /* If no existing error found then add a new error */
+                            error.addError(
+                                errorLightSensor, // errorModule
+                                errorNoData,      // errorType
+                                sensorStep,       // errorProcessStep
+                                iChannel          // errorSlot
+                            );
+
+                            for (size_t i = 0; i < acquisitionControl.getRepeats(); i++)
+                            {
+                                acquisitionControl.store((sensor67Value[iChannel][COUNTER - 1] / 8)); // store zero for the error reading, and continue the process, in case all reading are error
+                            }
+                        }
+                    }
+
+                    /* Error handling for too dark conditions */
+                    if ((acquisitionControl.getSum() <= 5) &&
+                        (acquisitionControl.getSizeValues() == acquisitionControl.getRepeats())) // if all the reading are zero, which means too dark to read, add error and continue
+                    {
+                        error.addError(
+                            errorLightSensor, // errorModule
+                            errorTooDark,     // errorType
+                            sensorStep,       // errorProcessStep
+                            iChannel          // errorSlot
+                        );
+                        for (size_t i = 0; i < acquisitionControl.getRepeats(); i++)
+                        {
+                            acquisitionControl.store((sensor67Value[iChannel][COUNTER - 1] / 8)); // store zero for the error reading, and continue the process, in case all reading are error
+                        }
                     }
                     // add 100 ms to measurement time
                     sensor67ValueTime = millis() + 100;
@@ -1751,7 +1860,7 @@ void sensor6035::eSensor1stReadingFunc()
                     Word meanResponse = acquisitionControl.getSum();
                     closeSensorChannel(iChannel);
                     acquisitionControl.clear();
-                    _LED.LED_off(iChannel);
+                    _LED.LED_off_unguarded(iChannel);
                     // finish one session, clear the err counter
                     errCnt = 0;
                     oddCnt = 0;
@@ -1765,7 +1874,7 @@ void sensor6035::eSensor1stReadingFunc()
                     iChannel++;
                     if (iChannel < OPTOCHANNELS)
                     {
-                        _LED.LED_on(iChannel);
+                        _LED.LED_on_unguarded(iChannel);
                         // connectToSensor(iChannel);
                         // On next LED
 
@@ -1802,8 +1911,8 @@ void sensor6035::eSensor1stReadingFunc()
 
                             _buzzer.BuzzerAlert();
 
-                            // _PIDControl.StopHeating();       //comment here so the heater will maintainthe temperature
-                            // _PIDControl.setepidfinish();       //comment here so the heater will maintainthe temperature
+                            error.saveErrorToEEPROM();
+                            error.printAllError();
 
                             // Announce End of amplification
                             info_displayln("<AmpStart/>");
@@ -1830,6 +1939,15 @@ void sensor6035::eSensor1stReadingFunc()
     else
     {
         info_displayln("Reading error, takes too long time");
+        // for (uint8_t i = 0; i < 10; i++)
+        // {
+        //     error.addError(
+        //         errorLightSensor, // errorModule
+        //         errorNoData,      // errorType
+        //         sensorStep,       // errorProcessStep
+        //         i                 // errorSlot
+        //     );
+        // }
     }
 }
 
@@ -1938,9 +2056,9 @@ void sensor6035::reConfigSensors()
     I2CMux1.closeAll();
 
     // soft reset channels
-    delay(200);
+    delay(50);
     ResetAllSensors(); // reset all 10 sensors
-    delay(200);
+    delay(100);
 
     // set configuration
     for (int slot = 0; slot < 10; slot++)
@@ -1954,8 +2072,8 @@ void sensor6035::connectToSensor(int slot)
     openSensorChannel(slot);
     if (!checkSensorConfiguration())
     {
-        info_displayln("[W] Re-establishing sensor configuration.")
-            reConfigSingleSensor(slot);
+        info_displayln("[W] Re-establishing sensor configuration.");
+        reConfigSingleSensor(slot);
         openSensorChannel(slot);
     }
     // VEML6035_SET_ALS_IT(VEML6035_ALS_IT_800ms);
@@ -1973,10 +2091,10 @@ void sensor6035::disconnectFromSensor(int slot)
 void sensor6035::testShot(int slot)
 {
 
-    _LED.LED_OFF_ALL();
+    _LED.LED_OFF_ALL_unguarded();
     // openSensorChannel(slot);
     // VEML6035_SET_SD(VEML6035_ALS_SD_ON);
-    _LED.LED_on(slot);
+    _LED.LED_on_unguarded(slot);
 
     Word sensorResp;
     bool flagres;
@@ -2004,6 +2122,12 @@ void sensor6035::testShot(int slot)
         if (acquisitionControl.isMaxErrorReached())
         {
             _displayCLD.ErrorProcessatBegin("Opto sensor error\n Please power off/on", String(iChannel + 1));
+            error.addError(
+                errorLightSensor, // errorModule
+                errorNoData,      // errorType
+                sensorStep,       // errorProcessStep
+                slot              // errorSlot
+            );
             return;
         }
         delay(100);
@@ -2035,7 +2159,7 @@ void sensor6035::testShot(int slot)
     info_displayln("}");
     // Snapshot();
     // delay(100);
-    _LED.LED_off(slot);
+    _LED.LED_off_unguarded(slot);
     // VEML6035_SET_SD(VEML6035_ALS_SD_OFF);
 
     // info_display(VEML6035_GET_ALS_IT());
@@ -2303,8 +2427,8 @@ bool sensor6035::bSensorReadingGet()
 //////////////////Calibration
 float sensor6035::calib_sensor(int slot)
 {
-    _LED.LED_OFF_ALL();
-    _LED.LED_on(slot);
+    _LED.LED_OFF_ALL_unguarded();
+    _LED.LED_on_unguarded(slot);
 
     Word sensorResp;
     bool flagres;
@@ -2329,15 +2453,20 @@ float sensor6035::calib_sensor(int slot)
         if (acquisitionControl.isMaxErrorReached())
         {
             _displayCLD.ErrorProcessatBegin("Opto sensor error\n Please power off/on", String(iChannel + 1));
+            error.addError(
+                errorLightSensor, // errorModule
+                errorNoData,      // errorType
+                sensorStep,       // errorProcessStep
+                slot              // errorSlot
+            );
             return -1;
         }
         delay(100);
     }
-
     meanResponse = acquisitionControl.getSum();
 
     closeSensorChannel(slot);
-    _LED.LED_off(slot);
+    _LED.LED_off_unguarded(slot);
 
     return (float)meanResponse;
 }

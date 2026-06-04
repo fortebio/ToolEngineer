@@ -25,6 +25,10 @@ extern String id;
 extern BluetoothSerial SerialBT;
 
 extern WebServer server;
+extern const char *serverName;
+
+extern volatile bool gBtReleased;
+void releaseBluetoothStack();
 
 void connectBLE();
 void BLEloop();

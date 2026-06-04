@@ -11,7 +11,7 @@ class AcquisitionControl
         uint8_t repeats = 8;
         uint8_t maxErrors = 10;
         uint8_t numErrors = 0;
-        double threshold = 3;
+        double threshold = 3; 
         double calculateMedian(std::vector<Word>& _values);
         void filterOdds(std::vector<Word>& _values);
 
@@ -28,11 +28,13 @@ class AcquisitionControl
         void clear();
         double getAverage();
         Word getSum();
+        uint8_t getNumErrors();
+        uint8_t getSizeValues();
         void addErrorCount();
         void setNumMaxErrors(uint8_t maxErrors);
         uint8_t getNumMaxErrors();
         bool isClear();
-
+        void fixValuesErrors();
 };
 
 

@@ -219,25 +219,27 @@ size_t argmax(std::vector<double> &_vector, size_t startIndex)
 double mean_slope(std::vector<double> &_array, size_t start, size_t window)
 {
     double sum = 0;
-    for (int i = start + 1; i < (start + window); i++)
-        sum += (_array[i] - _array[i - 1]);
+    size_t i = start + 1;
+    for (i; i < (start + window); i++)
+        sum += (_array[i + 1] - _array[i]);
     return sum / (window - 1);
 }
 
 bool checkJump(std::vector<double> &_array, double crossing, size_t index)
 {
-    if ((index < 2) || ((index + 9) >= _array.size()))
+    if ((index < 4) || ((index + 6) >= _array.size()))
     {
         return false;
     }
-    int jump = _array[index] - _array[index - 1];
-
+    double jump = _array[index + 1] - _array[index];
+    // printf("_array[%d]: %0.3f\t_array[%d]: %0.3f\t", index, _array[index], index+1, _array[index+1]);
+    // printf("Jump: %0.3f\n", jump);
     if (jump < crossing)
         return false;
-    double slope = mean_slope(_array, index, 9);
+    double slope = mean_slope(_array, index, 6);
     if (fabs(slope) > 1.0)
         return false;
-    int total_rise = _array[index + 9] - _array[index];
+    int total_rise = _array[index + 6] - _array[index + 1];
     if (total_rise > crossing)
         return false;
 
@@ -263,11 +265,8 @@ bool is_rising_trend(const std::vector<double> &data,
             positive_count++;
     }
 
-    // điều kiện tăng hợp lệ
-    // if (positive_count < window * 0.7)   // ≥70% điểm tăng
-    if (positive_count < window) // ≥70% điểm tăng
+    if (positive_count < window - 1)
         return false;
-
     if (total_rise <= 0)
         return false;
 
@@ -276,7 +275,6 @@ bool is_rising_trend(const std::vector<double> &data,
 
 size_t check_breakData(std::vector<double> &_array, double crossing, int start_index)
 {
-    // size_t countIncreases = 0;
     size_t indexBreak = 0;
     for (size_t i = start_index; i < _array.size(); i++)
     {
@@ -304,31 +302,6 @@ size_t check_risingData(std::vector<double> &_array, int start_index, int window
     return 0;
 }
 
-// size_t find_breakData(std::vector<double> &_array, int start_index)
-// {
-//     size_t break_i = start_index;
-//     size_t countIncreases = 0;
-
-//     for (size_t i = start_index; i < _array.size(); i++)
-//     {
-//         if ((_array[i] - _array[i - 1]) >= 0)
-//         {
-//             countIncreases++;
-//             if ((_array[i + 1] - _array[i]) < 0)
-//             {
-//                 countIncreases = 0;
-//                 continue;
-//             }
-//             if (countIncreases >= 9)
-//             {
-//                 break_i = i;
-//                 break;
-//             }
-//         }
-//     }
-//     return break_i;
-// }
-
 void find_sigmoidal_feature(Record &record, DiagnosticParameters &parameters)
 {
     /*
@@ -340,7 +313,6 @@ void find_sigmoidal_feature(Record &record, DiagnosticParameters &parameters)
 
     // find the highest peak after discard time in minutes
     int discard_index = find_crossing_higher_than(record.time_data, parameters.detection_margin_time, 0);
-    // Serial.printf("Discard index: %d\n", discard_index);
     // find the global maximum after the detection margin time in minutes
     record.peak_features.main_peak.i = argmax(record.differential_data, discard_index);
     // if no peak found, return result in a default state
@@ -402,7 +374,7 @@ void predict_outcome(Record &record, DiagnosticParameters &parameters)
     // {
     //     record.outcome.transition_time.i = 0;
     // }
-    for (size_t i = 0; i < 12; i += 1)
+    for (size_t i = 0; i < 12; i++)
     {
         double crossing = record.peak_features.main_peak.y * parameters.transition_percentile * thresholdIncreaseRate;
         // calculate transition time ("Ct value") at increase transition_percentile values until finding a value
@@ -459,7 +431,12 @@ void predict_outcome(Record &record, DiagnosticParameters &parameters)
         { // check for main peak having min steepness
             // Serial.println("Sharpness yes");
             // Test 4: Test for lag pahse (if applicable)
-            if (parameters.detect_shape == false)
+            if (record.outcome.transition_time.x < parameters.detection_margin_time)
+            {
+                /* Transition time is too short  => Rising to soon */
+                strcpy(record.outcome.outcome, OutcomeError);
+            }
+            else if (parameters.detect_shape == false)
             { // if not using shape detection, give positive
                 // Serial.println("Shape Off - Yes");
                 strcpy(record.outcome.outcome, OutcomePositive);
@@ -478,17 +455,17 @@ void predict_outcome(Record &record, DiagnosticParameters &parameters)
                 strcpy(record.outcome.outcome, OutcomeError);
             }
         }
-    }
 
-    //  if positive, check if slight positive (transition time beyond a certain time i.e. t = 22 min)
-    if (strcmp(record.outcome.outcome, OutcomePositive) == 0 && record.outcome.transition_time.x >= parameters.min_slight_positive_time)
-    {
-        strcpy(record.outcome.outcome, OutcomeSlightPositive);
+        //  if positive, check if slight positive (transition time beyond a certain time i.e. t = 22 min)
+        if (strcmp(record.outcome.outcome, OutcomePositive) == 0 && record.outcome.transition_time.x >= parameters.min_slight_positive_time)
+        {
+            strcpy(record.outcome.outcome, OutcomeSlightPositive);
+        }
+        //  if positive, turn negative if main peak is at the last point in array
+        // 22/04/2024: originally created to disable potential spike at long Ct, but removed to detect low conc cts
+        // if (strcmp(outcome.outcome, OutcomeSlightPositive) == 0 && peak_features.left_arm.i >= y_data.size()-2) {
+        //     strcpy(outcome.outcome, OutcomeNegative);
+        // }
+        return;
     }
-    //  if positive, turn negative if main peak is at the last point in array
-    // 22/04/2024: originally created to disable potential spike at long Ct, but removed to detect low conc cts
-    // if (strcmp(outcome.outcome, OutcomeSlightPositive) == 0 && peak_features.left_arm.i >= y_data.size()-2) {
-    //     strcpy(outcome.outcome, OutcomeNegative);
-    // }
-    return;
 }

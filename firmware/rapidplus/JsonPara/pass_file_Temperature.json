@@ -3,9 +3,9 @@
   "lysis temperature": 82,
   "amplification temperature": 65.8,
   "PID parameter": [
-    40,
-    1,
-    20
+    30,
+    0.1,
+    30
   ],
   "PID2 parameter": [
     60,

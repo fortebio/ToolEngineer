@@ -6,10 +6,13 @@
 #include "Adafruit_ILI9341.h"
 // #include "sensor.h"
 #include "sensor6035.h"
+#include "errorCheck.h"
 // #include "update_firmware.h"
 #include "Bluetooth.h"
 #include "PIDControl.h"
 #include <string>
+#include <esp_bt.h>
+#include <esp_bt_main.h>
 // #include "sensor6035.h"
 
 #define Forte_Green 0x25F8
@@ -30,14 +33,83 @@ displayCLD::~displayCLD()
 
 void displayCLD::begin()
 {
+  SPILock lk;
   this->display->begin();
   this->display->fillScreen(BLACK);
   this->display->setRotation(1);
   this->display->setUTF8Print(true);
 }
 
+// Hard-reset and re-init the ILI9341 panel.
+// Use this when the screen appears stuck/white (brownout aftermath, EMI glitch,
+// SPI desync, etc.). Pin TFT_RESET is toggled by display->begin() so the panel
+// starts from its power-on state and the full init command sequence is sent again.
+//
+// State-aware redraw:
+//   - For "running" states (preheat/lysis/amplification/menu/etc.) we set
+//     bheadershow+changeScreen so DisplayTask redraws the current screen on the
+//     next iteration. Machine state (type_infor, timers, sensor step) is untouched.
+//   - For "completed" states with non-idempotent side effects
+//     (escreenFinished/eUpLoadData post to Google Sheet; eSettingBluetooth/Wifi
+//     call ESP.restart) we draw a static recovery message instead of replaying
+//     the case in the switch — the user can press WHITE to navigate next.
+void displayCLD::reinit()
+{
+  SPILock lk(pdMS_TO_TICKS(500));
+  if (!lk.acquired())
+  {
+    Serial.println("reinit: SPI mutex timeout, skipping");
+    return;
+  }
+  Serial.println("Display reinit requested");
+
+  this->display->begin();
+  this->display->fillScreen(BLACK);
+  this->display->setRotation(1);
+  this->display->setUTF8Print(true);
+
+  this->requestReinit = false;
+
+  // Brief visible confirmation so the operator knows the chord was accepted —
+  // without it, a fast redraw on a healthy panel looks like nothing happened.
+  this->display->setTextSize(2);
+  this->display->setTextColor(GREEN);
+  this->display->setCursor(50, 100);
+  this->display->print("DISPLAY RESET");
+  this->display->setTextSize(1);
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(50, 140);
+  this->display->print("Resuming...");
+  _buzzer.BuzzerAlert();
+  delay(800);
+
+  switch (this->type_infor)
+  {
+  case escreenFinished:
+  case eUpLoadData:
+  case eSettingBluetooth:
+  case eSettingWifi:
+    this->display->fillScreen(BLACK);
+    this->display->setTextSize(2);
+    this->display->setTextColor(WHITE);
+    this->display->setCursor(40, 90);
+    this->display->print("Display reset");
+    this->display->setTextSize(1);
+    this->display->setTextColor(Forte_Green);
+    this->display->setCursor(40, 140);
+    this->display->print("Press WHITE to continue");
+    return;
+  default:
+    break;
+  }
+
+  this->changeScreen = true;
+  this->bheadershow = true;
+}
+
 void displayCLD::logoFortebiotech()
 {
+  SPILock lk;
   this->display->fillScreen(BLACK);
   this->display->fillTriangle(80, 60, 132, 30, 132, 90, this->display->color565(16, 55, 50));
   this->display->fillTriangle(130, 100, 78, 70, 78, 130, this->display->color565(16, 55, 50));
@@ -79,28 +151,20 @@ void show_IconWifi(void)
 
 void show_IconBluetooth(void)
 {
-  // EEPROM.begin(_EEPROM_SIZE);
-  // EEPROM.get(ADDR_CHECK_BT, status_BT);
-  // EEPROM.end();
   static bool turnOn_BT = false; // turn off BT when Process is runing and save BT state to turn off once
   if (_displayCLD.type_infor == escreenResult || _displayCLD.type_infor == escreenStart)
   {
-    // EEPROM.begin(_EEPROM_SIZE);
-    // EEPROM.get(ADDR_CHECK_BT, turnOn_BT);
     turnOn_BT = true;
-    // _displayCLD.display->drawBitmap(266, 8, image_BT_Connect, 14, 16, WHITE);
   }
   else
   {
     if (turnOn_BT == true)
     {
-      // Serial.println("Truoc khi BT ngat ket noi: " + String(ESP.getFreeHeap()));
       turnOn_BT = false;
       /* turn off bluetooth*/
-      SerialBT.end();
-      // Serial.println("Sau khi BT ngat ket noi: " + String(ESP.getFreeHeap()));
+      if (!gBtReleased)
+        SerialBT.end();
     }
-    // _displayCLD.display->drawBitmap(266, 8, image_BT_Disconnect, 14, 16, WHITE);
   }
 }
 void displayWaitingUpData(void)
@@ -195,31 +259,43 @@ void displayCLD::screen_Start()
 
 void displayCLD::ErrorProcessatBegin(String strDescript, String strValue)
 {
+  SPILock lk;
+  if (!lk.acquired())
+  {
+    Serial.println("ErrorProcessatBegin: SPI mutex timeout");
+    return;
+  }
   this->display->fillScreen(BLACK);
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
   this->display->setCursor(15, 60);
   this->display->print(strDescript);
-  this->display->drawRect(30, 140, 272, 80, RED);
-  this->display->drawRect(29, 139, 274, 82, RED);
   for (int i = 18; i <= 310; i += 10)
   {
     static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
     this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
     this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
   }
-  this->display->drawCircle(55, 180, 22, RED);
-  this->display->fillCircle(55, 180, 17, RED);
+  this->display->drawRect(30, 150, 272, 80, RED);
+  this->display->drawRect(29, 149, 274, 82, RED);
+  this->display->drawCircle(55, 190, 22, RED);
+  this->display->fillCircle(55, 190, 17, RED);
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
 
-  this->display->setCursor(90, 190);
+  this->display->setCursor(90, 200);
   this->display->print("Slot " + strValue); // show the tempeature of heater1 and hotlid1
   _buzzer.BuzzerAlarm();
 }
 
 void displayCLD::ErrorDisplay(String strDescript)
 {
+  SPILock lk;
+  if (!lk.acquired())
+  {
+    Serial.println("ErrorDisplay: SPI mutex timeout");
+    return;
+  }
   this->display->fillScreen(BLACK);
   this->display->setTextSize(1);
   this->display->setTextColor(WHITE);
@@ -233,6 +309,12 @@ void displayCLD::ErrorProcess(String strDescript, String strValue)
 {
   if (type_infor != errprocess)
   {
+    SPILock lk;
+    if (!lk.acquired())
+    {
+      Serial.println("ErrorProcess: SPI mutex timeout");
+      return;
+    }
 
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
@@ -267,8 +349,15 @@ void displayCLD::ErrorProcess(String strDescript, String strValue)
 }
 
 // when press white button to reboot, or restart next testing after result display
+
 void displayCLD::RestartProcess(String strDescript, String strValue)
 {
+  SPILock lk;
+  if (!lk.acquired())
+  {
+    Serial.println("RestartProcess: SPI mutex timeout");
+    return;
+  }
   this->display->fillScreen(BLACK);
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
@@ -300,6 +389,7 @@ void displayCLD::RestartProcess(String strDescript, String strValue)
   timeRefresh = millis() + 1000; // err will display for 1 seconds
 }
 
+
 bool displayCLD::ErrorStatus()
 {
   return type_infor == errprocess; // return the status whether it's error process or not
@@ -312,6 +402,7 @@ bool displayCLD::FinishStatus()
 
 void displayCLD::TemperatureBottomSeqDisplay()
 {
+  SPILock lk;
   this->display->fillScreen(BLACK);
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
@@ -332,6 +423,7 @@ void displayCLD::TemperatureBottomSeqDisplay()
 
 void displayCLD::TemperatureTopSeqDisplay()
 {
+  SPILock lk;
   this->display->fillScreen(BLACK);
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
@@ -352,6 +444,7 @@ void displayCLD::TemperatureTopSeqDisplay()
 
 void displayCLD::NextTestDisplay()
 {
+  SPILock lk;
   this->display->fillScreen(BLACK);
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
@@ -363,6 +456,7 @@ void displayCLD::NextTestDisplay()
 
 void displayCLD::ErrRebootDisplay()
 {
+  SPILock lk;
   this->display->fillScreen(BLACK);
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
@@ -698,7 +792,9 @@ void displayCLD::waitAmplification30min()
     }
     bheadershow = false;
   }
-  this->display->fillRect(18, 150, 320, 90, BLACK);
+  this->display->fillRect(18, 150, 320, 100, BLACK);
+  // this->display->setTextSize(2);
+  // this->display->setTextColor();
   this->display->setCursor(90, 190);
   unsigned long timeleft = (timer30minEnd - now) / 1000;     // seconds left
   this->display->printf("%d Minute", (timeleft / (60) + 1)); // show the time left
@@ -776,7 +872,16 @@ void displayCLD::screen_Result(char key)
     float CT_value[10] = {0};
     char result[10] = {0};
     uint8_t loops = _ForteSetting.parameter.amplification_time;
-    SerialBT.end();
+
+    // Hard-release the Bluetooth Classic stack to reclaim ~60KB heap.
+    // SerialBT.end() alone only stops the service — the controller + bluedroid
+    // still hold ~60KB allocated, which leaves mbedTLS short on contiguous heap
+    // for the HTTPS POST + redirect double-handshake (BIGNUM/X509 alloc fails).
+    // Idempotent (gBtReleased-guarded): the device does NOT restart after this
+    // screen, so a later WiFi-setup or manual upload must not tear BT down again.
+    releaseBluetoothStack();
+    Serial.printf("After BT release: free=%u, largest=%u\n",
+                  ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 
     getDataAmplificationEEPROM();
 
@@ -794,8 +899,6 @@ void displayCLD::screen_Result(char key)
       }
       info_displayln(_ForteSetting.parameter.amplifTemp);
     }
-
-    /* Kiểm tra Wifi trước khi tính toán kết quả và gửi lên Sheet */
     int retries = 0;
     while (WiFi.status() != WL_CONNECTED && retries < 50)
     {
@@ -805,9 +908,9 @@ void displayCLD::screen_Result(char key)
       WiFi.begin(ssid.c_str(), password.c_str());
     }
 
+    /* Post data and errors to Google Sheet */
     if ((WiFi.status() == WL_CONNECTED) && (key == 'f'))
     {
-      /* Xuất kết quả lên google Sheet khi có wifi */
       postData_GoogleSheet(CT_value, result, loops);
     }
     else
@@ -838,41 +941,119 @@ void displayCLD::screen_Result(char key)
     {
       this->display->setCursor(55 + 120 * (i / 5), 70 + 35 * ((OPTOCHANNELS - i - 1) % 5)); // start position of each sensor value
 
-      if (result[i] == 'N')
+      /* Check Sensor Errors */
+      if (error.searchError(errorLightSensor, errorNoData, eSensor1stReading, i) != 255 ||
+          error.searchError(errorLightSensor, errorWrongData, eSensor1stReading, i) != 255 ||
+          error.searchError(errorLightSensor, errorTooDark, eSensor1stReading, i) != 255 ||
+          error.searchError(errorLightSensor, errorTooBright, eSensor1stReading, i) != 255)
       {
-        this->display->setTextColor(Forte_Green);
-        this->display->printf("|----|");
+        if (result[i] == 'P' || result[i] == 'S')
+        {
+          this->display->setTextColor(ORANGE);
+          this->display->printf("|%2.0f/E|", CT_value[i]);
+        }
+        else
+        {
+          this->display->setTextColor(ORANGE);
+          this->display->printf("|  /E|", CT_value[i]);
+        }
       }
-      else if (result[i] == 'S')
+      else
       {
-        this->display->setTextColor(YELLOW);
-        this->display->printf("|%04.01f|", CT_value[i]);
+        if (result[i] == 'N')
+        {
+          this->display->setTextColor(Forte_Green);
+          this->display->printf("|----|");
+        }
+        else if (result[i] == 'S')
+        {
+          this->display->setTextColor(YELLOW);
+          this->display->printf("|%04.01f|", CT_value[i]);
+        }
+        else if (result[i] == 'P')
+        {
+          this->display->setTextColor(RED);
+          this->display->printf("|%04.01f|", CT_value[i]);
+        }
+        else if (result[i] == 'E')
+        {
+          this->display->setTextColor(ORANGE);
+          this->display->printf("|  ! |", CT_value[i]);
+        }
+        else if (result[i] == 'B')
+        {
+          this->display->setTextColor(CYAN);
+          this->display->printf("| ---|", CT_value[i]);
+        }
       }
-      else if (result[i] == 'P')
-      {
-        this->display->setTextColor(RED);
-        this->display->printf("|%04.01f|", CT_value[i]);
-      }
-      else if (result[i] == 'E')
-      {
-        this->display->setTextColor(ORANGE);
-        this->display->printf("|  ! |", CT_value[i]);
-      }
-      else if (result[i] == 'B')
-      {
-        this->display->setTextColor(CYAN);
-        this->display->printf("| ---|", CT_value[i]);
-            }
     }
 
+    if ((error.numUnit != 0) && (key == 'f'))
+    {
+      postError_fullGoogleSheet();
+    }
+    // error.printAllError();
+
+    // postError_fullGoogleSheet();
     this->display->setTextColor(WHITE);
     this->display->setTextSize(1);
     this->display->setCursor(15, 230);
     this->display->printf("Press white key to test next");
 
+    // this->display->drawBitmap(280, 210, play_hover, 19, 20, RED);
+    this->display->fillTriangle(305, 230, 305, 220, 320, 225, RED);
+
     changeScreen = false;
   }
 }
+
+void displayCLD::screen_errorResult(void)
+{
+  this->display->fillScreen(BLACK);
+  this->display->setTextSize(2);
+
+  // display the block number
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(100, 30); // start position of each sensor value
+  this->display->printf("L");
+  this->display->setCursor(215, 30); // start position of each sensor value
+  this->display->printf("R");
+  // display the list
+  this->display->setTextColor(WHITE);
+  for (u8_t i = 0; i < (OPTOCHANNELS / 2); i++)
+  {
+    this->display->setCursor(15, 70 + 35 * (i % 5)); // start position of each channel name
+    this->display->printf("%02d", (5 - i));
+    this->display->setCursor(280, 70 + 35 * (i % 5)); // start position of each channel name
+    this->display->printf("%02d", (10 - i));
+  }
+
+  for (u8_t i = 0; i < OPTOCHANNELS; i++)
+  {
+    this->display->setCursor(55 + 120 * (i / 5), 70 + 35 * ((OPTOCHANNELS - i - 1) % 5)); // start position of each sensor value
+
+    uint8_t tmp = error.searchError(errorLightSensor, errorNoData, eSensor1stReading, i);
+    /* Check Sensor Errors */
+    if (tmp != 255)
+    {
+      this->display->setTextColor(ORANGE);
+      this->display->printf("|%d|", error.EncodeError(error.error[tmp]));
+    }
+    else
+    {
+      this->display->setTextColor(CYAN);
+      this->display->printf("|----|");
+    }
+  }
+
+  this->display->setTextColor(WHITE);
+  this->display->setTextSize(1);
+  this->display->setCursor(15, 230);
+  this->display->printf("Press white key to test next");
+
+  changeScreen = false;
+}
+// }
 
 void displayCLD::set_connect_bluetooth()
 {
@@ -983,14 +1164,49 @@ void settingSucces(String title)
   _displayCLD.display->setCursor(25, 120);
   _displayCLD.display->setTextColor(GREEN);
   _displayCLD.display->print(title);
-  delay(1000);
-  // ESP.restart();
+
+  delay(500);
 }
 
 void displayCLD::loop()
 {
+  // Honour external reinit requests before drawing anything else.
+  // reinit() takes the SPI lock itself, so we don't hold one here.
+  if (this->requestReinit)
+  {
+    this->reinit();
+    return; // next 100ms iteration will redraw via changeScreen=true
+  }
+
+  SPILock lk(pdMS_TO_TICKS(150));
+  if (!lk.acquired())
+    return; // skip this frame if SPI is busy; next 100ms cycle will retry
+
+  // Periodic preventive re-init during long amplification.
+  // ILI9341 can desync silently after EMI/brownout dips; refreshing every
+  // 5 min while amplifying gives the panel a chance to recover without
+  // user intervention. Cost: ~150ms full redraw.
+  //static uint32_t lastAmpliReinit = 0;
+  //if (this->type_infor == eoptoreading || this->type_infor == ewaitingReadsensor)
+  //{
+  //  uint32_t now = millis();
+  //  if (lastAmpliReinit == 0) lastAmpliReinit = now;
+  //  if (now - lastAmpliReinit > 5UL * 60UL * 1000UL) // 5 minutes
+  //  {
+  //    lastAmpliReinit = now;
+      // Release current lock, request reinit, return — handled next iter.
+  //    this->requestReinit = true;
+  //    return;
+  //  }
+  //}
+  //else
+  //{
+  //  lastAmpliReinit = 0; // reset timer when not amplifying
+  //}
+
   if (this->changeScreen)
   {
+    // this->display->begin();
     switch (this->type_infor)
     {
     case escreenStart:
@@ -1060,6 +1276,12 @@ void displayCLD::loop()
     {
       dbg_display("escreenResult lan %d", this->couter);
       // this->screen_Result();
+      break;
+    }
+    case escreenErrorResult:
+    {
+      dbg_display("escreenErrorResult");
+      this->screen_errorResult();
       break;
     }
     case escreenFinished:
@@ -1466,6 +1688,15 @@ void displayCLD::display_Calib(void)
 
 void displayCLD::display_Waiting_Calib(void)
 {
+  // Called both from DisplayTask::loop() (already holds the SPI mutex) and
+  // directly from sensor6035::calibration() on the sensor task. Recursive
+  // mutex makes the nested take/give safe.
+  SPILock lk;
+  if (!lk.acquired())
+  {
+    Serial.println("display_Waiting_Calib: SPI mutex timeout");
+    return;
+  }
   this->display->fillScreen(BLACK);
   this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
 
@@ -1669,13 +1900,19 @@ void displayCLD::display_UpdateOTA(void)
 
 void displayCLD::waittingUpdate(void)
 {
+  SPILock lk;
+  if (!lk.acquired())
+  {
+    Serial.println("waittingUpdate: SPI mutex timeout");
+    return;
+  }
   this->display->fillScreen(BLACK);
   this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
 
   this->display->setTextSize(2);
   this->display->setTextColor(WHITE);
   this->display->setCursor(40, 100);
-  this->display->print("Waitting...");
+  this->display->print("Waiting...");
 }
 
 displayCLD _displayCLD;

@@ -2,10 +2,36 @@
 #define _DISPLAY_LCD_H
 #include "Arduino.h"
 #include "define.h"
-//#include "ForteSetting.h"
-// #include "U8g2lib.h"
+// #include "ForteSetting.h"
+//  #include "U8g2lib.h"
 #include "Arduino_GFX_Library.h"
 // #include "bluetooth.h"
+
+// Declared here in addition to define.h to handle circular includes
+// (define.h -> updateOTA.h -> displayCLD.h, before extern reaches the bottom of define.h).
+extern SemaphoreHandle_t gSPIMutex;
+
+// RAII guard for the TFT SPI bus.
+// Uses gSPIMutex (recursive) so nested calls (e.g. loop() -> screen_Start())
+// don't deadlock. Lock auto-releases when the guard goes out of scope.
+class SPILock
+{
+public:
+    SPILock(TickType_t timeout = pdMS_TO_TICKS(200))
+    {
+        taken = (gSPIMutex != NULL) &&
+                (xSemaphoreTakeRecursive(gSPIMutex, timeout) == pdTRUE);
+    }
+    ~SPILock()
+    {
+        if (taken)
+            xSemaphoreGiveRecursive(gSPIMutex);
+    }
+    bool acquired() const { return taken; }
+
+private:
+    bool taken;
+};
 
 // typedef enum
 // {
@@ -31,6 +57,7 @@ typedef enum
     // eincreaseto80,  //
     eprepare,
     escreenResult,
+    escreenErrorResult,
     escreenFinished,
     escreenReview,
     errprocess, // error process display, for button to check err status
@@ -51,13 +78,13 @@ typedef enum
 
     eSelectAmpli,
     eSelectMode,
-    eSelectSlot,    //display select slot calib
-    eCalibrating,   //display calib
+    eSelectSlot,  // display select slot calib
+    eCalibrating, // display calib
     eWaitingCalib,
     eCalibComplete,
     eSetPowerLed,
     eSavePowerLed,
-    eSaveCalib,   //display set power led
+    eSaveCalib, // display set power led
     eUpdateOTA
 } e_statuslcd;
 
@@ -79,10 +106,21 @@ public:
     void loop();
     void rerun();
 
+    // Re-initialise the ILI9341 panel (resets via TFT_RESET pin + re-sends
+    // init commands) and force a full redraw on the next loop() iteration.
+    // Safe to call from any task; takes gSPIMutex internally.
+    void reinit();
+
+    // Set this from any task to request a panel re-init at the next
+    // DisplayTask loop() iteration. Cheaper than calling reinit() directly
+    // because it doesn't block the caller waiting for the SPI mutex.
+    volatile bool requestReinit = false;
+
     void logoFortebiotech();
     void screen_Start();
     // void screen_Complete();
     void screen_Result(char key);
+    void screen_errorResult(void);
     // void screen_Average_Result();
     // void waiting_Readsensor();
 
@@ -160,9 +198,9 @@ public:
     int instantStatus[2];
     bool changeScreen = true;
     bool temperatureShow = false;
-    bool bheadershow = false;               // if there is header needed to show static, then only write once without refreshing every time
+    bool bheadershow = false; // if there is header needed to show static, then only write once without refreshing every time
     // language_pointer language_state = Null; // 0: Vietnamese 1: English
-    int language = 1;                       // 0:VietNamese 1: English //change default as English
+    int language = 1; // 0:VietNamese 1: English //change default as English
     volatile int step = 1;
 };
 extern displayCLD _displayCLD;

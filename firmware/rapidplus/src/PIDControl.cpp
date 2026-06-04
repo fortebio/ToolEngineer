@@ -1,4 +1,5 @@
 #include "PIDControl.h"
+#include "errorCheck.h"
 
 #define LYSIS_TEMP _ForteSetting.parameter.lysisTemp
 #define AMPLIF_TEMP _ForteSetting.parameter.amplifTemp
@@ -88,6 +89,10 @@ void PIDControl::loop()
             _bottomThermometer.begin();
             _displayCLD.ErrorProcess("No data from\n bottom sensor", "5sec");
             info_displayln("No data from bottom sensor for 5~10sec");
+            for (uint8_t i = 0; i < HEATBLKQUANTITY; i++)
+            {
+                error.addError(errorHeaterSensor, errorHeaterWrongData, pidStep, i);
+            }
             _PIDControl.rerun();
         }
         return;
@@ -102,8 +107,12 @@ void PIDControl::loop()
             _bottomThermometer.begin();
             _displayCLD.ErrorProcess("Not all data from\n bottom sensors", "5sec");
             info_displayln("Not all data from bottom sensors for 5~10sec");
+            for (uint8_t i = 0; i < HEATBLKQUANTITY; i++)
+            {
+                error.addError(errorHeaterSensor, errorHeaterWrongData, pidStep, i);
+            }
             // _ForteSetting.rerun();
-            _PIDControl.rerun();
+            // _PIDControl.rerun();
         }
         return;
     }
@@ -116,7 +125,8 @@ void PIDControl::loop()
             stopAllHeating();
             _displayCLD.ErrorProcess("Heater" + String(i + 1) + " is too hot", String(bottomTemperature[i]));
             info_displayf("Heater%d is too hot. T %.4g\n", i + 1, bottomTemperature[i]);
-            _PIDControl.rerun();
+            error.addError(errorHeaterSensor, errorOverheat, pidStep, i);
+            // _PIDControl.rerun();
             return;
         }
         if (bottomTemperature[i] == -127.0 + _ForteSetting.parameter.temperatureOffset[i])
@@ -126,6 +136,7 @@ void PIDControl::loop()
                 _bottomThermometer.begin();
                 _displayCLD.ErrorProcess("Wrong data from\n bottom sensor", "5sec");
                 info_displayln("Wrong data from bottom sensor for 5~10sec");
+                error.addError(errorHeaterSensor, errorHeaterWrongData, pidStep, i);
                 _PIDControl.rerun();
             }
             info_displayln("Bottom heater is disconnected");
@@ -145,6 +156,10 @@ void PIDControl::loop()
             _topThermometer.begin();
             _displayCLD.ErrorProcess("No data from\n top sensor", "5sec");
             info_displayln("No data from top sensor for 5~10sec");
+            for (uint8_t i = 0; i < HOTLIDQUANTITY; i++)
+            {
+                error.addError(errorHeaterSensor, errorHeaterWrongData, pidStep, i + HEATBLKQUANTITY);
+            }
             // _PIDControl.rerunPIDTop();
             _PIDControl.rerun();
         }
@@ -226,19 +241,29 @@ void PIDControl::loop()
     switch (pidStep)
     {
     case epidready: // get ready, do nothing until user start the testing by press green button
-        return;
+    {
+        //     Preheat2_67();
+        //     Preheat3_67();
+        break;
+    }
     case epid1startpreHeat80:
+    {
         StartPreheat80();
         break;
+    }
     case epid1preheat80:
+    {
         Heat1Preheat80();
         break;
+    }
         // case epid1hotlid:
         //     pid1Maintain80(); // maintain the heater1 to be 80 degree when heat up hotlid
         //     // HeatHotlid1();
     case epid1ready: // pid1 is ready, wait user to put lysis tube, continue at maintain 80
+    {
         pid1Maintain80();
         break;
+    }
         // MaintainHotlid1();
     // case epid1maintain80:       //maintain, but no need change status, previous one should be enough
     //     pid1Maintain80();
@@ -895,7 +920,6 @@ void PIDControl::StartPreheat2_67()
             info_displayf("Heater2 is too hot, %d degree\n", CURRENT_TEMP_PID);
             return;
         }
-
         info_displayf("\nheater2 %.2f overheat, wait until it's cool down\n", CURRENT_TEMP_PID);
         return;
     }
