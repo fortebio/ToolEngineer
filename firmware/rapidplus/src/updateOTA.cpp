@@ -1,6 +1,6 @@
 #include "updateOTA.h"
 
-int currentVersion = 16;
+int currentVersion = 17;
 int fwVersion = 0;
 volatile OtaState otaState = OTA_IDLE;
 String fwUrl = "", fwName = "", fwVer = "", fwCont = "";
