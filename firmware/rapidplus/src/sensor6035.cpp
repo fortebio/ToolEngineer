@@ -225,7 +225,16 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
             find_sigmoidal_feature(recordOut, recordIn.parameters);
             predict_outcome(recordOut, recordIn.parameters);
         }
-        else
+        // else
+        // {
+        //     recordOut.peak_features.clear();
+        //     recordOut.outcome.transition_time.clear();
+        //     recordOut.outcome.plateau_point.clear();
+        //     strcpy(recordOut.outcome.outcome, "Break");
+        // }
+
+        if (!validForDetection ||
+            (breakIndex && risingIndex && recordOut.outcome.outcome[0] == 'N'))
         {
             recordOut.peak_features.clear();
             recordOut.outcome.transition_time.clear();
@@ -366,7 +375,9 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
             find_sigmoidal_feature(recordOut, recordIn.parameters);
             predict_outcome(recordOut, recordIn.parameters);
         }
-        else
+
+        if (!validForDetection ||
+            (breakIndex && risingIndex && recordOut.outcome.outcome[0] == 'N'))
         {
             recordOut.peak_features.clear();
             recordOut.outcome.transition_time.clear();
@@ -518,7 +529,16 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
             find_sigmoidal_feature(recordOut, recordIn.parameters);
             predict_outcome(recordOut, recordIn.parameters);
         }
-        else
+        // else
+        // {
+        //     recordOut.peak_features.clear();
+        //     recordOut.outcome.transition_time.clear();
+        //     recordOut.outcome.plateau_point.clear();
+        //     strcpy(recordOut.outcome.outcome, "Break");
+        // }
+
+        if (!validForDetection ||
+            (breakIndex && risingIndex && recordOut.outcome.outcome[0] == 'N'))
         {
             recordOut.peak_features.clear();
             recordOut.outcome.transition_time.clear();

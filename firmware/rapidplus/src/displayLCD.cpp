@@ -881,9 +881,7 @@ void displayCLD::screen_Result(char key)
     {
       postError_fullGoogleSheet();
     }
-    // error.printAllError();
 
-    // postError_fullGoogleSheet();
     this->display->setTextColor(WHITE);
     this->display->setTextSize(1);
     this->display->setCursor(15, 230);
@@ -1141,8 +1139,9 @@ void displayCLD::loop()
     }
     case escreenFinished:
     {
-      _PIDControl.rerun();
       this->screen_Result('f');
+      _PIDControl.rerun();
+      _sensor6035.rerun();
       break;
     }
     case escreenReview:
@@ -1171,6 +1170,8 @@ void displayCLD::loop()
     case ebuttonrestart:
     {
       this->RestartProcess("Restarted by user", "Rebooting...");
+      _PIDControl.rerun(); // Reset PID state on restart
+      _sensor6035.rerun();
       break;
     }
     case ewaitingtimeout:
@@ -1752,7 +1753,7 @@ void displayCLD::waittingUpdate(void)
   this->display->setTextSize(2);
   this->display->setTextColor(WHITE);
   this->display->setCursor(40, 100);
-  this->display->print("Waitting...");
+  this->display->print("Waiting...");
 }
 
 displayCLD _displayCLD;

@@ -82,6 +82,8 @@ private:
     bool btemperatureOut = false;
 
 public:
+    // bool waitWarmAmpTube = false; // after preheat the sensor, wait for the amp tube to be put in and heat up to 67 degree
+    uint32_t timeStartWait = 0;
     PIDControl(/* args */);
     ~PIDControl();
     void begin();
@@ -110,6 +112,8 @@ public:
     // void MaintainHotlid1();
 
     void setPreheat67(); // change the status to set epidstartpreHeat67 after button pressing
+    void Heat2_55();
+    void Heat3_55();
     void StartPreheat2_67();
     void Preheat2_67();
     void Maintain2_67();

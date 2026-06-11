@@ -314,6 +314,8 @@ void buttonManager::handleShortPress_Red()
   else if (_displayCLD.type_infor == escreenStart)
   {
     // Skip to amplification stage directly
+    // _PIDControl.waitWarmAmpTube = true; // reset the flag in case user press red button to start heating but then change their mind and press blue button to skip preheat
+    _PIDControl.timeStartWait = millis();
     _displayCLD.type_infor = epreheating67;
     _displayCLD.bheadershow = true;
     _displayCLD.changeScreen = true;
@@ -422,6 +424,8 @@ void buttonManager::handleShortPress_Blue()
   }
   else if (_displayCLD.type_infor == ewaitphase2)
   {
+    // _PIDControl.waitWarmAmpTube = true; // reset the flag in case user press red button to start heating but then change their mind and press blue button to skip preheat
+    _PIDControl.timeStartWait = 0;
     _displayCLD.type_infor = epreheating67;
     _displayCLD.bheadershow = true;
     _displayCLD.changeScreen = true;
