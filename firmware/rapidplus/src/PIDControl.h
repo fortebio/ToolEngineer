@@ -58,7 +58,8 @@ private:
     PID *myPID; // change to pointer, so it can be initialized with configurable PID parameter
     PID *myPID2;
     PID *myPID3;
-
+    PID *myPIDhotlid2; // PID for top hotlid2 (Amplification), use kpid3
+    PID *myPIDhotlid3; // PID for top hotlid3 (Amplification), use kpid3
     // safety check variable
     unsigned long bottomSensorRespTime = 0; // timer to record when the bottom temperature sensor should response the value
     unsigned long topSensorRespTime = 0;    // timer to record when the top temperature sensor should response the value

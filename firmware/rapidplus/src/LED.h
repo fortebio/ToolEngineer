@@ -6,9 +6,8 @@
 #include <Adafruit_MCP23X17.h>
 #include "ForteSetting.h"
 
-
-#define LED_ON  LOW     //LED on is LOW, may change it in the future
-#define LED_OFF HIGH    //LED off is HIGH, may change it in the future
+#define LED_ON LOW   // LED on is LOW, may change it in the future
+#define LED_OFF HIGH // LED off is HIGH, may change it in the future
 
 #define LED_I2C_MUTEX_TIMEOUT_MS 30
 
@@ -23,8 +22,7 @@ private:
     int PWM_ON = 10;
 
     void _mcp_digitalWrite(uint8_t pin, uint8_t val);
-    
-    
+
 public:
     LED(/* args */);
     ~LED();

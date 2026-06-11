@@ -21,13 +21,13 @@ private:
     /// data
 public:
     buttonManager();
-    ~buttonManager();
-    void buttonStart();
-    // void handleButton();
+~buttonManager();
+void buttonStart();
+// void handleButton();
 
-    bool buttonRed;
-    bool buttonGreen;
-    bool buttonWhite;
+bool buttonRed;
+bool buttonGreen;
+bool buttonWhite;
 };
 
 
@@ -55,9 +55,9 @@ typedef enum
 // ================================================================
 typedef enum
 {
-    BTN_EVENT_NONE = 0,     // No pending event
-    BTN_EVENT_SHORT_PRESS,  // Short press (50ms < duration < long-press threshold)
-    BTN_EVENT_LONG_PRESS    // Long press (duration >= long-press threshold)
+    BTN_EVENT_NONE = 0,    // No pending event
+    BTN_EVENT_SHORT_PRESS, // Short press (50ms < duration < long-press threshold)
+    BTN_EVENT_LONG_PRESS   // Long press (duration >= long-press threshold)
 } e_buttonEvent;
 
 // ================================================================
@@ -65,22 +65,22 @@ typedef enum
 // ================================================================
 typedef struct
 {
-    volatile bool     rawPressed;      // Current physical state from ISR (true = pressed)
-    volatile uint32_t lastEdgeTime;    // millis() at last ISR edge (for polling reference)
+    volatile bool rawPressed;       // Current physical state from ISR (true = pressed)
+    volatile uint32_t lastEdgeTime; // millis() at last ISR edge (for polling reference)
 
     // Debounced state — maintained by poll() in loop()
-    bool     debounced;                // Debounced pressed state
-    uint32_t debounceTime;             // Time of last debounce transition
-    bool     longPressFired;           // Prevents re-fire during same hold
-    e_buttonEvent pendingEvent;        // Event ready for processing
+    bool debounced;             // Debounced pressed state
+    uint32_t debounceTime;      // Time of last debounce transition
+    bool longPressFired;        // Prevents re-fire during same hold
+    e_buttonEvent pendingEvent; // Event ready for processing
 } ButtonState;
 
 // ================================================================
 // Long-press thresholds (ms) — match original Ticker durations
 // ================================================================
-#define LONG_PRESS_RED_MS     3000   // Red long-press → Setting menu
-#define LONG_PRESS_BLUE_MS    3000   // Blue long-press → Calibration
-#define LONG_PRESS_WHITE_MS   5000   // White long-press → Review (was calibTime=5000)
+#define LONG_PRESS_RED_MS 3000   // Red long-press → Setting menu
+#define LONG_PRESS_BLUE_MS 3000  // Blue long-press → Calibration
+#define LONG_PRESS_WHITE_MS 5000 // White long-press → Review (was calibTime=5000)
 
 class buttonManager
 {
@@ -103,8 +103,8 @@ public:
     buttonManager();
     ~buttonManager();
 
-    void buttonStart();   // Attach ISR (call once in setup())
-    void loop();          // Poll + process (call every iteration of Arduino loop())
+    void buttonStart(); // Attach ISR (call once in setup())
+    void loop();        // Poll + process (call every iteration of Arduino loop())
 
     // Legacy fields — kept for API compatibility, not actively used
     bool buttonRed;
@@ -113,4 +113,3 @@ public:
 };
 
 #endif
-

@@ -11,8 +11,6 @@
 #include "Bluetooth.h"
 #include "PIDControl.h"
 #include <string>
-#include <esp_bt.h>
-#include <esp_bt_main.h>
 // #include "sensor6035.h"
 
 #define Forte_Green 0x25F8
@@ -33,83 +31,14 @@ displayCLD::~displayCLD()
 
 void displayCLD::begin()
 {
-  SPILock lk;
   this->display->begin();
   this->display->fillScreen(BLACK);
   this->display->setRotation(1);
   this->display->setUTF8Print(true);
-}
-
-// Hard-reset and re-init the ILI9341 panel.
-// Use this when the screen appears stuck/white (brownout aftermath, EMI glitch,
-// SPI desync, etc.). Pin TFT_RESET is toggled by display->begin() so the panel
-// starts from its power-on state and the full init command sequence is sent again.
-//
-// State-aware redraw:
-//   - For "running" states (preheat/lysis/amplification/menu/etc.) we set
-//     bheadershow+changeScreen so DisplayTask redraws the current screen on the
-//     next iteration. Machine state (type_infor, timers, sensor step) is untouched.
-//   - For "completed" states with non-idempotent side effects
-//     (escreenFinished/eUpLoadData post to Google Sheet; eSettingBluetooth/Wifi
-//     call ESP.restart) we draw a static recovery message instead of replaying
-//     the case in the switch — the user can press WHITE to navigate next.
-void displayCLD::reinit()
-{
-  SPILock lk(pdMS_TO_TICKS(500));
-  if (!lk.acquired())
-  {
-    Serial.println("reinit: SPI mutex timeout, skipping");
-    return;
-  }
-  Serial.println("Display reinit requested");
-
-  this->display->begin();
-  this->display->fillScreen(BLACK);
-  this->display->setRotation(1);
-  this->display->setUTF8Print(true);
-
-  this->requestReinit = false;
-
-  // Brief visible confirmation so the operator knows the chord was accepted —
-  // without it, a fast redraw on a healthy panel looks like nothing happened.
-  this->display->setTextSize(2);
-  this->display->setTextColor(GREEN);
-  this->display->setCursor(50, 100);
-  this->display->print("DISPLAY RESET");
-  this->display->setTextSize(1);
-  this->display->setTextColor(WHITE);
-  this->display->setCursor(50, 140);
-  this->display->print("Resuming...");
-  _buzzer.BuzzerAlert();
-  delay(800);
-
-  switch (this->type_infor)
-  {
-  case escreenFinished:
-  case eUpLoadData:
-  case eSettingBluetooth:
-  case eSettingWifi:
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(2);
-    this->display->setTextColor(WHITE);
-    this->display->setCursor(40, 90);
-    this->display->print("Display reset");
-    this->display->setTextSize(1);
-    this->display->setTextColor(Forte_Green);
-    this->display->setCursor(40, 140);
-    this->display->print("Press WHITE to continue");
-    return;
-  default:
-    break;
-  }
-
-  this->changeScreen = true;
-  this->bheadershow = true;
 }
 
 void displayCLD::logoFortebiotech()
 {
-  SPILock lk;
   this->display->fillScreen(BLACK);
   this->display->fillTriangle(80, 60, 132, 30, 132, 90, this->display->color565(16, 55, 50));
   this->display->fillTriangle(130, 100, 78, 70, 78, 130, this->display->color565(16, 55, 50));
@@ -162,8 +91,7 @@ void show_IconBluetooth(void)
     {
       turnOn_BT = false;
       /* turn off bluetooth*/
-      if (!gBtReleased)
-        SerialBT.end();
+      SerialBT.end();
     }
   }
 }
@@ -259,12 +187,6 @@ void displayCLD::screen_Start()
 
 void displayCLD::ErrorProcessatBegin(String strDescript, String strValue)
 {
-  SPILock lk;
-  if (!lk.acquired())
-  {
-    Serial.println("ErrorProcessatBegin: SPI mutex timeout");
-    return;
-  }
   this->display->fillScreen(BLACK);
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
@@ -290,12 +212,6 @@ void displayCLD::ErrorProcessatBegin(String strDescript, String strValue)
 
 void displayCLD::ErrorDisplay(String strDescript)
 {
-  SPILock lk;
-  if (!lk.acquired())
-  {
-    Serial.println("ErrorDisplay: SPI mutex timeout");
-    return;
-  }
   this->display->fillScreen(BLACK);
   this->display->setTextSize(1);
   this->display->setTextColor(WHITE);
@@ -309,12 +225,6 @@ void displayCLD::ErrorProcess(String strDescript, String strValue)
 {
   if (type_infor != errprocess)
   {
-    SPILock lk;
-    if (!lk.acquired())
-    {
-      Serial.println("ErrorProcess: SPI mutex timeout");
-      return;
-    }
 
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
@@ -349,15 +259,8 @@ void displayCLD::ErrorProcess(String strDescript, String strValue)
 }
 
 // when press white button to reboot, or restart next testing after result display
-
 void displayCLD::RestartProcess(String strDescript, String strValue)
 {
-  SPILock lk;
-  if (!lk.acquired())
-  {
-    Serial.println("RestartProcess: SPI mutex timeout");
-    return;
-  }
   this->display->fillScreen(BLACK);
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
@@ -389,7 +292,6 @@ void displayCLD::RestartProcess(String strDescript, String strValue)
   timeRefresh = millis() + 1000; // err will display for 1 seconds
 }
 
-
 bool displayCLD::ErrorStatus()
 {
   return type_infor == errprocess; // return the status whether it's error process or not
@@ -402,7 +304,6 @@ bool displayCLD::FinishStatus()
 
 void displayCLD::TemperatureBottomSeqDisplay()
 {
-  SPILock lk;
   this->display->fillScreen(BLACK);
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
@@ -423,7 +324,6 @@ void displayCLD::TemperatureBottomSeqDisplay()
 
 void displayCLD::TemperatureTopSeqDisplay()
 {
-  SPILock lk;
   this->display->fillScreen(BLACK);
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
@@ -444,7 +344,6 @@ void displayCLD::TemperatureTopSeqDisplay()
 
 void displayCLD::NextTestDisplay()
 {
-  SPILock lk;
   this->display->fillScreen(BLACK);
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
@@ -456,7 +355,6 @@ void displayCLD::NextTestDisplay()
 
 void displayCLD::ErrRebootDisplay()
 {
-  SPILock lk;
   this->display->fillScreen(BLACK);
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
@@ -872,16 +770,7 @@ void displayCLD::screen_Result(char key)
     float CT_value[10] = {0};
     char result[10] = {0};
     uint8_t loops = _ForteSetting.parameter.amplification_time;
-
-    // Hard-release the Bluetooth Classic stack to reclaim ~60KB heap.
-    // SerialBT.end() alone only stops the service — the controller + bluedroid
-    // still hold ~60KB allocated, which leaves mbedTLS short on contiguous heap
-    // for the HTTPS POST + redirect double-handshake (BIGNUM/X509 alloc fails).
-    // Idempotent (gBtReleased-guarded): the device does NOT restart after this
-    // screen, so a later WiFi-setup or manual upload must not tear BT down again.
-    releaseBluetoothStack();
-    Serial.printf("After BT release: free=%u, largest=%u\n",
-                  ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+    SerialBT.end();
 
     getDataAmplificationEEPROM();
 
@@ -1170,40 +1059,6 @@ void settingSucces(String title)
 
 void displayCLD::loop()
 {
-  // Honour external reinit requests before drawing anything else.
-  // reinit() takes the SPI lock itself, so we don't hold one here.
-  if (this->requestReinit)
-  {
-    this->reinit();
-    return; // next 100ms iteration will redraw via changeScreen=true
-  }
-
-  SPILock lk(pdMS_TO_TICKS(150));
-  if (!lk.acquired())
-    return; // skip this frame if SPI is busy; next 100ms cycle will retry
-
-  // Periodic preventive re-init during long amplification.
-  // ILI9341 can desync silently after EMI/brownout dips; refreshing every
-  // 5 min while amplifying gives the panel a chance to recover without
-  // user intervention. Cost: ~150ms full redraw.
-  //static uint32_t lastAmpliReinit = 0;
-  //if (this->type_infor == eoptoreading || this->type_infor == ewaitingReadsensor)
-  //{
-  //  uint32_t now = millis();
-  //  if (lastAmpliReinit == 0) lastAmpliReinit = now;
-  //  if (now - lastAmpliReinit > 5UL * 60UL * 1000UL) // 5 minutes
-  //  {
-  //    lastAmpliReinit = now;
-      // Release current lock, request reinit, return — handled next iter.
-  //    this->requestReinit = true;
-  //    return;
-  //  }
-  //}
-  //else
-  //{
-  //  lastAmpliReinit = 0; // reset timer when not amplifying
-  //}
-
   if (this->changeScreen)
   {
     // this->display->begin();
@@ -1688,15 +1543,6 @@ void displayCLD::display_Calib(void)
 
 void displayCLD::display_Waiting_Calib(void)
 {
-  // Called both from DisplayTask::loop() (already holds the SPI mutex) and
-  // directly from sensor6035::calibration() on the sensor task. Recursive
-  // mutex makes the nested take/give safe.
-  SPILock lk;
-  if (!lk.acquired())
-  {
-    Serial.println("display_Waiting_Calib: SPI mutex timeout");
-    return;
-  }
   this->display->fillScreen(BLACK);
   this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
 
@@ -1900,19 +1746,13 @@ void displayCLD::display_UpdateOTA(void)
 
 void displayCLD::waittingUpdate(void)
 {
-  SPILock lk;
-  if (!lk.acquired())
-  {
-    Serial.println("waittingUpdate: SPI mutex timeout");
-    return;
-  }
   this->display->fillScreen(BLACK);
   this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
 
   this->display->setTextSize(2);
   this->display->setTextColor(WHITE);
   this->display->setCursor(40, 100);
-  this->display->print("Waiting...");
+  this->display->print("Waitting...");
 }
 
 displayCLD _displayCLD;

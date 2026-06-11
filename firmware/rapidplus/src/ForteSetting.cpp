@@ -393,6 +393,18 @@ bool ForteSetting::JsonDataConfig()
                 }
             }
 
+            if (json_document.containsKey("PID3 parameter"))
+            {
+                JsonArray pidPara = json_document["PID3 parameter"];
+                info_displayln("PID3 parameter of top hotlid2&3:");
+                for (uint8_t i = 0; i < pidPara.size(); i++)
+                {
+                    double tmp = double(pidPara[i]);
+                    parameter.kpid3[i] = tmp;
+                    info_displayln(parameter.kpid3[i]);
+                }
+            }
+
             if (json_document.containsKey("Bottom overheat value"))
             {
                 JsonArray overHeat = json_document["Bottom overheat value"];

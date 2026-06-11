@@ -628,7 +628,7 @@ void sensor6035::eSensorParaIni()
     iChannel = 0;
     if (sensor67ValueTime == 0) // only for the first time when sensor67ValueTime is not initialized yet
     {
-        _LED.LED_on_unguarded(0);                                // turn on the first LED
+        _LED.LED_on_unguarded(0);                      // turn on the first LED
         sensor67ValueTime = millis() + LED_DELAY_TIME; // initialize the timer
         info_display("Set sensor67ValueTime when it's zero\n");
     }

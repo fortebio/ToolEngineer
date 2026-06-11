@@ -1,408 +1,4 @@
 /*
-#include "button.h"
-#include "Ticker.h"
-#include "displayCLD.h"
-#include "PIDControl.h"
-// #include "Bluetooth.h"
-typedef void (*hanler)();
-void buttonRedHandler();
-void buttonBlueHandler();
-void buttonWhiteHandler();
-
-static void tickerHandler(uint8_t index);
-static void tickerHandler1(uint8_t index);
-
-// Function calib
-static void tickerHandler2(uint8_t index);
-
-static uint8_t buttons[NumberButton];
-static hanler Hanler[NumberButton];
-static bool buttonPressed[NumberButton];
-static Ticker buttonTicker[NumberButton];
-static unsigned long timeAtPress[NumberButton];
-
-buttonManager::buttonManager()
-{
-  buttons[0] = BUTTON_RED;
-  Hanler[0] = &buttonRedHandler;
-  buttons[1] = BUTTON_BLUE;
-  Hanler[1] = &buttonBlueHandler;
-  buttons[2] = BUTTON_WHITE;
-  Hanler[2] = &buttonWhiteHandler;
-}
-
-void buttonManager::buttonStart()
-{
-  for (int i = 0; i < NumberButton; i++)
-  {
-    pinMode(buttons[i], INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(buttons[i]), Hanler[i], CHANGE);
-  }
-}
-
-buttonManager::~buttonManager()
-{
-}
-
-void buttonProcess(e_statusbutton index)
-{
-
-  if (!digitalRead(buttons[index]) && (buttonPressed[index] == false))
-  {
-    timeAtPress[index] = millis();
-    if (index == B_WHITE)
-    {
-      buttonTicker[index].attach_ms(calibTime, &tickerHandler, (uint8_t)index);
-    }
-    if (index == B_RED)
-    {
-      buttonTicker[index].attach_ms(3000, &tickerHandler1, (uint8_t)index);
-    }
-    if (index == B_BLUE)
-    {
-      buttonTicker[index].attach_ms(3000, &tickerHandler2, (uint8_t)index);
-    }
-    buttonPressed[index] = true;
-  }
-
-  else if ((buttonPressed[index] == true) && ((unsigned long)(millis() - timeAtPress[index]) > TimePressAnti) && ((unsigned long)(millis() - timeAtPress[index]) < calibTime))
-  {
-
-    _buzzer.BuzzerStop(); // stop the buzzer if any button is pressed
-
-    buttonPressed[index] = false;
-    switch (index)
-    {
-    case B_RED:
-    {
-      if (_displayCLD.ErrorStatus())
-      {
-        return;
-      }
-      if (_displayCLD.type_infor == ewaitLysisTube)
-      {
-        _displayCLD.type_infor = eheatLysis;
-        _displayCLD.changeScreen = true;
-        // _displayCLD.timeRefresh = 0;
-        _displayCLD.startHeating10mins();
-        dbg_button("Red Btn - start heating lysis");
-      }
-
-      else if (_displayCLD.type_infor == escreenStart)
-      { // skip to amplification stage directly if pressing red at the beginning
-        _displayCLD.type_infor = epreheating67;
-        _displayCLD.bheadershow = true;
-        _displayCLD.changeScreen = true;
-        _PIDControl.setPreheat67(); // check the current temperature is not over heat
-        _sensor6035.setStepeSensorpreheat();
-        dbg_button("red button - start amplification");
-      }
-
-      else if (_displayCLD.type_infor == eSelectAmpli)
-      {
-        _PIDControl.heatSimulation(0xFF);
-        _PIDControl.setPID23Ready();
-        _displayCLD.type_infor = ewaitampTube;
-        _displayCLD.bheadershow = true;
-        _displayCLD.changeScreen = true;
-      }
-      else if (_displayCLD.type_infor == ewaitampTube)
-      {
-        _displayCLD.type_infor = eoptoreading;
-        _displayCLD.changeScreen = true;
-        // _displayCLD.timeRefresh = 0;
-        _displayCLD.startAmplification();
-        dbg_button("Red Btn - start amplification");
-      }
-      else if (_displayCLD.type_infor == eSettingMenu)
-      {
-        _displayCLD.type_infor = eUpLoadData;
-        _displayCLD.changeScreen = true;
-      }
-
-      else if (_displayCLD.type_infor == eSelectSlot)
-      {
-        _displayCLD.slot++;
-        if (_displayCLD.slot == 10)
-        {
-          _displayCLD.slot = 0;
-        }
-        _displayCLD.type_infor = eSelectSlot;
-        _displayCLD.changeScreen = true;
-      }
-      else if (_displayCLD.type_infor == eSelectMode)
-      {
-        _displayCLD.type_infor = eSetPowerLed;
-        _displayCLD.changeScreen = true;
-      }
-      else if (_displayCLD.type_infor == eCalibComplete && !(_displayCLD.flag_calib_done))
-      {
-        _displayCLD.type_infor = eSetPowerLed;
-        _displayCLD.changeScreen = true;
-      }
-
-      else if (_displayCLD.type_infor == eSetPowerLed)
-      {
-        switch (_displayCLD.index)
-        {
-        case 0:
-        {
-          _displayCLD.led_power[0]++;
-          if (_displayCLD.led_power[0] > 9)
-          {
-            _displayCLD.led_power[0] = 0;
-          }
-          break;
-        }
-        case 1:
-        {
-          _displayCLD.led_power[1]++;
-          if (_displayCLD.led_power[1] > 9)
-          {
-            _displayCLD.led_power[1] = 0;
-          }
-          break;
-        }
-        case 2:
-        {
-          _displayCLD.led_power[2]++;
-          if (_displayCLD.led_power[2] > 9)
-          {
-            _displayCLD.led_power[2] = 0;
-          }
-          break;
-        }
-
-        default:
-          break;
-        }
-        _displayCLD.type_infor = eSetPowerLed;
-        _displayCLD.changeScreen = true;
-      }
-      else if (_displayCLD.type_infor == eUpdateOTA)
-      {
-        flag_check_Update = false;
-        flagUpdate = true;
-      }
-      else if (_displayCLD.type_infor == escreenResult ||
-               _displayCLD.type_infor == escreenReview ||
-               _displayCLD.type_infor == escreenFinished ||
-               _displayCLD.type_infor == eUpLoadData)
-      {
-        _displayCLD.type_infor = escreenErrorResult;
-        _displayCLD.changeScreen = true;
-      }
-      // else if (_displayCLD.type_infor == escreenErrorResult)
-      // {
-      //   _displayCLD.type_infor = escreenResult;
-      //   _displayCLD.changeScreen = true;
-      // }
-      break;
-    }
-
-    case B_BLUE:
-    {
-      if (_displayCLD.ErrorStatus())
-      {
-        return;
-      }
-      if (_displayCLD.type_infor == escreenStart)
-      {
-        _displayCLD.type_infor = epreheating80; // actually should start from 80 degree
-        _displayCLD.changeScreen = true;
-        _displayCLD.bheadershow = true;
-        _PIDControl.setpid1startpreHeat80(); // check the current temperature is not over heat
-        dbg_button("green button - start heating to 80");
-      }
-      else if (_displayCLD.type_infor == ewaitphase2)
-      {
-        _displayCLD.type_infor = epreheating67;
-        _displayCLD.bheadershow = true;
-        _displayCLD.changeScreen = true;
-        _PIDControl.setPreheat67(); // check the current temperature is not over heat
-        _sensor6035.setStepeSensorpreheat();
-        dbg_button("green button - start heating to 67");
-      }
-
-      else if (_displayCLD.type_infor == epreheating67)
-      {
-        _sensor6035.skip2Maintain();
-        dbg_button("green button - skip opto preheat");
-      }
-      // test postData to GoogleSheets 
-      else if (_displayCLD.type_infor == eSettingMenu)
-      {
-        _displayCLD.type_infor = eSettingWifi;
-        _displayCLD.changeScreen = true;
-      }
-
-      else if (_displayCLD.type_infor == eSelectAmpli)
-      {
-        _displayCLD.type_infor = eSelectSlot;
-        _displayCLD.changeScreen = true;
-      }
-      else if (_displayCLD.type_infor == eSelectSlot)
-      {
-        _displayCLD.type_infor = eSelectMode;
-        _displayCLD.changeScreen = true;
-      }
-      else if (_displayCLD.type_infor == eSelectMode)
-      {
-        _displayCLD.type_infor = eCalibrating;
-        _displayCLD.changeScreen = true;
-      }
-      else if (_displayCLD.type_infor == eCalibrating)
-      {
-        _sensor6035.setStepeSensorcalib();
-      }
-      else if (_displayCLD.type_infor == eSetPowerLed)
-      {
-        _displayCLD.index++;
-        if (_displayCLD.index > 2)
-        {
-          _displayCLD.index = 0;
-        }
-        _displayCLD.type_infor = eSetPowerLed;
-        _displayCLD.changeScreen = true;
-      }
-      else if (_displayCLD.type_infor == eCalibComplete && !(_displayCLD.flag_calib_done))
-      {
-        _displayCLD.type_infor = eCalibrating;
-        _displayCLD.changeScreen = true;
-      }
-      else if (_displayCLD.type_infor == eSavePowerLed)
-      {
-        _displayCLD.type_infor = eSelectSlot;
-        _displayCLD.changeScreen = true;
-      }
-      else if (_displayCLD.type_infor == eSaveCalib)
-      {
-        _displayCLD.type_infor = eSelectSlot;
-        _displayCLD.changeScreen = true;
-        _displayCLD.flag_calib_done = false;
-      }
-      else if (_displayCLD.type_infor == eUpdateOTA)
-      {
-        flag_check_Update = false;
-        flagUpdate = false;
-        _displayCLD.type_infor = escreenStart;
-        _displayCLD.changeScreen = true;
-      }
-      break;
-    }
-
-    case B_WHITE:
-    {
-      if (_displayCLD.FinishStatus()) // button pressed when display the result or error status, then return to start
-      {
-        _displayCLD.type_infor = escreenRestart;
-        _displayCLD.changeScreen = true;
-        return;
-      }
-      if (_displayCLD.ErrorStatus())
-      {
-        return;
-      }
-      if (_displayCLD.type_infor == eSettingMenu)
-      {
-        _displayCLD.type_infor = eSettingBluetooth;
-        _displayCLD.changeScreen = true;
-        return;
-      }
-      if (_displayCLD.type_infor == eSetPowerLed)
-      {
-        _displayCLD.type_infor = eSavePowerLed;
-        _displayCLD.changeScreen = true;
-        return;
-      }
-      if (_displayCLD.type_infor == eSelectMode)
-      {
-        _displayCLD.type_infor = eSelectSlot;
-        _displayCLD.changeScreen = true;
-        return;
-      }
-      if (_displayCLD.type_infor == eSelectSlot)
-      {
-        ESP.restart();
-      }
-      if (_displayCLD.type_infor == escreenStart) // no need to restart as at the start screen already
-      {
-        return;
-      }
-      _displayCLD.type_infor = ebuttonrestart;
-      _displayCLD.changeScreen = true;
-      return;
-
-      break;
-    }
-
-    default:
-      break;
-    }
-  }
-  else
-  {
-    buttonPressed[index] = false;
-  }
-}
-
-static void tickerHandler(uint8_t index)
-{
-  buttonTicker[index].detach();
-
-  if (!digitalRead(buttons[index]))
-  {
-    buttonPressed[index] = false;
-    _displayCLD.changeScreen = true;
-    _displayCLD.type_infor = escreenReview;
-    dbg_button("nut WHITE huhu");
-  }
-}
-static void tickerHandler1(uint8_t index)
-{
-  buttonTicker[index].detach();
-  if (!digitalRead(buttons[index]))
-  {
-    buttonPressed[index] = false;
-    _displayCLD.type_infor = eSettingMenu;
-    _displayCLD.changeScreen = true;
-    dbg_button("nut Red - setting");
-  }
-}
-
-// Function Calib 
-static void tickerHandler2(uint8_t index)
-{
-  buttonTicker[index].detach();
-  if (!digitalRead(buttons[index]))
-  {
-    buttonPressed[index] = false;
-    _sensor6035.setStepeSensorwait();
-    _displayCLD.type_infor = eSelectAmpli;
-    _displayCLD.changeScreen = true;
-    info_display("nut Green - calibrating");
-  }
-}
-
-void IRAM_ATTR buttonRedHandler()
-{
-  buttonProcess(B_RED);
-}
-
-void IRAM_ATTR buttonBlueHandler()
-{
-  buttonProcess(B_BLUE);
-}
-
-void IRAM_ATTR buttonWhiteHandler()
-{
-  buttonProcess(B_WHITE);
-}
-
-// buttonManager _buttonManager;
-*/
-
-/*
  * Architecture:
  *   ISR (IRAM_ATTR) — records raw GPIO edge into volatile ButtonState
  *   loop()          — polls ButtonState, applies debounce + long-press detection,
@@ -429,9 +25,9 @@ void IRAM_ATTR buttonWhiteHandler()
 // GPIO pin array
 // ================================================================
 static const uint8_t buttonPins[NumberButton] = {
-    BUTTON_RED,   // B_RED   = 0
-    BUTTON_BLUE,  // B_BLUE  = 1
-    BUTTON_WHITE  // B_WHITE = 2
+    BUTTON_RED,  // B_RED   = 0
+    BUTTON_BLUE, // B_BLUE  = 1
+    BUTTON_WHITE // B_WHITE = 2
 };
 
 // ================================================================
@@ -450,20 +46,20 @@ static volatile ButtonState btnState[NumberButton];
 // ================================================================
 static void IRAM_ATTR isrRed()
 {
-    btnState[B_RED].rawPressed = !digitalRead(buttonPins[B_RED]);
-    btnState[B_RED].lastEdgeTime = millis(); // millis() is ISR-safe on ESP32
+  btnState[B_RED].rawPressed = !digitalRead(buttonPins[B_RED]);
+  btnState[B_RED].lastEdgeTime = millis(); // millis() is ISR-safe on ESP32
 }
 
 static void IRAM_ATTR isrBlue()
 {
-    btnState[B_BLUE].rawPressed = !digitalRead(buttonPins[B_BLUE]);
-    btnState[B_BLUE].lastEdgeTime = millis();
+  btnState[B_BLUE].rawPressed = !digitalRead(buttonPins[B_BLUE]);
+  btnState[B_BLUE].lastEdgeTime = millis();
 }
 
 static void IRAM_ATTR isrWhite()
 {
-    btnState[B_WHITE].rawPressed = !digitalRead(buttonPins[B_WHITE]);
-    btnState[B_WHITE].lastEdgeTime = millis();
+  btnState[B_WHITE].rawPressed = !digitalRead(buttonPins[B_WHITE]);
+  btnState[B_WHITE].lastEdgeTime = millis();
 }
 
 // ================================================================
@@ -471,16 +67,16 @@ static void IRAM_ATTR isrWhite()
 // ================================================================
 buttonManager::buttonManager()
 {
-    // Zero-initialize all button states
-    for (int i = 0; i < NumberButton; i++)
-    {
-        btnState[i].rawPressed    = false;
-        btnState[i].lastEdgeTime  = 0;
-        btnState[i].debounced     = false;
-        btnState[i].debounceTime  = 0;
-        btnState[i].longPressFired = false;
-        btnState[i].pendingEvent  = BTN_EVENT_NONE;
-    }
+  // Zero-initialize all button states
+  for (int i = 0; i < NumberButton; i++)
+  {
+    btnState[i].rawPressed = false;
+    btnState[i].lastEdgeTime = 0;
+    btnState[i].debounced = false;
+    btnState[i].debounceTime = 0;
+    btnState[i].longPressFired = false;
+    btnState[i].pendingEvent = BTN_EVENT_NONE;
+  }
 }
 
 buttonManager::~buttonManager()
@@ -492,13 +88,13 @@ buttonManager::~buttonManager()
 // ================================================================
 void buttonManager::buttonStart()
 {
-    for (int i = 0; i < NumberButton; i++)
-    {
-        pinMode(buttonPins[i], INPUT_PULLUP);
-    }
-    attachInterrupt(digitalPinToInterrupt(buttonPins[B_RED]),   isrRed,   CHANGE);
-    attachInterrupt(digitalPinToInterrupt(buttonPins[B_BLUE]),  isrBlue,  CHANGE);
-    attachInterrupt(digitalPinToInterrupt(buttonPins[B_WHITE]), isrWhite, CHANGE);
+  for (int i = 0; i < NumberButton; i++)
+  {
+    pinMode(buttonPins[i], INPUT_PULLUP);
+  }
+  attachInterrupt(digitalPinToInterrupt(buttonPins[B_RED]), isrRed, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(buttonPins[B_BLUE]), isrBlue, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(buttonPins[B_WHITE]), isrWhite, CHANGE);
 }
 
 // ================================================================
@@ -513,60 +109,60 @@ void buttonManager::buttonStart()
 // ================================================================
 void buttonManager::pollButton(uint8_t index, uint16_t longPressMs)
 {
-    // Read volatile state atomically (single-byte reads are atomic on ESP32)
-    bool currentRaw = btnState[index].rawPressed;
-    uint32_t now = millis();
+  // Read volatile state atomically (single-byte reads are atomic on ESP32)
+  bool currentRaw = btnState[index].rawPressed;
+  uint32_t now = millis();
 
-    if (!btnState[index].debounced)
+  if (!btnState[index].debounced)
+  {
+    // Currently not pressed — check for new press
+    if (currentRaw)
     {
-        // Currently not pressed — check for new press
-        if (currentRaw)
-        {
-            // Debounce: raw must stay pressed for TimePressAnti ms
-            if (btnState[index].debounceTime == 0)
-            {
-                // First detection of press
-                btnState[index].debounceTime = now;
-            }
-            else if ((now - btnState[index].debounceTime) >= TimePressAnti)
-            {
-                // Debounce passed — transition to HELD
-                btnState[index].debounced = true;
-                btnState[index].longPressFired = false;
-            }
-        }
-        else
-        {
-            // Noise — reset debounce timer
-            btnState[index].debounceTime = 0;
-        }
+      // Debounce: raw must stay pressed for TimePressAnti ms
+      if (btnState[index].debounceTime == 0)
+      {
+        // First detection of press
+        btnState[index].debounceTime = now;
+      }
+      else if ((now - btnState[index].debounceTime) >= TimePressAnti)
+      {
+        // Debounce passed — transition to HELD
+        btnState[index].debounced = true;
+        btnState[index].longPressFired = false;
+      }
     }
     else
     {
-        // Currently held — check for long-press or release
-        uint32_t holdDuration = now - btnState[index].debounceTime;
-
-        if (currentRaw)
-        {
-            // Still held — check long-press threshold
-            if (!btnState[index].longPressFired && holdDuration >= longPressMs)
-            {
-                btnState[index].longPressFired = true;
-                btnState[index].pendingEvent = BTN_EVENT_LONG_PRESS;
-            }
-        }
-        else
-        {
-            // Released — fire short press only if long-press didn't fire
-            if (!btnState[index].longPressFired && holdDuration >= TimePressAnti)
-            {
-                btnState[index].pendingEvent = BTN_EVENT_SHORT_PRESS;
-            }
-            // Reset state for next press
-            btnState[index].debounced = false;
-            btnState[index].debounceTime = 0;
-        }
+      // Noise — reset debounce timer
+      btnState[index].debounceTime = 0;
     }
+  }
+  else
+  {
+    // Currently held — check for long-press or release
+    uint32_t holdDuration = now - btnState[index].debounceTime;
+
+    if (currentRaw)
+    {
+      // Still held — check long-press threshold
+      if (!btnState[index].longPressFired && holdDuration >= longPressMs)
+      {
+        btnState[index].longPressFired = true;
+        btnState[index].pendingEvent = BTN_EVENT_LONG_PRESS;
+      }
+    }
+    else
+    {
+      // Released — fire short press only if long-press didn't fire
+      if (!btnState[index].longPressFired && holdDuration >= TimePressAnti)
+      {
+        btnState[index].pendingEvent = BTN_EVENT_SHORT_PRESS;
+      }
+      // Reset state for next press
+      btnState[index].debounced = false;
+      btnState[index].debounceTime = 0;
+    }
+  }
 }
 
 // ================================================================
@@ -574,27 +170,39 @@ void buttonManager::pollButton(uint8_t index, uint16_t longPressMs)
 // ================================================================
 void buttonManager::processEvent(e_statusbutton index, e_buttonEvent event)
 {
-    if (event == BTN_EVENT_SHORT_PRESS)
-    {
-        // Stop buzzer on any button press (matches original behavior)
-        _buzzer.BuzzerStop();
+  if (event == BTN_EVENT_SHORT_PRESS)
+  {
+    // Stop buzzer on any button press (matches original behavior)
+    _buzzer.BuzzerStop();
 
-        switch (index)
-        {
-        case B_RED:   handleShortPress_Red();   break;
-        case B_BLUE:  handleShortPress_Blue();  break;
-        case B_WHITE: handleShortPress_White(); break;
-        }
-    }
-    else if (event == BTN_EVENT_LONG_PRESS)
+    switch (index)
     {
-        switch (index)
-        {
-        case B_RED:   handleLongPress_Red();   break;
-        case B_BLUE:  handleLongPress_Blue();  break;
-        case B_WHITE: handleLongPress_White(); break;
-        }
+    case B_RED:
+      handleShortPress_Red();
+      break;
+    case B_BLUE:
+      handleShortPress_Blue();
+      break;
+    case B_WHITE:
+      handleShortPress_White();
+      break;
     }
+  }
+  else if (event == BTN_EVENT_LONG_PRESS)
+  {
+    switch (index)
+    {
+    case B_RED:
+      handleLongPress_Red();
+      break;
+    case B_BLUE:
+      handleLongPress_Blue();
+      break;
+    case B_WHITE:
+      handleLongPress_White();
+      break;
+    }
+  }
 }
 
 // ================================================================
@@ -602,80 +210,80 @@ void buttonManager::processEvent(e_statusbutton index, e_buttonEvent event)
 // ================================================================
 void buttonManager::loop()
 {
-    // Poll all 3 buttons with their respective long-press thresholds
-    pollButton(B_RED,   LONG_PRESS_RED_MS);
-    pollButton(B_BLUE,  LONG_PRESS_BLUE_MS);
-    pollButton(B_WHITE, LONG_PRESS_WHITE_MS);
+  // Poll all 3 buttons with their respective long-press thresholds
+  pollButton(B_RED, LONG_PRESS_RED_MS);
+  pollButton(B_BLUE, LONG_PRESS_BLUE_MS);
+  pollButton(B_WHITE, LONG_PRESS_WHITE_MS);
 
-    // Manual display recovery: hold BLUE + WHITE together for ~1.5s.
-    // Fires once, then waits for both to be released before allowing again.
-    // This only requests a TFT panel re-init — type_infor, timers, sensor step
-    // are untouched, so the run continues from the same step after the redraw.
-    //
-    // Robustness:
-    //   - longPressFired is forced true the moment both are detected pressed
-    //     (BEFORE the 1.5s threshold), so an accidental brief dual-press never
-    //     leaks into single-button short-press handlers (WHITE short-press
-    //     would otherwise restart the device while a run is active).
-    //   - Up to 150ms of "one button momentarily not seen as pressed" is
-    //     tolerated as switch chatter so the timer doesn't reset spuriously.
-    static uint32_t chordStart = 0;
-    static uint32_t lastBothSeen = 0;
-    static bool chordFired = false;
-    bool bluePressed = btnState[B_BLUE].rawPressed;
-    bool whitePressed = btnState[B_WHITE].rawPressed;
-    uint32_t nowMs = millis();
-    bool bothPressed = bluePressed && whitePressed;
+  // Manual display recovery: hold BLUE + WHITE together for ~1.5s.
+  // Fires once, then waits for both to be released before allowing again.
+  // This only requests a TFT panel re-init — type_infor, timers, sensor step
+  // are untouched, so the run continues from the same step after the redraw.
+  //
+  // Robustness:
+  //   - longPressFired is forced true the moment both are detected pressed
+  //     (BEFORE the 1.5s threshold), so an accidental brief dual-press never
+  //     leaks into single-button short-press handlers (WHITE short-press
+  //     would otherwise restart the device while a run is active).
+  //   - Up to 150ms of "one button momentarily not seen as pressed" is
+  //     tolerated as switch chatter so the timer doesn't reset spuriously.
+  static uint32_t chordStart = 0;
+  static uint32_t lastBothSeen = 0;
+  static bool chordFired = false;
+  bool bluePressed = btnState[B_BLUE].rawPressed;
+  bool whitePressed = btnState[B_WHITE].rawPressed;
+  uint32_t nowMs = millis();
+  bool bothPressed = bluePressed && whitePressed;
 
-    if (bothPressed)
+  if (bothPressed)
+  {
+    lastBothSeen = nowMs;
+    // Suppress single-button events on both buttons IMMEDIATELY — not
+    // just when chord finally fires — so even a sub-threshold dual press
+    // doesn't trigger WHITE short-press restart on release.
+    btnState[B_BLUE].longPressFired = true;
+    btnState[B_WHITE].longPressFired = true;
+  }
+
+  bool chordActive = bothPressed ||
+                     (chordStart != 0 && (nowMs - lastBothSeen) <= 150);
+
+  if (chordActive)
+  {
+    if (chordStart == 0)
+      chordStart = nowMs == 0 ? 1 : nowMs;
+    if (!chordFired && (nowMs - chordStart) >= 1500)
     {
-        lastBothSeen = nowMs;
-        // Suppress single-button events on both buttons IMMEDIATELY — not
-        // just when chord finally fires — so even a sub-threshold dual press
-        // doesn't trigger WHITE short-press restart on release.
-        btnState[B_BLUE].longPressFired = true;
-        btnState[B_WHITE].longPressFired = true;
+      chordFired = true;
+      _displayCLD.requestReinit = true;
+      btnState[B_BLUE].pendingEvent = BTN_EVENT_NONE;
+      btnState[B_WHITE].pendingEvent = BTN_EVENT_NONE;
+      Serial.println("Display reinit triggered by BLUE+WHITE chord");
     }
-
-    bool chordActive = bothPressed ||
-                       (chordStart != 0 && (nowMs - lastBothSeen) <= 150);
-
-    if (chordActive)
+  }
+  else
+  {
+    chordStart = 0;
+    // Require both released for ≥200ms before allowing another chord —
+    // avoids re-fire if a single button bounces back on after the chord.
+    if (!bluePressed && !whitePressed &&
+        (nowMs - lastBothSeen) > 200)
     {
-        if (chordStart == 0) chordStart = nowMs == 0 ? 1 : nowMs;
-        if (!chordFired && (nowMs - chordStart) >= 1500)
-        {
-            chordFired = true;
-            _displayCLD.requestReinit = true;
-            btnState[B_BLUE].pendingEvent = BTN_EVENT_NONE;
-            btnState[B_WHITE].pendingEvent = BTN_EVENT_NONE;
-            Serial.println("Display reinit triggered by BLUE+WHITE chord");
-        }
+      chordFired = false;
     }
-    else
-    {
-        chordStart = 0;
-        // Require both released for ≥200ms before allowing another chord —
-        // avoids re-fire if a single button bounces back on after the chord.
-        if (!bluePressed && !whitePressed &&
-            (nowMs - lastBothSeen) > 200)
-        {
-            chordFired = false;
-        }
-    }
+  }
 
-    // Process any pending events
-    for (int i = 0; i < NumberButton; i++)
+  // Process any pending events
+  for (int i = 0; i < NumberButton; i++)
+  {
+    e_buttonEvent evt = btnState[i].pendingEvent;
+    if (evt != BTN_EVENT_NONE)
     {
-        e_buttonEvent evt = btnState[i].pendingEvent;
-        if (evt != BTN_EVENT_NONE)
-        {
-            btnState[i].pendingEvent = BTN_EVENT_NONE; // Consume event
-            processEvent((e_statusbutton)i, evt);
-        }
+      btnState[i].pendingEvent = BTN_EVENT_NONE; // Consume event
+      processEvent((e_statusbutton)i, evt);
     }
+  }
 }
-
 
 // ================================================================
 // ================================================================
@@ -686,251 +294,250 @@ void buttonManager::loop()
 // ================================================================
 // ================================================================
 
-
 // ----------------------------------------------------------------
 // RED short press — original: case B_RED in buttonProcess()
 // ----------------------------------------------------------------
 void buttonManager::handleShortPress_Red()
 {
-    if (_displayCLD.ErrorStatus())
-    {
-        return;
-    }
+  if (_displayCLD.ErrorStatus())
+  {
+    return;
+  }
 
-    if (_displayCLD.type_infor == ewaitLysisTube)
+  if (_displayCLD.type_infor == ewaitLysisTube)
+  {
+    _displayCLD.type_infor = eheatLysis;
+    _displayCLD.changeScreen = true;
+    _displayCLD.startHeating10mins();
+    dbg_button("Red Btn - start heating lysis");
+  }
+  else if (_displayCLD.type_infor == escreenStart)
+  {
+    // Skip to amplification stage directly
+    _displayCLD.type_infor = epreheating67;
+    _displayCLD.bheadershow = true;
+    _displayCLD.changeScreen = true;
+    _PIDControl.setPreheat67();
+    _sensor6035.setStepeSensorpreheat();
+    dbg_button("red button - start amplification");
+  }
+  else if (_displayCLD.type_infor == eSelectAmpli)
+  {
+    _PIDControl.heatSimulation(0xFF);
+    _PIDControl.setPID23Ready();
+    _displayCLD.type_infor = ewaitampTube;
+    _displayCLD.bheadershow = true;
+    _displayCLD.changeScreen = true;
+  }
+  else if (_displayCLD.type_infor == ewaitampTube)
+  {
+    _displayCLD.type_infor = eoptoreading;
+    _displayCLD.changeScreen = true;
+    _displayCLD.startAmplification();
+    dbg_button("Red Btn - start amplification");
+  }
+  else if (_displayCLD.type_infor == eSettingMenu)
+  {
+    _displayCLD.type_infor = eUpLoadData;
+    _displayCLD.changeScreen = true;
+  }
+  else if (_displayCLD.type_infor == eSelectSlot)
+  {
+    _displayCLD.slot++;
+    if (_displayCLD.slot == 10)
     {
-        _displayCLD.type_infor = eheatLysis;
-        _displayCLD.changeScreen = true;
-        _displayCLD.startHeating10mins();
-        dbg_button("Red Btn - start heating lysis");
+      _displayCLD.slot = 0;
     }
-    else if (_displayCLD.type_infor == escreenStart)
+    _displayCLD.type_infor = eSelectSlot;
+    _displayCLD.changeScreen = true;
+  }
+  else if (_displayCLD.type_infor == eSelectMode)
+  {
+    _displayCLD.type_infor = eSetPowerLed;
+    _displayCLD.changeScreen = true;
+  }
+  else if (_displayCLD.type_infor == eCalibComplete && !(_displayCLD.flag_calib_done))
+  {
+    _displayCLD.type_infor = eSetPowerLed;
+    _displayCLD.changeScreen = true;
+  }
+  else if (_displayCLD.type_infor == eSetPowerLed)
+  {
+    switch (_displayCLD.index)
     {
-        // Skip to amplification stage directly
-        _displayCLD.type_infor = epreheating67;
-        _displayCLD.bheadershow = true;
-        _displayCLD.changeScreen = true;
-        _PIDControl.setPreheat67();
-        _sensor6035.setStepeSensorpreheat();
-        dbg_button("red button - start amplification");
+    case 0:
+      _displayCLD.led_power[0]++;
+      if (_displayCLD.led_power[0] > 9)
+        _displayCLD.led_power[0] = 0;
+      break;
+    case 1:
+      _displayCLD.led_power[1]++;
+      if (_displayCLD.led_power[1] > 9)
+        _displayCLD.led_power[1] = 0;
+      break;
+    case 2:
+      _displayCLD.led_power[2]++;
+      if (_displayCLD.led_power[2] > 9)
+        _displayCLD.led_power[2] = 0;
+      break;
+    default:
+      break;
     }
-    else if (_displayCLD.type_infor == eSelectAmpli)
-    {
-        _PIDControl.heatSimulation(0xFF);
-        _PIDControl.setPID23Ready();
-        _displayCLD.type_infor = ewaitampTube;
-        _displayCLD.bheadershow = true;
-        _displayCLD.changeScreen = true;
-    }
-    else if (_displayCLD.type_infor == ewaitampTube)
-    {
-        _displayCLD.type_infor = eoptoreading;
-        _displayCLD.changeScreen = true;
-        _displayCLD.startAmplification();
-        dbg_button("Red Btn - start amplification");
-    }
-    else if (_displayCLD.type_infor == eSettingMenu)
-    {
-        _displayCLD.type_infor = eUpLoadData;
-        _displayCLD.changeScreen = true;
-    }
-    else if (_displayCLD.type_infor == eSelectSlot)
-    {
-        _displayCLD.slot++;
-        if (_displayCLD.slot == 10)
-        {
-            _displayCLD.slot = 0;
-        }
-        _displayCLD.type_infor = eSelectSlot;
-        _displayCLD.changeScreen = true;
-    }
-    else if (_displayCLD.type_infor == eSelectMode)
-    {
-        _displayCLD.type_infor = eSetPowerLed;
-        _displayCLD.changeScreen = true;
-    }
-    else if (_displayCLD.type_infor == eCalibComplete && !(_displayCLD.flag_calib_done))
-    {
-        _displayCLD.type_infor = eSetPowerLed;
-        _displayCLD.changeScreen = true;
-    }
-    else if (_displayCLD.type_infor == eSetPowerLed)
-    {
-        switch (_displayCLD.index)
-        {
-        case 0:
-            _displayCLD.led_power[0]++;
-            if (_displayCLD.led_power[0] > 9) _displayCLD.led_power[0] = 0;
-            break;
-        case 1:
-            _displayCLD.led_power[1]++;
-            if (_displayCLD.led_power[1] > 9) _displayCLD.led_power[1] = 0;
-            break;
-        case 2:
-            _displayCLD.led_power[2]++;
-            if (_displayCLD.led_power[2] > 9) _displayCLD.led_power[2] = 0;
-            break;
-        default:
-            break;
-        }
-        _displayCLD.type_infor = eSetPowerLed;
-        _displayCLD.changeScreen = true;
-    }
-    else if (_displayCLD.type_infor == eUpdateOTA)
-    {
-        // User accepted the update. NetworkTask::updateFirmware() will pick
-        // this up on its next tick and transition to OTA_UPDATING.
-        otaState = OTA_USER_ACCEPTED;
-    }
-    else if (_displayCLD.type_infor == escreenResult ||
-             _displayCLD.type_infor == escreenReview ||
-             _displayCLD.type_infor == escreenFinished ||
-             _displayCLD.type_infor == eUpLoadData)
-    {
-        _displayCLD.type_infor = escreenErrorResult;
-        _displayCLD.changeScreen = true;
-    }
+    _displayCLD.type_infor = eSetPowerLed;
+    _displayCLD.changeScreen = true;
+  }
+  else if (_displayCLD.type_infor == eUpdateOTA)
+  {
+    // User accepted the update. NetworkTask::updateFirmware() will pick
+    // this up on its next tick and transition to OTA_UPDATING.
+    otaState = OTA_USER_ACCEPTED;
+  }
+  else if (_displayCLD.type_infor == escreenResult ||
+           _displayCLD.type_infor == escreenReview ||
+           _displayCLD.type_infor == escreenFinished ||
+           _displayCLD.type_infor == eUpLoadData)
+  {
+    _displayCLD.type_infor = escreenErrorResult;
+    _displayCLD.changeScreen = true;
+  }
 }
-
 
 // ----------------------------------------------------------------
 // BLUE short press — original: case B_BLUE in buttonProcess()
 // ----------------------------------------------------------------
 void buttonManager::handleShortPress_Blue()
 {
-    if (_displayCLD.ErrorStatus())
-    {
-        return;
-    }
+  if (_displayCLD.ErrorStatus())
+  {
+    return;
+  }
 
-    if (_displayCLD.type_infor == escreenStart)
+  if (_displayCLD.type_infor == escreenStart)
+  {
+    _displayCLD.type_infor = epreheating80;
+    _displayCLD.changeScreen = true;
+    _displayCLD.bheadershow = true;
+    _PIDControl.setpid1startpreHeat80();
+    dbg_button("green button - start heating to 80");
+  }
+  else if (_displayCLD.type_infor == ewaitphase2)
+  {
+    _displayCLD.type_infor = epreheating67;
+    _displayCLD.bheadershow = true;
+    _displayCLD.changeScreen = true;
+    _PIDControl.setPreheat67();
+    _sensor6035.setStepeSensorpreheat();
+    dbg_button("green button - start heating to 67");
+  }
+  else if (_displayCLD.type_infor == epreheating67)
+  {
+    _sensor6035.skip2Maintain();
+    dbg_button("green button - skip opto preheat");
+  }
+  else if (_displayCLD.type_infor == eSettingMenu)
+  {
+    _displayCLD.type_infor = eSettingWifi;
+    _displayCLD.changeScreen = true;
+  }
+  else if (_displayCLD.type_infor == eSelectAmpli)
+  {
+    _displayCLD.type_infor = eSelectSlot;
+    _displayCLD.changeScreen = true;
+  }
+  else if (_displayCLD.type_infor == eSelectSlot)
+  {
+    _displayCLD.type_infor = eSelectMode;
+    _displayCLD.changeScreen = true;
+  }
+  else if (_displayCLD.type_infor == eSelectMode)
+  {
+    _displayCLD.type_infor = eCalibrating;
+    _displayCLD.changeScreen = true;
+  }
+  else if (_displayCLD.type_infor == eCalibrating)
+  {
+    _sensor6035.setStepeSensorcalib();
+  }
+  else if (_displayCLD.type_infor == eSetPowerLed)
+  {
+    _displayCLD.index++;
+    if (_displayCLD.index > 2)
     {
-        _displayCLD.type_infor = epreheating80;
-        _displayCLD.changeScreen = true;
-        _displayCLD.bheadershow = true;
-        _PIDControl.setpid1startpreHeat80();
-        dbg_button("green button - start heating to 80");
+      _displayCLD.index = 0;
     }
-    else if (_displayCLD.type_infor == ewaitphase2)
-    {
-        _displayCLD.type_infor = epreheating67;
-        _displayCLD.bheadershow = true;
-        _displayCLD.changeScreen = true;
-        _PIDControl.setPreheat67();
-        _sensor6035.setStepeSensorpreheat();
-        dbg_button("green button - start heating to 67");
-    }
-    else if (_displayCLD.type_infor == epreheating67)
-    {
-        _sensor6035.skip2Maintain();
-        dbg_button("green button - skip opto preheat");
-    }
-    else if (_displayCLD.type_infor == eSettingMenu)
-    {
-        _displayCLD.type_infor = eSettingWifi;
-        _displayCLD.changeScreen = true;
-    }
-    else if (_displayCLD.type_infor == eSelectAmpli)
-    {
-        _displayCLD.type_infor = eSelectSlot;
-        _displayCLD.changeScreen = true;
-    }
-    else if (_displayCLD.type_infor == eSelectSlot)
-    {
-        _displayCLD.type_infor = eSelectMode;
-        _displayCLD.changeScreen = true;
-    }
-    else if (_displayCLD.type_infor == eSelectMode)
-    {
-        _displayCLD.type_infor = eCalibrating;
-        _displayCLD.changeScreen = true;
-    }
-    else if (_displayCLD.type_infor == eCalibrating)
-    {
-        _sensor6035.setStepeSensorcalib();
-    }
-    else if (_displayCLD.type_infor == eSetPowerLed)
-    {
-        _displayCLD.index++;
-        if (_displayCLD.index > 2)
-        {
-            _displayCLD.index = 0;
-        }
-        _displayCLD.type_infor = eSetPowerLed;
-        _displayCLD.changeScreen = true;
-    }
-    else if (_displayCLD.type_infor == eCalibComplete && !(_displayCLD.flag_calib_done))
-    {
-        _displayCLD.type_infor = eCalibrating;
-        _displayCLD.changeScreen = true;
-    }
-    else if (_displayCLD.type_infor == eSavePowerLed)
-    {
-        _displayCLD.type_infor = eSelectSlot;
-        _displayCLD.changeScreen = true;
-    }
-    else if (_displayCLD.type_infor == eSaveCalib)
-    {
-        _displayCLD.type_infor = eSelectSlot;
-        _displayCLD.changeScreen = true;
-        _displayCLD.flag_calib_done = false;
-    }
-    else if (_displayCLD.type_infor == eUpdateOTA)
-    {
-        // User dismissed the update prompt — don't re-prompt until reboot.
-        otaState = OTA_DISMISSED;
-        _displayCLD.type_infor = escreenStart;
-        _displayCLD.changeScreen = true;
-    }
+    _displayCLD.type_infor = eSetPowerLed;
+    _displayCLD.changeScreen = true;
+  }
+  else if (_displayCLD.type_infor == eCalibComplete && !(_displayCLD.flag_calib_done))
+  {
+    _displayCLD.type_infor = eCalibrating;
+    _displayCLD.changeScreen = true;
+  }
+  else if (_displayCLD.type_infor == eSavePowerLed)
+  {
+    _displayCLD.type_infor = eSelectSlot;
+    _displayCLD.changeScreen = true;
+  }
+  else if (_displayCLD.type_infor == eSaveCalib)
+  {
+    _displayCLD.type_infor = eSelectSlot;
+    _displayCLD.changeScreen = true;
+    _displayCLD.flag_calib_done = false;
+  }
+  else if (_displayCLD.type_infor == eUpdateOTA)
+  {
+    // User dismissed the update prompt — don't re-prompt until reboot.
+    otaState = OTA_DISMISSED;
+    _displayCLD.type_infor = escreenStart;
+    _displayCLD.changeScreen = true;
+  }
 }
-
 
 // ----------------------------------------------------------------
 // WHITE short press — original: case B_WHITE in buttonProcess()
 // ----------------------------------------------------------------
 void buttonManager::handleShortPress_White()
 {
-    if (_displayCLD.FinishStatus())
-    {
-        _displayCLD.type_infor = escreenRestart;
-        _displayCLD.changeScreen = true;
-        return;
-    }
-    if (_displayCLD.ErrorStatus())
-    {
-        return;
-    }
-    if (_displayCLD.type_infor == eSettingMenu)
-    {
-        _displayCLD.type_infor = eSettingBluetooth;
-        _displayCLD.changeScreen = true;
-        return;
-    }
-    if (_displayCLD.type_infor == eSetPowerLed)
-    {
-        _displayCLD.type_infor = eSavePowerLed;
-        _displayCLD.changeScreen = true;
-        return;
-    }
-    if (_displayCLD.type_infor == eSelectMode)
-    {
-        _displayCLD.type_infor = eSelectSlot;
-        _displayCLD.changeScreen = true;
-        return;
-    }
-    if (_displayCLD.type_infor == eSelectSlot)
-    {
-        ESP.restart();
-    }
-    if (_displayCLD.type_infor == escreenStart)
-    {
-        return; // Already at start screen
-    }
-
-    _displayCLD.type_infor = ebuttonrestart;
+  if (_displayCLD.FinishStatus())
+  {
+    _displayCLD.type_infor = escreenRestart;
     _displayCLD.changeScreen = true;
-}
+    return;
+  }
+  if (_displayCLD.ErrorStatus())
+  {
+    return;
+  }
+  if (_displayCLD.type_infor == eSettingMenu)
+  {
+    _displayCLD.type_infor = eSettingBluetooth;
+    _displayCLD.changeScreen = true;
+    return;
+  }
+  if (_displayCLD.type_infor == eSetPowerLed)
+  {
+    _displayCLD.type_infor = eSavePowerLed;
+    _displayCLD.changeScreen = true;
+    return;
+  }
+  if (_displayCLD.type_infor == eSelectMode)
+  {
+    _displayCLD.type_infor = eSelectSlot;
+    _displayCLD.changeScreen = true;
+    return;
+  }
+  if (_displayCLD.type_infor == eSelectSlot)
+  {
+    ESP.restart();
+  }
+  if (_displayCLD.type_infor == escreenStart)
+  {
+    return; // Already at start screen
+  }
 
+  _displayCLD.type_infor = ebuttonrestart;
+  _displayCLD.changeScreen = true;
+}
 
 // ================================================================
 // LONG-PRESS handlers
@@ -943,9 +550,9 @@ void buttonManager::handleShortPress_White()
 // ----------------------------------------------------------------
 void buttonManager::handleLongPress_Red()
 {
-    _displayCLD.type_infor = eSettingMenu;
-    _displayCLD.changeScreen = true;
-    dbg_button("Red long-press - setting");
+  _displayCLD.type_infor = eSettingMenu;
+  _displayCLD.changeScreen = true;
+  dbg_button("Red long-press - setting");
 }
 
 // ----------------------------------------------------------------
@@ -954,10 +561,10 @@ void buttonManager::handleLongPress_Red()
 // ----------------------------------------------------------------
 void buttonManager::handleLongPress_Blue()
 {
-    _sensor6035.setStepeSensorwait();
-    _displayCLD.type_infor = eSelectAmpli;
-    _displayCLD.changeScreen = true;
-    info_display("Blue long-press - calibrating");
+  _sensor6035.setStepeSensorwait();
+  _displayCLD.type_infor = eSelectAmpli;
+  _displayCLD.changeScreen = true;
+  info_display("Blue long-press - calibrating");
 }
 
 // ----------------------------------------------------------------
@@ -966,7 +573,7 @@ void buttonManager::handleLongPress_Blue()
 // ----------------------------------------------------------------
 void buttonManager::handleLongPress_White()
 {
-    _displayCLD.changeScreen = true;
-    _displayCLD.type_infor = escreenReview;
-    dbg_button("White long-press - review");
+  _displayCLD.changeScreen = true;
+  _displayCLD.type_infor = escreenReview;
+  dbg_button("White long-press - review");
 }

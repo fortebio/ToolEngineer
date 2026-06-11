@@ -140,12 +140,14 @@ void paraDisplay(parastructure para)
 
   JsonArray pid1 = paradata.createNestedArray("PID parameter");
   JsonArray pid2 = paradata.createNestedArray("PID2 parameter");
+  JsonArray pid3 = paradata.createNestedArray("PID3 parameter");
   JsonArray bottomOverheat = paradata.createNestedArray("Bottom overheat value");
   JsonArray topOverheat = paradata.createNestedArray("Top overheat value");
   for (int i = 0; i < 3; i++)
   {
     pid1.add(para.kpid[i]);
     pid2.add(para.kpid2[i]);
+    pid3.add(para.kpid3[i]);
     bottomOverheat.add(para.bottomOverheat[i]);
   }
 
@@ -160,23 +162,23 @@ void paraDisplay(parastructure para)
     temperatureOffset.add(para.temperatureOffset[i]);
   }
 
-  JsonArray hotlidPWM = paradata.createNestedArray("top heater PWM");
-  for (int i = 0; i < 2; i++)
-  {
-    JsonArray row = hotlidPWM.createNestedArray();
-    for (int j = 0; j < 2; j++)
-    {
-      row.add(para.hotlidPWM[i][j]);
-    }
-  }
+  // JsonArray hotlidPWM = paradata.createNestedArray("top heater PWM");
+  // for (int i = 0; i < 2; i++)
+  // {
+  //   JsonArray row = hotlidPWM.createNestedArray();
+  //   for (int j = 0; j < 2; j++)
+  //   {
+  //     row.add(para.hotlidPWM[i][j]);
+  //   }
+  // }
   paradata["buzzer"] = para.buzzerOn ? "On" : "Off";
   paradata["kitId"] = para.kitId;
 
-  JsonArray empty = paradata.createNestedArray("empty");
-  for (uint8_t i = 0; i < 5; i++)
-  {
-    empty.add(para.empty[i]);
-  }
+  // JsonArray empty = paradata.createNestedArray("empty");
+  // for (uint8_t i = 0; i < empty.size(); i++)
+  // {
+  //   empty.add(para.empty[i]);
+  // }
 
   // Output metadata
   String output;
@@ -506,7 +508,7 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
   // setInsecure() skips cert chain validation -> smaller mbedTLS allocation.
   WiFiClientSecure client;
   client.setInsecure();
-  client.setTimeout(60);   // socket-level timeout in seconds (Arduino-ESP32 WiFiClient API)
+  client.setTimeout(60); // socket-level timeout in seconds (Arduino-ESP32 WiFiClient API)
   client.setHandshakeTimeout(30);
 
   HTTPClient http;
@@ -538,7 +540,7 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
 
   // 2xx = direct success; 302 from GAS = script accepted and processed the data.
   bool ok = (httpResponseCode >= 200 && httpResponseCode < 300) ||
-            (httpResponseCode == HTTP_CODE_FOUND);   // 302
+            (httpResponseCode == HTTP_CODE_FOUND); // 302
   if (ok)
   {
     Serial.printf("POST OK in %u ms, code=%d\n", dt, httpResponseCode);

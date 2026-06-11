@@ -26,12 +26,12 @@
 //                                                 └─ user BLUE on eUpdateOTA ─► OTA_DISMISSED (no re-prompt this boot)
 enum OtaState : uint8_t
 {
-    OTA_IDLE = 0,        // no update available / nothing pending
-    OTA_AVAILABLE,       // newer firmware found, prompt awaiting user
-    OTA_USER_ACCEPTED,   // user pressed RED, NetworkTask should start download
-    OTA_UPDATING,        // download in progress (re-entry guard)
-    OTA_FAILED,          // download/install failed; user can retry from menu
-    OTA_DISMISSED        // user dismissed the prompt; do not re-prompt this boot
+    OTA_IDLE = 0,      // no update available / nothing pending
+    OTA_AVAILABLE,     // newer firmware found, prompt awaiting user
+    OTA_USER_ACCEPTED, // user pressed RED, NetworkTask should start download
+    OTA_UPDATING,      // download in progress (re-entry guard)
+    OTA_FAILED,        // download/install failed; user can retry from menu
+    OTA_DISMISSED      // user dismissed the prompt; do not re-prompt this boot
 };
 
 void checkFirmware(void);

@@ -5,7 +5,6 @@ int fwVersion = 0;
 volatile OtaState otaState = OTA_IDLE;
 String fwUrl = "", fwName = "", fwVer = "", fwCont = "";
 String baseUrl = "https://raw.githubusercontent.com/wuanpham/FBTRapidplusOTA/" + FirmwareVer + "/";
-//String baseUrl = "https://raw.githubusercontent.com/wuanpham/FBTRapidplusOTA/v2.3.6/";
 String checkFile = "updateOTA.json";
 
 void checkFirmware()
@@ -46,6 +45,7 @@ void checkFirmware()
             info_displayln("You have the lasted version");
             otaState = OTA_IDLE;
         }
+        http.end();
     }
     http.end();
 }
@@ -69,9 +69,8 @@ void updateFirmware(void)
         return;
     }
 
-    otaState = OTA_UPDATING;            // claim the slot so next tick won't re-enter
+    otaState = OTA_UPDATING; // claim the slot so next tick won't re-enter
     _displayCLD.waittingUpdate();
-
     WiFiClientSecure client;
     client.setInsecure();
     t_httpUpdate_return ret = httpUpdate.update(client, fwUrl);
@@ -80,15 +79,14 @@ void updateFirmware(void)
     {
     case HTTP_UPDATE_OK:
         Serial.println("HTTP_UPDATE_OK");
-        ESP.restart();                  // boot into new firmware — only path that restarts
-        return;                         // unreachable, but keep flow explicit
+        ESP.restart(); // boot into new firmware — only path that restarts
+        return;        // unreachable, but keep flow explicit
 
     case HTTP_UPDATE_FAILED:
         Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n",
                       httpUpdate.getLastError(),
                       httpUpdate.getLastErrorString().c_str());
         break;
-
     case HTTP_UPDATE_NO_UPDATES:
         Serial.println("HTTP_UPDATE_NO_UPDATES");
         break;

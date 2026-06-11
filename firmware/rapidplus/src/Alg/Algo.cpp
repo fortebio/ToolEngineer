@@ -224,6 +224,23 @@ double mean_slope(std::vector<double> &_array, size_t start, size_t window)
         sum += (_array[i + 1] - _array[i]);
     return sum / (window - 1);
 }
+// Biên độ dao động (max - min) của 'window' điểm bắt đầu tại 'start'.
+// Dùng để phân biệt noise pre-window (range lớn) khỏi baseline ổn định (range nhỏ).
+double range_of(std::vector<double> &_array, size_t start, size_t window)
+{
+    if (start + window > _array.size())
+        return 0.0;
+    double mn = _array[start];
+    double mx = _array[start];
+    for (size_t i = start; i < start + window; i++)
+    {
+        if (_array[i] < mn)
+            mn = _array[i];
+        if (_array[i] > mx)
+            mx = _array[i];
+    }
+    return mx - mn;
+}
 
 bool checkJump(std::vector<double> &_array, double crossing, size_t index)
 {
@@ -232,10 +249,14 @@ bool checkJump(std::vector<double> &_array, double crossing, size_t index)
         return false;
     }
     double jump = _array[index + 1] - _array[index];
-    // printf("_array[%d]: %0.3f\t_array[%d]: %0.3f\t", index, _array[index], index+1, _array[index+1]);
-    // printf("Jump: %0.3f\n", jump);
     if (jump < crossing)
         return false;
+
+    // GUARD MỚI: jump phải vượt trội so với biên độ pre-window (8 điểm trước, x2.5)
+    double pre_range = range_of(_array, index - 7, 8);
+    if (jump < pre_range * 2.5)
+        return false;
+
     double slope = mean_slope(_array, index, 6);
     if (fabs(slope) > 1.0)
         return false;
@@ -245,6 +266,26 @@ bool checkJump(std::vector<double> &_array, double crossing, size_t index)
 
     return true;
 }
+// bool checkJump(std::vector<double> &_array, double crossing, size_t index)
+// {
+//     if ((index < 4) || ((index + 6) >= _array.size()))
+//     {
+//         return false;
+//     }
+//     double jump = _array[index + 1] - _array[index];
+//     // printf("_array[%d]: %0.3f\t_array[%d]: %0.3f\t", index, _array[index], index+1, _array[index+1]);
+//     // printf("Jump: %0.3f\n", jump);
+//     if (jump < crossing)
+//         return false;
+//     double slope = mean_slope(_array, index, 6);
+//     if (fabs(slope) > 1.0)
+//         return false;
+//     int total_rise = _array[index + 6] - _array[index + 1];
+//     if (total_rise > crossing)
+//         return false;
+
+//     return true;
+// }
 
 bool is_rising_trend(const std::vector<double> &data,
                      int start,

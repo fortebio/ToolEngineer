@@ -253,26 +253,25 @@ struct parastructure
   uint8_t amplification_time = 120; // quantity to measure during the amplification, "amplification_time"
 
   // heater configuration
-  float lysisTemp = 82.0;                     //"lysis temperature"
-  float amplifTemp = 65.8;                    //"amplification temperature"
-  uint8_t bottomTemperatureSensorSq[3] = {0}; // bottom sensor 1, 2, 3. to be zero by default, need to calibrate it.
-  uint8_t topTemperatureSensorSq[3] = {0};    // hotlid sensor 1, 2, 3, ambient sensor. to be zero by default, need
-                                              // to calibrate it.
-  // double kpid[3] = {40, 1, 20};                   // PID parameter for bottom heater1(Lysis)
-  double kpid[3] = {30, 0.05, 30}; // PID parameter for bottom heater1(Lysis)
-  double kpid2[3] = {60, 0.1, 40}; // PID parameter for bottom heater2&3(Amplification)
-  // double kpid2[3] = {35, 0.1, 40};                // PID parameter for bottom heater2&3(Amplification)
-  double bottomOverheat[3] = {5, 5, 5}; // overheat value of bottom heater,
-                                        // underheater value is negative of overheat
-  double topOverheat[2] = {20, 20};     // overheat value of top heater
-  float temperatureOffset[6] = {0};     // temperature offset of bottom sensor 1, 2, 3, hotlid sensor 1, 2, 3,
-                                        // ambient sensor, the usage is reading temperature + this value ->
-                                        // output temperature
-  // uint8_t hotlidPWM[2][2] = {{40, 90}, {40, 90}}; // PWM low and high value for hotlid
+  float lysisTemp = 82.0;                           //"lysis temperature"
+  float amplifTemp = 65.8;                          //"amplification temperature"
+  uint8_t bottomTemperatureSensorSq[3] = {0};       // bottom sensor 1, 2, 3. to be zero by default, need to calibrate it.
+  uint8_t topTemperatureSensorSq[3] = {0};          // hotlid sensor 1, 2, 3, ambient sensor. to be zero by default, need
+                                                    // to calibrate it.
+  double kpid[3] = {30, 0.05, 30};                  // PID parameter for bottom heater1(Lysis)
+  double kpid2[3] = {60, 0.1, 40};                  // PID parameter for bottom heater2&3(Amplification)
+  double bottomOverheat[3] = {5, 5, 5};             // overheat value of bottom heater,
+                                                    // underheater value is negative of overheat
+  double topOverheat[2] = {20, 20};                 // overheat value of top heater
+  float temperatureOffset[6] = {0};                 // temperature offset of bottom sensor 1, 2, 3, hotlid sensor 1, 2, 3,
+                                                    // ambient sensor, the usage is reading temperature + this value ->
+                                                    // output temperature
   uint8_t hotlidPWM[2][2] = {{40, 100}, {40, 100}}; // PWM low and high value for hotlid
-  uint8_t buzzerOn = 1;                             // on/off status, on is 1 while off is 0. "buzzer" "On"
-  double kitId = 0.0;                               // lưu thông tin kid test
-  double empty[5] = {0.0};                          // nở vùng dữ liệu để dự phòng
+
+  uint8_t buzzerOn = 1;            // on/off status, on is 1 while off is 0. "buzzer" "On"
+  double kitId = 0.0;              // lưu thông tin kid test
+  double kpid3[3] = {60, 0.1, 40}; // PID parameter for Top Hotlibd2&3(Amplification)
+  double empty[2] = {0.0};         // nở vùng dữ liệu để dự phòng
 };
 
 #define cDebug (0)
@@ -315,23 +314,20 @@ extern volatile bool gBtReleased;
 
 // below macro function can support the data print via both of serial port and
 // BLE
-#define info_displayf(...)            \
-  {                                   \
-    DEBUG_COM.printf(__VA_ARGS__);    \
-    if (!gBtReleased)                 \
-      SerialBT.printf(__VA_ARGS__);   \
+#define info_displayf(...)         \
+  {                                \
+    DEBUG_COM.printf(__VA_ARGS__); \
+    SerialBT.printf(__VA_ARGS__);  \
   }
-#define info_displayln(...)           \
-  {                                   \
-    DEBUG_COM.println(__VA_ARGS__);   \
-    if (!gBtReleased)                 \
-      SerialBT.println(__VA_ARGS__);  \
+#define info_displayln(...)         \
+  {                                 \
+    DEBUG_COM.println(__VA_ARGS__); \
+    SerialBT.println(__VA_ARGS__);  \
   }
-#define info_display(...)             \
-  {                                   \
-    DEBUG_COM.print(__VA_ARGS__);     \
-    if (!gBtReleased)                 \
-      SerialBT.print(__VA_ARGS__);    \
+#define info_display(...)         \
+  {                               \
+    DEBUG_COM.print(__VA_ARGS__); \
+    SerialBT.print(__VA_ARGS__);  \
   }
 
 // GPIO used for LCD
@@ -464,7 +460,7 @@ extern volatile bool gBtReleased;
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "v2.4.1"; // add function calib
+static String FirmwareVer = "v2.4.2"; // add function calib
 
 extern SemaphoreHandle_t gI2CMutex;
 extern SemaphoreHandle_t gSPIMutex;

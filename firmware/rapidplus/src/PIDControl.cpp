@@ -26,8 +26,11 @@ void PIDControl::begin()
     double Ki = _ForteSetting.parameter.kpid[1];    // 0.1
     double Kd = _ForteSetting.parameter.kpid[2];    // 30
     double Kp_2 = _ForteSetting.parameter.kpid2[0]; // 25
-    double Ki_2 = _ForteSetting.parameter.kpid2[1]; // 0.1
-    double Kd_2 = _ForteSetting.parameter.kpid2[2]; // 30
+    double Ki_2 = _ForteSetting.parameter.kpid2[1]; // 0.
+    double Kd_2 = _ForteSetting.parameter.kpid2[2]; // 3
+    double Kp_3 = _ForteSetting.parameter.kpid3[0]; // top hotlid2&3
+    double Ki_3 = _ForteSetting.parameter.kpid3[1];
+    double Kd_3 = _ForteSetting.parameter.kpid3[2];
 
     if (_ForteSetting.parameter.buzzerOn == 2)
     {
@@ -37,10 +40,15 @@ void PIDControl::begin()
     myPID = new PID(&CURRENT_TEMP_PID, &RESPONSE_SIGNAL, &TARGET_TEMP, Kp, Ki, Kd, DIRECT);
     myPID2 = new PID(&CURRENT_TEMP_PID, &RESPONSE_SIGNAL, &TARGET_TEMP, Kp_2, Ki_2, Kd_2, DIRECT);
     myPID3 = new PID(&CURRENT_TEMP_PID, &RESPONSE_SIGNAL, &TARGET_TEMP, Kp_2, Ki_2, Kd_2, DIRECT);
+    // Top hotlid2&3 now use PID instead of fixed PWM, share the same in/out/setpoint variables
+    myPIDhotlid2 = new PID(&CURRENT_TEMP_PID, &RESPONSE_SIGNAL, &TARGET_TEMP, Kp_3, Ki_3, Kd_3, DIRECT);
+    myPIDhotlid3 = new PID(&CURRENT_TEMP_PID, &RESPONSE_SIGNAL, &TARGET_TEMP, Kp_3, Ki_3, Kd_3, DIRECT);
 
     myPID->SetMode(AUTOMATIC);
     myPID2->SetMode(AUTOMATIC);
     myPID3->SetMode(AUTOMATIC);
+    myPIDhotlid2->SetMode(AUTOMATIC);
+    myPIDhotlid3->SetMode(AUTOMATIC);
 
     // Heater1
     pinMode(HEATER1IO, OUTPUT);
@@ -53,10 +61,6 @@ void PIDControl::begin()
     // Heater3
     pinMode(HEATER3IO, OUTPUT);
     analogWrite(HEATER3IO, PWM_OFF);
-
-    // //Hotlid1
-    // pinMode(HOTLID1IO, OUTPUT);
-    // analogWrite(HOTLID1IO, PWM_OFF);
 
     // Hotlid23, PCB V1.2
     pinMode(HOTLID23IO, OUTPUT);
@@ -71,7 +75,7 @@ void PIDControl::begin()
     _bottomThermometer.begin();
     _topThermometer.begin();
 
-    info_displayf("The PID para is\nP:%.4g I:%.4g D:%.4g.\nP2:%.4g I2:%.4g D2:%.4g. \n", Kp, Ki, Kd, Kp_2, Ki_2, Kd_2);
+    info_displayf("The PID para is\nP:%.4g I:%.4g D:%.4g.\nP2:%.4g I2:%.4g D2:%.4g.\nP3:%.4g I3:%.4g D3:%.4g. \n", Kp, Ki, Kd, Kp_2, Ki_2, Kd_2, Kp_3, Ki_3, Kd_3);
 
     sensorSeq();
 }
@@ -89,11 +93,12 @@ void PIDControl::loop()
             _bottomThermometer.begin();
             _displayCLD.ErrorProcess("No data from\n bottom sensor", "5sec");
             info_displayln("No data from bottom sensor for 5~10sec");
+            _PIDControl.rerun();
             for (uint8_t i = 0; i < HEATBLKQUANTITY; i++)
             {
                 error.addError(errorHeaterSensor, errorHeaterWrongData, pidStep, i);
             }
-            _PIDControl.rerun();
+            error.saveErrorToEEPROM();
         }
         return;
     }
@@ -107,12 +112,12 @@ void PIDControl::loop()
             _bottomThermometer.begin();
             _displayCLD.ErrorProcess("Not all data from\n bottom sensors", "5sec");
             info_displayln("Not all data from bottom sensors for 5~10sec");
+            _PIDControl.rerun();
             for (uint8_t i = 0; i < HEATBLKQUANTITY; i++)
             {
                 error.addError(errorHeaterSensor, errorHeaterWrongData, pidStep, i);
             }
-            // _ForteSetting.rerun();
-            // _PIDControl.rerun();
+            error.saveErrorToEEPROM();
         }
         return;
     }
@@ -125,8 +130,9 @@ void PIDControl::loop()
             stopAllHeating();
             _displayCLD.ErrorProcess("Heater" + String(i + 1) + " is too hot", String(bottomTemperature[i]));
             info_displayf("Heater%d is too hot. T %.4g\n", i + 1, bottomTemperature[i]);
+            _PIDControl.rerun();
             error.addError(errorHeaterSensor, errorOverheat, pidStep, i);
-            // _PIDControl.rerun();
+            error.saveErrorToEEPROM();
             return;
         }
         if (bottomTemperature[i] == -127.0 + _ForteSetting.parameter.temperatureOffset[i])
@@ -136,8 +142,9 @@ void PIDControl::loop()
                 _bottomThermometer.begin();
                 _displayCLD.ErrorProcess("Wrong data from\n bottom sensor", "5sec");
                 info_displayln("Wrong data from bottom sensor for 5~10sec");
-                error.addError(errorHeaterSensor, errorHeaterWrongData, pidStep, i);
                 _PIDControl.rerun();
+                error.addError(errorHeaterSensor, errorHeaterWrongData, pidStep, i);
+                error.saveErrorToEEPROM();
             }
             info_displayln("Bottom heater is disconnected");
             info_displayf("\nbottom heater: %.4g:%.4g:%.4g\n", bottomTemperature[0], bottomTemperature[1], bottomTemperature[2]);
@@ -156,12 +163,12 @@ void PIDControl::loop()
             _topThermometer.begin();
             _displayCLD.ErrorProcess("No data from\n top sensor", "5sec");
             info_displayln("No data from top sensor for 5~10sec");
+            _PIDControl.rerun();
             for (uint8_t i = 0; i < HOTLIDQUANTITY; i++)
             {
                 error.addError(errorHeaterSensor, errorHeaterWrongData, pidStep, i + HEATBLKQUANTITY);
             }
-            // _PIDControl.rerunPIDTop();
-            _PIDControl.rerun();
+            error.saveErrorToEEPROM();
         }
         return;
     }
@@ -176,8 +183,12 @@ void PIDControl::loop()
             _topThermometer.begin();
             _displayCLD.ErrorProcess("No data from\n top sensor", "5sec");
             info_displayln("No all data from top sensor for 5~10sec");
-            // _PIDControl.rerunPIDTop();
             _PIDControl.rerun();
+            for (uint8_t i = 0; i < HOTLIDQUANTITY; i++)
+            {
+                error.addError(errorHeaterSensor, errorHeaterWrongData, pidStep, i + HEATBLKQUANTITY);
+            }
+            error.saveErrorToEEPROM();
         }
         return;
     }
@@ -200,11 +211,11 @@ void PIDControl::loop()
                 _displayCLD.ErrorProcess("Ambient is too hot", String(HotlidTemperature[i]));
                 info_displayf("Ambient is too hot. T: %.4g\n", HotlidTemperature[i])
             }
-            // _PIDControl.rerunPIDTop();
             _PIDControl.rerun();
+            error.addError(errorHeaterSensor, errorOverheat, pidStep, i + HEATBLKQUANTITY);
+            error.saveErrorToEEPROM();
             return;
         }
-
         if (HotlidTemperature[i] == -127.0 + _ForteSetting.parameter.temperatureOffset[i + 3])
         {
             HotlidTemperature[i] = 0.0;
@@ -214,7 +225,8 @@ void PIDControl::loop()
                 _displayCLD.ErrorProcess("Wrong data from\n top sensor", "5sec");
                 info_displayln("Wrong data from top sensor for 5~10sec");
                 _PIDControl.rerun();
-                // _PIDControl.rerunPIDTop();
+                error.addError(errorHeaterSensor, errorHeaterWrongData, pidStep, i + HEATBLKQUANTITY);
+                error.saveErrorToEEPROM();
             }
             info_displayln("Top heater is disconnected");
             info_displayf("\nTop heater: %.4g:%.4g:%.4g\n", HotlidTemperature[0], HotlidTemperature[1], HotlidTemperature[2]);
@@ -242,8 +254,7 @@ void PIDControl::loop()
     {
     case epidready: // get ready, do nothing until user start the testing by press green button
     {
-        //     Preheat2_67();
-        //     Preheat3_67();
+        stopAllHeating();
         break;
     }
     case epid1startpreHeat80:
@@ -256,19 +267,11 @@ void PIDControl::loop()
         Heat1Preheat80();
         break;
     }
-        // case epid1hotlid:
-        //     pid1Maintain80(); // maintain the heater1 to be 80 degree when heat up hotlid
-        //     // HeatHotlid1();
     case epid1ready: // pid1 is ready, wait user to put lysis tube, continue at maintain 80
     {
         pid1Maintain80();
         break;
     }
-        // MaintainHotlid1();
-    // case epid1maintain80:       //maintain, but no need change status, previous one should be enough
-    //     pid1Maintain80();
-    //     MaintainHotlid1();
-    //     break;
     case epid2startpreHeat67:
     {
         StartPreheat2_67();
@@ -318,17 +321,22 @@ void PIDControl::rerun()
     // clear the Isum in the PID
     double Ki = _ForteSetting.parameter.kpid[1];    // 0.1
     double Ki_2 = _ForteSetting.parameter.kpid2[1]; // 0.1
+    double Ki_3 = _ForteSetting.parameter.kpid3[1]; // top hotlid2&3
     CURRENT_TEMP_PID = TARGET_TEMP + 255 * 10 / Ki;
     myPID->Compute();
     CURRENT_TEMP_PID = TARGET_TEMP + 255 * 10 / Ki_2;
     myPID2->Compute();
     myPID3->Compute();
+    CURRENT_TEMP_PID = TARGET_TEMP + 255 * 10 / Ki_3;
+    myPIDhotlid2->Compute();
+    myPIDhotlid3->Compute();
     delay(120);
     CURRENT_TEMP_PID = TARGET_TEMP;
     myPID->Compute();
-    CURRENT_TEMP_PID = TARGET_TEMP;
     myPID2->Compute();
     myPID3->Compute();
+    myPIDhotlid2->Compute();
+    myPIDhotlid3->Compute();
     pidStep = epidready;
 }
 
@@ -356,6 +364,15 @@ void PIDControl::rerunPIDTop(void)
 {
     stopHeaterTop();
     delay(110);
+    // clear the Isum in the top hotlid PID
+    double Ki_3 = _ForteSetting.parameter.kpid3[1];
+    CURRENT_TEMP_PID = TARGET_TEMP + 255 * 10 / Ki_3;
+    myPIDhotlid2->Compute();
+    myPIDhotlid3->Compute();
+    delay(120);
+    CURRENT_TEMP_PID = TARGET_TEMP;
+    myPIDhotlid2->Compute();
+    myPIDhotlid3->Compute();
 }
 
 void PIDControl::sensorSeq()
@@ -394,7 +411,6 @@ void PIDControl::sensorSeq()
         {
             _bottomThermometer.begin();
             _displayCLD.ErrorProcess("Bottom sensors\n connect error", String(_bottomThermometer.getTempSensorQuantity()));
-            // _displayCLD.type_infor = escreenStart;
             _PIDControl.rerun();
             return;
         }
@@ -476,11 +492,7 @@ void PIDControl::sensorSeq()
     {
         // process bottom first
         uint8_t topHeaterPin[2] = {HOTLID2IO, HOTLID3IO};
-        // if (strcmp(_ForteSetting.parameter.PCB_version, "V1.3") < 0) // if it's old PCB version
-        // {
-        //     topHeaterPin[1] = HOTLID23IO;
-        //     topHeaterPin[2] = HOTLID23IO;
-        // }
+
         _displayCLD.TemperatureTopSeqDisplay();
 
         // step 1. Read all temperature
@@ -620,10 +632,6 @@ void PIDControl::heatSimulation(int type)
     {
         bheater3Simu = true;
     }
-    // if (type & 0x08)
-    // {
-    //     bhotlid1Simu = true;
-    // }
     if (type & 0x10)
     {
         bhotlid23Simu = true;
@@ -665,14 +673,6 @@ double *PIDControl::getHotlidTemperature()
     return HotlidTemperature;
 }
 
-// no use
-//  void PIDControl::setpid1preheat80()
-//  {
-//      //change the step to start the preheating after read the temperature
-//      pidStep = epid1preheat80;
-
-// }
-
 // prepare before heating to 80, to make sure it's not over heat
 void PIDControl::setpid1startpreHeat80()
 {
@@ -693,11 +693,6 @@ void PIDControl::StartPreheat80()
     }
     else // temperature is lower than target, start heating now and change to next step to preheat to 67
     {
-        //     myPID->Compute();
-        //     RESPONSE_SIGNAL = RESPONSE_SIGNAL *1.0;
-
-        // // info_displayf("temp:%f,pwm1 %f:%d\n", CURRENT_TEMP_PID, RESPONSE_SIGNAL, (int)RESPONSE_SIGNAL);
-        //     analogWrite(HEATER1IO, (int)RESPONSE_SIGNAL);
         START_INTERVAL_TIME = millis(); // record the start time to heating
         // record the start time for PID adjustment as the input for the PID calculation
         TARGET_TEMP = LYSIS_TEMP;
@@ -717,8 +712,6 @@ void PIDControl::Heat1Preheat80()
         stopAllHeating();
     }
     CURRENT_TEMP_PID = bottomTemperature[0]; // temperatureOffset;
-
-    // START_INTERVAL_TIME = millis();
 
     if (CURRENT_TEMP_PID < TARGET_TEMP - DELTA_FULLPWM)
     {
@@ -756,31 +749,12 @@ void PIDControl::Heat1Preheat80()
         myPID->Compute();
         RESPONSE_SIGNAL = RESPONSE_SIGNAL * 1.0;
         analogWrite(HEATER1IO, (int)RESPONSE_SIGNAL);
-        // pidStep = epid1hotlid; ///////////////////////
         pidStep = epid1ready;
         _displayCLD.type_infor = ewaitLysisTube;
         _displayCLD.changeScreen = true;
 
         _buzzer.BuzzerAlert();
 
-        // // info_display("Temperature (C): ");
-        // info_display("Temperature (C): ");
-        // info_displayln(CURRENT_TEMP_PID);
-        // // info_displayln(HotlidTemperature[0]);
-
-        // // Print Phase 1 PID end message
-        // info_displayln("=================================================================");
-        // info_displayln("End of hotlid1 heat.");
-
-        // // Print time taken
-        // info_display("Total time taken: ");
-        // info_display((millis() - START_INTERVAL_TIME) / 60000);
-        // info_displayln(" minutes");
-        // info_displayln("Wait button");
-        // info_displayln("=================================================================");
-        // START_INTERVAL_TIME = millis();     //record time for hotlid heat up
-        // // // _displayCLD.type_infor = ewaitLysisTube;//eprepare;     //display
-        // // // _displayCLD.changeScreen = true;
         info_display("Temperature (C): ");
         info_displayln(CURRENT_TEMP_PID);
 
@@ -798,55 +772,6 @@ void PIDControl::Heat1Preheat80()
     }
 }
 
-// void PIDControl::HeatHotlid1()
-// {
-//     if (!_topThermometer.getNewTemperatureFlag()) // if new temperature is not ready, then return directly.
-//     {
-//         return;
-//     }
-//     _topThermometer.clearNewTemperatureFlag(); // this may need to be clear after the process?
-//     if (bhotlid1Simu)
-//     {
-//         temperatureSimulation(HotlidTemperature, 0, HOTLID1_TEMP);
-//         stopAllHeating();
-//     }
-//     if (HotlidTemperature[0] < HOTLID1_TEMP) // Turn on when tempeature is lower than 90
-//     {
-//         analogWrite(HOTLID1IO, PWM_FULL); // switch on hotlid1
-//         info_displayf("\nTimePT1\t%.2f\tTopHeater1\tHeating\tTemperature\t%.4g\tTarget\t%.4g\tPWM\t255\n", millis() / 1000.0, HotlidTemperature[0], HOTLID1_TEMP);
-//         return;
-//     }
-//     else if (HotlidTemperature[0] > HOTLID1_TEMP + 20) // Turn off when temperature is higher than 100
-//     {
-//         analogWrite(HOTLID1IO, PWM_OFF); // switch off hotlid1
-//         info_displayf("\nTimePT1\t%.2f\tTopHeater1\tHeating\tTemperature\t%.4g\tTarget: %.4g\tPWM\t0\n", millis() / 1000.0, HotlidTemperature[0], HOTLID1_TEMP);
-//     }
-//     else
-//     {
-//         analogWrite(HOTLID1IO, TOPHEATER1PWMHIGH);
-//         pidStep = epid1ready;
-//         _displayCLD.type_infor = ewaitLysisTube;
-//         _displayCLD.changeScreen = true;
-
-//         _buzzer.BuzzerAlert();
-
-//         info_display("Temperature (C): ");
-//         info_displayln(HotlidTemperature[0]);
-
-//         // Print Phase 1 PID end message
-//         info_displayln("=================================================================");
-//         info_displayln("End of hotlid1 heat.");
-
-//         // Print time taken
-//         info_display("Total time taken: ");
-//         info_display((millis() - START_INTERVAL_TIME) / 60000);
-//         info_displayln(" minutes");
-//         info_displayln("Wait button");
-//         info_displayln("=================================================================");
-//         // START_INTERVAL_TIME = millis();     //record time for hotlid heat up
-//     }
-// }
-
 void PIDControl::pid1Maintain80()
 {
     if (bheater1Simu)
@@ -857,25 +782,14 @@ void PIDControl::pid1Maintain80()
     }
     CURRENT_TEMP_PID = bottomTemperature[0]; // temperatureOffset;
     TARGET_TEMP = LYSIS_TEMP;
-    // if(CURRENT_TEMP_PID > TARGET_TEMP+1)
-    // {
-    //     analogWrite(HEATER1IO, PWM_OFF);
-    //     myPID->Compute();       //PID compute, but don't use the result, to decrease the overheat risk
-    //     if (btemperatureOut)
-    //     {
-    //         info_displayf("\nTimeMB1\t%.2f\tHeater1\tMaintain\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t0\n", millis()/1000.0, CURRENT_TEMP_PID, TARGET_TEMP);
-    //     }
-    //     return;
-    // }
-    // else
     if (CURRENT_TEMP_PID > TARGET_TEMP + OVERHEAT_THRESHOLD1)
     {
         stopAllHeating();
         _displayCLD.ErrorProcess("Heater1 over heat", String(CURRENT_TEMP_PID));
         info_displayf("\nTimeMB1\t%.2f\tHeater1\tOverHeat&Rerun\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP);
-        // ESP.restart();      //over heat
         _PIDControl.rerun();
-        // _ForteSetting.rerun();
+        error.addError(errorHeaterSensor, errorOverheat, pidStep, 0);
+        error.saveErrorToEEPROM();
         return;
     }
     else if (CURRENT_TEMP_PID < TARGET_TEMP + UNDERHEAT_THRESHOLD1)
@@ -883,9 +797,9 @@ void PIDControl::pid1Maintain80()
         stopAllHeating();
         _displayCLD.ErrorProcess("Heater1 under heat", String(CURRENT_TEMP_PID));
         info_displayf("\nTimeMB1\t%.2f\tHeater1\tUnderHeat&Rerun\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP);
-        // ESP.restart();      //over heat
         _PIDControl.rerun();
-        // _ForteSetting.rerun();
+        error.addError(errorHeaterSensor, errorUnderheat, pidStep, 1);
+        error.saveErrorToEEPROM();
         return;
     }
     myPID->Compute();
@@ -901,8 +815,6 @@ void PIDControl::setPreheat67()
 {
     // Stop heater1 and hotlid1
     analogWrite(HEATER1IO, PWM_OFF);
-    // digitalWrite(HOTLID1IO, LOW);
-    // analogWrite(HOTLID1IO, PWM_OFF); // switch off hotlid1
     // change the step to start the preheating after read the temperature
     pidStep = epid2startpreHeat67;
 }
@@ -952,13 +864,11 @@ void PIDControl::Preheat2_67()
     if (CURRENT_TEMP_PID < TARGET_TEMP - DELTA_FULLPWM)
     {
         analogWrite(HEATER2IO, PWM_FULL);
-        // digitalWrite(HEATER1IO, HIGH);
         info_displayf("\nTimePB2\t%.2f\tHeater2\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, PWM_FULL);
     }
     else if (CURRENT_TEMP_PID < TARGET_TEMP - DELTA_HALFPWM)
     {
         analogWrite(HEATER2IO, PWM_HALF);
-        // digitalWrite(HEATER1IO, HIGH);
         info_displayf("\nTimePB2\t%.2f\tHeater2\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, PWM_HALF);
     }
 
@@ -967,9 +877,9 @@ void PIDControl::Preheat2_67()
         stopAllHeating();
         _displayCLD.ErrorProcess("Heater2 is too hot", String(CURRENT_TEMP_PID));
         info_displayf("\nTimePB2\t%.2f\tHeater2\tPreheatOverHeat&Rerun\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP);
-        // ESP.restart();
-        // _ForteSetting.rerun();
         _PIDControl.rerun();
+        error.addError(errorHeaterSensor, errorOverheat, pidStep, 1);
+        error.saveErrorToEEPROM();
         return;
     }
     else if ((CURRENT_TEMP_PID < TARGET_TEMP - 1) || (CURRENT_TEMP_PID > TARGET_TEMP + 1))
@@ -979,7 +889,6 @@ void PIDControl::Preheat2_67()
         myPID2->Compute();
         RESPONSE_SIGNAL = RESPONSE_SIGNAL * 1.0;
         info_displayf("\nTimePB2\t%.2f\tHeater2\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, (int)RESPONSE_SIGNAL);
-        // info_displayf("temp:%.2f->%.2f,pwm2 %d\n", CURRENT_TEMP_PID, TARGET_TEMP, (int)RESPONSE_SIGNAL);
         analogWrite(HEATER2IO, (int)RESPONSE_SIGNAL);
     }
     else
@@ -1010,6 +919,8 @@ void PIDControl::StartPreheat3_67()
         if (CURRENT_TEMP_PID > AMPLIF_TEMP + 20) // for heat block is 100, for hot lid is 120
         {
             info_displayf("Too hot, %d degree\n", CURRENT_TEMP_PID);
+            error.addError(errorHeaterSensor, errorOverheat, pidStep, 2);
+            error.saveErrorToEEPROM();
             return;
         }
         info_displayf("\nheater3 %.2f overheat, wait until it's cool down\n", CURRENT_TEMP_PID);
@@ -1044,13 +955,11 @@ void PIDControl::Preheat3_67()
     if (CURRENT_TEMP_PID < TARGET_TEMP - DELTA_FULLPWM)
     {
         analogWrite(HEATER3IO, PWM_FULL);
-        // digitalWrite(HEATER1IO, HIGH);
         info_displayf("\nTimePB3\t%.2f\tHeater3\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, PWM_FULL);
     }
     else if (CURRENT_TEMP_PID < TARGET_TEMP - DELTA_HALFPWM)
     {
         analogWrite(HEATER3IO, PWM_HALF);
-        // digitalWrite(HEATER1IO, HIGH);
         info_displayf("\nTimePB3\t%.2f\tHeater3\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, PWM_HALF);
     }
     else if (CURRENT_TEMP_PID > TARGET_TEMP + 10) // if it's too high
@@ -1058,9 +967,9 @@ void PIDControl::Preheat3_67()
         stopAllHeating();
         _displayCLD.ErrorProcess("Heater3 is too hot", String(CURRENT_TEMP_PID));
         info_displayf("\nTimePB3\t%.2f\tHeater3\tPreheatOverHeat&Rerun\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP);
-        // ESP.restart();
-        // _ForteSetting.rerun();
         _PIDControl.rerun();
+        error.addError(errorHeaterSensor, errorOverheat, pidStep, 2);
+        error.saveErrorToEEPROM();
         return;
     }
     else if ((CURRENT_TEMP_PID < TARGET_TEMP - 1) || (CURRENT_TEMP_PID > TARGET_TEMP + 1))
@@ -1078,8 +987,6 @@ void PIDControl::Preheat3_67()
     else
     {                            // if between -1~+1
         pidStep = ehotlid23heat; // Heater2 and heater3 is finished heating up, heating up hotlid next
-        // _displayCLD.type_infor = eprepare;     //display
-        // _displayCLD.changeScreen = true;
         info_display("Temperature (C): ");
         info_displayln(CURRENT_TEMP_PID);
 
@@ -1124,9 +1031,9 @@ void PIDControl::Maintain3_67()
         stopAllHeating();
         _displayCLD.ErrorProcess("Heater3 over heat", String(CURRENT_TEMP_PID));
         info_displayf("\nTimeMB3\t%.2f\tHeater3\tOverHeat&Rerun\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP);
-        // ESP.restart();      //over heat
-        // _ForteSetting.rerun();
         _PIDControl.rerun();
+        error.addError(errorHeaterSensor, errorOverheat, pidStep, 2);
+        error.saveErrorToEEPROM();
         return;
     }
     else if (CURRENT_TEMP_PID < TARGET_TEMP + UNDERHEAT_THRESHOLD3)
@@ -1137,6 +1044,8 @@ void PIDControl::Maintain3_67()
         // ESP.restart();      //over heat
         // _ForteSetting.rerun();
         _PIDControl.rerun();
+        error.addError(errorHeaterSensor, errorUnderheat, pidStep, 2);
+        error.saveErrorToEEPROM();
         return;
     }
     myPID3->Compute();
@@ -1149,52 +1058,52 @@ void PIDControl::Maintain3_67()
     }
 }
 
-void PIDControl::heatOldLid23()
-{
-    if ((HotlidTemperature[1] > HOTLID23_TEMP + 20) || (HotlidTemperature[2] > HOTLID23_TEMP + 20)) // Turn off when temperature is higher than 90
-    {
-        analogWrite(HOTLID23IO, PWM_OFF);
-        info_displayf("\nTimePT23\t%.2f\tTopHeater2&3\tHeating\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP);
-        // return;
-    }
-    else if ((HotlidTemperature[1] < HOTLID23_TEMP) || (HotlidTemperature[2] < HOTLID23_TEMP)) // Turn on when tempeature is lower than 70
-    {
-        // digitalWrite(HOTLID23IO, HIGH);
-        analogWrite(HOTLID23IO, PWM_Heater23);
-        info_displayf("\nTimePT23\t%.2f\tTopHeater2&3\tHeating\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP, PWM_Heater23);
-        // return;
-    }
-    else
-    {
-        pidStep = epid23ready;
-        if (_sensor6035.getSensorPreheatReady())
-        {
-            _displayCLD.type_infor = ewaitampTube;
-            _displayCLD.changeScreen = true;
-            _buzzer.BuzzerAlert();
-        }
-        info_displayf("Temperature (C): %.2f:%.2f\n", HotlidTemperature[1], HotlidTemperature[2]);
+// void PIDControl::heatOldLid23()
+// {
+//     if ((HotlidTemperature[1] > HOTLID23_TEMP + 20) || (HotlidTemperature[2] > HOTLID23_TEMP + 20)) // Turn off when temperature is higher than 90
+//     {
+//         analogWrite(HOTLID23IO, PWM_OFF);
+//         info_displayf("\nTimePT23\t%.2f\tTopHeater2&3\tHeating\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP);
+//         // return;
+//     }
+//     else if ((HotlidTemperature[1] < HOTLID23_TEMP) || (HotlidTemperature[2] < HOTLID23_TEMP)) // Turn on when tempeature is lower than 70
+//     {
+//         // digitalWrite(HOTLID23IO, HIGH);
+//         analogWrite(HOTLID23IO, PWM_Heater23);
+//         info_displayf("\nTimePT23\t%.2f\tTopHeater2&3\tHeating\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP, PWM_Heater23);
+//         // return;
+//     }
+//     else
+//     {
+//         pidStep = epid23ready;
+//         if (_sensor6035.getSensorPreheatReady())
+//         {
+//             _displayCLD.type_infor = ewaitampTube;
+//             _displayCLD.changeScreen = true;
+//             _buzzer.BuzzerAlert();
+//         }
+//         info_displayf("Temperature (C): %.2f:%.2f\n", HotlidTemperature[1], HotlidTemperature[2]);
 
-        // Print Phase 1 PID end message
-        info_displayln("=================================================================");
-        info_displayln("End of hotlid2&3 heat.");
+//         // Print Phase 1 PID end message
+//         info_displayln("=================================================================");
+//         info_displayln("End of hotlid2&3 heat.");
 
-        // Print time taken
-        info_display("Total time taken: ");
-        info_display((millis() - START_INTERVAL_TIME) / 60000);
-        info_displayln(" minutes");
-        info_displayln("Wait button or sensor preheat");
-        info_displayln("=================================================================");
-    }
-    if (((HotlidTemperature[1] < HOTLID23_TEMP) && (HotlidTemperature[2] > HOTLID23_TEMP + 10)) || ((HotlidTemperature[1] > HOTLID23_TEMP + 10) && (HotlidTemperature[2] < HOTLID23_TEMP))) // if temperature difference is too much, then alert
-    {
-        // digitalWrite(HOTLID23IO, LOW);
-        analogWrite(HOTLID23IO, PWM_OFF);
-        info_displayf("Temperature difference > 10!!!\nTimePT23\t%.2f\tTopHeater2&3\tHeating\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP);
-        _buzzer.BuzzerAlarm();
-        return;
-    }
-}
+//         // Print time taken
+//         info_display("Total time taken: ");
+//         info_display((millis() - START_INTERVAL_TIME) / 60000);
+//         info_displayln(" minutes");
+//         info_displayln("Wait button or sensor preheat");
+//         info_displayln("=================================================================");
+//     }
+//     if (((HotlidTemperature[1] < HOTLID23_TEMP) && (HotlidTemperature[2] > HOTLID23_TEMP + 10)) || ((HotlidTemperature[1] > HOTLID23_TEMP + 10) && (HotlidTemperature[2] < HOTLID23_TEMP))) // if temperature difference is too much, then alert
+//     {
+//         // digitalWrite(HOTLID23IO, LOW);
+//         analogWrite(HOTLID23IO, PWM_OFF);
+//         info_displayf("Temperature difference > 10!!!\nTimePT23\t%.2f\tTopHeater2&3\tHeating\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP);
+//         _buzzer.BuzzerAlarm();
+//         return;
+//     }
+// }
 
 #define INDEX_HOTLID2 0
 #define INDEX_HOTLID3 1
@@ -1202,55 +1111,47 @@ void PIDControl::heatOldLid23()
 
 void PIDControl::heatNewLid23()
 {
-    int topHeater2Flag = 0;                                    // used to check whether top heater 2 reach its target temperature
-    int topHeater3Flag = 0;                                    // used to check whether top heater 3 reach its target temperature
-    if (HotlidTemperature[INDEX_HOTLID2] > HOTLID23_TEMP + 10) // if heater2 is too high
+    int topHeater2Flag = 0; // used to check whether top heater 2 reach its target temperature
+    int topHeater3Flag = 0; // used to check whether top heater 3 reach its target temperature
+
+    TARGET_TEMP = HOTLID23_TEMP;
+
+    // ----- Top heater 2: PID control -----
+    CURRENT_TEMP_PID = HotlidTemperature[INDEX_HOTLID2];
+    if (CURRENT_TEMP_PID > HOTLID23_TEMP + OVERHEAT_THRESHOLD_TOP2 - 10) // safety: if heater2 is too high, cool down
     {
         topHeater2Flag = 0;
         analogWrite(HOTLID2IO, PWM_OFF);
-        info_displayf("TopHeater2 is too hot, tempearature: %.2f, target: %.2f, cooling down\n", HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP);
+        info_displayf("TopHeater2 is too hot, tempearature: %.2f, target: %.2f, cooling down\n", CURRENT_TEMP_PID, HOTLID23_TEMP);
     }
-    else if ((HotlidTemperature[INDEX_HOTLID2] < HOTLID23_TEMP)) // if heater2 is too low
+    else
     {
-        analogWrite(HOTLID2IO, PWM_HOTLIDFULL);
-        info_displayf("\nTimePT2\t%.2f\tTopHeater2\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t127\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP);
-    }
-    else if (HotlidTemperature[INDEX_HOTLID2] > HOTLID23_TEMP + 5) // if heater2 is higher than 5 degree, then using low PWM value
-    {
-        analogWrite(HOTLID2IO, TOPHEATER2PWMLOW);
-        topHeater2Flag = 1;
-        info_displayf("\nTimePT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP, TOPHEATER2PWMLOW);
-    }
-    else // if heater2 is at right range
-    {
-        analogWrite(HOTLID2IO, TOPHEATER2PWMHIGH);
-        topHeater2Flag = 1;
-        info_displayf("\nTimePT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP, TOPHEATER2PWMHIGH);
+        myPIDhotlid2->Compute();
+        analogWrite(HOTLID2IO, (int)RESPONSE_SIGNAL);
+        if (CURRENT_TEMP_PID > HOTLID23_TEMP - 1) // reach target range
+        {
+            topHeater2Flag = 1;
+        }
+        info_displayf("\nTimePT2\t%.2f\tTopHeater2\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, HOTLID23_TEMP, (int)RESPONSE_SIGNAL);
     }
 
-    if (HotlidTemperature[INDEX_HOTLID3] > HOTLID23_TEMP + 10) // if heater3 is too high
+    // ----- Top heater 3: PID control -----
+    CURRENT_TEMP_PID = HotlidTemperature[INDEX_HOTLID3];
+    if (CURRENT_TEMP_PID > HOTLID23_TEMP + OVERHEAT_THRESHOLD_TOP3 - 10) // safety: if heater3 is too high, cool down
     {
         topHeater3Flag = 0;
         analogWrite(HOTLID3IO, PWM_OFF);
-        info_displayf("TopHeater3 is too hot, tempearature: %.2f, target: %.2f, cooling down\n", HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP);
+        info_displayf("TopHeater3 is too hot, tempearature: %.2f, target: %.2f, cooling down\n", CURRENT_TEMP_PID, HOTLID23_TEMP);
     }
-    else if ((HotlidTemperature[INDEX_HOTLID3] < HOTLID23_TEMP)) // if heater3 is too low
+    else
     {
-        analogWrite(HOTLID3IO, PWM_HOTLIDFULL);
-        // info_displayf("\nHeating hotlid3, tempearature: %.2f, target: %.2f, PID: 255\n", HotlidTemperature[2], HOTLID23_TEMP);
-        info_displayf("\nTimePT3\t%.2f\tTopHeater3\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t127\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP);
-    }
-    else if (HotlidTemperature[INDEX_HOTLID3] > HOTLID23_TEMP + 5) // if heater3 is higher than 5 degree, then using low PWM value
-    {
-        analogWrite(HOTLID3IO, TOPHEATER3PWMLOW);
-        topHeater3Flag = 1;
-        info_displayf("\nTimePT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP, TOPHEATER3PWMLOW);
-    }
-    else // if heater3 is at right range
-    {
-        analogWrite(HOTLID3IO, TOPHEATER3PWMHIGH);
-        topHeater3Flag = 1;
-        info_displayf("\nTimePT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP, TOPHEATER3PWMHIGH);
+        myPIDhotlid3->Compute();
+        analogWrite(HOTLID3IO, (int)RESPONSE_SIGNAL);
+        if (CURRENT_TEMP_PID > HOTLID23_TEMP - 1) // reach target range
+        {
+            topHeater3Flag = 1;
+        }
+        info_displayf("\nTimePT3\t%.2f\tTopHeater3\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, HOTLID23_TEMP, (int)RESPONSE_SIGNAL);
     }
 
     // check if both of heater2 and heater3 are at the right range
@@ -1292,126 +1193,100 @@ void PIDControl::HeatHotlid23()
         temperatureSimulation(HotlidTemperature, 0, HOTLID23_TEMP);
         stopAllHeating();
     }
-    if (strcmp(_ForteSetting.parameter.PCB_version, "V1.3") < 0) // if it's old PCB version
-    {
-        heatOldLid23();
-    }
-    else
-    {
-        heatNewLid23();
-    }
+    // if (strcmp(_ForteSetting.parameter.PCB_version, "V1.3") < 0) // if it's old PCB version
+    // {
+    //     heatOldLid23();
+    // }
+    // else
+    // {
+    heatNewLid23();
+    // }
 }
 
 // void PIDControl::pid23Maintain67()
 // {
 // }
-void PIDControl::maintainOldLid23()
-{
-    if ((HotlidTemperature[INDEX_HOTLID2] > HOTLID23_TEMP + 10) || (HotlidTemperature[INDEX_HOTLID3] > HOTLID23_TEMP + 10)) // Turn off when temperature is higher than 90
-    {
-        analogWrite(HOTLID23IO, PWM_OFF);
-        if (btemperatureOut)
-        {
-            info_displayf("\nTimeMT23\t%.2f\tTopHeater2&3\tMaintain\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP);
-        }
-        return;
-    }
-    else if ((HotlidTemperature[1] < HOTLID23_TEMP) || (HotlidTemperature[2] < HOTLID23_TEMP)) // Turn on when tempeature is lower than target
-    {
-        analogWrite(HOTLID23IO, PWM_Heater23);
-        if (btemperatureOut)
-        {
-            info_displayf("\nTimeMT23\t%.2f\tTopHeater2&3\tMaintain\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP, PWM_Heater23);
-        }
-        // return;
-    }
-    // if (((HotlidTemperature[1]<HOTLID23_TEMP)&&(HotlidTemperature[2]>HOTLID23_TEMP+10))||((HotlidTemperature[1]>HOTLID23_TEMP+10)&&(HotlidTemperature[2]<HOTLID23_TEMP)))        //if temperature difference is too much, then alert
-    // {
-    //     analogWrite(HOTLID23IO, PWM_OFF);
-    //     if (btemperatureOut)
-    //     {
-    //         info_displayf("\nTimeMT23\t%.2f\tTopHeater2&3\tMaintain\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis()/1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP);
-    //     }
-    //     _buzzer.BuzzerAlarm();
-    //     return;
-    // }
-    else
-    {
-        analogWrite(HOTLID23IO, PWM_Heater23 / 2);
-        if (btemperatureOut)
-        {
-            info_displayf("\nTimeMT23\t%.2f\tTopHeater2&3\tMaintain\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP, PWM_Heater23 / 2);
-        }
-    }
-}
+// void PIDControl::maintainOldLid23()
+// {
+//     if ((HotlidTemperature[INDEX_HOTLID2] > HOTLID23_TEMP + 10) || (HotlidTemperature[INDEX_HOTLID3] > HOTLID23_TEMP + 10)) // Turn off when temperature is higher than 90
+//     {
+//         analogWrite(HOTLID23IO, PWM_OFF);
+//         if (btemperatureOut)
+//         {
+//             info_displayf("\nTimeMT23\t%.2f\tTopHeater2&3\tMaintain\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP);
+//         }
+//         return;
+//     }
+//     else if ((HotlidTemperature[1] < HOTLID23_TEMP) || (HotlidTemperature[2] < HOTLID23_TEMP)) // Turn on when tempeature is lower than target
+//     {
+//         analogWrite(HOTLID23IO, PWM_Heater23);
+//         if (btemperatureOut)
+//         {
+//             info_displayf("\nTimeMT23\t%.2f\tTopHeater2&3\tMaintain\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP, PWM_Heater23);
+//         }
+//         // return;
+//     }
+//     // if (((HotlidTemperature[1]<HOTLID23_TEMP)&&(HotlidTemperature[2]>HOTLID23_TEMP+10))||((HotlidTemperature[1]>HOTLID23_TEMP+10)&&(HotlidTemperature[2]<HOTLID23_TEMP)))        //if temperature difference is too much, then alert
+//     // {
+//     //     analogWrite(HOTLID23IO, PWM_OFF);
+//     //     if (btemperatureOut)
+//     //     {
+//     //         info_displayf("\nTimeMT23\t%.2f\tTopHeater2&3\tMaintain\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis()/1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP);
+//     //     }
+//     //     _buzzer.BuzzerAlarm();
+//     //     return;
+//     // }
+//     else
+//     {
+//         analogWrite(HOTLID23IO, PWM_Heater23 / 2);
+//         if (btemperatureOut)
+//         {
+//             info_displayf("\nTimeMT23\t%.2f\tTopHeater2&3\tMaintain\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP, PWM_Heater23 / 2);
+//         }
+//     }
+// }
 
 void PIDControl::maintainNewLid23()
 {
-    // process top heater 2
-    if (HotlidTemperature[INDEX_HOTLID2] > HOTLID23_TEMP + 10) // if heater2 is too high, in case the PWMLOW is not low enough
+    TARGET_TEMP = HOTLID23_TEMP;
+
+    // process top heater 2: PID control
+    CURRENT_TEMP_PID = HotlidTemperature[INDEX_HOTLID2];
+    if (CURRENT_TEMP_PID > HOTLID23_TEMP + OVERHEAT_THRESHOLD_TOP2 - 10) // safety: if heater2 is too high, switch off
     {
         analogWrite(HOTLID2IO, PWM_OFF);
         if (btemperatureOut)
         {
-            info_displayf("\nTimeMT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP);
+            info_displayf("\nTimeMT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, CURRENT_TEMP_PID, HOTLID23_TEMP);
         }
     }
-    else if (HotlidTemperature[INDEX_HOTLID2] > HOTLID23_TEMP + 5) // if heater2 is at high than 5 degree
+    else
     {
-        analogWrite(HOTLID2IO, TOPHEATER2PWMLOW);
+        myPIDhotlid2->Compute();
+        analogWrite(HOTLID2IO, (int)RESPONSE_SIGNAL);
         if (btemperatureOut)
         {
-            info_displayf("\nTimeMT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP, TOPHEATER2PWMLOW);
-        }
-    }
-    else if (HotlidTemperature[INDEX_HOTLID2] < HOTLID23_TEMP - 10) // if heater2 is too low, in case the PWMHIGH is not high enough
-    {
-        analogWrite(HOTLID2IO, PWM_Heater23);
-        if (btemperatureOut)
-        {
-            info_displayf("\nTimeMT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP, PWM_FULL);
-        }
-    }
-    else // if ((HotlidTemperature[1]<HOTLID23_TEMP))      //if heater2 is low
-    {
-        analogWrite(HOTLID2IO, TOPHEATER2PWMHIGH);
-        if (btemperatureOut)
-        {
-            info_displayf("\nTimeMT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP, TOPHEATER2PWMHIGH);
+            info_displayf("\nTimeMT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, HOTLID23_TEMP, (int)RESPONSE_SIGNAL);
         }
     }
 
-    // process top heater 3
-    if (HotlidTemperature[INDEX_HOTLID3] > HOTLID23_TEMP + 10) // if heater3 is too high, in case the PWMLOW is not low enough
+    // process top heater 3: PID control
+    CURRENT_TEMP_PID = HotlidTemperature[INDEX_HOTLID3];
+    if (CURRENT_TEMP_PID > HOTLID23_TEMP + OVERHEAT_THRESHOLD_TOP3 - 10) // safety: if heater3 is too high, switch off
     {
         analogWrite(HOTLID3IO, PWM_OFF);
         if (btemperatureOut)
         {
-            info_displayf("\nTimeMT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP, PWM_OFF);
+            info_displayf("\nTimeMT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, CURRENT_TEMP_PID, HOTLID23_TEMP);
         }
     }
-    else if (HotlidTemperature[INDEX_HOTLID3] > HOTLID23_TEMP + 5) // if heater3 is at high than 5 degree
+    else
     {
-        analogWrite(HOTLID3IO, TOPHEATER3PWMLOW);
+        myPIDhotlid3->Compute();
+        analogWrite(HOTLID3IO, (int)RESPONSE_SIGNAL);
         if (btemperatureOut)
         {
-            info_displayf("\nTimeMT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP, TOPHEATER3PWMLOW);
-        }
-    }
-    else if (HotlidTemperature[INDEX_HOTLID3] < HOTLID23_TEMP - 10) // if heater3 is too low, in case the PWMHIGH is not high enough
-    {
-        analogWrite(HOTLID3IO, PWM_Heater23);
-        if (btemperatureOut)
-        {
-            info_displayf("\nTimeMT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP, PWM_FULL);
-        }
-    }
-    else // if ((HotlidTemperature[2]<HOTLID23_TEMP))      //if heater3 is low
-    {
-        analogWrite(HOTLID3IO, TOPHEATER3PWMHIGH);
-        if (btemperatureOut)
-        {
-            info_displayf("\nTimeMT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP, TOPHEATER3PWMHIGH);
+            info_displayf("\nTimeMT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, HOTLID23_TEMP, (int)RESPONSE_SIGNAL);
         }
     }
 }
@@ -1457,14 +1332,14 @@ void PIDControl::MaintainHotlid23()
         return;
     }
 
-    if (strcmp(_ForteSetting.parameter.PCB_version, "V1.3") < 0) // if it's old PCB version
-    {
-        maintainOldLid23();
-    }
-    else
-    {
-        maintainNewLid23();
-    }
+    // if (strcmp(_ForteSetting.parameter.PCB_version, "V1.3") < 0) // if it's old PCB version
+    // {
+    //     maintainOldLid23();
+    // }
+    // else
+    // {
+    maintainNewLid23();
+    // }
 }
 
 bool PIDControl::getphase2ready()
@@ -1483,25 +1358,15 @@ void PIDControl::Maintain2_67()
     // TARGET_TEMP
     CURRENT_TEMP_PID = bottomTemperature[1]; // temperatureOffset;
     TARGET_TEMP = AMPLIF_TEMP;
-    // if(CURRENT_TEMP_PID > TARGET_TEMP+1)
-    // {
-    //     analogWrite(HEATER2IO, PWM_OFF);
-    //     myPID2->Compute();       //PID compute, but don't use the result, to decrease the overheat risk
-    //     if (btemperatureOut)
-    //     {
-    //         info_displayf("\nTimeMB2\t%.2f\tHeater2\tMaintain\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t0\n", millis()/1000.0, CURRENT_TEMP_PID, TARGET_TEMP);
-    //     }
-    //     return;
-    // }
-    // else
+
     if (CURRENT_TEMP_PID > TARGET_TEMP + OVERHEAT_THRESHOLD2)
     {
         stopAllHeating();
         _displayCLD.ErrorProcess("Heater2 over heat", String(CURRENT_TEMP_PID));
         info_displayf("\nTimeMB2\t%.2f\tHeater2\tOverHeat&Rerun\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP);
-        // ESP.restart();      //over heat
-        // _ForteSetting.rerun();
         _PIDControl.rerun();
+        error.addError(errorHeaterSensor, errorOverheat, pidStep, 1);
+        error.saveErrorToEEPROM();
         return;
     }
     else if (CURRENT_TEMP_PID < TARGET_TEMP + UNDERHEAT_THRESHOLD2)
@@ -1509,13 +1374,12 @@ void PIDControl::Maintain2_67()
         stopAllHeating();
         _displayCLD.ErrorProcess("Heater2 under heat", String(CURRENT_TEMP_PID));
         info_displayf("\nTimeMB2\t%.2f\tHeater2\tUnderHeat&Rerun\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP);
-        // ESP.restart();      //over heat
-        // _ForteSetting.rerun();
         _PIDControl.rerun();
+        error.addError(errorHeaterSensor, errorUnderheat, pidStep, 1);
+        error.saveErrorToEEPROM();
         return;
     }
     myPID2->Compute();
-    //// if (RESPONSE_SIGNAL > 120) {RESPONSE_SIGNAL = 120.0;}        //this is used to lower power usage, remove as the power is high enough now
     RESPONSE_SIGNAL = RESPONSE_SIGNAL * 1.0;
     analogWrite(HEATER2IO, (int)RESPONSE_SIGNAL);
     if (btemperatureOut)
@@ -1527,7 +1391,6 @@ void PIDControl::Maintain2_67()
 void PIDControl::StopHeating()
 {
     analogWrite(HEATER1IO, PWM_OFF); // switch off heater1
-    // analogWrite(HOTLID1IO, PWM_OFF); // switch off hotlid1
     analogWrite(HEATER2IO, PWM_OFF); // switch off heater2
     analogWrite(HEATER3IO, PWM_OFF); // switch off heater3
     // PCB V1.2

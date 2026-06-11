@@ -1,22 +1,31 @@
 var sheet_id = "1Glrc-5CLi9WzEZ4pBjXXR-6PV94JBFrnEi-b1djlxeU";
 var folderId = "1nAQT5LBkFJZ1OXIVOHqSRL-ZhkzcWwgH"; // ID của thư mục trên Google Drive
-
+var folderError = "1AMKNXae54j6o6ivcggsgQ3tYbzakscu7";
+var folderLog = "1-9e8Kv-HbK20V81bqjx6JcFyN_Feqc6K";
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
+
     if (data.method === "append") {
-      sheetResult(data); // Ghi dữ liệu vào sheet Result
       sheetData(data); // Ghi dữ liệu vào sheet Data
-      saveAmplificationToFolder(data);
-      highlightAmplificationRows();
+      sheetResult(data); // Ghi dữ liệu vào sheet Result
+
+      saveAmplificationToFolder(data); // (tô màu hàng Amplification mới đã làm trong sheetData)
+      console.log("[Post] RPL");
+    }
+
+    if (data.method === "error") {
+      sheetError(data);
+      saveErrorToFolder(data);
+      console.log("[Error] RPL");
     }
 
     return ContentService.createTextOutput("Data received").setMimeType(
-      ContentService.MimeType.TEXT
+      ContentService.MimeType.TEXT,
     );
   } catch (err) {
     return ContentService.createTextOutput("Error: " + err).setMimeType(
-      ContentService.MimeType.TEXT
+      ContentService.MimeType.TEXT,
     );
   }
 }
@@ -36,6 +45,12 @@ function sheetData(data) {
   sheet_name_data
     .getRange(startRow_sheetData + 3, 14)
     .setValue(new Date() || "N/A"); // Cột O
+  sheet_name_data
+    .getRange(startRow_sheetData + 3, 15)
+    .setValue(data.kitId || "N/A"); // Cột O
+  sheet_name_data
+    .getRange(startRow_sheetData + 3, 16)
+    .setValue(data.type_Upload || "N/A"); // Cột O
 
   // Ghi Slopes, Origin, LED power
   sheet_name_data.getRange(startRow_sheetData, 1).setValue("Slopes");
@@ -55,6 +70,9 @@ function sheetData(data) {
   sheet_name_data
     .getRange(startRow_sheetData + 3, 2, 1, data.amplification.length)
     .setValues([data.amplification]);
+
+  // Chỉ tô màu đúng hàng Amplification vừa thêm (không quét lại cả sheet mỗi POST)
+  highlightAmplificationRow_(sheet_name_data, startRow_sheetData + 3);
 }
 
 function sheetResult(data) {
@@ -72,21 +90,86 @@ function sheetResult(data) {
   sheet_name_result
     .getRange(startRow_sheetResult, 13)
     .setValue(new Date() || "N/A"); // Cột O
-
+  sheet_name_result
+    .getRange(startRow_sheetResult, 14)
+    .setValue(data.kitId || "N/A");
+  sheet_name_result
+    .getRange(startRow_sheetResult, 15)
+    .setValue(data.type_Upload || "N/A");
   // Ghi CT Values và Results
   sheet_name_result
     .getRange(startRow_sheetResult, 1, 1, data.result.length)
     .setValues([data.result]);
 }
 
+function sheetError(data) {
+  if (data.method === "error") {
+    var sheet_name_error =
+      SpreadsheetApp.openById(sheet_id).getSheetByName("Error");
+    const id_device = data.id_device || "N/A";
+    const version = data.version || "Unknown";
+    const timestamp = new Date() || "N/A";
+
+    const rows = data.error.map((err) => [
+      err.error_code,
+      err.Slot,
+      err.error_msg,
+      version,
+      id_device,
+      timestamp,
+    ]);
+
+    sheet_name_error
+      .getRange(
+        sheet_name_error.getLastRow() + 1,
+        1,
+        rows.length,
+        rows[0].length,
+      )
+      .setValues(rows);
+  }
+}
+
 function saveAmplificationToFolder(data) {
   var folder = DriveApp.getFolderById(folderId);
   var fileName =
-    "Log_" +
-    data.id_device +
-    "-" +
-    (data.time || new Date().toISOString()) +
-    ".txt";
+    "Log_" + data.id_device + "-" + new Date().toISOString() + ".txt";
+  var file = folder.getFilesByName(fileName);
+
+  var jsonString = JSON.stringify(data, null, 2);
+
+  if (file.hasNext()) {
+    var existingFile = file.next();
+    existingFile.setContent(jsonString); // Ghi đè nội dung
+    Logger.log("File already exists. Overwritten.");
+  } else {
+    folder.createFile(fileName, jsonString, MimeType.PLAIN_TEXT);
+    Logger.log("File created.");
+  }
+}
+
+function saveErrorToFolder(data) {
+  var folder = DriveApp.getFolderById(folderError);
+  var fileName =
+    "Error_" + data.id_device + "-" + new Date().toISOString() + ".txt";
+  var file = folder.getFilesByName(fileName);
+
+  var jsonString = JSON.stringify(data, null, 2);
+
+  if (file.hasNext()) {
+    var existingFile = file.next();
+    existingFile.setContent(jsonString); // Ghi đè nội dung
+    Logger.log("File already exists. Overwritten.");
+  } else {
+    folder.createFile(fileName, jsonString, MimeType.PLAIN_TEXT);
+    Logger.log("File created.");
+  }
+}
+
+function saveLogToFolder(data) {
+  var folder = DriveApp.getFolderById(folderLog);
+  var fileName =
+    "dataPost_" + data.id_device + "-" + new Date().toISOString() + ".txt";
   var file = folder.getFilesByName(fileName);
 
   var jsonString = JSON.stringify(data, null, 2);
@@ -104,7 +187,7 @@ function saveAmplificationToFolder(data) {
 function test_saveAmplificationToFolder() {
   var testData = {
     method: "append",
-    id_device: "RPL250701",
+    id_device: "RPLTest",
     version: "V2.2.9",
     time: "30-07-2025 11:18:59",
     slopes: [1.367, 1.482, 1.364, 1.316, 1.505, 1.472, 1.3, 1.33, 1.532, 1.548],
@@ -439,13 +522,55 @@ function test_saveAmplificationToFolder() {
       "352,358,352,352,352,351,453,454,451,454,451,456,457,456,457,458,459,461,458,456,463,463,463,460,459,456,456,458,457,460,460,456,462,460,458,459,461,456,457,457,453,453,453,454,451,454,454,455,452,455,456,455,456,456,457,456,458,457,459,456,456,459,455,459,458,459,460,460,461,458,456,456,458,456,454,457,456,456,456,459,458,460,462,455,453,452,460,454,455,454,455,452,455,456,456,463,460,459,463,462,459,455,455,457,459,455,454,456,456,457,461,460,457,458,457,459,457,458,455,455,",
       "329,336,335,330,332,336,454,455,456,456,457,458,463,456,461,462,463,461,464,459,463,464,464,464,462,462,461,462,460,462,463,461,468,458,461,461,462,462,462,460,458,456,458,456,456,456,457,456,456,457,458,457,463,458,457,460,460,463,460,459,461,462,463,464,464,464,462,463,464,460,455,456,457,459,454,456,456,456,456,458,463,466,463,458,457,456,462,457,456,456,457,456,457,459,458,463,465,463,464,463,461,456,459,460,459,458,458,458,458,461,462,462,462,463,464,461,464,461,457,459,",
     ],
+    kitId: 10.0,
   };
+  sheetResult(testData); // Ghi dữ liệu vào sheet Result
+  sheetData(testData); // Ghi dữ liệu vào sheet Data
+  saveAmplificationToFolder(testData);
+  highlightAmplificationRows();
+}
+
+function test_saveError() {
+  var testData = {
+    method: "error",
+    id_device: "RPL02007",
+    version: "v2.3.9",
+    error: [
+      {
+        Slot: "Slot 6",
+        error_code: "1045",
+        error_msg:
+          "[Sensor Light]- No data from sensor In Process Amplification 40 min ",
+      },
+      {
+        Slot: "Slot 7",
+        error_code: "1046",
+        error_msg:
+          "[Sensor Light]- No data from sensor In Process Amplification 40 min ",
+      },
+      {
+        Slot: "Slot 8",
+        error_code: "1047",
+        error_msg: "[Sensor Light]- Sensor too dark In Process Lysis 10 min ",
+      },
+    ],
+  };
+  sheetError(testData);
+  // saveErrorToFolder(testData);
   // sheetResult(testData); // Ghi dữ liệu vào sheet Result
   // sheetData(testData); // Ghi dữ liệu vào sheet Data
-  saveAmplificationToFolder(testData);
+  // saveAmplificationToFolder(testData);
   // highlightAmplificationRows();
 }
 
+/* Tô màu MỘT hàng Amplification vừa thêm — gọi từ sheetData (nhẹ, O(1)). */
+function highlightAmplificationRow_(sheet, row) {
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  sheet.getRange(row, 1, 1, lastCol).setBackground("#cfe9ff");
+}
+
+/* (Tiện ích chạy TAY 1 lần) Tô lại toàn bộ hàng Amplification cũ.
+ * KHÔNG gọi trong doPost vì quét cả sheet rất chậm khi dữ liệu lớn. */
 function highlightAmplificationRows() {
   var sheet = SpreadsheetApp.openById(sheet_id).getSheetByName("Data");
   var range = sheet.getDataRange(); // lấy toàn bộ dữ liệu
@@ -458,4 +583,424 @@ function highlightAmplificationRows() {
       sheet.getRange(i + 1, 1, 1, numCols).setBackground("#cfe9ff"); // tô hàng đó màu vàng (mã hex)
     }
   }
+}
+function onOpen(e) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = ss.getSheets();
+
+  sheets.forEach((sheet) => {
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+
+    if (lastRow > 0 && lastCol > 0) {
+      sheet.setActiveRange(sheet.getRange(lastRow, 1, 1, lastCol));
+    }
+  });
+}
+
+/* =====================================================================
+ *  doGet — API ĐỌC LỊCH SỬ TỪ DRIVE (cho app FBT_RAPID)
+ *  ---------------------------------------------------------------------
+ *  Cùng project Apps Script với doPost ở trên (dùng chung `folderId`).
+ *  ⚠️ Sau khi thêm hàm này PHẢI DEPLOY LẠI web app
+ *     (Deploy → Manage deployments → Edit → New version) thì URL /exec
+ *     mới nhận doGet.
+ *
+ *  Tham số trên query string (URL `...?...`):
+ *    ?action=ids                         → danh sách ID máy + số lần chạy + lần mới nhất
+ *    ?action=runs&id=<ID>                → tóm tắt các lần chạy của 1 máy (KHÔNG kèm đường cong)
+ *           [&limit=<n>][&offset=<n>]       phân trang (mặc định limit=50, mới nhất trước)
+ *    ?action=run&fileId=<FILE_ID>        → chi tiết 1 lần chạy (kèm curves + outcome/peak)
+ *    ?action=peek                        → xem 1 file mẫu để kiểm tra định dạng (debug)
+ *    [&callback=<fn>]                    → (tuỳ chọn) bọc JSONP cho client web
+ *
+ *  Mọi response là JSON: thành công có "ok":true; lỗi có "ok":false,"error".
+ *  Lưu ý CORS: app Flutter desktop/mobile KHÔNG bị CORS (chỉ Flutter Web mới bị).
+ * ===================================================================== */
+
+const LOG_SCAN_LIMIT = 5000; // chặn quét vô hạn nếu folder quá lớn
+const RUNS_DEFAULT_LIMIT = 50; // mỗi run là 1 file lớn (có amplification) phải tải nguyên → giữ thấp
+
+function doGet(e) {
+  const p = (e && e.parameter) || {};
+  const action = (p.action || "ids").toLowerCase();
+  let body;
+  try {
+    if (action === "ids")
+      body = apiListDeviceIds_(p.nocache === "1" || p.fresh === "1");
+    else if (action === "runs") body = apiListRuns_(p.id, p.limit, p.offset);
+    else if (action === "run") body = apiGetRun_(p.fileId);
+    else if (action === "peek") body = apiPeek_();
+    else body = { ok: false, error: "action không hợp lệ: " + action };
+  } catch (err) {
+    body = { ok: false, error: String((err && err.message) || err) };
+  }
+  return reply_(body, p.callback);
+}
+
+function reply_(obj, callback) {
+  const json = JSON.stringify(obj);
+  if (callback) {
+    return ContentService.createTextOutput(
+      callback + "(" + json + ")",
+    ).setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(json).setMimeType(
+    ContentService.MimeType.JSON,
+  );
+}
+
+/* ---- Thu thập file log: folder gốc + mọi thư mục con (đề phòng đã gom theo ID) ---- */
+function collectLogFiles_() {
+  const root = DriveApp.getFolderById(folderId);
+  const out = [];
+  const stack = [root];
+  while (stack.length && out.length < LOG_SCAN_LIMIT) {
+    const f = stack.pop();
+    const it = f.getFiles();
+    while (it.hasNext() && out.length < LOG_SCAN_LIMIT) {
+      const file = it.next();
+      if (/^Log_.*\.txt$/i.test(file.getName())) out.push(file);
+    }
+    const sub = f.getFolders();
+    while (sub.hasNext()) stack.push(sub.next());
+  }
+  return out;
+}
+
+/* ---- Tách ID máy từ tên file: Log_<ID>-<timestamp>.txt ---- */
+function extractIdFromName_(name) {
+  let core = name.replace(/^Log_/i, "").replace(/\.txt$/i, "");
+  core = core
+    .replace(/-\d{4}-\d{2}-\d{2}T[\d:.]+Z?$/, "") // ISO 2025-07-30T11:18:59.123Z
+    .replace(/-\d{2}-\d{2}-\d{4}[ _]\d{2}[:._-]\d{2}[:._-]\d{2}$/, "") // dd-mm-yyyy HH:mm:ss
+    .replace(/-N\/A$/i, ""); // file cũ đặt tên Log_<id>-N/A.txt (firmware gửi time="N/A")
+  return core.trim();
+}
+
+/* ---- Lấy mốc thời gian (ISO) ngay từ tên file → khỏi gọi getDateCreated() ---- */
+function extractTimeFromName_(name) {
+  let m = name.match(/-(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\.txt$/i); // ISO sẵn trong tên
+  if (m) return m[1];
+  m = name.match(
+    /-(\d{2})-(\d{2})-(\d{4})[ _](\d{2})[:._-](\d{2})[:._-](\d{2})\.txt$/i,
+  ); // dd-mm-yyyy HH:mm:ss
+  if (m)
+    return (
+      m[3] + "-" + m[2] + "-" + m[1] + "T" + m[4] + ":" + m[5] + ":" + m[6]
+    );
+  return "";
+}
+
+/* ---- Tìm nhanh file của 1 máy bằng Drive search (không duyệt cả folder) ---- */
+function searchLogFilesById_(id) {
+  const folder = DriveApp.getFolderById(folderId);
+  const safe = String(id).replace(/'/g, "\\'");
+  const it = folder.searchFiles("title contains 'Log_" + safe + "-'");
+  const out = [];
+  while (it.hasNext() && out.length < LOG_SCAN_LIMIT) {
+    const file = it.next();
+    const name = file.getName();
+    // 'contains' có thể khớp ID là tiền tố của ID khác → lọc lại cho chắc
+    if (
+      /^Log_.*\.txt$/i.test(name) &&
+      extractIdFromName_(name).toLowerCase() === String(id).toLowerCase()
+    ) {
+      out.push(file);
+    }
+  }
+  return out;
+}
+
+/* ---- File có nằm trực tiếp trong folder cấu hình không? (chặn đọc file lạ) ---- */
+function fileInFolder_(file, fid) {
+  const it = file.getParents();
+  while (it.hasNext()) {
+    if (it.next().getId() === fid) return true;
+  }
+  return false;
+}
+
+function apiListDeviceIds_(forceFresh) {
+  // Server cache 5 phút: ids quét cả folder + đọc version nên rất chậm (~25–50s).
+  // Lần gọi đầu tính xong được lưu trên máy chủ Google; các lần sau (MỌI
+  // máy/người dùng) trong 5 phút trả ngay từ cache. forceFresh=true (nút "Làm
+  // mới") thì bỏ qua cache để lấy dữ liệu mới nhất.
+  const cache = CacheService.getScriptCache();
+  if (!forceFresh) {
+    const hit = cache.get("ids_v1");
+    if (hit) {
+      const obj = JSON.parse(hit);
+      obj.cached = true; // đánh dấu đã lấy từ cache (để debug)
+      return obj;
+    }
+  }
+
+  const files = collectLogFiles_();
+  const map = {}; // id -> {id, runCount, latest, latestFile}
+  files.forEach(function (file) {
+    const name = file.getName();
+    const id = extractIdFromName_(name) || "(unknown)";
+    const t = extractTimeFromName_(name); // ISO từ tên file, "" nếu không khớp
+    const cur = map[id] || {
+      id: id,
+      runCount: 0,
+      latest: "",
+      latestFile: null,
+    };
+    cur.runCount++;
+    // Giữ file MỚI NHẤT của máy để đọc version firmware mới nhất.
+    if (!cur.latestFile || (t && t > cur.latest)) {
+      if (t) cur.latest = t;
+      cur.latestFile = file;
+    }
+    map[id] = cur;
+  });
+  const devices = Object.keys(map)
+    .map(function (k) {
+      const d = map[k];
+      let version = "";
+      try {
+        // chỉ đọc 1 file/máy (file mới nhất) để lấy version → không quét hết.
+        version = extractVersion_(d.latestFile.getBlob().getDataAsString());
+      } catch (e) {}
+      return {
+        id: d.id,
+        runCount: d.runCount,
+        latest: d.latest,
+        version: version,
+      };
+    })
+    .sort(function (a, b) {
+      return String(b.latest).localeCompare(String(a.latest));
+    });
+  const result = {
+    ok: true,
+    folderId: folderId,
+    count: devices.length,
+    devices: devices,
+    cached: false,
+  };
+  try {
+    cache.put("ids_v1", JSON.stringify(result), 300); // lưu 5 phút (bỏ qua nếu >100KB)
+  } catch (e) {}
+  return result;
+}
+
+function apiListRuns_(id, limit, offset) {
+  if (!id) return { ok: false, error: "thiếu tham số id" };
+  const lim = Math.max(
+    1,
+    Math.min(parseInt(limit, 10) || RUNS_DEFAULT_LIMIT, 1000),
+  );
+  const off = Math.max(0, parseInt(offset, 10) || 0);
+  const files = searchLogFilesById_(id); // chỉ file của đúng máy này
+  files.sort(function (a, b) {
+    // mới nhất trước, theo mốc thời gian trong tên file (ISO so sánh được trực tiếp)
+    return String(extractTimeFromName_(b.getName())).localeCompare(
+      String(extractTimeFromName_(a.getName())),
+    );
+  });
+  const total = files.length;
+  const page = files.slice(off, off + lim);
+  const runs = page.map(function (file) {
+    return summarizeRun_(file, parseLog_(file.getBlob().getDataAsString())); // KHÔNG kèm curves
+  });
+  return {
+    ok: true,
+    id: id,
+    total: total,
+    offset: off,
+    limit: lim,
+    count: runs.length,
+    runs: runs,
+  };
+}
+
+function apiGetRun_(fileId) {
+  if (!fileId) return { ok: false, error: "thiếu tham số fileId" };
+  const file = DriveApp.getFileById(fileId);
+  // Chốt chặn bảo mật: web app chạy với quyền chủ sở hữu + "Anyone" → chỉ cho
+  // đọc file log Log_*.txt nằm ĐÚNG trong folder cấu hình, không đọc file lạ.
+  if (
+    !/^Log_.*\.txt$/i.test(file.getName()) ||
+    !fileInFolder_(file, folderId)
+  ) {
+    return {
+      ok: false,
+      error: "fileId không phải file log hợp lệ trong folder",
+    };
+  }
+  const obj = parseLog_(file.getBlob().getDataAsString());
+  const run = summarizeRun_(file, obj);
+  run.curves = parseCurves_(obj.amplification);
+  run.loops = run.curves.length ? run.curves[0].length : 0;
+  run.outcomeDetail = obj.outcome || null;
+  run.peakFeatures = obj.peak_features || null;
+  run.slopes = obj.slopes || []; // để app calibrate (raw/slope) khi vẽ đồ thị
+  run.origins = obj.origins || [];
+  return { ok: true, run: run };
+}
+
+function apiPeek_() {
+  const files = collectLogFiles_();
+  if (!files.length)
+    return {
+      ok: true,
+      count: 0,
+      note: "folder rỗng / không có file Log_*.txt",
+    };
+  const file = files[0];
+  const content = file.getBlob().getDataAsString();
+  let format = "text";
+  try {
+    JSON.parse(content);
+    format = "json";
+  } catch (e) {}
+  return {
+    ok: true,
+    count: files.length,
+    sample: {
+      fileId: file.getId(),
+      fileName: file.getName(),
+      created: file.getDateCreated().toISOString(),
+      detectedFormat: format,
+      idFromName: extractIdFromName_(file.getName()),
+      head: content.substring(0, 600),
+    },
+  };
+}
+
+/* ---- Parse 1 file log: JSON (getData.js) hoặc text (AppScript.js) ---- */
+function parseLog_(content) {
+  try {
+    return JSON.parse(content);
+  } catch (e) {
+    return parseTextLog_(content);
+  }
+}
+
+function parseTextLog_(content) {
+  const obj = {
+    id_device: "",
+    version: "",
+    time: "",
+    CT_value: [],
+    result: [],
+    amplification: [],
+  };
+  String(content)
+    .split(/\r?\n/)
+    .forEach(function (line) {
+      let m;
+      if ((m = line.match(/^Device ID:\s*(.*)$/i))) obj.id_device = m[1].trim();
+      else if ((m = line.match(/^Version:\s*(.*)$/i)))
+        obj.version = m[1].trim();
+      else if ((m = line.match(/^Time:\s*(.*)$/i))) obj.time = m[1].trim();
+      else if ((m = line.match(/^CT Values?:\s*(.*)$/i)))
+        obj.CT_value = m[1].split(",").map(function (s) {
+          return s.trim();
+        });
+      else if ((m = line.match(/^Result:\s*(.*)$/i)))
+        obj.result = m[1]
+          .split("|")
+          .map(function (s) {
+            return s.trim();
+          })
+          .filter(String);
+      else if ((m = line.match(/^\s*Row\s*\d+:\s*(.*)$/i)))
+        obj.amplification.push(m[1].trim());
+    });
+  return obj;
+}
+
+/* ---- Lấy nhanh version firmware từ nội dung file (khỏi parse toàn bộ JSON) ---- */
+function extractVersion_(content) {
+  if (!content) return "";
+  let m = content.match(/"version"\s*:\s*"?([^"\n,}]+)"?/i); // file JSON
+  if (m) return m[1].trim();
+  m = content.match(/^\s*Version:\s*(.*)$/im); // file text cũ
+  if (m) return m[1].trim();
+  return "";
+}
+
+/* ---- Chuẩn hoá kết quả 1 slot -> P | N | S | E | ? ---- */
+function classifyLetter_(seg) {
+  if (seg == null) return "?";
+  const t = String(seg).toUpperCase();
+  if (t.indexOf("SLIDE") >= 0 || t.indexOf("SLIGHT") >= 0) return "S";
+  if (t.indexOf("/E") >= 0) return "E";
+  if (t.indexOf("POSITIVE") >= 0) return "P";
+  if (t.indexOf("NEGATIVE") >= 0) return "N";
+  if (t.indexOf("ERROR") >= 0) return "E";
+  const tail = t.indexOf("|") >= 0 ? t.split("|").pop() : t;
+  const c = tail.replace(/[^A-Z]/g, "").charAt(0);
+  return c === "P" || c === "N" || c === "S" || c === "E" ? c : "?";
+}
+
+const RESULT_LABEL_ = {
+  P: "Positive",
+  N: "Negative",
+  S: "Slide Positive",
+  E: "Error",
+  "?": "Unknown",
+};
+
+function summarizeRun_(file, obj) {
+  const result = (obj.result || []).map(classifyLetter_);
+  const counts = {
+    positive: 0,
+    negative: 0,
+    slightPositive: 0,
+    error: 0,
+    unknown: 0,
+  };
+  result.forEach(function (r) {
+    if (r === "P") counts.positive++;
+    else if (r === "N") counts.negative++;
+    else if (r === "S") counts.slightPositive++;
+    else if (r === "E") counts.error++;
+    else counts.unknown++;
+  });
+  const name = file.getName();
+  const nameTime = extractTimeFromName_(name); // ISO từ tên file (≈ ngày tạo, do server stamp lúc lưu)
+  const created = nameTime || file.getDateCreated().toISOString();
+  const time =
+    obj.time && String(obj.time).trim() ? String(obj.time).trim() : created;
+  return {
+    fileId: file.getId(),
+    fileName: name,
+    id_device: obj.id_device || extractIdFromName_(name),
+    version: obj.version || "",
+    time: time,
+    created: created,
+    ct: obj.CT_value || [],
+    result: result,
+    resultLabels: result.map(function (r) {
+      return RESULT_LABEL_[r];
+    }),
+    counts: counts,
+  };
+}
+
+function parseCurves_(amp) {
+  if (!amp || !amp.length) return [];
+  return amp.map(function (row) {
+    if (Object.prototype.toString.call(row) === "[object Array]")
+      return row.map(Number);
+    return String(row)
+      .split(",")
+      .filter(function (x) {
+        return x.trim() !== "";
+      })
+      .map(Number);
+  });
+}
+
+/* ---- Test nhanh ngay trong editor Apps Script (Run → chọn hàm) ---- */
+function test_doGet_ids() {
+  Logger.log(doGet({ parameter: { action: "ids" } }).getContent());
+}
+function test_doGet_peek() {
+  Logger.log(doGet({ parameter: { action: "peek" } }).getContent());
 }

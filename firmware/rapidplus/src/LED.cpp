@@ -2,10 +2,10 @@
 
 LED::LED(/* args */)
 {
-    pinMode(LED_PWM_PORT, OUTPUT);   // sets the pin as output
-    analogWrite(LED_PWM_PORT, 0);    // switch off the LED immediately after power on
+    pinMode(LED_PWM_PORT, OUTPUT); // sets the pin as output
+    analogWrite(LED_PWM_PORT, 0);  // switch off the LED immediately after power on
     pinMode(I2C_RST, OUTPUT);
-    digitalWrite(I2C_RST, 1);   //reset all of the I2C devices include LED I/O expander and 2 sensor multiplex
+    digitalWrite(I2C_RST, 1); // reset all of the I2C devices include LED I/O expander and 2 sensor multiplex
 }
 
 LED::~LED()
@@ -19,7 +19,8 @@ void LED::_mcp_digitalWrite(uint8_t pin, uint8_t val)
 
 void LED::begin()
 {
-    if (!mcp.begin_I2C()) {
+    if (!mcp.begin_I2C())
+    {
         info_displayln("mcp connection error.");
         _displayCLD.ErrorDisplay("LED IO Expander Error at mcp.begin().\nThis is I2C error, check the connection with I/O expander and sensor board connection");
         delay(10000);
@@ -33,22 +34,21 @@ void LED::begin()
         mcp.digitalWrite(LED_CHANNEL[i], LED_OFF);
     }
 
-    //buzzer setting and beep once
-    mcp.pinMode(BUZZER, OUTPUT);        //this is to initiate the buzzer as output!
+    // buzzer setting and beep once
+    mcp.pinMode(BUZZER, OUTPUT); // this is to initiate the buzzer as output!
     for (u8_t i = 0; i < 2; i++)
     {
         /* code */
         mcp.digitalWrite(BUZZER, HIGH);
         delay(10);
-        mcp.digitalWrite(BUZZER, LOW);  
+        mcp.digitalWrite(BUZZER, LOW);
         // delay(100);
     }
-    
 }
 
 void LED::LED_PWM_Set(int value)
 {
-    analogWrite(LED_PWM_PORT, value);    // power on the LED driver when testing start
+    analogWrite(LED_PWM_PORT, value); // power on the LED driver when testing start
 }
 
 void LED::LED_on(int channel)
