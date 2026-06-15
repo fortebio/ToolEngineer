@@ -900,6 +900,14 @@ void ForteSetting::begin()
     parastructure paraEEPROM;
     EEPROM.begin(_EEPROM_SIZE);
     EEPROM.get(PARAMETERPOS, paraEEPROM);
+    if (FirmwareVer == "v2.4.2" && parameter.kpid3[0] == 0 && parameter.kpid3[1] == 0 && parameter.kpid3[2] == 0)
+    {
+        parameter.kpid3[0] = 60;
+        parameter.kpid3[1] = 0.1;
+        parameter.kpid3[2] = 40;
+    }
+    EEPROM.put(PARAMETERPOS, parameter);
+    EEPROM.commit();
     info_displayf("check para in EEPROM, length is %d\n", paraEEPROM.length);
     if (paraEEPROM.length == sizeof(parameter)) // if the length of the parameter in EEPROM is not -1 or 0, then use it.
     {

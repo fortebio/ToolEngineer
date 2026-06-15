@@ -537,7 +537,7 @@ void buttonManager::handleShortPress_Blue()
   }
   else if (_displayCLD.type_infor == ewaitphase2)
   {
-    _PIDControl.timeStartWait = millis(); // - (10 * 60000);
+    _PIDControl.timeStartWait = 0; // millis() - (10 * 60000);
     _displayCLD.type_infor = epreheating67;
     _displayCLD.bheadershow = true;
     _displayCLD.changeScreen = true;

@@ -21,9 +21,9 @@ extern int language = 0;
 
 const char *serverName = "https://script.google.com/macros/s/AKfycbw2VXXLX6fUMgmyRrSgNgEi3b4gSyE2bdctQe_DNOnlZ58EfPclQrXrlMenH0y7SH5X/exec";
 
-const char *ntpServer = "pool.ntp.org";
-const long gmtOffset_sec = 25200; // Múi giờ GMT+7 (Việt Nam)
-const int daylightOffset_sec = 0;
+// const char *ntpServer = "pool.ntp.org";
+// const long gmtOffset_sec = 25200; // Múi giờ GMT+7 (Việt Nam)
+// const int daylightOffset_sec = 0;
 
 /***********************************************************************
  * Function: connectBLE()
@@ -123,7 +123,6 @@ void paraDisplay(parastructure para)
   DynamicJsonDocument paradata(3000); // support maximum 3K
 
   paradata["para version"] = para.para_version;
-  // info_displayf("para version: %s\n", para.para_version);
   paradata["PCB version"] = para.PCB_version;
   JsonObject calibration = paradata.createNestedObject("opto calibration");
   JsonArray slopes = calibration.createNestedArray("slopes");
@@ -195,23 +194,8 @@ void paraDisplay(parastructure para)
     temperatureOffset.add(para.temperatureOffset[i]);
   }
 
-  // JsonArray hotlidPWM = paradata.createNestedArray("top heater PWM");
-  // for (int i = 0; i < 2; i++)
-  // {
-  //   JsonArray row = hotlidPWM.createNestedArray();
-  //   for (int j = 0; j < 2; j++)
-  //   {
-  //     row.add(para.hotlidPWM[i][j]);
-  //   }
-  // }
   paradata["buzzer"] = para.buzzerOn ? "On" : "Off";
   paradata["kitId"] = para.kitId;
-
-  // JsonArray empty = paradata.createNestedArray("empty");
-  // for (uint8_t i = 0; i < empty.size(); i++)
-  // {
-  //   empty.add(para.empty[i]);
-  // }
 
   // Output metadata
   String output;
@@ -432,28 +416,6 @@ void Wifi_Connect()
 }
 
 /***********************************************************************
- * Function: getTime()
- * Description: Obtains the current local time and formats it as a
- *  "dd-mm-YYYY HH:MM:SS" string; returns "N/A" if the time cannot be read.
- * pramameter: none
- *  return: String - the formatted local time, or "N/A" on failure
- */
-String getTime()
-{
-  struct tm timeinfo;
-  char timeString[50];
-
-  // Get local time
-  if (!getLocalTime(&timeinfo))
-  {
-    Serial.println("Failed to obtain time");
-    return String("N/A");
-  }
-  strftime(timeString, sizeof(timeString), "%d-%m-%Y %H:%M:%S", &timeinfo);
-  return String(timeString);
-}
-
-/***********************************************************************
  * Function: getDataAmplificationEEPROM()
  * Description: Reads the stored amplification record array (10 x 130 Words)
  *  from EEPROM at RECORDPOS and copies it into _sensor6035.sensor67Value.
@@ -511,7 +473,6 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
 
   /* Calculate CT_value and result */
   bool flag = _sensor6035.bResultPutToGoogleSheet(CT_value, result, outcome, peak_features);
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
   // Build JSON inside a nested scope so the JsonDocument is destructed
   // (and its ~25-40KB internal pool freed) BEFORE we open the TLS socket.

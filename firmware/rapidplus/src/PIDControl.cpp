@@ -1387,8 +1387,6 @@ void PIDControl::Maintain3_67()
         stopAllHeating();
         _displayCLD.ErrorProcess("Heater3 under heat", String(CURRENT_TEMP_PID));
         info_displayf("\nTimeMB3\t%.2f\tHeater3\tUnderHeat&Rerun\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP);
-        // ESP.restart();      //over heat
-        // _ForteSetting.rerun();
         _PIDControl.rerun();
         error.addError(errorHeaterSensor, errorUnderheat, pidStep, 2);
         error.saveErrorToEEPROM();
@@ -1396,7 +1394,6 @@ void PIDControl::Maintain3_67()
     }
     myPID3->Compute();
     RESPONSE_SIGNAL = RESPONSE_SIGNAL * 1.0;
-    // if (RESPONSE_SIGNAL > 120.0) {RESPONSE_SIGNAL = 120.0;}
     analogWrite(HEATER3IO, (int)RESPONSE_SIGNAL);
     if (btemperatureOut)
     {
@@ -1467,7 +1464,7 @@ void PIDControl::heatNewLid23()
         info_displayf("\nTimePT3\t%.2f\tTopHeater3\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, HOTLID23_TEMP, (int)RESPONSE_SIGNAL);
     }
 
-    if ((millis() - this->timeStartWait) > (20 * 60000)) // wait for 20 minutes, if the user still doesn't put the amp tube, then alert
+    if ((millis() - this->timeStartWait) > (15 * 60000)) // wait for 15 minutes, if the user still doesn't put the amp tube, then alert
     {
 
         // check if both of heater2 and heater3 are at the right range
@@ -1722,7 +1719,6 @@ void PIDControl::StopHeating()
 //     pidStep = epidfinish;
 // }
 
-// stop all heating when error happen or finish one session
 /***********************************************************************
  * Function: stopAllHeating()
  * Description: Emergency/cleanup shutdown used on errors or session end.
