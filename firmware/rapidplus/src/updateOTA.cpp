@@ -1,12 +1,23 @@
 #include "updateOTA.h"
 
-int currentVersion = 17;
+int currentVersion = 18;
 int fwVersion = 0;
 volatile OtaState otaState = OTA_IDLE;
 String fwUrl = "", fwName = "", fwVer = "", fwCont = "";
 String baseUrl = "https://raw.githubusercontent.com/wuanpham/FBTRapidplusOTA/" + FirmwareVer + "/";
 String checkFile = "updateOTA.json";
 
+/***********************************************************************
+ * Function: checkFirmware()
+ * Description: Queries the GitHub-hosted updateOTA.json over HTTP (returns
+ *  immediately if WiFi is not connected), parses the version code, file
+ *  name, version string and content. If the remote versionCode is newer
+ *  than currentVersion it sets otaState to OTA_AVAILABLE and triggers the
+ *  display to show the eUpdateOTA prompt; otherwise it sets otaState to
+ *  OTA_IDLE.
+ * pramameter: none
+ * return: none
+ */
 void checkFirmware()
 {
     if (WiFi.status() != WL_CONNECTED)
@@ -50,6 +61,18 @@ void checkFirmware()
     http.end();
 }
 
+/***********************************************************************
+ * Function: updateFirmware()
+ * Description: Performs the OTA download when otaState is OTA_USER_ACCEPTED;
+ *  returns early for any other state (re-entry guard against OTA_UPDATING).
+ *  If WiFi dropped it sets OTA_FAILED and returns to the start screen.
+ *  Otherwise it claims the slot (OTA_UPDATING), shows the waiting screen and
+ *  runs httpUpdate.update() over an insecure HTTPS client: on
+ *  HTTP_UPDATE_OK it restarts into the new firmware, on failure/no-update it
+ *  parks in OTA_FAILED (no auto-restart) and returns to the start screen.
+ * pramameter: none
+ *  return: none
+ */
 void updateFirmware(void)
 {
     // Re-entry guard: only act on the explicit "user accepted" state.

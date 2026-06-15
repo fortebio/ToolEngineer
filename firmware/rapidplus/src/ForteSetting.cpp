@@ -16,6 +16,15 @@ To receive the full command, here will wait 10ms after receiving, if there is no
 ///     4. stop p4_long_off ms
 ///     5. repeat step 1 to 4 for p5_long_times times
 /// @return true if command is Buzzerxxx, or false
+/***********************************************************************
+ * Function: BuzzerConfig()
+ * Description: Parses a serial "Buzzer" command from recvData. With no
+ *  arguments it beeps once for 1000ms; with arguments it splits up to 5
+ *  integers (on, off, times, long_off, long_times; defaults {1000,0,1,0,1})
+ *  via paraIntSplit and configures/starts the buzzer. Not a JSON/EEPROM key.
+ * pramameter: none (reads member recvData/recvLen)
+ *  return: true if recvData starts with "Buzzer", false otherwise
+ */
 bool ForteSetting::BuzzerConfig()
 {
     if (strncasecmp(recvData, "Buzzer", 6))
@@ -39,6 +48,14 @@ bool ForteSetting::BuzzerConfig()
 /// "Fan On": turn on the Fan
 /// "Fan...": other will turn off the Fan
 /// @return true if command is "Fan..."", or return false
+/***********************************************************************
+ * Function: FanConfig()
+ * Description: Parses a serial "Fan" command from recvData. "Fan On"
+ *  starts the cooling fan; any other "Fan..." string stops it. Runtime
+ *  control only, not a JSON/EEPROM parameter.
+ * pramameter: none (reads member recvData)
+ *  return: true if recvData starts with "Fan", false otherwise
+ */
 bool ForteSetting::FanConfig()
 {
     if (strncasecmp(recvData, "Fan", 3))
@@ -57,6 +74,15 @@ bool ForteSetting::FanConfig()
 /// @brief Active the heater simulation by time, not from thermometer, will deactive all heater
 /// "HeaterSimulate" will stop all heating and simulate the temperature of all heaters by time increase
 /// @return true if command is "HeaterSimulate..."
+/***********************************************************************
+ * Function: HeaterSimuConfig()
+ * Description: Parses a serial "HeaterSimulate" command from recvData.
+ *  Stops all heating then enables time-based temperature simulation for
+ *  all heaters (heatSimulation(0xFF)) instead of using thermometer
+ *  readings. Runtime debug control, not a JSON/EEPROM parameter.
+ * pramameter: none (reads member recvData)
+ *  return: true if recvData starts with "HeaterSimulate", false otherwise
+ */
 bool ForteSetting::HeaterSimuConfig()
 {
     if (strncasecmp(recvData, "HeaterSimulate", 14))
@@ -71,6 +97,15 @@ bool ForteSetting::HeaterSimuConfig()
 
 /// @brief "TemperatureOutput" will invert temperature output, to start or stop
 /// @return true if command is "TemperatureOutput"
+/***********************************************************************
+ * Function: TemperatureOutput()
+ * Description: Parses a serial "TemperatureOutput" command from recvData
+ *  and toggles (inverts) continuous temperature output streaming via
+ *  _PIDControl.RevTemperatureOutput(). Runtime control, not a JSON/EEPROM
+ *  parameter.
+ * pramameter: none (reads member recvData)
+ *  return: true if recvData starts with "TemperatureOutput", false otherwise
+ */
 bool ForteSetting::TemperatureOutput()
 {
     if (strncasecmp(recvData, "TemperatureOutput", 17))
@@ -86,6 +121,16 @@ bool ForteSetting::TemperatureOutput()
 /// "StepSet Amp": Skip lysis and start the Amplification stage
 /// "StepSet Measure": Skip lysis and amplification preheat with heater simulation, start opto reading directly
 /// @return true if command is "StepSet ...", or return false
+/***********************************************************************
+ * Function: HeaterStepSet()
+ * Description: Parses a serial "StepSet" command from recvData to skip
+ *  to a later run stage. "StepSet Amp" skips lysis and begins amplification
+ *  preheat (setPreheat67, sensor preheat, epreheating67 screen). "StepSet
+ *  Measure" enables heater simulation and jumps to amplification measurement
+ *  (setPID23Ready, ewaitampTube screen). Runtime control, not JSON/EEPROM.
+ * pramameter: none (reads member recvData)
+ *  return: true if recvData starts with "StepSet", false otherwise
+ */
 bool ForteSetting::HeaterStepSet()
 {
     if (strncasecmp(recvData, "StepSet", 7))
@@ -121,6 +166,25 @@ bool ForteSetting::HeaterStepSet()
 /// @brief to analyze the json data with parameter inside, then write into EEPROM
 /// input the right whole json data directly, then it will get all elements and write into EEPROM
 /// @return return true and all parameter data if it's correct, or return false
+/***********************************************************************
+ * Function: JsonDataConfig()
+ * Description: Parses a full JSON document received in recvData (commands
+ *  starting with '{'). When key "para version" is present, deserializes the
+ *  whole device configuration into the parameter struct: para/PCB version,
+ *  opto calibration slopes/origins, LED power, analysis parameters (min
+ *  increase/sharpness/slight positive time, detect shape, detection margin,
+ *  arm/transition percentile, sg order/window, baseline start/range), units,
+ *  device ID, lysis/opto-preheat/LED durations, time per loop, amplification
+ *  time, lysis/amplification temperatures, bottom/top sensor sequences, PID/
+ *  PID2/PID3 params, bottom/top overheat values, temperature offsets, top
+ *  heater PWM high/low pairs, buzzer mode (On=1/Off=0/PID=2), kitId, empty
+ *  array, and a non-persisted "counter" display flag. Sets parameter.length
+ *  and writes the struct to EEPROM at PARAMETERPOS. A "raw_data" key instead
+ *  runs the algorithm test loop (AlgLoop).
+ * pramameter: none (reads member recvData)
+ *  return: true if recvData starts with '{' and is handled (or unsupported
+ *   JSON); false if not JSON or on parse error
+ */
 bool ForteSetting::JsonDataConfig()
 {
     if (strncasecmp(recvData, "{", 1))
@@ -530,6 +594,14 @@ bool ForteSetting::JsonDataConfig()
 /// @brief read the parameter stored in the EEPROM
 /// "ParaRead" will return all parameter get from EEPROM with its key value
 /// @return
+/***********************************************************************
+ * Function: ParaRead()
+ * Description: Parses a serial "ParaRead" command from recvData and calls
+ *  loadParaFromEEPROM() to read the stored parameter struct from EEPROM and
+ *  echo all parameters back with their key values.
+ * pramameter: none (reads member recvData)
+ *  return: true if recvData starts with "ParaRead", false otherwise
+ */
 bool ForteSetting::ParaRead()
 {
     if (strncasecmp(recvData, "ParaRead", 8))
@@ -543,6 +615,14 @@ bool ForteSetting::ParaRead()
 /// @brief to read all the data in the EEPROM 0~4095
 /// "EEPROMRead" will read all the EEPROM data and response with 64 hexadecimal number(32 bytes)
 /// @return true if the right command with reading data. or return false
+/***********************************************************************
+ * Function: EEPROMRead()
+ * Description: Parses a serial "EEPROMRead" command from recvData and calls
+ *  readEEPROM() to dump the entire EEPROM contents (0~4095) back over the
+ *  link as hexadecimal output.
+ * pramameter: none (reads member recvData)
+ *  return: true if recvData starts with "EEPROMRead", false otherwise
+ */
 bool ForteSetting::EEPROMRead()
 {
     if (strncasecmp(recvData, "EEPROMRead", 10))
@@ -556,6 +636,15 @@ bool ForteSetting::EEPROMRead()
 /// @brief read the old record and generate output
 /// "getResult" will read all old data stored in the EEPROM, then calculate it again to form the output
 /// @return true if right command with organised data, or it return false
+/***********************************************************************
+ * Function: resultOutput()
+ * Description: Parses a serial "getResult" command from recvData. Reads the
+ *  stored raw sensor record (10x130 Words) from EEPROM at RECORDPOS into
+ *  _sensor6035.sensor67Value, then switches the display to the result-review
+ *  screen (escreenReview) so the old run is recalculated and shown.
+ * pramameter: none (reads member recvData)
+ *  return: true if recvData starts with "getResult", false otherwise
+ */
 bool ForteSetting::resultOutput()
 {
     if (strncasecmp(recvData, "getResult", 12))
@@ -577,6 +666,15 @@ bool ForteSetting::resultOutput()
 /// @brief Restart the system
 /// "Res" will restart the devicex
 /// @return System restart
+/***********************************************************************
+ * Function: restart()
+ * Description: Parses a serial "Res" command from recvData, shows a restart
+ *  notice on the display, waits 1s, then reboots the ESP32 via ESP.restart().
+ *  Runtime command, not a JSON/EEPROM parameter.
+ * pramameter: none (reads member recvData)
+ *  return: true if recvData starts with "Res" (device reboots before return);
+ *   false otherwise
+ */
 bool ForteSetting::restart()
 {
     if (strncasecmp(recvData, "Res", 3))
@@ -590,6 +688,14 @@ bool ForteSetting::restart()
     return true;
 }
 
+/***********************************************************************
+ * Function: turn_on_led()
+ * Description: Free helper that prints "LED on"/"LED off" debug lines with a
+ *  500ms delay between them. Logging stub only; does not drive real LED
+ *  hardware or any configuration.
+ * pramameter: none
+ *  return: none
+ */
 void turn_on_led()
 {
     int time_delay = 1000 / 2;
@@ -599,6 +705,16 @@ void turn_on_led()
     delay(time_delay);
 }
 
+/***********************************************************************
+ * Function: setData()
+ * Description: Free helper that loops over 10 slots and up to "loop"
+ *  samples; the body (data assignment and curve post-processing) is currently
+ *  commented out, so it only prints empty Serial lines. Effectively a
+ *  disabled test/scaffolding stub for amplification curve simulation.
+ * pramameter: data - reference to a vector of sample values (currently unused);
+ *  loop - number of samples per slot to iterate
+ *  return: none
+ */
 void setData(const std::vector<double> &data, uint8_t loop)
 {
     const std::vector<double> tmp;
@@ -657,6 +773,19 @@ void setData(const std::vector<double> &data, uint8_t loop)
     }
 }
 
+/***********************************************************************
+ * Function: start_amplification_simulation()
+ * Description: Parses a JSON command (recvData starting with '{') whose last
+ *  character is a slot digit 0-9. Loads existing amplification data from
+ *  EEPROM (getDataAmplificationEEPROM), then copies the JSON "Slot" array
+ *  (amplification_time samples) into _sensor6035.sensor67Value[slot], and
+ *  writes the full 10x130 Word record back to EEPROM at RECORDPOS. Used to
+ *  inject simulated amplification curves for one slot.
+ * pramameter: none (reads/modifies members recvData and recvLen; slot taken
+ *  from last char of recvData)
+ *  return: true on successful parse and EEPROM write; false if not JSON, no
+ *   trailing slot digit, or JSON parse error
+ */
 bool ForteSetting::start_amplification_simulation()
 {
     uint8_t slot;
@@ -709,6 +838,16 @@ bool ForteSetting::start_amplification_simulation()
     return true;
 }
 
+/***********************************************************************
+ * Function: paraIntSplit()
+ * Description: Tokenizes a space-separated string in place (strtok) and
+ *  converts each token to an int via atoi, storing results sequentially into
+ *  the para array. Used to parse numeric command arguments (e.g. buzzer
+ *  timing). Does not bound-check para against the token count.
+ * pramameter: source - mutable C string of space-separated integers (modified
+ *  by strtok); para - output int array receiving the parsed values
+ *  return: number of integers parsed and written into para
+ */
 int ForteSetting::paraIntSplit(char *source, int *para)
 {
     char *token = strtok(source, " ");
@@ -724,14 +863,38 @@ int ForteSetting::paraIntSplit(char *source, int *para)
     return i;
 }
 
+/***********************************************************************
+ * Function: ForteSetting()
+ * Description: Constructor for the ForteSetting class. Empty body; no
+ *  configuration is loaded here (see begin() for EEPROM parameter loading).
+ * pramameter: none
+ *  return: none
+ */
 ForteSetting::ForteSetting(/* args */)
 {
 }
 
+/***********************************************************************
+ * Function: ~ForteSetting()
+ * Description: Destructor for the ForteSetting class. Empty body; no cleanup
+ *  required.
+ * pramameter: none
+ *  return: none
+ */
 ForteSetting::~ForteSetting()
 {
 }
 
+/***********************************************************************
+ * Function: begin()
+ * Description: Initialization routine. Reads the parameter struct from EEPROM
+ *  at PARAMETERPOS and validates it by comparing the stored length field
+ *  against sizeof(parameter). If valid, copies it into the active parameter
+ *  member and displays it (paraDisplay); otherwise keeps the compiled-in
+ *  defaults and shows an error prompting the user to initialize parameters.
+ * pramameter: none
+ *  return: none
+ */
 void ForteSetting::begin()
 {
     parastructure paraEEPROM;
@@ -786,6 +949,19 @@ void ForteSetting::begin()
 /// "getResult" will read all old data stored in the EEPROM, then calculate it again to form the output
 ///
 /// "Res" will restart the device
+/***********************************************************************
+ * Function: loop()
+ * Description: Main command-receive loop. Reads incoming bytes from the USB
+ *  Serial port (or Bluetooth SerialBT when not released) into recvData,
+ *  handling long JSON payloads terminated by '@' or '#' with a multi-receive
+ *  timeout window. A single byte is forwarded to the opto command handler;
+ *  longer commands are dispatched in priority order through BuzzerConfig,
+ *  FanConfig, HeaterSimuConfig, TemperatureOutput, HeaterStepSet,
+ *  start_amplification_simulation, JsonDataConfig, ParaRead, EEPROMRead,
+ *  resultOutput and restart, logging "Command is not supported!" if none match.
+ * pramameter: none (reads/writes members recvData, recvLen, recvTime, moreMsg)
+ *  return: none
+ */
 void ForteSetting::loop()
 {
     if (Serial.available() > 0)
@@ -997,6 +1173,14 @@ void ForteSetting::loop()
     }
 }
 
+/***********************************************************************
+ * Function: rerun()
+ * Description: Re-runs / restarts the dependent subsystems by forwarding to
+ *  _PIDControl.rerun(), _displayCLD.rerun() and _sensor6035.rerun(), used to
+ *  restart a measurement cycle. Does not touch configuration storage.
+ * pramameter: none
+ *  return: none
+ */
 void ForteSetting::rerun()
 {
     _PIDControl.rerun();

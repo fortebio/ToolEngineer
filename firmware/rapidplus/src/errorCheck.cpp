@@ -6,6 +6,21 @@ ErrorCheck error; // global variable to record the error type and times, used fo
 void postError_Googlesheet(uint8_t errorModule, uint8_t errorType, uint8_t errorProcessStep, uint8_t errorSlot);
 void postError_fullGoogleSheet(void);
 
+/***********************************************************************
+ * Function: postError_Googlesheet()
+ * Description: Reports a single error event to the Google Sheet web app. If
+ *  WiFi is connected it builds a JSON payload (method "error", device id,
+ *  firmware version and one error entry with slot string, 4-digit encoded
+ *  error code and decoded message) and HTTP POSTs it, then clears the local
+ *  error record. If WiFi is disconnected it appends the error to the global
+ *  error object instead. In all cases it saves the error log to EEPROM for
+ *  later posting.
+ * pramameter: errorModule - module/board the error occurred on
+ * pramameter: errorType - type/category of the error
+ * pramameter: errorProcessStep - process step at which the error occurred
+ * pramameter: errorSlot - slot index associated with the error
+ *  return: none
+ */
 void postError_Googlesheet(uint8_t errorModule, uint8_t errorType, uint8_t errorProcessStep, uint8_t errorSlot)
 {
     ErrorCheck e;
@@ -41,6 +56,17 @@ void postError_Googlesheet(uint8_t errorModule, uint8_t errorType, uint8_t error
     error.saveErrorToEEPROM(); // save error record to EEPROM, used for error process when WiFi is disconnected, and post it to Google Sheet when WiFi is connected in the future
 }
 
+/***********************************************************************
+ * Function: postError_fullGoogleSheet()
+ * Description: Flushes the entire accumulated error log to the Google Sheet
+ *  web app when WiFi is connected, iterating over all error.numUnit records
+ *  and building a JSON payload (method "error", device id, firmware version
+ *  and one entry per error with slot string, 4-digit encoded code and
+ *  decoded message), then HTTP POSTs it. Always saves the error log back to
+ *  EEPROM afterwards.
+ * pramameter: none
+ *  return: none
+ */
 void postError_fullGoogleSheet(void)
 {
     if (WiFi.status() == WL_CONNECTED)

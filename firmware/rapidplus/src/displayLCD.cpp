@@ -19,16 +19,39 @@ String measure_value = "";
 
 // bool butt = 1;  // 0: blue, 1: green
 
+/***********************************************************************
+ * Function: displayCLD()
+ * Description: Constructor for the displayCLD class. Allocates the
+ *  Arduino_ESP32SPI bus object using the configured TFT SPI pins and
+ *  creates the Arduino_ILI9341 display driver bound to that bus.
+ * pramameter: none
+ *  return: none
+ */
 displayCLD::displayCLD(/* args */)
 {
   this->bus = new Arduino_ESP32SPI(TFT_DC, TFT_CS, TFT_SCK, TFT_MOSI, TFT_MISO);
   this->display = new Arduino_ILI9341(this->bus, TFT_RESET);
 }
 
+/***********************************************************************
+ * Function: ~displayCLD()
+ * Description: Destructor for the displayCLD class. Empty; performs no
+ *  cleanup of the allocated bus/display objects.
+ * pramameter: none
+ *  return: none
+ */
 displayCLD::~displayCLD()
 {
 }
 
+/***********************************************************************
+ * Function: begin()
+ * Description: Initializes the ILI9341 display: starts the driver,
+ *  clears the screen to BLACK, sets landscape rotation (1) and enables
+ *  UTF-8 printing so Vietnamese text can be rendered.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::begin()
 {
   this->display->begin();
@@ -37,6 +60,15 @@ void displayCLD::begin()
   this->display->setUTF8Print(true);
 }
 
+/***********************************************************************
+ * Function: logoFortebiotech()
+ * Description: Draws the Forte Biotech splash/logo screen: clears to
+ *  BLACK, renders the triangular logo shapes, the "FORTE BIOTECH"
+ *  title, the tagline text and the firmware version, then blocks for
+ *  LOGODISPLAYTIME before returning.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::logoFortebiotech()
 {
   this->display->fillScreen(BLACK);
@@ -66,6 +98,14 @@ void displayCLD::logoFortebiotech()
   // dbg_display("logo thanh cong");
 }
 
+/***********************************************************************
+ * Function: show_IconWifi()
+ * Description: Free function that draws the WiFi status icon at the top
+ *  right of the screen: the connected bitmap when WiFi.status() is
+ *  WL_CONNECTED, otherwise the disconnected bitmap.
+ * pramameter: none
+ *  return: none
+ */
 void show_IconWifi(void)
 {
   if (WiFi.status() == WL_CONNECTED)
@@ -78,6 +118,15 @@ void show_IconWifi(void)
   }
 }
 
+/***********************************************************************
+ * Function: show_IconBluetooth()
+ * Description: Free function that manages Bluetooth power state based on
+ *  the current screen. While type_infor is escreenResult or escreenStart
+ *  it marks BT as on; once the state leaves those screens it ends the
+ *  SerialBT connection one time (turning Bluetooth off during a process).
+ * pramameter: none
+ *  return: none
+ */
 void show_IconBluetooth(void)
 {
   static bool turnOn_BT = false; // turn off BT when Process is runing and save BT state to turn off once
@@ -95,6 +144,14 @@ void show_IconBluetooth(void)
     }
   }
 }
+/***********************************************************************
+ * Function: displayWaitingUpData()
+ * Description: Free function that shows the "Data Uploading...!" /
+ *  "Please wait..." screen while results are being uploaded, also draws
+ *  the WiFi icon and adds a short 100ms delay.
+ * pramameter: none
+ *  return: none
+ */
 void displayWaitingUpData(void)
 {
   _displayCLD.display->fillScreen(BLACK);
@@ -109,6 +166,17 @@ void displayWaitingUpData(void)
   delay(100);
 }
 
+/***********************************************************************
+ * Function: screen_Start()
+ * Description: Draws the idle/start home screen. Reads the local IP and
+ *  renders the "FORTE BIOTECH" header, logo and shrimp bitmaps. When
+ *  language==0 it shows the Vietnamese "Nhấn nút xanh / để bắt đầu" prompt
+ *  with the device ID; otherwise it shows the English prompt instructing
+ *  Press Green for Lysis / Press Red for Amplification, plus IP and
+ *  firmware version.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::screen_Start()
 {
   if (language == 0)
@@ -185,6 +253,16 @@ void displayCLD::screen_Start()
   }
 }
 
+/***********************************************************************
+ * Function: ErrorProcessatBegin()
+ * Description: Draws a startup error screen in RED with the provided
+ *  description, a hazard-striped warning band, a bordered box and a
+ *  filled circle, showing "Slot <strValue>" inside, then triggers the
+ *  buzzer alarm. Used when an error is detected at the begin stage.
+ * pramameter: strDescript - error description text shown at the top;
+ *  strValue - slot identifier appended after the "Slot " label
+ *  return: none
+ */
 void displayCLD::ErrorProcessatBegin(String strDescript, String strValue)
 {
   this->display->fillScreen(BLACK);
@@ -210,6 +288,14 @@ void displayCLD::ErrorProcessatBegin(String strDescript, String strValue)
   _buzzer.BuzzerAlarm();
 }
 
+/***********************************************************************
+ * Function: ErrorDisplay()
+ * Description: Clears the screen and prints the given error description
+ *  in small WHITE text, sounds the buzzer alarm, then restores text size
+ *  to 2. A minimal error message display.
+ * pramameter: strDescript - the error description text to display
+ *  return: none
+ */
 void displayCLD::ErrorDisplay(String strDescript)
 {
   this->display->fillScreen(BLACK);
@@ -221,6 +307,17 @@ void displayCLD::ErrorDisplay(String strDescript)
   this->display->setTextSize(2);
 }
 
+/***********************************************************************
+ * Function: ErrorProcess()
+ * Description: Draws the in-process error screen (only when type_infor
+ *  is not already errprocess): RED description, hazard band, warning box
+ *  and circle, the strValue, plus "Please restart power". Sounds the
+ *  buzzer alarm, sets type_infor to errprocess and sets timeRefresh to
+ *  display the error for ~1 second.
+ * pramameter: strDescript - error description shown at top; strValue -
+ *  value/text drawn inside the warning box
+ *  return: none
+ */
 void displayCLD::ErrorProcess(String strDescript, String strValue)
 {
   if (type_infor != errprocess)
@@ -259,6 +356,17 @@ void displayCLD::ErrorProcess(String strDescript, String strValue)
 }
 
 // when press white button to reboot, or restart next testing after result display
+/***********************************************************************
+ * Function: RestartProcess()
+ * Description: Draws the restart/reboot screen: RED description, hazard
+ *  band, warning box and circle with strValue, and a GREEN "Reboot in 1
+ *  second" message. Sounds the buzzer alert, sets type_infor to
+ *  ewaitingtimeout and schedules timeRefresh ~1 second ahead so the
+ *  device reboots/returns to start afterwards.
+ * pramameter: strDescript - description text at top; strValue - text
+ *  drawn inside the warning box
+ *  return: none
+ */
 void displayCLD::RestartProcess(String strDescript, String strValue)
 {
   this->display->fillScreen(BLACK);
@@ -292,16 +400,39 @@ void displayCLD::RestartProcess(String strDescript, String strValue)
   timeRefresh = millis() + 1000; // err will display for 1 seconds
 }
 
+/***********************************************************************
+ * Function: ErrorStatus()
+ * Description: Reports whether the display is currently in the error
+ *  process state by comparing type_infor against errprocess.
+ * pramameter: none
+ *  return: bool - true if type_infor == errprocess, false otherwise
+ */
 bool displayCLD::ErrorStatus()
 {
   return type_infor == errprocess; // return the status whether it's error process or not
 }
 
+/***********************************************************************
+ * Function: FinishStatus()
+ * Description: Reports whether the process has finished by comparing the
+ *  global _displayCLD.type_infor against escreenFinished.
+ * pramameter: none
+ *  return: bool - true if type_infor == escreenFinished, false otherwise
+ */
 bool displayCLD::FinishStatus()
 {
   return _displayCLD.type_infor == escreenFinished;
 }
 
+/***********************************************************************
+ * Function: TemperatureBottomSeqDisplay()
+ * Description: Diagnostic screen that shows the bottom temperature
+ *  sensor sequence: title, the three live bottom sensor readings, the
+ *  configured bottomTemperatureSensorSq order, and a prompt to press the
+ *  white button to skip and simulate.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::TemperatureBottomSeqDisplay()
 {
   this->display->fillScreen(BLACK);
@@ -322,6 +453,15 @@ void displayCLD::TemperatureBottomSeqDisplay()
   this->display->printf("Press white button to skip and simulate\n");
 }
 
+/***********************************************************************
+ * Function: TemperatureTopSeqDisplay()
+ * Description: Diagnostic screen that shows the top (hotlid) temperature
+ *  sensor sequence: title, the three live top sensor readings, the
+ *  configured topTemperatureSensorSq order, and a prompt to press the
+ *  white button to skip and simulate.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::TemperatureTopSeqDisplay()
 {
   this->display->fillScreen(BLACK);
@@ -342,6 +482,14 @@ void displayCLD::TemperatureTopSeqDisplay()
   this->display->printf("Press white button to skip and simulate\n");
 }
 
+/***********************************************************************
+ * Function: NextTestDisplay()
+ * Description: Shows a brief "Test next" message in RED, then sets
+ *  type_infor to ewaitingtimeout and schedules timeRefresh ~1 second
+ *  ahead so the device transitions afterwards.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::NextTestDisplay()
 {
   this->display->fillScreen(BLACK);
@@ -353,6 +501,14 @@ void displayCLD::NextTestDisplay()
   timeRefresh = millis() + 1000;
 }
 
+/***********************************************************************
+ * Function: ErrRebootDisplay()
+ * Description: Shows a brief "Restart testing" message in RED, schedules
+ *  timeRefresh ~1 second ahead and sets type_infor to ewaitingtimeout so
+ *  the device returns to the start screen after the error.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::ErrRebootDisplay()
 {
   this->display->fillScreen(BLACK);
@@ -364,6 +520,17 @@ void displayCLD::ErrRebootDisplay()
   type_infor = ewaitingtimeout;
 }
 
+/***********************************************************************
+ * Function: preHeat67CLD_Header()
+ * Description: Draws the static header for the 67C/sensor preheat screen
+ *  once per show (guarded by bheadershow): "Preheat heater and sensor in
+ *  15mins" with warning band/box. If the sensor preheat is not ready it
+ *  offers a green-button skip; if ready and PID phase2 is ready it
+ *  advances type_infor to ewaitampTube, sets changeScreen and beeps.
+ *  Clears bheadershow when done.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::preHeat67CLD_Header()
 {
 
@@ -407,6 +574,15 @@ void displayCLD::preHeat67CLD_Header()
   }
 }
 
+/***********************************************************************
+ * Function: preHeat67CLD()
+ * Description: Dynamic refresh part of the 67C preheat screen. When a new
+ *  temperature sample is ready it redraws the four-value readout
+ *  (bottom[1], bottom[2], hotlid[0], hotlid[1]) in Forte_Green if PID
+ *  phase2 is ready or RED otherwise, then clears the new-temperature flag.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::preHeat67CLD()
 {
   if (_bottomThermometer.getNewTemperatureScreenFlag()) // if there is temperature data to display
@@ -429,6 +605,14 @@ void displayCLD::preHeat67CLD()
   }
 }
 
+/***********************************************************************
+ * Function: preHeat80CLD_Header()
+ * Description: Draws the static header for the 80C preheat screen once
+ *  per show (guarded by bheadershow): "Heat up to 80 in about 10min"
+ *  with hazard band, warning box and circle, then clears bheadershow.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::preHeat80CLD_Header()
 {
   if (bheadershow)
@@ -456,6 +640,14 @@ void displayCLD::preHeat80CLD_Header()
   }
 }
 
+/***********************************************************************
+ * Function: preHeat80CLD()
+ * Description: Dynamic refresh part of the 80C preheat screen. When a new
+ *  temperature sample is ready it redraws the single bottom heater
+ *  temperature (bottomTemperature[0]) and clears the new-temperature flag.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::preHeat80CLD()
 {
   if (_bottomThermometer.getNewTemperatureScreenFlag()) // if there is temperature data to display
@@ -469,6 +661,15 @@ void displayCLD::preHeat80CLD()
   }
 }
 
+/***********************************************************************
+ * Function: waitLysisTube()
+ * Description: Rate-limited screen (refreshes every 10s via timeRefresh)
+ *  prompting the user to put the lysis tube in and close the lid. In the
+ *  English branch it draws the instructions, warning box/circle and the
+ *  "Press Red to Start Lysis" prompt; the language==0 branch is empty.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::waitLysisTube()
 {
   unsigned long now = millis();
@@ -513,6 +714,16 @@ void displayCLD::waitLysisTube()
   }
 }
 
+/***********************************************************************
+ * Function: waitLysis10min()
+ * Description: Manages the lysis heating countdown. When timer10minEnd is
+ *  reached it advances type_infor to ewaitphase2, sets changeScreen and
+ *  beeps. Otherwise, throttled to ~1s, it draws the "Heating..." header
+ *  once (bheadershow) and continuously updates the remaining minutes
+ *  ("Time left"). The language==0 branch is empty.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::waitLysis10min()
 {
   unsigned long now = millis();
@@ -557,6 +768,15 @@ void displayCLD::waitLysis10min()
   // this->display->printf("%d minute", timeleft / (60)); // show the time left
 }
 
+/***********************************************************************
+ * Function: startHeating10mins()
+ * Description: Initializes the lysis heating countdown by setting
+ *  timer10minEnd to now + LYSIS_DURATION seconds, re-arming bheadershow
+ *  so the header redraws, and resetting timeRefresh to 0 to force an
+ *  immediate refresh.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::startHeating10mins()
 {
   timer10minEnd = millis() + LYSIS_DURATION * 1000; // calculate the end time of the 10mins
@@ -564,6 +784,15 @@ void displayCLD::startHeating10mins()
   timeRefresh = 0;
 }
 
+/***********************************************************************
+ * Function: waitBtnStartPhase2()
+ * Description: Rate-limited screen (refreshes every 10s) prompting the
+ *  user, after lysis, to take out the lysis tube, close the lid and
+ *  "Press Green to preheat 67". Drawn with GREEN warning box/circle in
+ *  the English branch; the language==0 branch is empty.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::waitBtnStartPhase2() // can add more buzzer alert in the future
 {
   unsigned long now = millis();
@@ -603,6 +832,15 @@ void displayCLD::waitBtnStartPhase2() // can add more buzzer alert in the future
   }
 }
 
+/***********************************************************************
+ * Function: waitAmpTube()
+ * Description: Rate-limited screen (refreshes every 10s) prompting the
+ *  user to put the amplification tube in and close the lid, with a RED
+ *  warning box/circle and the "Press Red to Measure" prompt in the
+ *  English branch; the language==0 branch is empty.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::waitAmpTube()
 {
   unsigned long now = millis();
@@ -647,6 +885,15 @@ void displayCLD::waitAmpTube()
   }
 }
 
+/***********************************************************************
+ * Function: startAmplification()
+ * Description: Initializes the amplification countdown by setting
+ *  timer30minEnd to now + AMPLIFICATION_DURATION, re-arming bheadershow
+ *  so the header redraws, and resetting timeRefresh to 0 to force an
+ *  immediate refresh.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::startAmplification()
 {
   timer30minEnd = millis() + AMPLIFICATION_DURATION; // * 1000;//_sensor6035.getOPTO_DURATION();//AMPLIFICATION_DURATION*60*1000;   //calculate the end time of the 10mins
@@ -654,6 +901,16 @@ void displayCLD::startAmplification()
   timeRefresh = 0;
 }
 
+/***********************************************************************
+ * Function: waitAmplification30min()
+ * Description: Runs the amplification countdown screen. Returns once
+ *  timer30minEnd is reached. Otherwise, throttled to ~1s, on the first
+ *  pass (bheadershow) it calls _sensor6035.setStepeSensorstart() and
+ *  draws the "Amplification.." header, then continuously updates the
+ *  remaining minutes ("Time left"). The language==0 branch is empty.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::waitAmplification30min()
 {
   unsigned long now = millis();
@@ -698,6 +955,16 @@ void displayCLD::waitAmplification30min()
   this->display->printf("%d Minute", (timeleft / (60) + 1)); // show the time left
 }
 
+/***********************************************************************
+ * Function: prepare()
+ * Description: Rate-limited (every 10s) "put the tube and close the lid"
+ *  prompt before measuring. The language==0 branch draws the Vietnamese
+ *  version including "để đo lần <couter>" (measurement count); the else
+ *  branch draws the English "Press Red to measure" version. Both use the
+ *  RED warning box/circle layout.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::prepare()
 {
   unsigned long now = millis();
@@ -764,6 +1031,21 @@ void displayCLD::prepare()
   }
 }
 
+/***********************************************************************
+ * Function: screen_Result()
+ * Description: Computes and renders the amplification results screen. Ends
+ *  Bluetooth, reads amplification data from EEPROM, streams the per-cycle
+ *  calibrated sensor output over the info channel, and retries WiFi up to
+ *  50 times. When WiFi is connected and key=='f' it posts results to the
+ *  Google Sheet; otherwise it computes results locally via bResultGet.
+ *  Then it draws the L/R 10-channel grid, color-coding each channel by its
+ *  result/error code (P=RED, S=YELLOW, N=Forte_Green dashes, errors in
+ *  ORANGE, B=CYAN), posts errors if any when key=='f', shows "Press white
+ *  key to test next" and clears changeScreen.
+ * pramameter: key - mode selector: 'f' (finished: post data and errors to
+ *  the sheet), other values compute results locally without posting
+ *  return: none
+ */
 void displayCLD::screen_Result(char key)
 {
   {
@@ -894,6 +1176,16 @@ void displayCLD::screen_Result(char key)
   }
 }
 
+/***********************************************************************
+ * Function: screen_errorResult()
+ * Description: Draws the sensor-error results grid (L/R, 10 channels).
+ *  For each channel it searches for an errorLightSensor/errorNoData on the
+ *  first reading: if found it prints the encoded error code in ORANGE,
+ *  otherwise it shows CYAN dashes. Ends with "Press white key to test
+ *  next" and clears changeScreen.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::screen_errorResult(void)
 {
   this->display->fillScreen(BLACK);
@@ -942,6 +1234,17 @@ void displayCLD::screen_errorResult(void)
 }
 // }
 
+/***********************************************************************
+ * Function: set_connect_bluetooth()
+ * Description: WiFi setup over Bluetooth flow. Shows the current WiFi ID,
+ *  password and ID (Vietnamese "Cài đặt WIFI" when language==0, else
+ *  English "WIFI Set up"), then calls connectWIFI() to receive new
+ *  credentials over Bluetooth, saves them to EEPROM via saveSettingDevice()
+ *  and reloads them, displays a success message and the updated values,
+ *  then restarts the ESP.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::set_connect_bluetooth()
 {
   if (language == 0)
@@ -1044,6 +1347,14 @@ void displayCLD::set_connect_bluetooth()
   }
 }
 
+/***********************************************************************
+ * Function: settingSucces()
+ * Description: Free helper that clears the screen and prints the given
+ *  title in GREEN size-2 text (used as a transient "success"/status
+ *  banner), then waits 500ms.
+ * pramameter: title - the message string to display
+ *  return: none
+ */
 void settingSucces(String title)
 {
   _displayCLD.display->fillScreen(BLACK);
@@ -1055,6 +1366,19 @@ void settingSucces(String title)
   delay(500);
 }
 
+/***********************************************************************
+ * Function: loop()
+ * Description: Main display state machine. When changeScreen is set it
+ *  switches on type_infor and dispatches to the matching screen handler
+ *  (start, preheat 67/80, wait lysis/amp tube, heating/amplification
+ *  countdowns, prepare, result/error/finished/review, restart/reboot
+ *  flows, timeout-to-start, settings menus, WiFi/Bluetooth setup, data
+ *  upload, and the calibration / LED-power / OTA screens). It clears
+ *  changeScreen for screens that should draw once, and at the end always
+ *  refreshes the WiFi icon.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::loop()
 {
   if (this->changeScreen)
@@ -1288,6 +1612,13 @@ void displayCLD::loop()
   }
 }
 
+/***********************************************************************
+ * Function: rerun()
+ * Description: Requests a screen redraw on the next loop() by setting the
+ *  changeScreen flag to true (without changing type_infor).
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::rerun()
 {
   // type_infor = escreenStart;
@@ -1295,6 +1626,14 @@ void displayCLD::rerun()
   // info_displayf("status of LCD is %d\n", type_infor);
 }
 
+/***********************************************************************
+ * Function: setting_Menu()
+ * Description: Draws the "RAPID Settings" menu screen with the FORTE
+ *  BIOTECH header and three option boxes: GREEN "Wifi/Update", RED
+ *  "Up Data" and WHITE "Bluetooth".
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::setting_Menu(void)
 {
   info_display("setting menu\n");
@@ -1338,6 +1677,16 @@ void displayCLD::setting_Menu(void)
   this->display->print("RAPID Settings");
 }
 
+/***********************************************************************
+ * Function: setting_Wifi()
+ * Description: WiFi/device settings screen. Normalizes empty ssid,
+ *  password and id_device to a space, draws the "Settings Device/Update"
+ *  screen showing the current wifi name, password and id device, then
+ *  calls Wifi_Connect() to obtain new values, redraws the updated values,
+ *  waits 1s and performs esp_restart().
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::setting_Wifi(void)
 {
   if (WiFi.status() == WL_DISCONNECTED)
@@ -1411,11 +1760,26 @@ void displayCLD::setting_Wifi(void)
   esp_restart();
 }
 
+/***********************************************************************
+ * Function: setting_Language()
+ * Description: Placeholder for a language settings screen. Currently
+ *  empty; performs no action.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::setting_Language(void)
 {
 }
 
 /* Function Calib */
+/***********************************************************************
+ * Function: display_Select_menu_calib()
+ * Description: Draws the "Select Mode" calibration entry menu with a
+ *  GREEN "Calibration", RED "Amplification" and "Tube 0" options, plus a
+ *  "Back" hint in the corner.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::display_Select_menu_calib(void)
 {
   this->display->fillScreen(BLACK);
@@ -1442,6 +1806,14 @@ void displayCLD::display_Select_menu_calib(void)
   this->display->setCursor(275, 230);
   this->display->println("Back");
 }
+/***********************************************************************
+ * Function: display_Select_mode()
+ * Description: Draws the "Select Mode" screen offering a GREEN
+ *  "Calibration" and a RED "Setting LED power" option, plus a "Back"
+ *  hint in the corner.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::display_Select_mode(void)
 {
   this->display->fillScreen(BLACK);
@@ -1467,6 +1839,15 @@ void displayCLD::display_Select_mode(void)
   this->display->println("Back");
 }
 
+/***********************************************************************
+ * Function: display_Select_slot()
+ * Description: Calibration slot selection screen. Shows the currently
+ *  selected slot number (slot + 1) and its stored parameters (slope,
+ *  origin, LED power) for that slot, with "Select", "Next" and "Exit"
+ *  button hints at the bottom.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::display_Select_slot(void)
 {
   this->display->fillScreen(BLACK);
@@ -1504,6 +1885,15 @@ void displayCLD::display_Select_slot(void)
   this->display->print("Exit");
 }
 
+/***********************************************************************
+ * Function: display_Calib()
+ * Description: Prompts the user to insert the calibration tube. The
+ *  concentration label printed depends on _sensor6035.type_calib (0=300,
+ *  1=200, 2=100, 3=0) and the target slot is shown as slot + 1, with a
+ *  GREEN "Calib" button hint.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::display_Calib(void)
 {
   this->display->fillScreen(BLACK);
@@ -1542,6 +1932,13 @@ void displayCLD::display_Calib(void)
   this->display->print("Calib");
 }
 
+/***********************************************************************
+ * Function: display_Waiting_Calib()
+ * Description: Shows the "Calibrating" / "Waitting..." progress screen
+ *  while a calibration measurement is in progress.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::display_Waiting_Calib(void)
 {
   this->display->fillScreen(BLACK);
@@ -1557,6 +1954,16 @@ void displayCLD::display_Waiting_Calib(void)
   this->display->println("Waitting...");
 }
 
+/***********************************************************************
+ * Function: display_Calib_Complete()
+ * Description: Shows the calibration result: Slope, RSQ and Origin from
+ *  _sensor6035.cal_calib, coloring out-of-range slope (<0.5 or >3.5) and
+ *  low RSQ (<0.95) in RED. If any of those are out of range it shows
+ *  "Failed Calib!" with "Calib again"/"Setting LED" hints; otherwise it
+ *  sets flag_calib_done, shows "Done Calib!" and calls set_flag_calib().
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::display_Calib_Complete(void)
 {
   this->display->fillScreen(BLACK);
@@ -1608,6 +2015,15 @@ void displayCLD::display_Calib_Complete(void)
   }
 }
 
+/***********************************************************************
+ * Function: display_Set_powerled()
+ * Description: "Setting LED" screen for editing the 3-digit LED power
+ *  value. Displays the three digits (led_power[0..2]) and draws a WHITE
+ *  selection arrow under the digit currently pointed at by this->index,
+ *  with "Next", "Up" and "Save" button hints.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::display_Set_powerled(void)
 {
   this->display->fillScreen(BLACK);
@@ -1659,6 +2075,15 @@ void displayCLD::display_Set_powerled(void)
   this->display->setTextColor(WHITE);
   this->display->println("Save");
 }
+/***********************************************************************
+ * Function: calculate()
+ * Description: Combines the three LED-power digits into a single integer,
+ *  stores it into _ForteSetting.parameter.led_power[slot], persists the
+ *  parameter block to EEPROM, and shows the "Saved LED power!" screen
+ *  with a "Next" hint.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::calculate(void)
 {
   this->display->fillScreen(BLACK);
@@ -1686,6 +2111,14 @@ void displayCLD::calculate(void)
   this->display->print("Next");
 }
 
+/***********************************************************************
+ * Function: saving_calib()
+ * Description: Saves the computed calibration slope (_sensor6035.cal_calib[0])
+ *  into _ForteSetting.parameter.slopes[slot], persists the parameter block
+ *  to EEPROM, and shows the "Saved calibration!" screen with a "Next" hint.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::saving_calib(void)
 {
   this->display->fillScreen(BLACK);
@@ -1708,6 +2141,14 @@ void displayCLD::saving_calib(void)
   this->display->print("Next");
 }
 
+/***********************************************************************
+ * Function: set_flag_calib()
+ * Description: After a successful calibration, waits 3 seconds then
+ *  transitions the global _displayCLD state to eSaveCalib and requests a
+ *  screen change (changeScreen = true) so the save step runs next.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::set_flag_calib(void)
 {
   delay(3000);
@@ -1715,6 +2156,14 @@ void displayCLD::set_flag_calib(void)
   _displayCLD.changeScreen = true;
 }
 
+/***********************************************************************
+ * Function: display_UpdateOTA()
+ * Description: Shows the OTA update prompt: "You have a new update!" with
+ *  the new firmware version (fwVer) and detail (fwCont), and instructions
+ *  to press red to Update or green to Skip.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::display_UpdateOTA(void)
 {
   this->display->fillScreen(BLACK);
@@ -1745,6 +2194,13 @@ void displayCLD::display_UpdateOTA(void)
   this->display->println("Press green button: Skip");
 }
 
+/***********************************************************************
+ * Function: waittingUpdate()
+ * Description: Shows the "Waiting..." screen displayed while an OTA
+ *  firmware update is being downloaded/applied.
+ * pramameter: none
+ *  return: none
+ */
 void displayCLD::waittingUpdate(void)
 {
   this->display->fillScreen(BLACK);

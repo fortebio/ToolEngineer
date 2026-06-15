@@ -25,6 +25,15 @@ const char *ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 25200; // Múi giờ GMT+7 (Việt Nam)
 const int daylightOffset_sec = 0;
 
+/***********************************************************************
+ * Function: connectBLE()
+ * Description: Initializes the Bluetooth Classic SerialBT interface with a
+ *  device name of "RAPID PLUS -<EfuseMac>". Skips begin() if the BT stack
+ *  has already been permanently released (gBtReleased) to avoid asserting
+ *  on a dead stack.
+ * pramameter: none
+ *  return: none
+ */
 void connectBLE()
 {
   // Once releaseBluetoothStack() has freed the controller memory, the stack
@@ -52,6 +61,14 @@ void connectBLE()
   // EEPROM.end();
 }
 
+/***********************************************************************
+ * Function: BLEloop()
+ * Description: Polls SerialBT for incoming data; if available, reads the
+ *  string and echoes it back over Bluetooth with a "received data:" prefix,
+ *  then delays 300ms.
+ * pramameter: none
+ *  return: none
+ */
 void BLEloop()
 {
   if (SerialBT.available())
@@ -62,6 +79,13 @@ void BLEloop()
   delay(300);
 }
 
+/***********************************************************************
+ * Function: readEEPROM()
+ * Description: Dumps the entire EEPROM contents as a hexadecimal string,
+ *  printing 32-byte (64 hex char) rows via info_displayln for debugging.
+ * pramameter: none
+ *  return: none
+ */
 void readEEPROM()
 {
   EEPROM.begin(_EEPROM_SIZE);
@@ -83,6 +107,15 @@ void readEEPROM()
   EEPROM.end();
 }
 
+/***********************************************************************
+ * Function: paraDisplay()
+ * Description: Serializes a parastructure (calibration slopes/origins, LED
+ *  power, opto parameters, PID values, temperature offsets, buzzer state,
+ *  kitId, etc.) into a pretty-printed JSON document and outputs it (suffixed
+ *  with '@') via info_displayln.
+ * pramameter: para - the parameter structure whose fields are to be displayed
+ *  return: none
+ */
 void paraDisplay(parastructure para)
 {
   info_displayf("Length: %d\n", para.length);
@@ -186,6 +219,14 @@ void paraDisplay(parastructure para)
   info_displayln(output + "@");
 }
 
+/***********************************************************************
+ * Function: loadParaFromEEPROM()
+ * Description: Reads a parastructure from EEPROM at PARAMETERPOS and, if its
+ *  stored length matches sizeof(para) (indicating valid data), displays it
+ *  via paraDisplay(); otherwise reports that no parameters are present.
+ * pramameter: none
+ *  return: none
+ */
 void loadParaFromEEPROM()
 {
   EEPROM.begin(_EEPROM_SIZE);
@@ -204,6 +245,13 @@ void loadParaFromEEPROM()
   }
 }
 
+/***********************************************************************
+ * Function: saveSettingDevice()
+ * Description: Persists the WiFi SSID, password and device ID to EEPROM and
+ *  clears the ADDR_CHECK_ID_DEVICE flag, then commits and ends EEPROM.
+ * pramameter: none
+ *  return: none
+ */
 void saveSettingDevice()
 {
   EEPROM.begin(_EEPROM_SIZE);
@@ -215,6 +263,13 @@ void saveSettingDevice()
   EEPROM.end();
 }
 
+/***********************************************************************
+ * Function: loadSettingDevice()
+ * Description: Loads the WiFi SSID, password and device ID from EEPROM into
+ *  the global ssid, password and id_device variables.
+ * pramameter: none
+ *  return: none
+ */
 void loadSettingDevice()
 {
   EEPROM.begin(_EEPROM_SIZE);
@@ -224,6 +279,13 @@ void loadSettingDevice()
   EEPROM.end();
 }
 
+/***********************************************************************
+ * Function: Write_language_ToEEPROM()
+ * Description: Writes the current global language selection to EEPROM byte
+ *  address 200 and commits the change.
+ * pramameter: none
+ *  return: none
+ */
 void Write_language_ToEEPROM()
 {
   EEPROM.begin(_EEPROM_SIZE);
@@ -232,6 +294,13 @@ void Write_language_ToEEPROM()
   EEPROM.commit();
 }
 
+/***********************************************************************
+ * Function: Read_language_fromEEPROM()
+ * Description: Reads the stored language selection from EEPROM byte address
+ *  200 into the global language variable.
+ * pramameter: none
+ *  return: none
+ */
 void Read_language_fromEEPROM()
 {
   EEPROM.begin(_EEPROM_SIZE);
@@ -254,6 +323,16 @@ void Read_language_fromEEPROM()
  * they can run one after another within a single power cycle. The gBtReleased
  * guard makes this safe to call from any of them in any order, and lets the
  * info_display* macros + SettingTask stop touching SerialBT afterwards.
+ */
+/***********************************************************************
+ * Function: releaseBluetoothStack()
+ * Description: Idempotent, one-time teardown of the Bluetooth Classic stack:
+ *  ends SerialBT, disables/deinits bluedroid and the BT controller, and
+ *  permanently releases the controller memory via esp_bt_mem_release. Sets
+ *  gBtReleased last so no further SerialBT access occurs; returns early if
+ *  already released.
+ * pramameter: none
+ *  return: none
  */
 void releaseBluetoothStack()
 {
@@ -280,6 +359,15 @@ void releaseBluetoothStack()
 /**
  * @brief Connect to WiFi using WiFiManager
  *
+ */
+/***********************************************************************
+ * Function: Wifi_Connect()
+ * Description: Releases the Bluetooth stack, disables the Core 0 watchdog,
+ *  then launches WiFiManager's captive-portal AP (named from id_device) to
+ *  let the user enter WiFi credentials and a device ID. On connect, saves
+ *  SSID/password/id_device to EEPROM; on failure, restarts the device.
+ * pramameter: none
+ *  return: none
  */
 void Wifi_Connect()
 {
@@ -343,6 +431,13 @@ void Wifi_Connect()
   saveSettingDevice();
 }
 
+/***********************************************************************
+ * Function: getTime()
+ * Description: Obtains the current local time and formats it as a
+ *  "dd-mm-YYYY HH:MM:SS" string; returns "N/A" if the time cannot be read.
+ * pramameter: none
+ *  return: String - the formatted local time, or "N/A" on failure
+ */
 String getTime()
 {
   struct tm timeinfo;
@@ -358,6 +453,13 @@ String getTime()
   return String(timeString);
 }
 
+/***********************************************************************
+ * Function: getDataAmplificationEEPROM()
+ * Description: Reads the stored amplification record array (10 x 130 Words)
+ *  from EEPROM at RECORDPOS and copies it into _sensor6035.sensor67Value.
+ * pramameter: none
+ *  return: none
+ */
 void getDataAmplificationEEPROM(void)
 {
 
@@ -368,11 +470,29 @@ void getDataAmplificationEEPROM(void)
   EEPROM.end();
 }
 
+/***********************************************************************
+ * Function: rounded()
+ * Description: Rounds a floating-point value to one decimal place.
+ * pramameter: value - the float value to round
+ *  return: float - the value rounded to 1 decimal place
+ */
 float rounded(float value)
 {
   return round(value * 10.0) / 10.0f; // Round to 1 decimal place
 }
 
+/***********************************************************************
+ * Function: postData_GoogleSheet()
+ * Description: Builds a JSON payload of machine specs, per-slot CT values,
+ *  results, peak features/outcomes and raw amplification curves, then POSTs
+ *  it over HTTPS (TLS insecure) to the Google Apps Script endpoint. Frees the
+ *  JSON document before the TLS handshake to avoid heap fragmentation, and
+ *  treats a 2xx or 302 redirect as success. Skips if WiFi is not connected.
+ * pramameter: CT_value - array of 10 CT values per slot
+ * pramameter: result - array of 10 result characters per slot (P/N/S/E)
+ * pramameter: loops - number of amplification loops (raw data points per slot)
+ *  return: none
+ */
 void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
 {
   if (WiFi.status() != WL_CONNECTED)
@@ -558,6 +678,14 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
   http.end();
 }
 
+/***********************************************************************
+ * Function: getResult_toChart()
+ * Description: Maps a single-character result code to a human-readable
+ *  string: 'N'->"Negative", 'P'->"Positive", 'S'->"Slide Positive",
+ *  'E'->"E".
+ * pramameter: tmp - the result character code
+ *  return: String - the readable result label for the chart
+ */
 String getResult_toChart(char tmp)
 {
   if (tmp == 'N')
@@ -578,6 +706,14 @@ String getResult_toChart(char tmp)
   }
 }
 
+/***********************************************************************
+ * Function: getCT_toChart()
+ * Description: Formats a CT value for the chart: returns "N/A" when the
+ *  result is Negative ('N'), otherwise returns the CT value as a string.
+ * pramameter: tmp - the CT value
+ * pramameter: result - the result character code
+ *  return: String - "N/A" for negative results, else the CT value
+ */
 String getCT_toChart(float tmp, char result)
 {
   if (result == 'N')
@@ -590,6 +726,15 @@ String getCT_toChart(float tmp, char result)
   }
 }
 
+/***********************************************************************
+ * Function: getData_toChart()
+ * Description: Loads amplification data from EEPROM, computes per-slot CT
+ *  values and results, and serializes them along with the device ID and
+ *  the processed amplification curves into a JSON string for the chart web
+ *  page. Frees the per-slot processed_data buffers after use.
+ * pramameter: none
+ *  return: String - the serialized JSON of chart data
+ */
 String getData_toChart(void)
 {
   JsonDocument readings;
@@ -626,6 +771,14 @@ String getData_toChart(void)
   return JsonString;
 }
 
+/***********************************************************************
+ * Function: postData_Chart()
+ * Description: When WiFi is connected, ends Bluetooth and starts a local HTTP
+ *  server serving the chart page at "/" (index_html) and the chart JSON at
+ *  "/getdata" (via getData_toChart). Logs a message if WiFi is disconnected.
+ * pramameter: none
+ *  return: none
+ */
 void postData_Chart(void)
 {
   if (WiFi.status() == WL_CONNECTED)

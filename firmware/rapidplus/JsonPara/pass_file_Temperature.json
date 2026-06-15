@@ -4,13 +4,13 @@
   "amplification temperature": 65.8,
   "PID parameter": [
     30,
-    0.1,
-    200
+    0.05,
+    30
   ],
   "PID2 parameter": [
-    60,
+    40,
     0.1,
-    40
+    60
   ],
   "PID3 parameter": [
     60,

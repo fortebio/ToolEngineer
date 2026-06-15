@@ -63,6 +63,15 @@ public:
 
 
 // constructor with sizes
+/***********************************************************************
+ * Function: float_mat()
+ * Description: Sizing constructor for the 2D matrix; allocates 'rows'
+ *  float_vect rows and resizes each row to 'cols', filling every element
+ *  with 'defval'. Reports an error string if rows or cols is < 1.
+ * pramameter: rows = number of matrix rows; cols = number of matrix
+ *  columns; defval = default fill value for every element (default 0.0)
+ *  return: none (constructor)
+ */
 float_mat::float_mat(const size_t rows, const size_t cols, const double defval)
     : std::vector<float_vect>(rows) {
     int i;
@@ -79,6 +88,14 @@ float_mat::float_mat(const size_t rows, const size_t cols, const double defval)
 }
 
 // copy constructor for matrix
+/***********************************************************************
+ * Function: float_mat()
+ * Description: Copy constructor that deep-copies another float_mat by
+ *  iterating each source row, resizing the destination row to match and
+ *  assigning the row vector, producing an independent matrix copy.
+ * pramameter: m = source matrix to copy from
+ *  return: none (constructor)
+ */
 float_mat::float_mat(const float_mat& m) : std::vector<float_vect>(m.size()) {
 
     float_mat::iterator inew = begin();
@@ -92,6 +109,14 @@ float_mat::float_mat(const float_mat& m) : std::vector<float_vect>(m.size()) {
 }
 
 // copy constructor for vector
+/***********************************************************************
+ * Function: float_mat()
+ * Description: Constructs a single-row matrix from a 1D vector; allocates
+ *  one row, resizes it to the vector length and copies the vector into
+ *  that row (treating the vector as a 1xN row matrix).
+ * pramameter: v = source vector to wrap as one matrix row
+ *  return: none (constructor)
+ */
 float_mat::float_mat(const float_vect& v)
     : std::vector<float_vect>(1) {
 
@@ -105,6 +130,15 @@ float_mat::float_mat(const float_vect& v)
 //////////////////////
 
 //! permute() orders the rows of A to match the integers in the index array.
+/***********************************************************************
+ * Function: permute()
+ * Description: Physically reorders the rows of matrix A so they follow the
+ *  permutation given in idx; tracks a working index map and swaps rows
+ *  in place until each position holds the row indicated by idx.
+ * pramameter: A = matrix whose rows are reordered in place; idx = target
+ *  permutation of row indices (e.g. from an LU decomposition)
+ *  return: none (A is modified in place)
+ */
 void permute(float_mat& A, int_vect& idx)
 {
     int_vect i(idx.size());
@@ -140,6 +174,19 @@ void permute(float_mat& A, int_vect& idx)
  * scaling information in the vector scale. The map of swapped indices is
  * recorded in swp. The return value is +1 or -1 depending on whether the
  * number of row swaps was even or odd respectively. */
+/***********************************************************************
+ * Function: partial_pivot()
+ * Description: Performs implicit partial pivoting for LU decomposition;
+ *  scans rows at and below 'row' for the largest scaled coefficient in
+ *  column 'col' (|A|*scale), then swaps that row to the diagonal via the
+ *  index map idx, flipping the swap-parity sign on each exchange.
+ * pramameter: A = matrix being factorized; row = current pivot row; col =
+ *  current pivot column; scale = per-row implicit scaling factors; idx =
+ *  index map updated with the row swap; tol = pivot tolerance (replaced
+ *  with TINY_FLOAT if <= 0)
+ *  return: +1 if no swap performed, -1 if the pivot row was swapped (swap
+ *  parity contribution)
+ */
 static int partial_pivot(float_mat& A, const size_t row, const size_t col,
     float_vect& scale, int_vect& idx, double tol)
 {
@@ -186,6 +233,17 @@ static int partial_pivot(float_mat& A, const size_t row, const size_t col,
      * assumed to be 1.  Note that the lower triangular elements are never
      * checked, so this function is valid to use after a LU-decomposition in
      * place.  A is not modified, and the solution, b, is returned in a. */
+    /***********************************************************************
+     * Function: lu_backsubst()
+     * Description: Solves A*b=a by back substitution assuming A is upper
+     *  triangular; iterates rows from bottom to top, subtracting the
+     *  contribution of already-solved columns and (unless diag) dividing
+     *  by the diagonal. The solution overwrites 'a'.
+     * pramameter: A = upper-triangular matrix (e.g. U from LU); a = right
+     *  hand side, overwritten with the solution b; diag = if true treat the
+     *  diagonal elements as 1 and skip the division (default false)
+     *  return: none (solution returned in a)
+     */
     static void lu_backsubst(float_mat & A, float_mat & a, bool diag = false)
     {
         int r, c, k;
@@ -211,6 +269,17 @@ static int partial_pivot(float_mat& A, const size_t row, const size_t col,
      * assumed to be 1.  Note that the upper triangular elements are never
      * checked, so this function is valid to use after a LU-decomposition in
      * place.  A is not modified, and the solution, b, is returned in a. */
+    /***********************************************************************
+     * Function: lu_forwsubst()
+     * Description: Solves A*b=a by forward substitution assuming A is lower
+     *  triangular; iterates rows from top to bottom, subtracting the
+     *  contribution of already-solved columns and (unless diag) dividing
+     *  by the diagonal. The solution overwrites 'a'.
+     * pramameter: A = lower-triangular matrix (e.g. L from LU); a = right
+     *  hand side, overwritten with the solution b; diag = if true treat the
+     *  diagonal elements as 1 and skip the division (default true)
+     *  return: none (solution returned in a)
+     */
     static void lu_forwsubst(float_mat & A, float_mat & a, bool diag = true)
     {
         int r, k, c;
@@ -235,6 +304,19 @@ static int partial_pivot(float_mat& A, const size_t row, const size_t col,
      * depending on whether the number of row swaps was even or odd
      * respectively.  idx must be preinitialized to a valid set of indices
      * (e.g., {1,2, ... ,A.nr_rows()}). */
+    /***********************************************************************
+     * Function: lu_factorize()
+     * Description: Performs in-place LU factorization of square matrix A
+     *  using Crout's algorithm with implicit partial pivoting; first
+     *  computes per-row scaling from the max absolute element, then loops
+     *  over columns calling partial_pivot and eliminating to build L and U,
+     *  finally permuting A into pivoted order. Records swaps in idx.
+     * pramameter: A = square matrix factorized in place into L/U; idx =
+     *  preinitialized index array updated with the row permutation; tol =
+     *  pivot tolerance (replaced with TINY_FLOAT if <= 0)
+     *  return: +1/-1 swap parity (even/odd row swaps), or 0 if A is empty,
+     *  nonsquare, or a zero pivot is found
+     */
     static int lu_factorize(float_mat & A, int_vect & idx, double tol = TINY_FLOAT)
     {
         if (tol <= 0.0)
@@ -282,6 +364,16 @@ static int partial_pivot(float_mat& A, const size_t row, const size_t col,
     /*! \brief Solve a system of linear equations.
      * Solves the inhomogeneous matrix problem with lu-decomposition. Note that
      * inversion may be accomplished by setting a to the identity_matrix. */
+    /***********************************************************************
+     * Function: lin_solve()
+     * Description: Solves the linear system A*X=a via LU decomposition;
+     *  copies A and a, LU-factorizes the copy of A, permutes the right hand
+     *  side to match, then runs forward and backward substitution to
+     *  produce X. Passing the identity for 'a' yields the inverse of A.
+     * pramameter: A = coefficient matrix; a = right hand side matrix (use
+     *  identity to invert); tol = pivot tolerance for the factorization
+     *  return: the solution matrix X (= A^-1 * a)
+     */
     static float_mat lin_solve(const float_mat & A, const float_mat & a,
         double tol = TINY_FLOAT)
     {
@@ -305,6 +397,14 @@ static int partial_pivot(float_mat& A, const size_t row, const size_t col,
     ///////////////////////
 
     //! Returns the inverse of a matrix using LU-decomposition.
+    /***********************************************************************
+     * Function: invert()
+     * Description: Computes the inverse of square matrix A by building an
+     *  identity matrix E of the same size and solving A*X=E with lin_solve
+     *  (LU-decomposition), so X is A^-1.
+     * pramameter: A = square matrix to invert
+     *  return: the inverse matrix A^-1
+     */
     static float_mat invert(const float_mat & A)
     {
         const int n = A.size();
@@ -320,6 +420,14 @@ static int partial_pivot(float_mat& A, const size_t row, const size_t col,
     }
 
     //! returns the transposed matrix.
+    /***********************************************************************
+     * Function: transpose()
+     * Description: Returns the transpose of matrix a by allocating a result
+     *  of size (cols x rows) and copying res[j][i] = a[i][j] for every
+     *  element, swapping rows and columns.
+     * pramameter: a = matrix to transpose
+     *  return: the transposed matrix (a^T)
+     */
     static float_mat transpose(const float_mat & a)
     {
         float_mat res(a.nr_cols(), a.nr_rows());
@@ -334,6 +442,14 @@ static int partial_pivot(float_mat& A, const size_t row, const size_t col,
     }
 
     //! matrix multiplication.
+    /***********************************************************************
+     * Function: operator*()
+     * Description: Standard matrix multiplication; computes res = a*b where
+     *  each res[i][j] is the dot product of row i of a with column j of b.
+     *  Returns an unfilled result if inner dimensions are incompatible.
+     * pramameter: a = left matrix (rows x k); b = right matrix (k x cols)
+     *  return: the product matrix a*b (a.nr_rows() x b.nr_cols())
+     */
     float_mat operator *(const float_mat & a, const float_mat & b)
     {
         float_mat res(a.nr_rows(), b.nr_cols());
@@ -358,6 +474,17 @@ static int partial_pivot(float_mat& A, const size_t row, const size_t col,
 
 
     //! calculate savitzky golay coefficients.
+    /***********************************************************************
+     * Function: sg_coeff()
+     * Description: Computes Savitzky-Golay convolution coefficients by a
+     *  polynomial least-squares fit; builds the Vandermonde design matrix A
+     *  (A[i][j]=i^j), solves the normal equations c=(A^T A)^-1 A^T b, then
+     *  evaluates the degree-'deg' polynomial at each index to yield the
+     *  smoothing coefficients for the supplied unit vector b.
+     * pramameter: b = (unit) response vector defining the window position;
+     *  deg = polynomial degree of the fit
+     *  return: vector of Savitzky-Golay coefficients (same length as b)
+     */
     static float_vect sg_coeff(const float_vect & b, const size_t deg)
     {
         const size_t rows(b.size());
@@ -392,6 +519,19 @@ static int partial_pivot(float_mat& A, const size_t row, const size_t col,
      * vector of size 2w+1, e.g. for w=2 b=(0,0,1,0,0). evaluating the polynome
      * yields the sg-coefficients.  at the border non symmectric vectors b are
      * used. */
+    /***********************************************************************
+     * Function: sg_smooth()
+     * Description: Applies Savitzky-Golay smoothing to signal v over a
+     *  sliding window of size 2*width+1. For deg==0 it does a plain moving
+     *  average (with shrinking windows at the borders); otherwise it
+     *  generates SG coefficients via sg_coeff for the symmetric interior
+     *  and for each non-symmetric border position, then convolves them with
+     *  the data to produce the smoothed output.
+     * pramameter: v = input data vector; width = half-window size (window =
+     *  2*width+1); deg = polynomial degree (0 = moving average)
+     *  return: smoothed data vector (same length as v; zero-filled on a
+     *  parameter error)
+     */
     float_vect sg_smooth(const float_vect & v, const int width, const int deg)
     {
         float_vect res(v.size(), 0.0);
@@ -466,6 +606,16 @@ static int partial_pivot(float_mat& A, const size_t row, const size_t col,
 
     /*! least squares fit a polynome of degree 'deg' to data in 'b'.
      *  then calculate the first derivative and return it. */
+    /***********************************************************************
+     * Function: lsqr_fprime()
+     * Description: Least-squares fits a degree-'deg' polynomial to data b
+     *  (Vandermonde matrix A[i][j]=i^j, normal equations c=(A^T A)^-1 A^T b)
+     *  and evaluates the analytic first derivative of that polynomial at
+     *  each index, returning the derivative values.
+     * pramameter: b = input data window to fit; deg = polynomial degree
+     *  return: vector of first-derivative values of the fitted polynomial
+     *  (same length as b)
+     */
     static float_vect lsqr_fprime(const float_vect & b, const int deg)
     {
         const int rows(b.size());
@@ -501,6 +651,20 @@ static int partial_pivot(float_mat& A, const size_t row, const size_t col,
      * In contrast to the sg_smooth function we do a brute force attempt by
      * always fitting the data to a polynome of degree 'deg' and using the
      * result. */
+    /***********************************************************************
+     * Function: sg_derivative()
+     * Description: Computes a Savitzky-Golay smoothed numerical first
+     *  derivative of signal v over a window of 2*width+1. Handles the lower
+     *  and upper borders with single polynomial fits (upper fit reversed,
+     *  hence negated), then for interior points slides the window, fits a
+     *  degree-'deg' polynomial via lsqr_fprime and takes the middle
+     *  derivative value; all samples are scaled by the step size h.
+     * pramameter: v = input data vector; width = half-window size; deg =
+     *  polynomial degree (>=1); h = sample spacing used to scale the
+     *  derivative
+     *  return: vector of derivative values (same length as v; zero-filled on
+     *  a parameter error)
+     */
     float_vect sg_derivative(const float_vect & v, const int width,
         const int deg, const double h)
     {

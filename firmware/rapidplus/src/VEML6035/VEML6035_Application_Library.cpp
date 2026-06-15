@@ -48,6 +48,17 @@ extern int I2C_Bus;
  *
  *returns resolution (lux/count)
  */
+/***********************************************************************
+ * Function: VEML6035_CAL_Resolution()
+ * Description: Computes the ALS resolution in lux/count by looking up the
+ *  value that corresponds to the given digital gain (DG), integration
+ *  time (ALS_IT), analog gain (GAIN) and sensitivity (SENS) settings, per
+ *  the datasheet resolution table.
+ * pramameter: DG - digital gain setting (normal/double); ALS_IT - integration
+ *  time setting; GAIN - analog gain setting (normal/double); SENS - sensitivity
+ *  setting (x1 / x1/8)
+ *  return: float resolution in lux/count for the given configuration
+ */
 float VEML6035_CAL_Resolution(Byte DG, Byte ALS_IT, Byte GAIN, Byte SENS)
 {
     float Resolution;
@@ -153,6 +164,14 @@ float VEML6035_CAL_Resolution(Byte DG, Byte ALS_IT, Byte GAIN, Byte SENS)
  *
  *returns lux
  */
+/***********************************************************************
+ * Function: VEML6035_CAL_Lux()
+ * Description: Converts a raw ALS count into a lux value by multiplying
+ *  the resolution (lux/count) by the measured count.
+ * pramameter: Resolution - lux/count resolution from VEML6035_CAL_Resolution();
+ *  Count - raw ALS data count from VEML6035_GET_ALS_DATA()
+ *  return: float illuminance in lux
+ */
 float VEML6035_CAL_Lux(float Resolution, float Count)
 {
     float Lux;
@@ -163,6 +182,14 @@ float VEML6035_CAL_Lux(float Resolution, float Count)
 /*Get ALS_IT
  *VEML6035_GET_ALS_IT()
  *returns ALS_IT
+ */
+/***********************************************************************
+ * Function: VEML6035_GET_ALS_IT()
+ * Description: Reads the ALS integration time bits via
+ *  VEML6035_GET_ALS_IT_Bits() and maps the bit code (1-6) to the
+ *  corresponding VEML6035_ALS_IT_* constant.
+ * pramameter: none
+ *  return: Byte ALS integration time setting constant, or 0 if unrecognized
  */
 Byte VEML6035_GET_ALS_IT()
 {
@@ -180,6 +207,14 @@ Byte VEML6035_GET_ALS_IT()
  *VEML6035_GET_GAIN()
  *returns GAIN
  */
+/***********************************************************************
+ * Function: VEML6035_GET_GAIN()
+ * Description: Reads the analog GAIN bit via VEML6035_GET_GAIN_Bit()
+ *  and maps it to the VEML6035_GAIN_0_NORMAL or VEML6035_GAIN_1_DOUBLE
+ *  constant.
+ * pramameter: none
+ *  return: Byte analog gain setting constant, or 0 if unrecognized
+ */
 Byte VEML6035_GET_GAIN()
 {
 
@@ -192,6 +227,14 @@ Byte VEML6035_GET_GAIN()
 /*Get DG
  *VEML6035_GET_DG()
  *returns DG
+ */
+/***********************************************************************
+ * Function: VEML6035_GET_DG()
+ * Description: Reads the digital gain (DG) bit via VEML6035_GET_DG_Bit()
+ *  and maps it to the VEML6035_DG_0_NORMAL or VEML6035_DG_1_DOUBLE
+ *  constant.
+ * pramameter: none
+ *  return: Byte digital gain setting constant, or 0 if unrecognized
  */
 Byte VEML6035_GET_DG()
 {
@@ -206,6 +249,13 @@ Byte VEML6035_GET_DG()
  *VEML6035_GET_SENS()
  *returns SENS
  */
+/***********************************************************************
+ * Function: VEML6035_GET_SENS()
+ * Description: Reads the sensitivity (SENS) bit via VEML6035_GET_SENS_Bit()
+ *  and maps it to the VEML6035_SENS_0_x1 or VEML6035_SENS_1_x1_8 constant.
+ * pramameter: none
+ *  return: Byte sensitivity setting constant, or 0 if unrecognized
+ */
 Byte VEML6035_GET_SENS()
 {
 
@@ -218,6 +268,15 @@ Byte VEML6035_GET_SENS()
 /*Get Delay for Measurement
  *VEML6035_GET_Delay()
  *returns delay in ms
+ */
+/***********************************************************************
+ * Function: VEML6035_GET_Delay()
+ * Description: Calculates the measurement delay in milliseconds needed
+ *  before reading data, based on the PSM_EN bit, the ALS integration
+ *  time bits and (when power saving mode is enabled) the PSM_WAIT bits.
+ * pramameter: none
+ *  return: int delay in milliseconds (integration time plus ~10ms circuit
+ *  delay, plus PSM waiting time when power saving mode is enabled)
  */
 int VEML6035_GET_Delay()
 {
@@ -273,6 +332,15 @@ int VEML6035_GET_Delay()
  * 9 - PSM with waiting time 1.6s (ALS + White)
  * 10 - PSM with waiting time 3.2s (ALS + White)
  */
+/***********************************************************************
+ * Function: VEML6035_GET_ALS_Mode()
+ * Description: Determines the current ALS operating mode by reading the
+ *  SD, CHANNEL_EN, PSM_EN and PSM_WAIT bits and combining them into a
+ *  mode code (0-10) covering shutdown, auto and power-saving variants
+ *  for ALS-only and ALS+White configurations.
+ * pramameter: none
+ *  return: int mode code from 0 (ALS shutdown) to 10 (PSM 3.2s ALS+White)
+ */
 int VEML6035_GET_ALS_Mode()
 {
 	int Mode;
@@ -315,6 +383,14 @@ int VEML6035_GET_ALS_Mode()
 
 
 //Reset the Sensor to default Value
+/***********************************************************************
+ * Function: Reset_Sensor()
+ * Description: Restores the sensor to default values by writing over I2C
+ *  to the ALS_CONF_0 register (0x0001, shutdown), and zeroing the WH
+ *  (high threshold), WL (low threshold) and PSM registers.
+ * pramameter: none
+ *  return: none
+ */
 void Reset_Sensor()
 {
 	struct TransferData VEML6035_Data;
@@ -350,6 +426,15 @@ void Reset_Sensor()
 
 
 //Print the output of the sensor
+/***********************************************************************
+ * Function: ALS_White_Reading()
+ * Description: Reads the ALS data (VEML6035_GET_ALS_DATA) and White
+ *  channel data (VEML6035_GET_WHITE_DATA) and prints them as a
+ *  comma-separated "ALS,White" line; resolution is computed but most
+ *  other printouts are commented out.
+ * pramameter: none
+ *  return: none
+ */
 void ALS_White_Reading()
 {
 	Word ALS_value, White_value;
@@ -432,6 +517,15 @@ void ALS_White_Reading()
 
 
 //Print the output of the sensor
+/***********************************************************************
+ * Function: Print_Data_Only()
+ * Description: Performs a full ALS measurement cycle - waits the computed
+ *  delay, reads ALS data, computes resolution and lux, reads White channel
+ *  data and the interrupt flag - and prints each value with formatted
+ *  banners to the info display.
+ * pramameter: none
+ *  return: none
+ */
 void Print_Data_Only()
 {
 	Word value;
@@ -515,6 +609,13 @@ void Print_Data_Only()
  *
  * Value between 0d0 and 0d65535
  */
+/***********************************************************************
+ * Function: Print_Variable_DEC()
+ * Description: Prints the given 16-bit variable in decimal form to the
+ *  info display, wrapped in banner lines, for debugging.
+ * pramameter: Var - the Word value (0 to 65535) to print in decimal
+ *  return: none
+ */
 void Print_Variable_DEC(Word Var)
 {
 	info_displayln("***************************************************");
@@ -535,6 +636,13 @@ void Print_Variable_DEC(Word Var)
  *
  * Value between 0d0 and 0d65535
  */
+/***********************************************************************
+ * Function: Print_Variable_HEX()
+ * Description: Prints the given 16-bit variable in hexadecimal form to the
+ *  info display, wrapped in banner lines, for debugging.
+ * pramameter: Var - the Word value (0 to 65535) to print in hexadecimal
+ *  return: none
+ */
 void Print_Variable_HEX(Word Var)
 {
 	info_displayln("***************************************************");
@@ -554,6 +662,14 @@ void Print_Variable_HEX(Word Var)
  *char* str - Array pointer to be reversed
  *int len - Length of the array
  */
+/***********************************************************************
+ * Function: reverse()
+ * Description: Reverses the characters of the given string in place by
+ *  swapping from both ends toward the middle.
+ * pramameter: str - pointer to the character array to reverse; len - length
+ *  of the array
+ *  return: none
+ */
 void reverse(char* str, int len)
 {
     int i = 0, j = len - 1, temp;
@@ -571,6 +687,16 @@ void reverse(char* str, int len)
  *int x - floating-point number to be converted to a string (Both the integer part as well as fraction/decimal point part)
  *char str[] - output string of the floating-point number in the form of array character
  *int d - number of decimal point (the integer part always = 0, the fraction/decimal point part = int afterpoint from ftoa() input)
+ */
+/***********************************************************************
+ * Function: intToStr()
+ * Description: Converts an integer to its string representation, zero
+ *  padding to at least d digits, then reverses and null-terminates the
+ *  result; used as a helper by ftoa().
+ * pramameter: x - integer to convert; str - output character array; d -
+ *  minimum number of digits (zero-padded)
+ *  return: int the number of characters written (position of the null
+ *  terminator)
  */
 int intToStr(int x, char str[], int d)
 {
@@ -602,6 +728,15 @@ int intToStr(int x, char str[], int d)
  *float n - floating-point number to be converted to a string
  *char* res - pointer to output string of the floating-point number in the form of array character
  *int d - number of decimal point
+ */
+/***********************************************************************
+ * Function: ftoa()
+ * Description: Converts a floating-point number to a string by writing the
+ *  integer part, then (if afterpoint is non-zero) a dot followed by the
+ *  fractional part scaled by 10^afterpoint, using intToStr() for each part.
+ * pramameter: n - floating-point number to convert; res - output character
+ *  array; afterpoint - number of digits to keep after the decimal point
+ *  return: none
  */
 void ftoa(float n, char* res, int afterpoint)
 {

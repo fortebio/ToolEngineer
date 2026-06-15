@@ -18,6 +18,16 @@
 
 // Master sends I2C write command via pointer *Data send from the Sensor API.
 // The function returns 0 when no error and -1 when there is error.
+/***********************************************************************
+ * Function: WriteI2C_Bus()
+ * Description: Performs an I2C write transaction to a slave device. Based on
+ *  Data->Select_I2C_Bus it selects Wire (bus 1/default) or Wire1 (bus 2),
+ *  begins a transmission to Data->Slave_Address, writes the register address
+ *  followed by WData[0] and WData[1], and ends the transmission.
+ * pramameter: Data - pointer to TransferData holding the selected I2C bus,
+ *  slave address, register address and the two write bytes (WData[0..1]).
+ *  return: int - 0 on success, -1 if endTransmission() reports an error.
+ */
 int WriteI2C_Bus(struct TransferData *Data)
 {
 	// Initialization of intial Error = 0
@@ -134,6 +144,20 @@ int WriteI2C_Bus(struct TransferData *Data)
 
 // Master sends I2C Read command and save the read data via pointer *Data.
 // The function returns 0 when no error and -1 when there is error.
+/***********************************************************************
+ * Function: ReadI2C_Bus()
+ * Description: Performs an I2C read transaction from a slave device. Based on
+ *  Data->Select_I2C_Bus it selects Wire (bus 1/default) or Wire1 (bus 2),
+ *  begins a transmission to Data->Slave_Address, writes the register address,
+ *  issues a repeated start (endTransmission(false)), requests 2 bytes and
+ *  stores them into RData[0] and RData[1]. The default branch also verifies
+ *  that exactly 2 bytes were returned.
+ * pramameter: Data - pointer to TransferData holding the selected I2C bus,
+ *  slave address and register address; the two bytes read are written back
+ *  into Data->RData[0..1].
+ *  return: int - 0 on success, -1 if endTransmission() errors or the
+ *  requested byte count is not 2 (default branch).
+ */
 int ReadI2C_Bus(struct TransferData *Data)
 {
 	// Initialization of intial Error = 0

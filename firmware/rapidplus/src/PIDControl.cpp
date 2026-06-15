@@ -8,6 +8,14 @@
 #define TOPHEATER2PWMHIGH _ForteSetting.parameter.hotlidPWM[0][1]
 #define TOPHEATER3PWMLOW _ForteSetting.parameter.hotlidPWM[1][0]
 #define TOPHEATER3PWMHIGH _ForteSetting.parameter.hotlidPWM[1][1]
+/***********************************************************************
+ * Function: PIDControl()
+ * Description: Constructor for the PIDControl class. PID object creation
+ *  and mode setup are deferred to begin(); the body only holds commented-out
+ *  legacy initialization, so it performs no active work.
+ * pramameter: none
+ *  return: none
+ */
 PIDControl::PIDControl(/* args */)
 {
     // myPID = new PID(&CURRENT_TEMP_PID, &RESPONSE_SIGNAL, &TARGET_TEMP, Kp, Ki, Kd, DIRECT);
@@ -16,10 +24,28 @@ PIDControl::PIDControl(/* args */)
     // myPID3.SetMode(AUTOMATIC);
 }
 
+/***********************************************************************
+ * Function: PIDControl()
+ * Description: Destructor for the PIDControl class. Empty body; no dynamically
+ *  allocated PID objects are freed here.
+ * pramameter: none
+ *  return: none
+ */
 PIDControl::~PIDControl()
 {
 }
 
+/***********************************************************************
+ * Function: begin()
+ * Description: Initializes the PID subsystem. Loads Kp/Ki/Kd gains from
+ *  _ForteSetting for the three bottom heaters (myPID, myPID2, myPID3) and the
+ *  two top hotlids (myPIDhotlid2, myPIDhotlid3), allocates each PID object and
+ *  sets them to AUTOMATIC mode, configures the heater1/2/3 and hotlid2/3 (plus
+ *  legacy hotlid23) output pins to OFF, starts the bottom and top thermometers,
+ *  prints the loaded gains, then runs sensorSeq() to detect sensor ordering.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::begin()
 {
     // initialize the PID parameter and varible here
@@ -50,6 +76,13 @@ void PIDControl::begin()
     myPID3->SetMode(AUTOMATIC);
     myPIDhotlid2->SetMode(AUTOMATIC);
     myPIDhotlid3->SetMode(AUTOMATIC);
+    // Limit the hotlid PID output to the configured safe PWM, instead of the
+    // default 0~255, to avoid overdriving the top heaters. Use the larger of the
+    // two configured PWM values since the high/low labels can be swapped by config.
+    // double hotlid2MaxPWM = max(TOPHEATER2PWMHIGH, TOPHEATER2PWMLOW);
+    // double hotlid3MaxPWM = max(TOPHEATER3PWMHIGH, TOPHEATER3PWMLOW);
+    // myPIDhotlid2->SetOutputLimits(0, hotlid2MaxPWM);
+    // myPIDhotlid3->SetOutputLimits(0, hotlid3MaxPWM);
 
     // Heater1
     pinMode(HEATER1IO, OUTPUT);
@@ -81,6 +114,20 @@ void PIDControl::begin()
     sensorSeq();
 }
 
+/***********************************************************************
+ * Function: loop()
+ * Description: Main periodic update for all heaters. Polls the bottom and top
+ *  thermometers, and if no/incomplete/invalid sensor data persists past the
+ *  response timeout it stops heating, shows an error, logs it and reruns. For
+ *  each bottom heater (1/2/3) it applies the temperature offset and enforces an
+ *  overheat cutoff against LYSIS_TEMP+10 / AMPLIF_TEMP+10; for each top hotlid
+ *  (2/3) and the ambient sensor it enforces an overheat cutoff against
+ *  HOTLID23_TEMP + OVERHEAT_THRESHOLD_TOP. After validation it dispatches the
+ *  e_pidstep state machine (epidready through epid23ready) to call the
+ *  appropriate preheat/maintain routines for the bottom heaters and hotlids.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::loop()
 {
 #define TIMEOUT 60 * 1000 // time delay sensorTop error
@@ -316,6 +363,17 @@ void PIDControl::loop()
     }
 }
 
+/***********************************************************************
+ * Function: rerun()
+ * Description: Resets the whole PID controller after an error or to restart a
+ *  session. Stops all heating, then flushes the accumulated integral (Isum) of
+ *  all five PIDs (myPID, myPID2, myPID3, myPIDhotlid2, myPIDhotlid3) by driving
+ *  CURRENT_TEMP_PID far above target to force the output to zero and Computing,
+ *  then restoring CURRENT_TEMP_PID to target. Finally sets pidStep back to
+ *  epidready.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::rerun()
 {
     // begin();
@@ -343,6 +401,15 @@ void PIDControl::rerun()
     pidStep = epidready;
 }
 
+/***********************************************************************
+ * Function: rerunPIDBottom()
+ * Description: Resets only the bottom heater PIDs. Stops the bottom heaters
+ *  (heater1/2/3) and flushes the integral term of myPID, myPID2 and myPID3 by
+ *  forcing their output to zero (CURRENT_TEMP_PID well above target, Compute)
+ *  then restoring CURRENT_TEMP_PID to target. Does not change pidStep.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::rerunPIDBottom(void)
 {
     stopHeaterBottom();
@@ -363,6 +430,15 @@ void PIDControl::rerunPIDBottom(void)
     myPID3->Compute();
 }
 
+/***********************************************************************
+ * Function: rerunPIDTop()
+ * Description: Resets only the top hotlid PIDs. Stops the top heaters
+ *  (hotlid2/3) and flushes the integral term of myPIDhotlid2 and myPIDhotlid3
+ *  by forcing their output to zero (CURRENT_TEMP_PID well above target,
+ *  Compute) then restoring CURRENT_TEMP_PID to target. Does not change pidStep.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::rerunPIDTop(void)
 {
     stopHeaterTop();
@@ -378,6 +454,21 @@ void PIDControl::rerunPIDTop(void)
     myPIDhotlid3->Compute();
 }
 
+/***********************************************************************
+ * Function: sensorSeq()
+ * Description: One-time auto-detection of which physical temperature sensor
+ *  belongs to which heater. If the bottom sensor sequence is unset, it pulses
+ *  heater1/2/3 (HEATER1/2/3IO) one at a time at full PWM and records the sensor
+ *  index whose reading rises >3 degrees above its start value into
+ *  bottomTemperatureSensorSq. Similarly for the top hotlids (HOTLID2/3IO),
+ *  detecting the two heated sensors (>5 degree rise) and deducing the remaining
+ *  ambient sensor index, storing into topTemperatureSensorSq. Handles sensor
+ *  connection errors, white-button abort (enters heat simulation), and finally
+ *  persists the parameter block to EEPROM. Bottom/top heaters are switched off
+ *  after each detection.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::sensorSeq()
 {
     // check the setting of sensor
@@ -615,12 +706,31 @@ void PIDControl::sensorSeq()
     EEPROM.end();
 }
 
+/***********************************************************************
+ * Function: timeoutSetting()
+ * Description: Arms the bottom and top sensor response watchdogs by setting
+ *  bottomSensorRespTime and topSensorRespTime to 10 seconds in the future, so
+ *  the no-data/wrong-data safety timeouts in loop() do not fire immediately
+ *  after (re)start.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::timeoutSetting()
 {
     bottomSensorRespTime = millis() + 10 * 1000;
     topSensorRespTime = bottomSensorRespTime;
 }
 
+/***********************************************************************
+ * Function: heatSimulation()
+ * Description: Enables simulation flags so individual heaters/hotlids report
+ *  simulated temperatures instead of driving real hardware. Bit 0x01 sets
+ *  heater1 (bheater1Simu), 0x02 heater2, 0x04 heater3, and 0x10 the hotlid23
+ *  (bhotlid23Simu).
+ * pramameter: type - bitmask selecting which heaters/hotlid to put into
+ *  simulation mode (0x01/0x02/0x04 bottom heaters, 0x10 hotlid23)
+ *  return: none
+ */
 void PIDControl::heatSimulation(int type)
 {
     if (type & 0x01)
@@ -641,16 +751,43 @@ void PIDControl::heatSimulation(int type)
     }
 }
 
+/***********************************************************************
+ * Function: RevTemperatureOutput()
+ * Description: Toggles the btemperatureOut flag that controls whether the
+ *  periodic maintain-phase temperature/PWM debug logging is printed.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::RevTemperatureOutput()
 {
     btemperatureOut = !btemperatureOut;
 }
 
+/***********************************************************************
+ * Function: setPID23Ready()
+ * Description: Jumps the state machine straight to epid23ready (hotlid2&3 ready
+ *  / waiting for amp tube), used only for simulation to skip the bottom-heater
+ *  and hotlid preheat steps.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::setPID23Ready() // this is only used for simulation purpose, to skip certain step
 {
     pidStep = epid23ready;
 }
 
+/***********************************************************************
+ * Function: temperatureSimulation()
+ * Description: Generates a fake ramping-up temperature for simulation mode.
+ *  Computes the value from elapsed time since START_INTERVAL_TIME and clamps it
+ *  to targetTemp + 0.5 once it reaches the target, writing into the given
+ *  temperature array slot.
+ * pramameter: temperature - array to write the simulated reading into
+ *  (bottomTemperature or HotlidTemperature);
+ *  index - element index within that array to update;
+ *  targetTemp - target temperature at which the ramp is clamped
+ *  return: none
+ */
 void PIDControl::temperatureSimulation(double *temperature, int index, double targetTemp)
 {
     // below is to simulate the tempearture ramping up
@@ -661,6 +798,14 @@ void PIDControl::temperatureSimulation(double *temperature, int index, double ta
     }
 }
 
+/***********************************************************************
+ * Function: getBottomTemperature()
+ * Description: Accessor for the latest bottom heater (heater1/2/3) temperature
+ *  readings.
+ * pramameter: none
+ *  return: pointer to the bottomTemperature[HEATBLKQUANTITY] array holding the
+ *  current offset-corrected bottom heater temperatures
+ */
 double *PIDControl::getBottomTemperature()
 {
     return bottomTemperature;
@@ -671,12 +816,28 @@ double *PIDControl::getBottomTemperature()
 //     temperatureOffset = value;
 // }
 
+/***********************************************************************
+ * Function: getHotlidTemperature()
+ * Description: Accessor for the latest top hotlid (hotlid2/3) and ambient
+ *  temperature readings.
+ * pramameter: none
+ *  return: pointer to the HotlidTemperature[HOTLIDQUANTITY] array holding the
+ *  current offset-corrected top hotlid and ambient temperatures
+ */
 double *PIDControl::getHotlidTemperature()
 {
     return HotlidTemperature;
 }
 
 // prepare before heating to 80, to make sure it's not over heat
+/***********************************************************************
+ * Function: setpid1startpreHeat80()
+ * Description: Advances the state machine to epid1startpreHeat80 so that, on
+ *  the next loop after a fresh temperature reading, heater1 begins its preheat
+ *  to the lysis temperature (80).
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::setpid1startpreHeat80()
 {
     // change the step to start the preheating after read the temperature
@@ -684,6 +845,16 @@ void PIDControl::setpid1startpreHeat80()
 }
 
 // prepare before heating to 67, to make sure it's not over heat
+/***********************************************************************
+ * Function: StartPreheat80()
+ * Description: Pre-check for heater1 (myPID) before preheating to the lysis
+ *  temperature. Sets CURRENT_TEMP_PID from bottomTemperature[0] and
+ *  TARGET_TEMP to LYSIS_TEMP; if heater1 is already more than 1 degree above
+ *  target it switches HEATER1IO off and waits for it to cool, otherwise it
+ *  records the start time and advances pidStep to epid1preheat80.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::StartPreheat80()
 {
     CURRENT_TEMP_PID = bottomTemperature[0]; // temperatureOffset;
@@ -706,6 +877,18 @@ void PIDControl::StartPreheat80()
     }
 }
 
+/***********************************************************************
+ * Function: Heat1Preheat80()
+ * Description: Drives heater1 (HEATER1IO, myPID) up to the lysis temperature
+ *  (80, TARGET_TEMP). Uses full PWM when far below target (> DELTA_FULLPWM),
+ *  half PWM when moderately below (> DELTA_HALFPWM), and the myPID output near
+ *  target. Includes an overheat safety: if more than 10 degrees above target it
+ *  stops all heating, shows an error and reruns. Once within +/-1 degree it
+ *  advances pidStep to epid1ready, prompts for the lysis tube and sounds the
+ *  buzzer.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::Heat1Preheat80()
 {
     // below is to simulate the tempearture ramping up, comment it when connecting the real heater1
@@ -775,6 +958,16 @@ void PIDControl::Heat1Preheat80()
     }
 }
 
+/***********************************************************************
+ * Function: pid1Maintain80()
+ * Description: Holds heater1 (HEATER1IO, myPID) at the lysis temperature
+ *  (TARGET_TEMP = LYSIS_TEMP). Performs both safety checks: if the temperature
+ *  exceeds target + OVERHEAT_THRESHOLD1 or falls below target +
+ *  UNDERHEAT_THRESHOLD1 it stops all heating, shows an over/under-heat error,
+ *  reruns and logs the error; otherwise it Computes myPID and writes the PWM.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::pid1Maintain80()
 {
     if (bheater1Simu)
@@ -814,6 +1007,14 @@ void PIDControl::pid1Maintain80()
     }
 }
 
+/***********************************************************************
+ * Function: setPreheat67()
+ * Description: Transitions from the heater1 (80) phase toward the amplification
+ *  (67) phase. Switches HEATER1IO off and advances pidStep to
+ *  epid2startpreHeat67 so heater2 begins its preheat to AMPLIF_TEMP.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::setPreheat67()
 {
     // Stop heater1 and hotlid1
@@ -822,6 +1023,16 @@ void PIDControl::setPreheat67()
     pidStep = epid2startpreHeat67;
 }
 
+/***********************************************************************
+ * Function: Heat2_55()
+ * Description: Gently pre-warms heater2 (HEATER2IO, myPID2) to the ready
+ *  preheat temperature (READY_PREHEAT_TEMP = 55) while pid1 stays at 80. If
+ *  more than 1 degree above target it keeps the heater off (still Computing the
+ *  PID to track), otherwise it drives the PWM from the myPID2 output. No
+ *  hard over/under-heat error handling here, only a passive cooldown path.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::Heat2_55()
 {
     if (bheater2Simu)
@@ -861,6 +1072,16 @@ void PIDControl::Heat2_55()
     }
 }
 
+/***********************************************************************
+ * Function: Heat3_55()
+ * Description: Gently pre-warms heater3 (HEATER3IO, myPID3) to the ready
+ *  preheat temperature (READY_PREHEAT_TEMP = 55) while pid1 stays at 80. If
+ *  more than 1 degree above target it keeps the heater off (still Computing the
+ *  PID to track), otherwise it drives the PWM from the myPID3 output. No
+ *  hard over/under-heat error handling here, only a passive cooldown path.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::Heat3_55()
 {
     if (bheater3Simu)
@@ -901,6 +1122,16 @@ void PIDControl::Heat3_55()
 }
 
 // prepare before heating to 67, to make sure it's not over heat
+/***********************************************************************
+ * Function: StartPreheat2_67()
+ * Description: Pre-check for heater2 (myPID2) before preheating to the
+ *  amplification temperature. Sets CURRENT_TEMP_PID from bottomTemperature[1]
+ *  and TARGET_TEMP to AMPLIF_TEMP; if heater2 is above target it switches
+ *  HEATER2IO off and waits to cool (reporting if more than 20 degrees over),
+ *  otherwise it records the start time and advances pidStep to epid2preHeat67.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::StartPreheat2_67()
 {
     CURRENT_TEMP_PID = bottomTemperature[1]; // temperatureOffset;         //assume the temperature sensor to be 0: heater1; 1: heater2; 2: heater3
@@ -931,6 +1162,18 @@ void PIDControl::StartPreheat2_67()
     }
 }
 
+/***********************************************************************
+ * Function: Preheat2_67()
+ * Description: Drives heater2 (HEATER2IO, myPID2) up to the amplification
+ *  temperature (AMPLIF_TEMP, TARGET_TEMP). Uses full PWM when far below target
+ *  (> DELTA_FULLPWM), half PWM when moderately below (> DELTA_HALFPWM), and the
+ *  myPID2 output near target. Includes an overheat safety: if more than 20
+ *  degrees above target it stops all heating, shows an error, reruns and logs
+ *  the overheat error. Once within +/-1 degree it advances pidStep to
+ *  epid3startpreHeat67.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::Preheat2_67()
 {
     if (bheater2Simu)
@@ -990,6 +1233,17 @@ void PIDControl::Preheat2_67()
     }
 }
 
+/***********************************************************************
+ * Function: StartPreheat3_67()
+ * Description: Pre-check for heater3 (myPID3) before preheating to the
+ *  amplification temperature. Sets CURRENT_TEMP_PID from bottomTemperature[2]
+ *  and TARGET_TEMP to AMPLIF_TEMP; if heater3 is above target it switches
+ *  HEATER3IO off and waits to cool (logging an overheat error if more than 20
+ *  degrees over), otherwise it records the start time and advances pidStep to
+ *  epid3preHeat67.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::StartPreheat3_67()
 {
     CURRENT_TEMP_PID = bottomTemperature[2]; // temperatureOffset;         //assume the temperature sensor to be 0: heater1; 1: heater2; 2: heater3
@@ -1022,6 +1276,18 @@ void PIDControl::StartPreheat3_67()
     }
 }
 
+/***********************************************************************
+ * Function: Preheat3_67()
+ * Description: Drives heater3 (HEATER3IO, myPID3) up to the amplification
+ *  temperature (AMPLIF_TEMP, TARGET_TEMP). Uses full PWM when far below target
+ *  (> DELTA_FULLPWM), half PWM when moderately below (> DELTA_HALFPWM), and the
+ *  myPID3 output near target. Includes an overheat safety: if more than 10
+ *  degrees above target it stops all heating, shows an error, reruns and logs
+ *  the overheat error. Once within +/-1 degree it advances pidStep to
+ *  ehotlid23heat to begin heating the top hotlids.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::Preheat3_67()
 {
     if (bheater3Simu)
@@ -1085,6 +1351,16 @@ void PIDControl::Preheat3_67()
     }
 }
 
+/***********************************************************************
+ * Function: Maintain3_67()
+ * Description: Holds heater3 (HEATER3IO, myPID3) at the amplification
+ *  temperature (TARGET_TEMP = AMPLIF_TEMP). Performs both safety checks: if the
+ *  temperature exceeds target + OVERHEAT_THRESHOLD3 or falls below target +
+ *  UNDERHEAT_THRESHOLD3 it stops all heating, shows an over/under-heat error,
+ *  reruns and logs the error; otherwise it Computes myPID3 and writes the PWM.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::Maintain3_67()
 {
     if (bheater3Simu)
@@ -1096,17 +1372,6 @@ void PIDControl::Maintain3_67()
     // TARGET_TEMP
     CURRENT_TEMP_PID = bottomTemperature[2]; // temperatureOffset;
     TARGET_TEMP = AMPLIF_TEMP;
-    // if(CURRENT_TEMP_PID > TARGET_TEMP+1)
-    // {
-    //     analogWrite(HEATER3IO, PWM_OFF);
-    //     myPID3->Compute();       //PID compute, but don't use the result, to decrease the overheat risk
-    //     if (btemperatureOut)
-    //     {
-    //         info_displayf("\nTimeMB3\t%.2f\tHeater3\tMaintain\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t0\n", millis()/1000.0, CURRENT_TEMP_PID, TARGET_TEMP);
-    //     }
-    //     return;
-    // }
-    // else
     if (CURRENT_TEMP_PID > TARGET_TEMP + OVERHEAT_THRESHOLD3)
     {
         stopAllHeating();
@@ -1139,139 +1404,108 @@ void PIDControl::Maintain3_67()
     }
 }
 
-// void PIDControl::heatOldLid23()
-// {
-//     if ((HotlidTemperature[1] > HOTLID23_TEMP + 20) || (HotlidTemperature[2] > HOTLID23_TEMP + 20)) // Turn off when temperature is higher than 90
-//     {
-//         analogWrite(HOTLID23IO, PWM_OFF);
-//         info_displayf("\nTimePT23\t%.2f\tTopHeater2&3\tHeating\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP);
-//         // return;
-//     }
-//     else if ((HotlidTemperature[1] < HOTLID23_TEMP) || (HotlidTemperature[2] < HOTLID23_TEMP)) // Turn on when tempeature is lower than 70
-//     {
-//         // digitalWrite(HOTLID23IO, HIGH);
-//         analogWrite(HOTLID23IO, PWM_Heater23);
-//         info_displayf("\nTimePT23\t%.2f\tTopHeater2&3\tHeating\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP, PWM_Heater23);
-//         // return;
-//     }
-//     else
-//     {
-//         pidStep = epid23ready;
-//         if (_sensor6035.getSensorPreheatReady())
-//         {
-//             _displayCLD.type_infor = ewaitampTube;
-//             _displayCLD.changeScreen = true;
-//             _buzzer.BuzzerAlert();
-//         }
-//         info_displayf("Temperature (C): %.2f:%.2f\n", HotlidTemperature[1], HotlidTemperature[2]);
-
-//         // Print Phase 1 PID end message
-//         info_displayln("=================================================================");
-//         info_displayln("End of hotlid2&3 heat.");
-
-//         // Print time taken
-//         info_display("Total time taken: ");
-//         info_display((millis() - START_INTERVAL_TIME) / 60000);
-//         info_displayln(" minutes");
-//         info_displayln("Wait button or sensor preheat");
-//         info_displayln("=================================================================");
-//     }
-//     if (((HotlidTemperature[1] < HOTLID23_TEMP) && (HotlidTemperature[2] > HOTLID23_TEMP + 10)) || ((HotlidTemperature[1] > HOTLID23_TEMP + 10) && (HotlidTemperature[2] < HOTLID23_TEMP))) // if temperature difference is too much, then alert
-//     {
-//         // digitalWrite(HOTLID23IO, LOW);
-//         analogWrite(HOTLID23IO, PWM_OFF);
-//         info_displayf("Temperature difference > 10!!!\nTimePT23\t%.2f\tTopHeater2&3\tHeating\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP);
-//         _buzzer.BuzzerAlarm();
-//         return;
-//     }
-// }
-
 #define INDEX_HOTLID2 0
 #define INDEX_HOTLID3 1
 #define INDEX_AMBIENT 2
 
+/***********************************************************************
+ * Function: heatNewLid23()
+ * Description: Heats the two top hotlids up to HOTLID23_TEMP using their PID
+ *  controllers. Sets TARGET_TEMP = HOTLID23_TEMP, then sequentially handles
+ *  hotlid2 (HOTLID2IO, myPIDhotlid2) and hotlid3 (HOTLID3IO, myPIDhotlid3) since
+ *  they share the same in/out/setpoint variables. For each, if more than 10
+ *  degrees above target it cuts that hotlid PWM off (overheat safety), otherwise
+ *  it Computes the PID, drives the PWM and flags the hotlid as ready once within
+ *  3 degrees of target. After a 20-minute wait, if both hotlids are ready it
+ *  advances pidStep to epid23ready and, if the sensor is preheat-ready, prompts
+ *  for the amp tube and sounds the buzzer.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::heatNewLid23()
 {
-    int topHeater2Flag = 0;                                    // used to check whether top heater 2 reach its target temperature
-    int topHeater3Flag = 0;                                    // used to check whether top heater 3 reach its target temperature
-    if (HotlidTemperature[INDEX_HOTLID2] > HOTLID23_TEMP + 10) // if heater2 is too high
+    int topHeater2Flag = 0; // used to check whether top heater 2 reach its target temperature
+    int topHeater3Flag = 0; // used to check whether top heater 3 reach its target temperature
+
+    TARGET_TEMP = HOTLID23_TEMP;
+
+    // ---- Top heater 2: PID control (shared in/out/setpoint with hotlid3, so handle sequentially) ----
+    CURRENT_TEMP_PID = HotlidTemperature[INDEX_HOTLID2];
+    if (CURRENT_TEMP_PID > HOTLID23_TEMP + 10) // if heater2 is too high, safety cut off
     {
         topHeater2Flag = 0;
         analogWrite(HOTLID2IO, PWM_OFF);
-        info_displayf("TopHeater2 is too hot, tempearature: %.2f, target: %.2f, cooling down\n", HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP);
+        info_displayf("TopHeater2 is too hot, tempearature: %.2f, target: %.2f, cooling down\n", CURRENT_TEMP_PID, HOTLID23_TEMP);
     }
-    else if ((HotlidTemperature[INDEX_HOTLID2] < HOTLID23_TEMP)) // if heater2 is too low
+    else // let the PID drive the PWM
     {
-        analogWrite(HOTLID2IO, PWM_HOTLIDFULL);
-        info_displayf("\nTimePT2\t%.2f\tTopHeater2\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t127\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP);
-    }
-    else if (HotlidTemperature[INDEX_HOTLID2] > HOTLID23_TEMP + 5) // if heater2 is higher than 5 degree, then using low PWM value
+        myPIDhotlid2->Compute();
+        analogWrite(HOTLID2IO, (int)RESPONSE_SIGNAL);
+        if (CURRENT_TEMP_PID >= HOTLID23_TEMP - 3) // reach the target temperature
         {
-        analogWrite(HOTLID2IO, TOPHEATER2PWMLOW);
             topHeater2Flag = 1;
-        info_displayf("\nTimePT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP, TOPHEATER2PWMLOW);
-    }
-    else // if heater2 is at right range
-    {
-        analogWrite(HOTLID2IO, TOPHEATER2PWMHIGH);
-        topHeater2Flag = 1;
-        info_displayf("\nTimePT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP, TOPHEATER2PWMHIGH);
+        }
+        info_displayf("\nTimePT2\t%.2f\tTopHeater2\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, HOTLID23_TEMP, (int)RESPONSE_SIGNAL);
     }
 
-    if (HotlidTemperature[INDEX_HOTLID3] > HOTLID23_TEMP + 10) // if heater3 is too high
+    // ---- Top heater 3: PID control ----
+    CURRENT_TEMP_PID = HotlidTemperature[INDEX_HOTLID3];
+    if (CURRENT_TEMP_PID > HOTLID23_TEMP + 10) // if heater3 is too high, safety cut off
     {
         topHeater3Flag = 0;
         analogWrite(HOTLID3IO, PWM_OFF);
-        info_displayf("TopHeater3 is too hot, tempearature: %.2f, target: %.2f, cooling down\n", HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP);
+        info_displayf("TopHeater3 is too hot, tempearature: %.2f, target: %.2f, cooling down\n", CURRENT_TEMP_PID, HOTLID23_TEMP);
     }
-    else if ((HotlidTemperature[INDEX_HOTLID3] < HOTLID23_TEMP)) // if heater3 is too low
+    else // let the PID drive the PWM
     {
-        analogWrite(HOTLID3IO, PWM_HOTLIDFULL);
-        // info_displayf("\nHeating hotlid3, tempearature: %.2f, target: %.2f, PID: 255\n", HotlidTemperature[2], HOTLID23_TEMP);
-        info_displayf("\nTimePT3\t%.2f\tTopHeater3\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t127\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP);
-    }
-    else if (HotlidTemperature[INDEX_HOTLID3] > HOTLID23_TEMP + 5) // if heater3 is higher than 5 degree, then using low PWM value
+        myPIDhotlid3->Compute();
+        analogWrite(HOTLID3IO, (int)RESPONSE_SIGNAL);
+        if (CURRENT_TEMP_PID >= HOTLID23_TEMP - 3) // reach the target temperature
         {
-        analogWrite(HOTLID3IO, TOPHEATER3PWMLOW);
             topHeater3Flag = 1;
-        info_displayf("\nTimePT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP, TOPHEATER3PWMLOW);
-    }
-    else // if heater3 is at right range
-    {
-        analogWrite(HOTLID3IO, TOPHEATER3PWMHIGH);
-        topHeater3Flag = 1;
-        info_displayf("\nTimePT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP, TOPHEATER3PWMHIGH);
-    }
-
-    if (millis() - this->timeStartWait > 15 * 60000) // wait for 5 minutes, if the user still doesn't put the amp tube, then alert
-    {
-        this->timeStartWait = 0;
-    // check if both of heater2 and heater3 are at the right range
-    if (topHeater2Flag == 1 && topHeater3Flag == 1)
-    {
-        pidStep = epid23ready;
-        if (_sensor6035.getSensorPreheatReady())
-        {
-            _displayCLD.type_infor = ewaitampTube;
-            _displayCLD.changeScreen = true;
-            _buzzer.BuzzerAlert();
         }
-        info_displayf("Temperature (C): %.2f:%.2f\n", HotlidTemperature[INDEX_HOTLID2], HotlidTemperature[INDEX_HOTLID3]);
+        info_displayf("\nTimePT3\t%.2f\tTopHeater3\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, HOTLID23_TEMP, (int)RESPONSE_SIGNAL);
+    }
 
-        // Print Phase 1 PID end message
-        info_displayln("=================================================================");
-        info_displayln("End of hotlid2&3 heat.");
+    if ((millis() - this->timeStartWait) > (20 * 60000)) // wait for 20 minutes, if the user still doesn't put the amp tube, then alert
+    {
 
-        // Print time taken
-        info_display("Total time taken: ");
-        info_display((millis() - START_INTERVAL_TIME) / 60000);
-        info_displayln(" minutes");
-        info_displayln("Wait button or sensor preheat");
-        info_displayln("=================================================================");
+        // check if both of heater2 and heater3 are at the right range
+        if (topHeater2Flag == 1 && topHeater3Flag == 1)
+        {
+            this->timeStartWait = 0;
+            pidStep = epid23ready;
+            if (_sensor6035.getSensorPreheatReady())
+            {
+                _displayCLD.type_infor = ewaitampTube;
+                _displayCLD.changeScreen = true;
+                _buzzer.BuzzerAlert();
+            }
+            info_displayf("Temperature (C): %.2f:%.2f\n", HotlidTemperature[INDEX_HOTLID2], HotlidTemperature[INDEX_HOTLID3]);
+
+            // Print Phase 1 PID end message
+            info_displayln("=================================================================");
+            info_displayln("End of hotlid2&3 heat.");
+
+            // Print time taken
+            info_display("Total time taken: ");
+            info_display((millis() - START_INTERVAL_TIME) / 60000);
+            info_displayln(" minutes");
+            info_displayln("Wait button or sensor preheat");
+            info_displayln("=================================================================");
         }
     }
 }
 
+/***********************************************************************
+ * Function: HeatHotlid23()
+ * Description: Per-loop entry point for the hotlid2&3 heat-up phase. Returns
+ *  immediately if no new top temperature is ready, otherwise clears the new
+ *  temperature flag and calls heatNewLid23() to run the PID heat-up. In
+ *  simulation mode it feeds simulated hotlid temperatures and stops heating.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::HeatHotlid23()
 {
     if (!_topThermometer.getNewTemperatureFlag()) // if new temperature is not ready, then return directly.
@@ -1286,130 +1520,76 @@ void PIDControl::HeatHotlid23()
         temperatureSimulation(HotlidTemperature, 0, HOTLID23_TEMP);
         stopAllHeating();
     }
-    // if (strcmp(_ForteSetting.parameter.PCB_version, "V1.3") < 0) // if it's old PCB version
-    // {
-    //     heatOldLid23();
-    // }
-    // else
-    // {
     heatNewLid23();
-    // }
 }
 
-// void PIDControl::pid23Maintain67()
-// {
-// }
-// void PIDControl::maintainOldLid23()
-// {
-//     if ((HotlidTemperature[INDEX_HOTLID2] > HOTLID23_TEMP + 10) || (HotlidTemperature[INDEX_HOTLID3] > HOTLID23_TEMP + 10)) // Turn off when temperature is higher than 90
-//     {
-//         analogWrite(HOTLID23IO, PWM_OFF);
-//         if (btemperatureOut)
-//         {
-//             info_displayf("\nTimeMT23\t%.2f\tTopHeater2&3\tMaintain\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP);
-//         }
-//         return;
-//     }
-//     else if ((HotlidTemperature[1] < HOTLID23_TEMP) || (HotlidTemperature[2] < HOTLID23_TEMP)) // Turn on when tempeature is lower than target
-//     {
-//         analogWrite(HOTLID23IO, PWM_Heater23);
-//         if (btemperatureOut)
-//         {
-//             info_displayf("\nTimeMT23\t%.2f\tTopHeater2&3\tMaintain\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP, PWM_Heater23);
-//         }
-//         // return;
-//     }
-//     // if (((HotlidTemperature[1]<HOTLID23_TEMP)&&(HotlidTemperature[2]>HOTLID23_TEMP+10))||((HotlidTemperature[1]>HOTLID23_TEMP+10)&&(HotlidTemperature[2]<HOTLID23_TEMP)))        //if temperature difference is too much, then alert
-//     // {
-//     //     analogWrite(HOTLID23IO, PWM_OFF);
-//     //     if (btemperatureOut)
-//     //     {
-//     //         info_displayf("\nTimeMT23\t%.2f\tTopHeater2&3\tMaintain\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis()/1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP);
-//     //     }
-//     //     _buzzer.BuzzerAlarm();
-//     //     return;
-//     // }
-//     else
-//     {
-//         analogWrite(HOTLID23IO, PWM_Heater23 / 2);
-//         if (btemperatureOut)
-//         {
-//             info_displayf("\nTimeMT23\t%.2f\tTopHeater2&3\tMaintain\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[1], HotlidTemperature[2], HOTLID23_TEMP, PWM_Heater23 / 2);
-//         }
-//     }
-// }
-
+/***********************************************************************
+ * Function: maintainNewLid23()
+ * Description: Holds the two top hotlids at HOTLID23_TEMP using their PID
+ *  controllers. Sets TARGET_TEMP = HOTLID23_TEMP and sequentially processes
+ *  hotlid2 (HOTLID2IO, myPIDhotlid2) and hotlid3 (HOTLID3IO, myPIDhotlid3),
+ *  which share in/out/setpoint variables. For each, if more than 10 degrees
+ *  above target it cuts that hotlid PWM off (overheat safety), otherwise it
+ *  Computes the PID and writes the PWM to hold temperature.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::maintainNewLid23()
 {
-    // process top heater 2
-    if (HotlidTemperature[INDEX_HOTLID2] > HOTLID23_TEMP + 10) // if heater2 is too high, in case the PWMLOW is not low enough
+    TARGET_TEMP = HOTLID23_TEMP;
+
+    // process top heater 2 with PID (shared in/out/setpoint with hotlid3, so handle sequentially)
+    CURRENT_TEMP_PID = HotlidTemperature[INDEX_HOTLID2];
+    if (CURRENT_TEMP_PID > HOTLID23_TEMP + 10) // if heater2 is too high, safety cut off
     {
         analogWrite(HOTLID2IO, PWM_OFF);
         if (btemperatureOut)
         {
-            info_displayf("\nTimeMT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP);
+            info_displayf("\nTimeMT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, CURRENT_TEMP_PID, HOTLID23_TEMP);
         }
     }
-    else if (HotlidTemperature[INDEX_HOTLID2] > HOTLID23_TEMP + 5) // if heater2 is at high than 5 degree
+    else // let the PID hold the temperature
     {
-        analogWrite(HOTLID2IO, TOPHEATER2PWMLOW);
+        myPIDhotlid2->Compute();
+        analogWrite(HOTLID2IO, (int)RESPONSE_SIGNAL);
         if (btemperatureOut)
         {
-            info_displayf("\nTimeMT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP, TOPHEATER2PWMLOW);
-        }
-    }
-    else if (HotlidTemperature[INDEX_HOTLID2] < HOTLID23_TEMP - 2) // if heater2 is too low, in case the PWMHIGH is not high enough
-    {
-        analogWrite(HOTLID2IO, PWM_Heater23);
-        if (btemperatureOut)
-        {
-            info_displayf("\nTimeMT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP, PWM_FULL);
-        }
-    }
-    else // if ((HotlidTemperature[1]<HOTLID23_TEMP))      //if heater2 is low
-    {
-        analogWrite(HOTLID2IO, TOPHEATER2PWMHIGH);
-        if (btemperatureOut)
-        {
-            info_displayf("\nTimeMT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID2], HOTLID23_TEMP, TOPHEATER2PWMHIGH);
+            info_displayf("\nTimeMT2\t%.2f\tTopHeater2\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, HOTLID23_TEMP, (int)RESPONSE_SIGNAL);
         }
     }
 
-    // process top heater 3
-    if (HotlidTemperature[INDEX_HOTLID3] > HOTLID23_TEMP + 10) // if heater3 is too high, in case the PWMLOW is not low enough
+    // process top heater 3 with PID
+    CURRENT_TEMP_PID = HotlidTemperature[INDEX_HOTLID3];
+    if (CURRENT_TEMP_PID > HOTLID23_TEMP + 10) // if heater3 is too high, safety cut off
     {
         analogWrite(HOTLID3IO, PWM_OFF);
         if (btemperatureOut)
         {
-            info_displayf("\nTimeMT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP, PWM_OFF);
+            info_displayf("\nTimeMT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t0\n", millis() / 1000.0, CURRENT_TEMP_PID, HOTLID23_TEMP);
         }
     }
-    else if (HotlidTemperature[INDEX_HOTLID3] > HOTLID23_TEMP + 5) // if heater3 is at high than 5 degree
+    else // let the PID hold the temperature
     {
-        analogWrite(HOTLID3IO, TOPHEATER3PWMLOW);
+        myPIDhotlid3->Compute();
+        analogWrite(HOTLID3IO, (int)RESPONSE_SIGNAL);
         if (btemperatureOut)
         {
-            info_displayf("\nTimeMT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP, TOPHEATER3PWMLOW);
-        }
-    }
-    else if (HotlidTemperature[INDEX_HOTLID3] < HOTLID23_TEMP - 2) // if heater3 is too low, in case the PWMHIGH is not high enough
-    {
-        analogWrite(HOTLID3IO, PWM_Heater23);
-        if (btemperatureOut)
-        {
-            info_displayf("\nTimeMT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP, PWM_FULL);
-        }
-    }
-    else // if ((HotlidTemperature[2]<HOTLID23_TEMP))      //if heater3 is low
-    {
-        analogWrite(HOTLID3IO, TOPHEATER3PWMHIGH);
-        if (btemperatureOut)
-        {
-            info_displayf("\nTimeMT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, HotlidTemperature[INDEX_HOTLID3], HOTLID23_TEMP, TOPHEATER3PWMHIGH);
+            info_displayf("\nTimeMT3\t%.2f\tTopHeater3\tMaintain\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, HOTLID23_TEMP, (int)RESPONSE_SIGNAL);
         }
     }
 }
 
+/***********************************************************************
+ * Function: MaintainHotlid23()
+ * Description: Per-loop entry point for the hotlid2&3 maintain phase
+ *  (epid23ready). Returns if no new top temperature is ready. While the opto
+ *  sensor (_sensor6035) is taking a reading it switches the hotlid outputs
+ *  (HOTLID23IO legacy plus HOTLID2IO/HOTLID3IO) off to keep the power supply
+ *  stable. In simulation it feeds simulated hotlid temperatures and stops
+ *  heating. Otherwise it calls maintainNewLid23() to PID-hold the hotlids.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::MaintainHotlid23()
 {
     if (!_topThermometer.getNewTemperatureFlag()) // if new temperature is not ready, then return directly.
@@ -1450,22 +1630,32 @@ void PIDControl::MaintainHotlid23()
         stopAllHeating();
         return;
     }
-
-    // if (strcmp(_ForteSetting.parameter.PCB_version, "V1.3") < 0) // if it's old PCB version
-    // {
-    //     maintainOldLid23();
-    // }
-    // else
-    // {
     maintainNewLid23();
-    // }
 }
 
+/***********************************************************************
+ * Function: getphase2ready()
+ * Description: Reports whether the heaters have finished heating and the device
+ *  has reached the hotlid2&3 ready state by checking pidStep == epid23ready.
+ * pramameter: none
+ *  return: bool - true if pidStep is epid23ready (heating finished/ready),
+ *  false otherwise
+ */
 bool PIDControl::getphase2ready()
 {
     return pidStep == epid23ready; // whether heater is finished heating
 }
 
+/***********************************************************************
+ * Function: Maintain2_67()
+ * Description: Holds heater2 (HEATER2IO, myPID2) at the amplification
+ *  temperature (TARGET_TEMP = AMPLIF_TEMP). Performs both safety checks: if the
+ *  temperature exceeds target + OVERHEAT_THRESHOLD2 or falls below target +
+ *  UNDERHEAT_THRESHOLD2 it stops all heating, shows an over/under-heat error,
+ *  reruns and logs the error; otherwise it Computes myPID2 and writes the PWM.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::Maintain2_67()
 {
     if (bheater2Simu)
@@ -1507,6 +1697,14 @@ void PIDControl::Maintain2_67()
     }
 }
 
+/***********************************************************************
+ * Function: StopHeating()
+ * Description: Switches off every heating output: bottom heater1/2/3
+ *  (HEATER1/2/3IO) and the top hotlids, covering both the legacy combined
+ *  HOTLID23IO (PCB V1.2) and the separate HOTLID2IO/HOTLID3IO (PCB V1.3).
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::StopHeating()
 {
     analogWrite(HEATER1IO, PWM_OFF); // switch off heater1
@@ -1525,10 +1723,18 @@ void PIDControl::StopHeating()
 // }
 
 // stop all heating when error happen or finish one session
+/***********************************************************************
+ * Function: stopAllHeating()
+ * Description: Emergency/cleanup shutdown used on errors or session end.
+ *  Switches off every heating output: bottom heater1/2/3 (HEATER1/2/3IO) and
+ *  the top hotlids, covering both the legacy combined HOTLID23IO (PCB V1.2) and
+ *  the separate HOTLID2IO/HOTLID3IO (PCB V1.3).
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::stopAllHeating()
 {
     analogWrite(HEATER1IO, PWM_OFF); // switch off heater1
-    // analogWrite(HOTLID1IO, PWM_OFF); // switch off hotlid1
     analogWrite(HEATER2IO, PWM_OFF); // switch off heater2
     analogWrite(HEATER3IO, PWM_OFF); // switch off heater3
     // PCB V1.2
@@ -1538,6 +1744,13 @@ void PIDControl::stopAllHeating()
     analogWrite(HOTLID3IO, PWM_OFF);
 }
 
+/***********************************************************************
+ * Function: stopHeaterBottom()
+ * Description: Switches off only the bottom heaters (heater1/2/3 via
+ *  HEATER1/2/3IO), leaving the top hotlids untouched.
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::stopHeaterBottom(void)
 {
     analogWrite(HEATER1IO, PWM_OFF); // switch off heater1
@@ -1545,6 +1758,14 @@ void PIDControl::stopHeaterBottom(void)
     analogWrite(HEATER3IO, PWM_OFF); // switch off heater3
 }
 
+/***********************************************************************
+ * Function: stopHeaterTop()
+ * Description: Switches off only the top hotlids, leaving the bottom heaters
+ *  untouched. Covers both the legacy combined HOTLID23IO (PCB V1.2) and the
+ *  separate HOTLID2IO/HOTLID3IO (PCB V1.3).
+ * pramameter: none
+ *  return: none
+ */
 void PIDControl::stopHeaterTop(void)
 {
     // PCB V1.2

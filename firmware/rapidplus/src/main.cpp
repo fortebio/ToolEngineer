@@ -32,6 +32,14 @@ SemaphoreHandle_t gI2CMutex = NULL;
 SemaphoreHandle_t gSPIMutex = NULL;
 
 /***** DisplayTask ******/
+/***********************************************************************
+ * Function: DisplayTask()
+ * Description: FreeRTOS task (pinned to core 0) that drives the TFT UI by
+ *  calling _displayCLD.loop() every 100 ms via vTaskDelayUntil for a fixed
+ *  refresh cadence.
+ * pramameter: pvParameters - FreeRTOS task parameter pointer (unused)
+ *  return: none (runs forever in an infinite loop)
+ */
 void DisplayTask(void *pvParameters)
 {
   TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -45,6 +53,14 @@ void DisplayTask(void *pvParameters)
 }
 
 /***** NetworkTask ******/
+/***********************************************************************
+ * Function: NetworkTask()
+ * Description: FreeRTOS task (pinned to core 0) that services the OTA
+ *  firmware-update flow by polling updateFirmware() every 10 ms; the
+ *  actual download only proceeds once the user has accepted the update.
+ * pramameter: pvParameters - FreeRTOS task parameter pointer (unused)
+ *  return: none (runs forever in an infinite loop)
+ */
 void NetworkTask(void *pvParameters)
 {
   while (1)
@@ -58,6 +74,15 @@ void NetworkTask(void *pvParameters)
 }
 
 /***** SensorTask *****/
+/***********************************************************************
+ * Function: SensorTask()
+ * Description: FreeRTOS task (pinned to core 1) that reads the AS6035 opto
+ *  sensor by calling _sensor6035.loop() every 20 ms, guarding the I2C bus
+ *  with gI2CMutex (50 ms timeout) so it does not collide with other I2C
+ *  users.
+ * pramameter: pvParameters - FreeRTOS task parameter pointer (unused)
+ *  return: none (runs forever in an infinite loop)
+ */
 void SensorTask(void *pvParameters)
 {
   TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -73,6 +98,14 @@ void SensorTask(void *pvParameters)
 }
 
 /***** ControlTask *****/
+/***********************************************************************
+ * Function: ControlTask()
+ * Description: FreeRTOS task (pinned to core 1) that runs the temperature
+ *  control loop, calling _PIDControl.loop() and _Fan.loop() every 100 ms to
+ *  drive the PID heater regulation and keep the fan running.
+ * pramameter: pvParameters - FreeRTOS task parameter pointer (unused)
+ *  return: none (runs forever in an infinite loop)
+ */
 void ControlTask(void *pvParameters)
 {
   TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -90,6 +123,15 @@ void ControlTask(void *pvParameters)
 // Button handlers drive the TFT heavily, but every display call takes the
 // recursive gSPIMutex internally (SPILock), so running concurrently with
 // DisplayTask is safe.
+/***********************************************************************
+ * Function: InputTask()
+ * Description: FreeRTOS task (pinned to core 1) that polls user input and
+ *  audio feedback every 5 ms, calling _buttonManager.loop() for button
+ *  handling and _buzzer.loop() for buzzer timing; the fast period ensures
+ *  responsive button servicing.
+ * pramameter: pvParameters - FreeRTOS task parameter pointer (unused)
+ *  return: none (runs forever in an infinite loop)
+ */
 void InputTask(void *pvParameters)
 {
   TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -106,6 +148,15 @@ void InputTask(void *pvParameters)
 // Serial JSON config receiver. Isolated because its loop() busy-waits up to
 // ~30ms while draining the serial buffer; keeping it off InputTask avoids
 // delaying button response.
+/***********************************************************************
+ * Function: SettingTask()
+ * Description: FreeRTOS task (pinned to core 0) that handles serial JSON
+ *  configuration input, calling _ForteSetting.loop() every 10 ms; isolated
+ *  from InputTask because its loop can busy-wait while draining the serial
+ *  buffer.
+ * pramameter: pvParameters - FreeRTOS task parameter pointer (unused)
+ *  return: none (runs forever in an infinite loop)
+ */
 void SettingTask(void *pvParameters)
 {
   while (1)
@@ -116,6 +167,18 @@ void SettingTask(void *pvParameters)
   }
 }
 
+/***********************************************************************
+ * Function: setup()
+ * Description: Arduino startup routine that initializes the serial port and
+ *  I2C bus, creates the I2C mutex and recursive SPI mutex (halting on
+ *  failure), starts the buttons, loads device settings and the error log
+ *  from EEPROM, connects to WiFi (up to 20 retries), brings up the display,
+ *  ForteSetting, PID control, AS6035 sensor and fan, runs the OTA firmware
+ *  check, then creates the six pinned FreeRTOS tasks (Control, Sensor,
+ *  Display, Network, Input, Setting) across both cores.
+ * pramameter: none
+ *  return: none
+ */
 void setup()
 {
   Serial.setRxBufferSize(3 * 1024);
@@ -240,6 +303,14 @@ void setup()
       0);
 }
 
+/***********************************************************************
+ * Function: loop()
+ * Description: Arduino main loop task; all real work has been moved into the
+ *  dedicated FreeRTOS tasks created in setup(), so this simply idles with a
+ *  1000 ms vTaskDelay each iteration.
+ * pramameter: none
+ *  return: none
+ */
 void loop()
 {
   // All work has been moved into dedicated RTOS tasks created in setup():

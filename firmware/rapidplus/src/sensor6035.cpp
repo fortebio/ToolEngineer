@@ -6,14 +6,40 @@
 #include "errorCheck.h"
 // #include "ArduinoJson.h"
 
+/***********************************************************************
+ * Function: sensor6035()
+ * Description: Default constructor for the sensor6035 class. Performs no
+ *  work; all hardware/state initialization happens later in begin().
+ * pramameter: none
+ *  return: none
+ */
 sensor6035::sensor6035(/* args */)
 {
 }
 
+/***********************************************************************
+ * Function: ~sensor6035()
+ * Description: Destructor for the sensor6035 class. No dynamic resources
+ *  are owned, so it performs no cleanup.
+ * pramameter: none
+ *  return: none
+ */
 sensor6035::~sensor6035()
 {
 }
 
+/***********************************************************************
+ * Function: begin()
+ * Description: One-time startup of the 10-channel VEML6035 opto subsystem:
+ *  initializes the LED driver and both I2C multiplexers, computes the
+ *  PCB-dependent I2C channel sequence, soft-resets all 10 sensors, then
+ *  runs the full configuration chain (channel enable, ALS integration
+ *  time, gain, digital gain, sensitivity) and a one-loop snapshot self
+ *  test. Finally seeds the state machine into eSensorpreheat, turns on
+ *  the first LED and starts the interval/reading timers.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::begin()
 {
     _LED.begin(); // initialize the LED together with sensor
@@ -43,6 +69,15 @@ void sensor6035::begin()
     START_INTERVAL_TIME = millis();                // as start preheat immediatly, need to record the time together
 }
 
+/***********************************************************************
+ * Function: loop()
+ * Description: Main non-blocking state-machine dispatcher called every
+ *  firmware cycle. Branches on sensorStep to drive the opto workflow:
+ *  preheat, maintain, start, first reading/amplification acquisition or
+ *  calibration. Does nothing while in eSensorwait.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::loop()
 {
     switch (sensorStep)
@@ -76,6 +111,14 @@ void sensor6035::loop()
     return;
 }
 
+/***********************************************************************
+ * Function: skip2Maintain()
+ * Description: Force-advances the state machine from any pre-maintain
+ *  step directly to eSensormaintain (skipping the remaining 15-min
+ *  preheat) and flags the display to show the header and redraw.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::skip2Maintain()
 {
     if (sensorStep < eSensormaintain)
@@ -86,6 +129,15 @@ void sensor6035::skip2Maintain()
     }
 }
 
+/***********************************************************************
+ * Function: rerun()
+ * Description: Re-entry helper used when restarting a run. If the sensors
+ *  have already preheated, it turns off all LEDs, clears the acquired
+ *  data buffers and drops the state machine back to eSensormaintain so
+ *  the sensors only need to be kept warm rather than re-preheated.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::rerun()
 {
     if (sensorStep > eSensorpreheat) // if opto has preheat, then just maintain it
@@ -97,11 +149,27 @@ void sensor6035::rerun()
     }
 }
 
+/***********************************************************************
+ * Function: setCounterDisplayflag()
+ * Description: Setter that selects whether amplification output is
+ *  labelled by raw loop counter or by elapsed time during the first
+ *  reading step (see eSensor1stReadingFunc()).
+ * pramameter: flag - true to print the loop counter, false to print time
+ *  return: none
+ */
 void sensor6035::setCounterDisplayflag(bool flag)
 {
     flagCounterDisplay = flag;
 }
 
+/***********************************************************************
+ * Function: setStepeSensorpreheat()
+ * Description: Transitions the state machine from eSensorwait into
+ *  eSensorpreheat and re-initializes the preheat parameters/timers via
+ *  eSensorParaIni(). No-op if not currently waiting.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::setStepeSensorpreheat()
 {
     if (sensorStep == eSensorwait)
@@ -112,6 +180,16 @@ void sensor6035::setStepeSensorpreheat()
     }
 }
 
+/***********************************************************************
+ * Function: setStepeSensorstart()
+ * Description: Idempotent guard that advances the state machine into
+ *  eSensorstart only from a pre-measurement state. Once eSensor1stReading
+ *  has been reached it deliberately does nothing, preventing a re-entry
+ *  of eSensorstartFunc() that would zero COUNTER, clear acquired data and
+ *  wipe the error EEPROM mid-run.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::setStepeSensorstart()
 {
     // Idempotent guard: only transition forward into eSensorstart from a
@@ -128,6 +206,22 @@ void sensor6035::setStepeSensorstart()
 
 #define BREAKING_START_INDEX 6
 #define RISING_WINDOW 6
+/***********************************************************************
+ * Function: bResultGet()
+ * Description: Runs the full amplification-curve analysis algorithm for
+ *  all 10 slots. Loads the algorithm parameters from the JSON string in
+ *  flash, converts each slot's raw sensor67Value samples into calibrated
+ *  fluorescence using FORTE_ORIGINS/FORTE_SLOPES, checks for break and
+ *  rising data, post-processes (baseline, Savitzky-Golay smoothing),
+ *  differentiates, detects the sigmoidal feature and predicts the
+ *  outcome. Marks slots as "Break" when invalid, then fills the output
+ *  arrays with each slot's transition (CT) time and outcome character.
+ * pramameter: CT_value - output array (10) receiving each slot's CT/
+ *  transition time;
+ *  result - output array (10) receiving each slot's outcome character
+ *  (e.g. 'N', 'P', 'B'reak)
+ *  return: true on success, false if JSON deserialization failed
+ */
 bool sensor6035::bResultGet(float *CT_value, char *result)
 {
     // Define a vector of integers
@@ -285,6 +379,21 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
     return true;
 }
 
+/***********************************************************************
+ * Function: bResultPutToChart()
+ * Description: Same per-slot amplification analysis as bResultGet(), but
+ *  in addition to the CT time and outcome it returns the full smoothed
+ *  (post-processed) curve for charting. For each of the 10 slots it
+ *  allocates a loops-long float buffer with malloc and copies the
+ *  processed_data into it for the caller to plot.
+ * pramameter: CT_value - output array (10) receiving each slot's CT/
+ *  transition time;
+ *  result - output array (10) receiving each slot's outcome character;
+ *  processed_data - output array of 10 float* pointers, each malloc'd
+ *  here with the smoothed curve (caller must free)
+ *  return: true on success, false if JSON deserialization or a malloc
+ *  failed
+ */
 bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **processed_data)
 {
     DataIn recordIn = DataIn();
@@ -437,6 +546,22 @@ bool sensor6035::bResultPutToChart(float *CT_value, char *result, float **proces
     return true;
 }
 
+/***********************************************************************
+ * Function: bResultPutToGoogleSheet()
+ * Description: Same per-slot amplification analysis as bResultGet(), but
+ *  additionally exports the rich diagnostic structures for upload to a
+ *  Google Sheet. For each of the 10 slots it copies the full
+ *  DiagnosticOutcome and detected FeatureDetection (peak features) into
+ *  the caller-provided arrays along with the CT time and outcome char.
+ * pramameter: CT_value - output array (10) of each slot's CT/transition
+ *  time;
+ *  result - output array (10) of each slot's outcome character;
+ *  get_outcome - output array (10) receiving each slot's full
+ *  DiagnosticOutcome;
+ *  get_peak_features - output array (10) receiving each slot's
+ *  FeatureDetection peak features
+ *  return: true on success, false if JSON deserialization failed
+ */
 bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
                                          char *result,
                                          struct DiagnosticOutcome *get_outcome,
@@ -589,6 +714,17 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
     return true;
 }
 
+/***********************************************************************
+ * Function: AlgLoop()
+ * Description: Offline/debug algorithm runner that takes a JSON payload
+ *  (parameters plus raw fluorescence curve) received over serial,
+ *  deserializes it, runs the single-curve pipeline (post-process,
+ *  differentiate, find sigmoidal feature, predict outcome) and serializes
+ *  the resulting record back to Serial as JSON. Used to test the
+ *  algorithm without live sensor acquisition.
+ * pramameter: recvData - C-string containing the JSON input record
+ *  return: none
+ */
 void sensor6035::AlgLoop(char *recvData)
 {
     DataIn recordIn = DataIn();
@@ -641,6 +777,15 @@ void sensor6035::AlgLoop(char *recvData)
     recordOut.clear();
 }
 
+/***********************************************************************
+ * Function: eSensorParaIni()
+ * Description: Resets the per-loop preheat acquisition state: zeroes
+ *  COUNTER and the channel index, and (only on the very first call, when
+ *  sensor67ValueTime is still zero) turns on the first LED and seeds the
+ *  reading timer. Always records START_INTERVAL_TIME as the loop start.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::eSensorParaIni()
 {
     // START_INTERVAL_TIME = 0;
@@ -655,6 +800,14 @@ void sensor6035::eSensorParaIni()
     START_INTERVAL_TIME = millis(); // as start preheat immediatly, need to record the time together
 }
 
+/***********************************************************************
+ * Function: getSensorPreheatReady()
+ * Description: Query helper reporting whether the sensors have finished
+ *  preheating, i.e. whether the state machine has reached
+ *  eSensormaintain.
+ * pramameter: none
+ *  return: true if sensorStep == eSensormaintain (preheat complete)
+ */
 bool sensor6035::getSensorPreheatReady()
 {
     // info_displayf("sensor step %d:%d\n", sensorStep, eSensormaintain)
@@ -662,6 +815,15 @@ bool sensor6035::getSensorPreheatReady()
 }
 
 // Auto/Self-Timed Mode Basic Initialization Function
+/***********************************************************************
+ * Function: Basic_Initialization_Auto_Mode()
+ * Description: Minimal VEML6035 bring-up used during reset: enables the
+ *  ALS channel only (white channel disabled) and powers the ALS sensor
+ *  on, then waits 100ms for it to settle. Assumes the target sensor's
+ *  I2C channel is already open.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::Basic_Initialization_Auto_Mode()
 {
     // 1.) Enable ALS Channel only (Disable White channel)
@@ -674,6 +836,17 @@ void sensor6035::Basic_Initialization_Auto_Mode()
 }
 
 // Auto/Self-Timed Mode Initialization Function
+/***********************************************************************
+ * Function: Auto_Mode()
+ * Description: Full VEML6035 Auto/Self-Timed mode configuration for the
+ *  currently selected sensor: sets sensitivity x1, digital gain double,
+ *  gain double, 100ms integration time, persistence 1, ALS interrupt
+ *  channel/enable, white channel disabled, high/low interrupt thresholds
+ *  (10000/8000), disables power-saving mode, powers the sensor on, clears
+ *  the initial interrupt and waits 300ms.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::Auto_Mode()
 {
     // 1.) Initialization
@@ -729,6 +902,16 @@ void sensor6035::Auto_Mode()
 }
 
 // Power Saving Mode Initialization Function
+/***********************************************************************
+ * Function: Power_Saving_Mode()
+ * Description: Configures the selected VEML6035 like Auto_Mode() but with
+ *  Power Saving Mode enabled (PSM wait 3.2) to reduce sensor power draw.
+ *  Sets sensitivity/gain/integration time/persistence/interrupt and
+ *  thresholds, powers the sensor on, clears the initial interrupt and
+ *  waits 1s.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::Power_Saving_Mode()
 {
     // 1.) Initialization
@@ -785,6 +968,15 @@ void sensor6035::Power_Saving_Mode()
     delay(1000);
 }
 
+/***********************************************************************
+ * Function: setI2CChannelSeq()
+ * Description: Selects the I2C-mux channel mapping for the 5 sensors on
+ *  each mux based on the configured PCB version: the {6,0,1,2,3} layout
+ *  for boards older than V1.3, or {6,5,1,2,3} for V1.3+, copying the
+ *  result into the I2C_Channel lookup table and printing the sequence.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::setI2CChannelSeq()
 {
     if (strcmp(_ForteSetting.parameter.PCB_version, "V1.3") < 0)
@@ -808,6 +1000,15 @@ void sensor6035::setI2CChannelSeq()
     info_displayln("");
 }
 
+/***********************************************************************
+ * Function: ResetAllSensors()
+ * Description: Iterates over both I2C multiplexers (5 sensors each) and,
+ *  for every one of the 10 VEML6035 sensors, opens its mux channel,
+ *  issues a soft Reset_Sensor(), runs Basic_Initialization_Auto_Mode()
+ *  and closes the channel again.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::ResetAllSensors()
 {
     // reset the 1st 5 sensors
@@ -830,6 +1031,15 @@ void sensor6035::ResetAllSensors()
     }
 }
 
+/***********************************************************************
+ * Function: ChannelEnableProcess_loop()
+ * Description: Applies the channel-enable (ALS-only vs ALS&White) setting
+ *  to all 10 sensors. For each sensor on both muxes it opens the channel,
+ *  reads the current CHANNEL_EN value then sets the required one via
+ *  ChannelEnableProcess(), printing per-sensor diagnostics.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::ChannelEnableProcess_loop()
 {
     // process the 1st 5 sensors
@@ -862,6 +1072,16 @@ void sensor6035::ChannelEnableProcess_loop()
 // CHANNEL_EN: Read channel para
 // CHANNEL_EN ALS: Set channel to read ALS only
 // CHANNEL_EN Both: Set channel to read ALS&White
+/***********************************************************************
+ * Function: ChannelEnableProcess()
+ * Description: Command handler for the VEML6035 CHANNEL_EN register on the
+ *  currently open sensor. Reads/prints the channel-enable state, or sets
+ *  it to ALS-only (white disabled) or ALS&White depending on the command
+ *  string; prints "Invalid command" otherwise.
+ * pramameter: command - control string (ChannelEnableRead /
+ *  ChannelEnableSetALS / ChannelEnableSetBoth)
+ *  return: none
+ */
 void sensor6035::ChannelEnableProcess(String command)
 {
     if (command == ChannelEnableRead) // read para
@@ -885,6 +1105,15 @@ void sensor6035::ChannelEnableProcess(String command)
     info_displayf("Set Channel Enable(CHANNEL_EN) to %s\n", VEML6035_GET_CHANNEL_EN_Bit() ? "ALS&White" : "ALS Only"); // Channel enable function: 0 = ALS CH enable only, 1 = ALS and WHITE CH enable
 }
 
+/***********************************************************************
+ * Function: ALS_IT_Process_loop()
+ * Description: Applies the ALS integration-time setting to all 10
+ *  sensors. For each sensor on both muxes it opens the channel, reads the
+ *  current ALS_IT then sets the required value via ALS_IT_Process(),
+ *  printing per-sensor diagnostics.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::ALS_IT_Process_loop()
 {
     // process the 1st 5 sensors
@@ -921,6 +1150,16 @@ void sensor6035::ALS_IT_Process_loop()
 // ALS_IT 200: Set ALS IT to 200ms
 // ALS_IT 400: Set ALS IT to 400ms
 // ALS_IT 800: Set ALS IT to 800ms
+/***********************************************************************
+ * Function: ALS_IT_Process()
+ * Description: Command handler for the VEML6035 ALS integration time on
+ *  the currently open sensor. On "ALS_IT" it reads and prints the current
+ *  integration time; on "ALS_IT <n>" it maps the numeric index to one of
+ *  the 25/50/100/200/400/800 ms settings and applies it, validating the
+ *  read-back value.
+ * pramameter: command - "ALS_IT" to read or "ALS_IT <index>" to set
+ *  return: none
+ */
 void sensor6035::ALS_IT_Process(String command)
 {
     const String strParaList[6] = {"25", "50", "100", "200", "400", "800"};
@@ -958,6 +1197,15 @@ void sensor6035::ALS_IT_Process(String command)
     }
 }
 
+/***********************************************************************
+ * Function: GainProcess_loop()
+ * Description: Applies the analog gain setting to all 10 sensors. For
+ *  each sensor on both muxes it opens the channel, reads the current GAIN
+ *  then sets the required value via GainProcess(), printing per-sensor
+ *  diagnostics.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::GainProcess_loop()
 {
     // process the 1st 5 sensors
@@ -990,6 +1238,16 @@ void sensor6035::GainProcess_loop()
 // GAIN: Read GAIN para
 // GAIN Normal: Set GAIN to Normal
 // GAIN Double: Set GAIN to Double
+/***********************************************************************
+ * Function: GainProcess()
+ * Description: Command handler for the VEML6035 analog GAIN register on
+ *  the currently open sensor. On "GAIN" it reads and prints the gain; on
+ *  "GAIN Normal"/"GAIN Double" it sets normal or double gain; prints
+ *  "Invalid command" otherwise.
+ * pramameter: command - "GAIN" to read, or "GAIN Normal"/"GAIN Double"
+ *  to set
+ *  return: none
+ */
 void sensor6035::GainProcess(String command)
 {
     if (command == GAINRead) // read para
@@ -1017,6 +1275,15 @@ void sensor6035::GainProcess(String command)
     }
 }
 
+/***********************************************************************
+ * Function: DigitalGainProcess_loop()
+ * Description: Applies the digital gain (DG) setting to all 10 sensors.
+ *  For each sensor on both muxes it opens the channel, reads the current
+ *  DG then sets the required value via DigitalGainProcess(), printing
+ *  per-sensor diagnostics.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::DigitalGainProcess_loop()
 {
     // process the 1st 5 sensors
@@ -1043,6 +1310,15 @@ void sensor6035::DigitalGainProcess_loop()
     }
     info_displayln("////////////////");
 }
+/***********************************************************************
+ * Function: calCalibratedValue()
+ * Description: Converts one stored raw sensor sample into a calibrated
+ *  fluorescence value by subtracting the channel origin and dividing by
+ *  the channel slope (FORTE_ORIGINS / FORTE_SLOPES).
+ * pramameter: channel - sensor/slot index (0-9);
+ *  cnt - sample/loop index into sensor67Value
+ *  return: the calibrated fluorescence value as a float
+ */
 float sensor6035::calCalibratedValue(int channel, int cnt)
 {
     return (float(sensor67Value[channel][cnt]) - FORTE_ORIGINS[channel]) / FORTE_SLOPES[channel];
@@ -1052,6 +1328,15 @@ float sensor6035::calCalibratedValue(int channel, int cnt)
 // DG: Read DG para
 // DG Normal: Set DG to Normal
 // DG Double: Set DG to Double
+/***********************************************************************
+ * Function: DigitalGainProcess()
+ * Description: Command handler for the VEML6035 digital gain (DG) register
+ *  on the currently open sensor. On "DG" it reads and prints the DG; on
+ *  "DG Normal"/"DG Double" it sets normal or double digital gain; prints
+ *  "Invalid command" otherwise.
+ * pramameter: command - "DG" to read, or "DG Normal"/"DG Double" to set
+ *  return: none
+ */
 void sensor6035::DigitalGainProcess(String command)
 {
     if (command == "DG") // read para
@@ -1079,6 +1364,15 @@ void sensor6035::DigitalGainProcess(String command)
     }
 }
 
+/***********************************************************************
+ * Function: SENS_loop()
+ * Description: Applies the sensitivity (SENS) setting to all 10 sensors.
+ *  For each sensor on both muxes it opens the channel, reads the current
+ *  SENS then sets the required value via SENS(), printing per-sensor
+ *  diagnostics.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::SENS_loop()
 {
     // process the 1st 5 sensors
@@ -1111,6 +1405,15 @@ void sensor6035::SENS_loop()
 // SENS: Read SENS para
 // SENS High: Set SENS to High
 // SENS Low: Set SENS to low
+/***********************************************************************
+ * Function: SENS()
+ * Description: Command handler for the VEML6035 sensitivity (SENS)
+ *  register on the currently open sensor. On "SENS" it reads and prints
+ *  the sensitivity; on "SENS High"/"SENS Low" it sets high (x1) or low
+ *  (1/8x) sensitivity; prints "Invalid command" otherwise.
+ * pramameter: command - "SENS" to read, or "SENS High"/"SENS Low" to set
+ *  return: none
+ */
 void sensor6035::SENS(String command)
 {
     if (command == "SENS") // read para
@@ -1139,6 +1442,17 @@ void sensor6035::SENS(String command)
     }
 }
 
+/***********************************************************************
+ * Function: Snapshot_loop_test()
+ * Description: Startup self-test that sequentially lights each of the 10
+ *  LEDs, opens the matching sensor channel and takes a Snapshot() reading.
+ *  On repeated read failures (errCnt > 10) it tabulates the error records,
+ *  classifies the fault (no data / too dark / too bright), shows the
+ *  corresponding error screen and logs it via error.addError(). Switches
+ *  off the LED driver when done.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::Snapshot_loop_test()
 {
     // delay(1000);
@@ -1262,6 +1576,17 @@ void sensor6035::Snapshot_loop_test()
 // Function to process Snapshot
 // Command list:
 // Snapshot: Read ALS and White light output
+/***********************************************************************
+ * Function: Snapshot()
+ * Description: Takes a single ALS reading from the currently open sensor
+ *  via VEML6035_GET_ALS_DATA_I2C_Res(). On a comms failure or out-of-range
+ *  value (0 or 0xFFFF) it schedules a 100ms re-read, increments errCnt and
+ *  bumps the matching errRecord[iChannel] fault counter (comms/too dark/
+ *  too bright). On success it clears errCnt and prints the raw and
+ *  calibrated value.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::Snapshot()
 {
     /* read the value and send back */
@@ -1346,6 +1671,18 @@ void sensor6035::Snapshot()
     return;
 }
 
+/***********************************************************************
+ * Function: eSensorPreheat()
+ * Description: Non-blocking preheat-step worker. While COUNTER <
+ *  PREHEATLOOPS it runs interval-timed rounds, sequentially turning each
+ *  of the OPTOCHANNELS LEDs on/off with LED_DELAY_TIME spacing to warm the
+ *  optics (no data is stored). After each full round it increments COUNTER
+ *  and, once preheat completes (or if PREHEATLOOPS is 0), transitions to
+ *  eSensormaintain, and when the heater (phase 2) is also ready updates
+ *  the display and sounds the buzzer.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::eSensorPreheat()
 {
     // if((millis() - START_DURATION_TIME) <= OPTO_PREHEAT_DURATION+50*1000)
@@ -1526,6 +1863,16 @@ void sensor6035::eSensorPreheat()
     }
 }
 
+/***********************************************************************
+ * Function: eSensorMaintain()
+ * Description: Non-blocking maintain-step worker that keeps the optics
+ *  warm after preheat. On each OPTO_INTERVAL it cycles through all
+ *  OPTOCHANNELS LEDs on/off with LED_DELAY_TIME spacing (again without
+ *  storing data), printing "finish one round maintenance" at the end of
+ *  each round, until the run advances to another step.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::eSensorMaintain()
 {
     if ((millis() - START_INTERVAL_TIME) >= OPTO_INTERVAL) // start a new loop
@@ -1653,6 +2000,16 @@ void sensor6035::eSensorMaintain()
     }
 }
 
+/***********************************************************************
+ * Function: outputHeader()
+ * Description: Emits the amplification run header. Prints the "<AmpStart>"
+ *  tag, then serializes a JSON metadata block (per-channel calibration
+ *  slopes/origins and LED power, optical units, device ID, slot count,
+ *  amplification time, reading interval and firmware version) followed by
+ *  the CSV column header for the fluorescence/temperature log.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::outputHeader()
 {
     // print tag to announce start of amplification
@@ -1689,6 +2046,14 @@ void sensor6035::outputHeader()
     info_displayln(header);
 }
 
+/***********************************************************************
+ * Function: closeSensorChannel()
+ * Description: Closes the I2C-mux channel for the given slot, selecting
+ *  the second mux (I2CMux1) for slots 5-9 and the first (I2CMux) for slots
+ *  0-4, using the reversed I2C_Channel index mapping.
+ * pramameter: slot - sensor/slot index (0-9) whose I2C channel to close
+ *  return: none
+ */
 void sensor6035::closeSensorChannel(int slot)
 {
     // delay(200);
@@ -1702,6 +2067,15 @@ void sensor6035::closeSensorChannel(int slot)
     }
 }
 
+/***********************************************************************
+ * Function: openSensorChannel()
+ * Description: Opens the I2C-mux channel for the given slot, selecting the
+ *  second mux (I2CMux1) for slots 5-9 and the first (I2CMux) for slots
+ *  0-4, using the reversed I2C_Channel index mapping, so that sensor can
+ *  be addressed over I2C.
+ * pramameter: slot - sensor/slot index (0-9) whose I2C channel to open
+ *  return: none
+ */
 void sensor6035::openSensorChannel(int slot)
 {
     if (slot > 4)
@@ -1715,6 +2089,17 @@ void sensor6035::openSensorChannel(int slot)
     // delay(200);
 }
 
+/***********************************************************************
+ * Function: eSensorstartFunc()
+ * Description: Entry actions for the eSensorstart step that begin an
+ *  amplification measurement run. Turns off all LEDs, closes both muxes,
+ *  clears the acquisition controller and the error log/EEPROM, prints the
+ *  run header (outputHeader()), sets bSensorReadingFlag to pause hotlid
+ *  heating for stable readings, resets COUNTER/interval timer, turns on
+ *  the first LED and advances the state machine to eSensor1stReading.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::eSensorstartFunc()
 {
     // switch off all LED first, in case some is still open
@@ -1761,6 +2146,21 @@ void sensor6035::eSensorstartFunc()
     tic = millis();
 }
 
+/***********************************************************************
+ * Function: eSensor1stReadingFunc()
+ * Description: Core amplification acquisition worker run during
+ *  eSensor1stReading. Each OPTO_INTERVAL it prints the time/counter label
+ *  and walks the OPTOCHANNELS sensors: opens the channel, takes repeated
+ *  VEML6035 readings via acquisitionControl, and on faults re-configures
+ *  the slot (reConfigSingleSlotSensor), logs no-data/too-dark errors and
+ *  substitutes fallback values. It averages the repeats into
+ *  sensor67Value[channel][COUNTER], prints the calibrated value, and after
+ *  each full round increments COUNTER. When MEASUREMENTLOOPS is reached it
+ *  saves all data and errors to EEPROM, marks the screen finished, sounds
+ *  the buzzer, emits "<AmpStart/>" and returns to eSensormaintain.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::eSensor1stReadingFunc()
 {
     // if((millis() - START_DURATION_TIME) <= OPTO_DURATION+50*1000)       //50*1000 is used as redundancy in case time is not enough for the sensor reading
@@ -1971,6 +2371,15 @@ void sensor6035::eSensor1stReadingFunc()
     }
 }
 
+/***********************************************************************
+ * Function: clear()
+ * Description: Resets the acquisition state for a fresh run: zeroes
+ *  START_INTERVAL_TIME, COUNTER and iChannel, clears the 7-element
+ *  SENSOR_DATA buffer and wipes the entire 10 x amplification_time
+ *  sensor67Value measurement matrix.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::clear()
 {
     // VEML6035_SET_SD(VEML6035_ALS_SD_OFF);
@@ -1991,6 +2400,14 @@ void sensor6035::clear()
     }
 }
 
+/***********************************************************************
+ * Function: switchSensorAcquisitionState()
+ * Description: Powers the currently selected VEML6035's ALS acquisition
+ *  on or off by writing the shutdown (SD) bit.
+ * pramameter: state - true to switch the sensor on (SD_ON), false to
+ *  switch it off (SD_OFF)
+ *  return: none
+ */
 void sensor6035::switchSensorAcquisitionState(bool state)
 {
     if (state == true)
@@ -2003,6 +2420,15 @@ void sensor6035::switchSensorAcquisitionState(bool state)
     }
 }
 
+/***********************************************************************
+ * Function: switchAllSensorsAcquisitionState()
+ * Description: Switches the ALS acquisition state on or off for all 10
+ *  sensors by opening each mux channel in turn, calling
+ *  switchSensorAcquisitionState() and closing the channel.
+ * pramameter: state - true to power all sensors on, false to power them
+ *  off
+ *  return: none
+ */
 void sensor6035::switchAllSensorsAcquisitionState(bool state)
 {
     // process the 1st 5 sensors
@@ -2023,6 +2449,16 @@ void sensor6035::switchAllSensorsAcquisitionState(bool state)
     }
 }
 
+/***********************************************************************
+ * Function: checkSensorConfiguration()
+ * Description: Verifies that the currently open VEML6035 still holds the
+ *  expected measurement configuration by reading back the ALS integration
+ *  time (==6), gain (==1), digital gain (==0), sensitivity (==0) and ALS
+ *  mode (==0) register bits.
+ * pramameter: none
+ *  return: true if every register matches the expected value, false on
+ *  the first mismatch
+ */
 bool sensor6035::checkSensorConfiguration()
 /*
 Function that checks that the configuration is as expected.
@@ -2052,6 +2488,15 @@ The error reporting is a poor design. To be improved later on.
     return true;
 }
 
+/***********************************************************************
+ * Function: reConfigSingleSensor()
+ * Description: Re-applies the standard measurement configuration to one
+ *  sensor: opens its mux channel, writes the CHANNEL_EN, ALS_IT, GAIN, DG
+ *  and SENS registers from the Config_* constants, then closes the
+ *  channel. Requires all I2C channels to be closed beforehand.
+ * pramameter: slot - sensor/slot index (0-9) to reconfigure
+ *  return: none
+ */
 void sensor6035::reConfigSingleSensor(int slot)
 /*
 To reconfigure a single sensor. It requires all I2C channels to be closed prior to call.
@@ -2069,6 +2514,15 @@ To reconfigure a single sensor. It requires all I2C channels to be closed prior 
     // switchSensorAcquisitionState(true);
 }
 
+/***********************************************************************
+ * Function: reConfigSensors()
+ * Description: Performs a full re-configuration of all 10 sensors: closes
+ *  both muxes, soft-resets every sensor via ResetAllSensors() and then
+ *  re-applies the measurement configuration to each slot with
+ *  reConfigSingleSensor().
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::reConfigSensors()
 {
     // close all channels
@@ -2087,6 +2541,15 @@ void sensor6035::reConfigSensors()
     }
 }
 
+/***********************************************************************
+ * Function: connectToSensor()
+ * Description: Opens the given slot's I2C channel and validates its
+ *  configuration; if checkSensorConfiguration() fails it re-establishes
+ *  the settings via reConfigSingleSensor() and re-opens the channel,
+ *  leaving the sensor selected and ready to read.
+ * pramameter: slot - sensor/slot index (0-9) to connect to
+ *  return: none
+ */
 void sensor6035::connectToSensor(int slot)
 {
     openSensorChannel(slot);
@@ -2101,6 +2564,13 @@ void sensor6035::connectToSensor(int slot)
     delay(10);
 }
 
+/***********************************************************************
+ * Function: disconnectFromSensor()
+ * Description: Powers the currently selected sensor's ALS off (SD_OFF) and
+ *  closes the given slot's I2C-mux channel to release the bus.
+ * pramameter: slot - sensor/slot index (0-9) to disconnect from
+ *  return: none
+ */
 void sensor6035::disconnectFromSensor(int slot)
 {
     VEML6035_SET_SD(VEML6035_ALS_SD_OFF);
@@ -2108,6 +2578,16 @@ void sensor6035::disconnectFromSensor(int slot)
     closeSensorChannel(slot);
 }
 
+/***********************************************************************
+ * Function: testShot()
+ * Description: Manual diagnostic single-slot reading. Turns off all LEDs,
+ *  lights the given slot's LED, opens its channel and accumulates repeated
+ *  VEML6035 readings via acquisitionControl until finished; on too many
+ *  errors it shows the opto-sensor error screen and logs an error. Prints
+ *  the summed "Green" response and turns the LED back off.
+ * pramameter: slot - sensor/slot index (0-9) to test
+ *  return: none
+ */
 void sensor6035::testShot(int slot)
 {
 
@@ -2201,6 +2681,17 @@ void sensor6035::testShot(int slot)
     // info_displayln("////////////////");
 }
 
+/***********************************************************************
+ * Function: OptoCommandProcess()
+ * Description: Serial debug command dispatcher for the opto/heater
+ *  subsystem. 'R' reconfigures all sensors; 'P' interactively sets an LED
+ *  slot's PWM; '0'-'9' run testShot() on that slot; 'A'/'B'/'C' set the
+ *  three bottom heater PWMs; 'E'/'F' set the top (hotlid) heater PWMs;
+ *  'M' prints the calibration metadata JSON. Several branches block on
+ *  Serial input for the new value.
+ * pramameter: command - single character selecting the action to perform
+ *  return: none
+ */
 void sensor6035::OptoCommandProcess(char command)
 {
     int _LED_SLOT;
@@ -2439,12 +2930,32 @@ void sensor6035::OptoCommandProcess(char command)
     }
 }
 
+/***********************************************************************
+ * Function: bSensorReadingGet()
+ * Description: Accessor returning the current sensor-reading flag, which
+ *  other modules (e.g. the hotlid heater) use to know whether a reading is
+ *  in progress and pause heating for measurement stability.
+ * pramameter: none
+ *  return: the bSensorReadingFlag boolean (true while a reading round is
+ *  active)
+ */
 bool sensor6035::bSensorReadingGet()
 {
     return bSensorReadingFlag;
 }
 
 //////////////////Calibration
+/***********************************************************************
+ * Function: calib_sensor()
+ * Description: Takes a calibration reading for one slot: turns off all
+ *  LEDs, lights the given slot, opens its channel and accumulates repeated
+ *  VEML6035 readings via acquisitionControl until finished, then returns
+ *  their sum. On too many read errors it shows the error screen, logs a
+ *  no-data error and returns -1.
+ * pramameter: slot - sensor/slot index (0-9) to read for calibration
+ *  return: the summed raw sensor response as a float, or -1 on sensor
+ *  error
+ */
 float sensor6035::calib_sensor(int slot)
 {
     _LED.LED_OFF_ALL_unguarded();
@@ -2491,6 +3002,17 @@ float sensor6035::calib_sensor(int slot)
     return (float)meanResponse;
 }
 
+/***********************************************************************
+ * Function: calibration()
+ * Description: Drives the multi-point calibration state machine for one
+ *  slot. For each of the first 3 calibration points it shows the waiting
+ *  screen, stores calib_sensor() into result_calib[type_calib] and
+ *  advances type_calib; on the 4th point it takes the final reading, runs
+ *  calculate_calib() to fit the line, resets type_calib and shows the
+ *  completion screen. Always returns the state machine to eSensorwait.
+ * pramameter: slot - sensor/slot index (0-9) being calibrated
+ *  return: none
+ */
 void sensor6035::calibration(int slot)
 {
     if (type_calib < 3)
@@ -2513,6 +3035,17 @@ void sensor6035::calibration(int slot)
     setStepeSensorwait();
 }
 
+/***********************************************************************
+ * Function: calculate_calib()
+ * Description: Computes a linear calibration fit from the 4 measured
+ *  responses against the known concentrations {300,200,100,0}. Performs
+ *  least-squares regression and stores the slope in cal_calib[0], the R^2
+ *  goodness-of-fit in cal_calib[1] and the intercept/origin in
+ *  cal_calib[2].
+ * pramameter: y[] - array of 4 measured sensor responses corresponding to
+ *  the fixed x concentrations
+ *  return: none (results written into the cal_calib[] member array)
+ */
 void sensor6035::calculate_calib(float y[])
 {
     float x[4] = {300.0, 200.0, 100.0, 0.0};
@@ -2545,10 +3078,24 @@ void sensor6035::calculate_calib(float y[])
     cal_calib[2] = origin;
 }
 
+/***********************************************************************
+ * Function: setStepeSensorcalib()
+ * Description: Forces the state machine into the eSensorcalib step so the
+ *  calibration routine runs on the next loop().
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::setStepeSensorcalib()
 {
     sensorStep = eSensorcalib;
 }
+/***********************************************************************
+ * Function: setStepeSensorwait()
+ * Description: Forces the state machine into the eSensorwait (idle) step
+ *  so loop() performs no sensor work until another step is requested.
+ * pramameter: none
+ *  return: none
+ */
 void sensor6035::setStepeSensorwait()
 {
     sensorStep = eSensorwait;

@@ -5,6 +5,15 @@
 #include "sgsmooth.h"
 #include "../ForteSetting.h"
 
+/***********************************************************************
+ * Function: find_crossing_higher_than()
+ * Description: Scans _array forward from start_index and returns the index
+ *  of the first element that is greater than or equal to 'crossing' (first
+ *  upward threshold crossing).
+ * pramameter: _array = data to search; crossing = threshold value;
+ *  start_index = index to begin scanning from
+ *  return: index of the first element >= crossing, or -1 if none found
+ */
 size_t find_crossing_higher_than(const std::vector<double> &_array, double crossing, int start_index)
 {
     for (int index = start_index; index < _array.size(); ++index)
@@ -17,6 +26,15 @@ size_t find_crossing_higher_than(const std::vector<double> &_array, double cross
     return -1;
 }
 
+/***********************************************************************
+ * Function: find_crossing_lower_than()
+ * Description: Scans _array forward from start_index and returns the index
+ *  of the first element that is less than or equal to 'crossing' (first
+ *  downward threshold crossing).
+ * pramameter: _array = data to search; crossing = threshold value;
+ *  start_index = index to begin scanning from
+ *  return: index of the first element <= crossing, or -1 if none found
+ */
 size_t find_crossing_lower_than(const std::vector<double> &_array, double crossing, int start_index)
 {
     for (int index = start_index; index < _array.size(); ++index)
@@ -29,6 +47,16 @@ size_t find_crossing_lower_than(const std::vector<double> &_array, double crossi
     return -1;
 }
 
+/***********************************************************************
+ * Function: find_crossing_lower_than_reversed()
+ * Description: Scans _array backward from start_index down to end_index and
+ *  returns the index of the first element that is less than or equal to
+ *  'crossing' (first downward crossing searching in reverse).
+ * pramameter: _array = data to search; crossing = threshold value;
+ *  start_index = index to begin the reverse scan; end_index = lowest index
+ *  to scan to (default 0)
+ *  return: index of the first element <= crossing, or -1 if none found
+ */
 size_t find_crossing_lower_than_reversed(const std::vector<double> &_array, double crossing, int start_index, int end_index = 0)
 {
     for (int index = start_index; index >= end_index; --index)
@@ -41,6 +69,15 @@ size_t find_crossing_lower_than_reversed(const std::vector<double> &_array, doub
     return -1;
 }
 
+/***********************************************************************
+ * Function: find_crossing_higher_than_reversed()
+ * Description: Scans _array backward from start_index down to index 0 and
+ *  returns the index of the first element that is greater than or equal to
+ *  'crossing' (first upward crossing searching in reverse).
+ * pramameter: _array = data to search; crossing = threshold value;
+ *  start_index = index to begin the reverse scan
+ *  return: index of the first element >= crossing, or -1 if none found
+ */
 size_t find_crossing_higher_than_reversed(const std::vector<double> &_array, double crossing, int start_index)
 {
     for (int index = start_index; index >= 0; --index)
@@ -53,6 +90,15 @@ size_t find_crossing_higher_than_reversed(const std::vector<double> &_array, dou
     return -1;
 }
 
+/***********************************************************************
+ * Function: mean()
+ * Description: Computes the arithmetic mean of the elements of vec over the
+ *  half-open index range [startIndex, endIndex), summing the values and
+ *  dividing by the number of elements in the range.
+ * pramameter: vec = data vector; startIndex = first index (inclusive);
+ *  endIndex = end index (exclusive)
+ *  return: average of the elements in the range, or 0.0 if vec is empty
+ */
 float mean(const std::vector<double> &vec, int startIndex, int endIndex)
 {
     if (vec.empty())
@@ -69,12 +115,35 @@ float mean(const std::vector<double> &vec, int startIndex, int endIndex)
     return (sum) / (double)(endIndex - startIndex); // Calculate average
 }
 
+/***********************************************************************
+ * Function: smooth()
+ * Description: Wrapper that Savitzky-Golay smooths the raw signal by
+ *  calling sg_smooth with the given window and order, then assigns the
+ *  resulting smoothed samples into the _smoothed output vector.
+ * pramameter: _raw = raw input signal; _smoothed = output vector filled
+ *  with the smoothed signal; window = SG half-window size; order = SG
+ *  polynomial order
+ *  return: none (result written to _smoothed)
+ */
 void smooth(const std::vector<double> &_raw, std::vector<double> &_smoothed, uint8_t window, uint8_t order)
 {
     std::vector<double> _temp = sg_smooth(_raw, window, order);
     _smoothed.assign(_temp.begin(), _temp.end());
 }
 
+/***********************************************************************
+ * Function: baseline()
+ * Description: Baseline-corrects the fluorescence signal by finding the
+ *  index range corresponding to the baselining time window (from
+ *  baseline_start to baseline_start+baseline_range in time_data),
+ *  computing the mean raw value over that window, and subtracting this
+ *  baseline value from every sample of raw_data.
+ * pramameter: time_data = time values; raw_data = fluorescence values;
+ *  baselinedData = output baselined values; baseline_start = start time
+ *  (min) for the baseline window; baseline_range = length (min) of the
+ *  baseline window
+ *  return: none (baseline-subtracted data written to baselinedData)
+ */
 void baseline(const std::vector<double> &time_data, const std::vector<double> &raw_data, std::vector<double> &baselinedData, uint8_t baseline_start, uint8_t baseline_range)
 {
     /*
@@ -100,6 +169,15 @@ void baseline(const std::vector<double> &time_data, const std::vector<double> &r
     }
 }
 
+/***********************************************************************
+ * Function: DiagnosticParameters::fromEEPROM()
+ * Description: Loads all diagnostic thresholding parameters (min increase,
+ *  sharpness, slight-positive time, shape detection, detection margin,
+ *  percentiles, SG order/window, baseline start/range) into this struct
+ *  from the persisted _ForteSetting.parameter values stored in EEPROM.
+ * pramameter: none
+ *  return: none (member fields populated from settings)
+ */
 void DiagnosticParameters::fromEEPROM()
 {
     min_increase = _ForteSetting.parameter.min_increase;
@@ -116,6 +194,18 @@ void DiagnosticParameters::fromEEPROM()
     baseline_range = _ForteSetting.parameter.baseline_range;
 }
 
+/***********************************************************************
+ * Function: post_process_curve()
+ * Description: Pre-processes a measurement curve by clearing the record's
+ *  processed_data, baselining the raw_data over the configured baseline
+ *  window, and then Savitzky-Golay smoothing the baselined data into
+ *  record.processed_data.
+ * pramameter: record = record holding time/raw data and receiving the
+ *  processed output; baseline_start = baseline start time (min);
+ *  baseline_range = baseline window length (min); sg_window = SG smoothing
+ *  half-window size; sg_order = SG interpolation order (0-3)
+ *  return: none (record.processed_data populated)
+ */
 void post_process_curve(
     Record &record,
     uint8_t baseline_start,
@@ -141,6 +231,16 @@ void post_process_curve(
     smooth(baselinedData, record.processed_data, sg_window, sg_order);
 }
 
+/***********************************************************************
+ * Function: differentiate()
+ * Description: Computes the numerical derivative dy/dx of the signal;
+ *  uses a forward difference at the first point, a backward difference at
+ *  the last point, and a centered difference for all interior points,
+ *  appending each result to differential_array.
+ * pramameter: x_array = time/x values; y_array = (processed) fluorescence/y
+ *  values; differential_array = output derivative values (appended)
+ *  return: none (derivatives pushed into differential_array)
+ */
 void differentiate(
     const std::vector<double> &x_array,
     const std::vector<double> &y_array,
@@ -169,6 +269,16 @@ void differentiate(
     }
 }
 
+/***********************************************************************
+ * Function: argmax()
+ * Description: Finds the index of the maximum value in _vector scanning
+ *  from startIndex to the end; tracks the running maximum (starting from
+ *  0.0) and returns the index where it occurs.
+ * pramameter: _vector = data to search; startIndex = index to begin
+ *  searching from
+ *  return: index of the maximum element, or -1 if none exceeds the initial
+ *  maximum of 0.0
+ */
 size_t argmax(std::vector<double> &_vector, size_t startIndex)
 {
     /*
@@ -216,6 +326,16 @@ size_t argmax(std::vector<double> &_vector, size_t startIndex)
 //     }
 //     return true;
 // }
+/***********************************************************************
+ * Function: mean_slope()
+ * Description: Computes the average first difference (mean slope) of
+ *  _array over a span of 'window' points starting just after 'start';
+ *  sums consecutive differences _array[i+1]-_array[i] and divides by
+ *  window-1.
+ * pramameter: _array = data; start = starting index of the span; window =
+ *  number of points spanning the slope estimate
+ *  return: mean per-step slope over the window
+ */
 double mean_slope(std::vector<double> &_array, size_t start, size_t window)
 {
     double sum = 0;
@@ -226,6 +346,18 @@ double mean_slope(std::vector<double> &_array, size_t start, size_t window)
 }
 // Biên độ dao động (max - min) của 'window' điểm bắt đầu tại 'start'.
 // Dùng để phân biệt noise pre-window (range lớn) khỏi baseline ổn định (range nhỏ).
+/***********************************************************************
+ * Function: range_of()
+ * Description: Computes the amplitude (max - min) of 'window' consecutive
+ *  points of _array starting at 'start'; scans the window tracking the
+ *  minimum and maximum and returns their difference. Used to distinguish
+ *  noisy pre-window regions (large range) from a stable baseline (small
+ *  range).
+ * pramameter: _array = data; start = first index of the window; window =
+ *  number of points in the window
+ *  return: max minus min over the window, or 0.0 if the window exceeds the
+ *  array bounds
+ */
 double range_of(std::vector<double> &_array, size_t start, size_t window)
 {
     if (start + window > _array.size())
@@ -242,6 +374,19 @@ double range_of(std::vector<double> &_array, size_t start, size_t window)
     return mx - mn;
 }
 
+/***********************************************************************
+ * Function: checkJump()
+ * Description: Detects a single sudden step (jump) at position 'index' in
+ *  _array; requires the one-step rise _array[index+1]-_array[index] to
+ *  exceed 'crossing', to be at least 2.5x the amplitude of the preceding
+ *  8-point window (range_of guard against noise), to sit on a near-flat
+ *  region (|mean_slope| over 6 points <= 1.0), and to not keep rising past
+ *  the threshold over the next 6 points, marking a genuine isolated jump.
+ * pramameter: _array = signal; crossing = minimum jump magnitude / rise
+ *  threshold; index = position to test for a jump
+ *  return: true if a qualifying jump is detected at index, false otherwise
+ *  (including out-of-range positions)
+ */
 bool checkJump(std::vector<double> &_array, double crossing, size_t index)
 {
     if ((index < 4) || ((index + 6) >= _array.size()))
@@ -287,6 +432,17 @@ bool checkJump(std::vector<double> &_array, double crossing, size_t index)
 //     return true;
 // }
 
+/***********************************************************************
+ * Function: is_rising_trend()
+ * Description: Determines whether _data shows a consistent upward trend
+ *  over 'window' steps starting at 'start'; counts positive consecutive
+ *  differences and accumulates the total rise, requiring nearly all steps
+ *  to be positive (>= window-1) and the net rise to be greater than zero.
+ * pramameter: data = signal; start = starting index of the trend window;
+ *  window = number of steps to evaluate
+ *  return: true if the window forms a rising trend, false otherwise
+ *  (including out-of-range windows)
+ */
 bool is_rising_trend(const std::vector<double> &data,
                      int start,
                      int window)
@@ -314,6 +470,15 @@ bool is_rising_trend(const std::vector<double> &data,
     return true;
 }
 
+/***********************************************************************
+ * Function: check_breakData()
+ * Description: Scans _array forward from start_index and returns the index
+ *  of the first sample where checkJump reports a sudden step/break of at
+ *  least 'crossing'; used to locate an abrupt discontinuity in the signal.
+ * pramameter: _array = signal to scan; crossing = jump threshold passed to
+ *  checkJump; start_index = index to begin scanning from
+ *  return: index of the first detected jump, or 0 if none is found
+ */
 size_t check_breakData(std::vector<double> &_array, double crossing, int start_index)
 {
     size_t indexBreak = 0;
@@ -329,6 +494,16 @@ size_t check_breakData(std::vector<double> &_array, double crossing, int start_i
     return 0;
 }
 
+/***********************************************************************
+ * Function: check_risingData()
+ * Description: Scans _array forward from start_index and returns the index
+ *  of the first position where is_rising_trend reports a consistent upward
+ *  trend over the given window; used to locate the onset of a sustained
+ *  rise in the signal.
+ * pramameter: _array = signal to scan; start_index = index to begin
+ *  scanning from; window = trend window length passed to is_rising_trend
+ *  return: index where a rising trend begins, or 0 if none is found
+ */
 size_t check_risingData(std::vector<double> &_array, int start_index, int window)
 {
     size_t indexRising = 0;
@@ -343,6 +518,20 @@ size_t check_risingData(std::vector<double> &_array, int start_index, int window
     return 0;
 }
 
+/***********************************************************************
+ * Function: find_sigmoidal_feature()
+ * Description: Locates the sigmoidal/exponential amplification feature on
+ *  the differential curve; finds the global maximum (main peak) of
+ *  differential_data after the detection-margin time, then locates the
+ *  left and right arm crossings where the differential falls below
+ *  arm_percentile of the peak (left arm searched in reverse, right arm
+ *  forward), storing each feature's index/time/value into
+ *  record.peak_features. Returns early if no peak is found.
+ * pramameter: record = record holding time/differential data and receiving
+ *  the detected peak features; parameters = diagnostic thresholds
+ *  (detection_margin_time, arm_percentile, ...)
+ *  return: none (record.peak_features populated)
+ */
 void find_sigmoidal_feature(Record &record, DiagnosticParameters &parameters)
 {
     /*
@@ -386,6 +575,21 @@ void find_sigmoidal_feature(Record &record, DiagnosticParameters &parameters)
     return;
 }
 
+/***********************************************************************
+ * Function: predict_outcome()
+ * Description: Classifies an amplification curve into a diagnostic outcome.
+ *  Defaults to Negative; if a peak was detected it finds the transition
+ *  time (Ct) by reverse-searching for a transition_percentile crossing
+ *  (retrying with a 1.1x-growing threshold up to 12 times), determines the
+ *  plateau point, and computes the fluorescence increase. It then applies
+ *  threshold tests (min_increase, min_sharpness, detection_margin_time,
+ *  shape/EA detection) to assign Positive, SlightPositive, Error, or
+ *  Negative, writing results into record.outcome.
+ * pramameter: record = record with peak features and processed/differential
+ *  data, receiving the outcome; parameters = thresholding parameters for
+ *  amplification detection
+ *  return: none (record.outcome populated with the predicted result)
+ */
 void predict_outcome(Record &record, DiagnosticParameters &parameters)
 {
     /*

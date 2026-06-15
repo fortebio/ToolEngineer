@@ -44,18 +44,42 @@ static volatile ButtonState btnState[NumberButton];
 // No Serial, no I2C, no FreeRTOS API calls, no function calls
 // beyond digitalRead.
 // ================================================================
+/***********************************************************************
+ * Function: isrRed()
+ * Description: IRAM-resident ISR for the RED button GPIO CHANGE edge.
+ * Reads the RED pin (active-low) into btnState[B_RED].rawPressed and
+ * records the edge timestamp via millis(). Does no business logic.
+ * pramameter: none
+ *  return: none
+ */
 static void IRAM_ATTR isrRed()
 {
   btnState[B_RED].rawPressed = !digitalRead(buttonPins[B_RED]);
   btnState[B_RED].lastEdgeTime = millis(); // millis() is ISR-safe on ESP32
 }
 
+/***********************************************************************
+ * Function: isrBlue()
+ * Description: IRAM-resident ISR for the BLUE button GPIO CHANGE edge.
+ * Reads the BLUE pin (active-low) into btnState[B_BLUE].rawPressed and
+ * records the edge timestamp via millis(). Does no business logic.
+ * pramameter: none
+ *  return: none
+ */
 static void IRAM_ATTR isrBlue()
 {
   btnState[B_BLUE].rawPressed = !digitalRead(buttonPins[B_BLUE]);
   btnState[B_BLUE].lastEdgeTime = millis();
 }
 
+/***********************************************************************
+ * Function: isrWhite()
+ * Description: IRAM-resident ISR for the WHITE button GPIO CHANGE edge.
+ * Reads the WHITE pin (active-low) into btnState[B_WHITE].rawPressed and
+ * records the edge timestamp via millis(). Does no business logic.
+ * pramameter: none
+ *  return: none
+ */
 static void IRAM_ATTR isrWhite()
 {
   btnState[B_WHITE].rawPressed = !digitalRead(buttonPins[B_WHITE]);
@@ -65,6 +89,15 @@ static void IRAM_ATTR isrWhite()
 // ================================================================
 // Constructor / Destructor
 // ================================================================
+/***********************************************************************
+ * Function: buttonManager()
+ * Description: Constructor. Zero-initializes the shared btnState array for
+ * all NumberButton buttons (rawPressed, lastEdgeTime, debounced,
+ * debounceTime, longPressFired) and clears each pendingEvent to
+ * BTN_EVENT_NONE.
+ * pramameter: none
+ *  return: none
+ */
 buttonManager::buttonManager()
 {
   // Zero-initialize all button states
@@ -79,6 +112,13 @@ buttonManager::buttonManager()
   }
 }
 
+/***********************************************************************
+ * Function: ~buttonManager()
+ * Description: Destructor. No dynamic resources are held, so it performs
+ * no cleanup.
+ * pramameter: none
+ *  return: none
+ */
 buttonManager::~buttonManager()
 {
 }
@@ -86,6 +126,14 @@ buttonManager::~buttonManager()
 // ================================================================
 // buttonStart() — attach ISR on CHANGE edge
 // ================================================================
+/***********************************************************************
+ * Function: buttonStart()
+ * Description: Configures all button GPIOs as INPUT_PULLUP and attaches the
+ * isrRed/isrBlue/isrWhite handlers on the CHANGE edge so press/release
+ * transitions are captured.
+ * pramameter: none
+ *  return: none
+ */
 void buttonManager::buttonStart()
 {
   for (int i = 0; i < NumberButton; i++)
@@ -107,6 +155,17 @@ void buttonManager::buttonStart()
 //     → hold duration >= longPressMs → fire LONG_PRESS event (once)
 //     → rawPressed=false (released) → fire SHORT_PRESS event (if no long-press fired)
 // ================================================================
+/***********************************************************************
+ * Function: pollButton()
+ * Description: Runs the per-button debounce and long-press state machine
+ * from the raw ISR-captured state. Debounces a new press over TimePressAnti
+ * ms, then while held fires BTN_EVENT_LONG_PRESS once after longPressMs, or
+ * on release fires BTN_EVENT_SHORT_PRESS if no long-press occurred. Sets
+ * the button's pendingEvent for later dispatch.
+ * pramameter: index = button index (B_RED/B_BLUE/B_WHITE) to poll;
+ * pramameter: longPressMs = hold threshold in ms for this button's long press
+ *  return: none
+ */
 void buttonManager::pollButton(uint8_t index, uint16_t longPressMs)
 {
   // Read volatile state atomically (single-byte reads are atomic on ESP32)
@@ -168,6 +227,16 @@ void buttonManager::pollButton(uint8_t index, uint16_t longPressMs)
 // ================================================================
 // processEvent() — dispatch pending events
 // ================================================================
+/***********************************************************************
+ * Function: processEvent()
+ * Description: Dispatches a pending button event to its handler. For a
+ * short press it stops the buzzer then calls the per-button
+ * handleShortPress_Red/Blue/White; for a long press it calls the
+ * per-button handleLongPress_Red/Blue/White.
+ * pramameter: index = which button (B_RED/B_BLUE/B_WHITE) the event belongs to;
+ * pramameter: event = the event type (BTN_EVENT_SHORT_PRESS/BTN_EVENT_LONG_PRESS)
+ *  return: none
+ */
 void buttonManager::processEvent(e_statusbutton index, e_buttonEvent event)
 {
   if (event == BTN_EVENT_SHORT_PRESS)
@@ -208,6 +277,14 @@ void buttonManager::processEvent(e_statusbutton index, e_buttonEvent event)
 // ================================================================
 // loop() — call from Arduino loop(), every 1ms
 // ================================================================
+/***********************************************************************
+ * Function: loop()
+ * Description: Main loop for buttonManager. Polls button states, applies
+ * debounce and long-press detection, and dispatches events to handlers.
+ * This replaces the original ISR-based buttonProcess() and tickerHandler()
+ * pramameter: none
+ *  return: none
+ */
 void buttonManager::loop()
 {
   // Poll all 3 buttons with their respective long-press thresholds
@@ -297,6 +374,24 @@ void buttonManager::loop()
 // ----------------------------------------------------------------
 // RED short press — original: case B_RED in buttonProcess()
 // ----------------------------------------------------------------
+/***********************************************************************
+ * Function: handleShortPress_Red()
+ * Description: Handles a RED short press as a context-sensitive "confirm/
+ * advance" action driven by _displayCLD.type_infor. Returns immediately on
+ * an error screen. Depending on the current screen it: starts the 10-min
+ * lysis heating (ewaitLysisTube -> eheatLysis), starts amplification preheat
+ * to 67C (escreenStart -> epreheating67), readies PID23 then moves to the
+ * wait-amp screen (eSelectAmpli -> ewaitampTube), starts amplification
+ * (ewaitampTube -> eoptoreading), enters upload-data (eSettingMenu ->
+ * eUpLoadData), cycles the selected slot 0..9 (eSelectSlot), advances mode
+ * to set-LED-power (eSelectMode/eCalibComplete -> eSetPowerLed), increments
+ * the digit of the currently indexed LED power 0..9 (eSetPowerLed), accepts
+ * an OTA update (eUpdateOTA -> OTA_USER_ACCEPTED), or shows the error-result
+ * screen from result/review/finished/upload screens. Sets changeScreen where
+ * a redraw is needed.
+ * pramameter: none
+ *  return: none
+ */
 void buttonManager::handleShortPress_Red()
 {
   if (_displayCLD.ErrorStatus())
@@ -407,6 +502,24 @@ void buttonManager::handleShortPress_Red()
 // ----------------------------------------------------------------
 // BLUE short press — original: case B_BLUE in buttonProcess()
 // ----------------------------------------------------------------
+/***********************************************************************
+ * Function: handleShortPress_Blue()
+ * Description: Handles a BLUE short press as a context-sensitive "secondary/
+ * navigate" action driven by _displayCLD.type_infor. Returns immediately on
+ * an error screen. Depending on the current screen it: starts preheat to 80C
+ * (escreenStart -> epreheating80), starts preheat to 67C from phase-2 wait
+ * (ewaitphase2 -> epreheating67), skips the opto preheat to maintain
+ * (epreheating67), enters WiFi settings (eSettingMenu -> eSettingWifi),
+ * navigates the ampli/slot/mode menus (eSelectAmpli -> eSelectSlot ->
+ * eSelectMode -> eCalibrating), starts sensor calibration (eCalibrating),
+ * advances the edited LED-power index 0..2 (eSetPowerLed), re-enters
+ * calibration from eCalibComplete, returns to slot select from save-power/
+ * save-calib screens, or dismisses an OTA update (eUpdateOTA ->
+ * OTA_DISMISSED, back to escreenStart). Sets changeScreen where a redraw is
+ * needed.
+ * pramameter: none
+ *  return: none
+ */
 void buttonManager::handleShortPress_Blue()
 {
   if (_displayCLD.ErrorStatus())
@@ -424,8 +537,7 @@ void buttonManager::handleShortPress_Blue()
   }
   else if (_displayCLD.type_infor == ewaitphase2)
   {
-    // _PIDControl.waitWarmAmpTube = true; // reset the flag in case user press red button to start heating but then change their mind and press blue button to skip preheat
-    _PIDControl.timeStartWait = 0;
+    _PIDControl.timeStartWait = millis(); // - (10 * 60000);
     _displayCLD.type_infor = epreheating67;
     _displayCLD.bheadershow = true;
     _displayCLD.changeScreen = true;
@@ -500,6 +612,20 @@ void buttonManager::handleShortPress_Blue()
 // ----------------------------------------------------------------
 // WHITE short press — original: case B_WHITE in buttonProcess()
 // ----------------------------------------------------------------
+/***********************************************************************
+ * Function: handleShortPress_White()
+ * Description: Handles a WHITE short press as a context-sensitive "back/
+ * cancel/restart" action driven by _displayCLD.type_infor. On a finished
+ * status it goes to the restart-confirm screen (escreenRestart); on an error
+ * screen it does nothing. Otherwise: enters Bluetooth settings (eSettingMenu
+ * -> eSettingBluetooth), saves LED power (eSetPowerLed -> eSavePowerLed),
+ * goes from mode select to slot select (eSelectMode -> eSelectSlot), reboots
+ * the device via ESP.restart() on the slot screen (eSelectSlot), does nothing
+ * on the start screen, and otherwise shows the button-restart screen
+ * (ebuttonrestart). Sets changeScreen where a redraw is needed.
+ * pramameter: none
+ *  return: none
+ */
 void buttonManager::handleShortPress_White()
 {
   if (_displayCLD.FinishStatus())
@@ -552,6 +678,13 @@ void buttonManager::handleShortPress_White()
 // RED long-press (3s) → Setting menu
 // Original: tickerHandler1()
 // ----------------------------------------------------------------
+/***********************************************************************
+ * Function: handleLongPress_Red()
+ * Description: Handles a RED long press by switching the display to the
+ * Setting menu (type_infor = eSettingMenu) and requesting a screen redraw.
+ * pramameter: none
+ *  return: none
+ */
 void buttonManager::handleLongPress_Red()
 {
   _displayCLD.type_infor = eSettingMenu;
@@ -563,6 +696,14 @@ void buttonManager::handleLongPress_Red()
 // BLUE long-press (3s) → Calibration
 // Original: tickerHandler2()
 // ----------------------------------------------------------------
+/***********************************************************************
+ * Function: handleLongPress_Blue()
+ * Description: Handles a BLUE long press by setting the sensor step to wait,
+ * switching the display to the amplification-select screen (type_infor =
+ * eSelectAmpli), and requesting a screen redraw.
+ * pramameter: none
+ *  return: none
+ */
 void buttonManager::handleLongPress_Blue()
 {
   _sensor6035.setStepeSensorwait();
@@ -575,6 +716,13 @@ void buttonManager::handleLongPress_Blue()
 // WHITE long-press (5s) → Review
 // Original: tickerHandler()
 // ----------------------------------------------------------------
+/***********************************************************************
+ * Function: handleLongPress_White()
+ * Description: Handles a WHITE long press by switching the display to the
+ * review screen (type_infor = escreenReview) and requesting a screen redraw.
+ * pramameter: none
+ *  return: none
+ */
 void buttonManager::handleLongPress_White()
 {
   _displayCLD.changeScreen = true;
