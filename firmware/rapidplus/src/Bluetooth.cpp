@@ -501,6 +501,11 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
     return;
   }
 
+  // Precondition for the TLS handshake below: the Bluetooth Classic stack must be
+  // fully released so mbedTLS can allocate its ~40KB contiguous handshake buffers.
+  // Idempotent (gBtReleased guard) — safe even if the caller already released BT.
+  releaseBluetoothStack();
+
   struct DiagnosticOutcome outcome[10];
   struct FeatureDetection peak_features[10];
 

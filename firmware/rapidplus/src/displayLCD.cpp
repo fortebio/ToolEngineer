@@ -1052,7 +1052,12 @@ void displayCLD::screen_Result(char key)
     float CT_value[10] = {0};
     char result[10] = {0};
     uint8_t loops = _ForteSetting.parameter.amplification_time;
-    SerialBT.end();
+    // Fully release the Bluetooth Classic stack (not just SerialBT.end()) here.
+    // SerialBT.end() alone leaves the controller + bluedroid (~60KB) resident and
+    // FRAGMENTING the heap, so the later HTTPS upload can't get a big enough
+    // contiguous block for the mbedTLS handshake (-32512 / SSL alloc failed).
+    // releaseBluetoothStack() hands that ~60KB back and is idempotent.
+    releaseBluetoothStack();
 
     getDataAmplificationEEPROM();
 
