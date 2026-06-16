@@ -548,6 +548,7 @@ void buttonManager::handleShortPress_Blue()
   else if (_displayCLD.type_infor == epreheating67)
   {
     _sensor6035.skip2Maintain();
+    _PIDControl.timeStartWait = 0;
     dbg_button("green button - skip opto preheat");
   }
   else if (_displayCLD.type_infor == eSettingMenu)

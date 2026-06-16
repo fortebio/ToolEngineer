@@ -2295,10 +2295,7 @@ void sensor6035::eSensor1stReadingFunc()
                     if (iChannel < OPTOCHANNELS)
                     {
                         _LED.LED_on_unguarded(iChannel);
-                        // connectToSensor(iChannel);
                         // On next LED
-
-                        // closeSensorChannel(iChannel);
                         sensor67ValueTime = millis() + LED_DELAY_TIME;
                         tic = millis();
                     }
@@ -2314,9 +2311,13 @@ void sensor6035::eSensor1stReadingFunc()
                             // info_displayln("eSensormaintain");
                             COUNTER = 0;
                             // iChannel = 0;
-                            _displayCLD.type_infor = escreenFinished;
-                            _displayCLD.bheadershow = true;
-                            _displayCLD.changeScreen = true;
+                            // IMPORTANT: persist the amplification record (and error log) to EEPROM
+                            // BEFORE telling the display to refresh. DisplayTask runs on the other core
+                            // and, the moment changeScreen is set, calls screen_Result() ->
+                            // getDataAmplificationEEPROM() which READS this very record back. Signaling
+                            // first caused a read-before-write race (screen/upload saw the previous run's
+                            // data) plus concurrent access to the shared, unguarded EEPROM object, so the
+                            // freshly measured record was effectively never saved.
                             EEPROM.begin(_EEPROM_SIZE);
                             Word tmp[10 * 130] = {0};
 
@@ -2333,6 +2334,12 @@ void sensor6035::eSensor1stReadingFunc()
 
                             error.saveErrorToEEPROM();
                             error.printAllError();
+
+                            // EEPROM (record + errors) is fully committed now — only here is it safe to
+                            // let DisplayTask read it back for the result screen and the Google Sheet.
+                            _displayCLD.type_infor = escreenFinished;
+                            _displayCLD.bheadershow = true;
+                            _displayCLD.changeScreen = true;
 
                             // Announce End of amplification
                             info_displayln("<AmpStart/>");

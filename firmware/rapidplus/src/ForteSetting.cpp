@@ -900,7 +900,7 @@ void ForteSetting::begin()
     parastructure paraEEPROM;
     EEPROM.begin(_EEPROM_SIZE);
     EEPROM.get(PARAMETERPOS, paraEEPROM);
-    if (FirmwareVer == "v2.4.2" && parameter.kpid3[0] == 0 && parameter.kpid3[1] == 0 && parameter.kpid3[2] == 0)
+    if (FirmwareVer == "v2.4.2" && paraEEPROM.kpid3[0] == 0 && paraEEPROM.kpid3[1] == 0 && paraEEPROM.kpid3[2] == 0)
     {
         parameter.kpid3[0] = 60;
         parameter.kpid3[1] = 0.1;
