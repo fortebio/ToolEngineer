@@ -1,0 +1,84 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import '../models/test_result.dart';
+import '../util/curve_processing.dart';
+import 'storage_paths.dart';
+
+/// Xuất kết quả 1 lần chạy: 4 ảnh đồ thị PNG + data.json, lưu **gom theo mã máy**:
+/// `Documents\FBT_RAPID_ketqua\<MãMáy>\<Ngày_Giờ_Firmware>\`.
+class ResultExport {
+  // Thư mục gốc đặt trong Cài đặt (mặc định Documents) + tên cố định.
+  static String get baseDir => '${StoragePaths.parent}\\FBT_RAPID_ketqua';
+
+  // Giữ chữ Việt + dấu cách; chỉ bỏ ký tự Windows cấm trong tên file/folder.
+  static String _safe(String s) {
+    final c = s.replaceAll(RegExp(r'[<>:"/\\|?*\x00-\x1F]'), '_').trim();
+    return c.isEmpty ? 'NA' : c;
+  }
+
+  static String _date(DateTime d) {
+    final l = d.toLocal();
+    String p2(int x) => x.toString().padLeft(2, '0');
+    return '${l.year}-${p2(l.month)}-${p2(l.day)}';
+  }
+
+  static String _time(DateTime d) {
+    final l = d.toLocal();
+    String p2(int x) => x.toString().padLeft(2, '0');
+    return '${p2(l.hour)}${p2(l.minute)}${p2(l.second)}';
+  }
+
+  static const Map<CurveView, String> _pngName = {
+    CurveView.rawDraw: 'raw.png',
+    CurveView.calibratedDraw: 'calib.png',
+    CurveView.baseline: 'baseline.png',
+    CurveView.baselineSmoothed: 'baseline_sg.png',
+  };
+
+  /// Lưu các ảnh đồ thị (theo CurveView) + data.json. Trả về đường dẫn folder.
+  static Future<String> saveRun(
+    TestResult run,
+    Map<CurveView, Uint8List> pngs,
+  ) async {
+    // Gom theo MÃ MÁY → mỗi lần chạy là 1 thư mục con "Ngày_Giờ_Firmware".
+    final device = _safe(run.deviceId.isEmpty ? 'May' : run.deviceId);
+    final sub = '${_date(run.timestamp)}_${_time(run.timestamp)}'
+        '_${_safe(run.version.isEmpty ? "NA" : run.version)}';
+    final dir = Directory('$baseDir\\$device\\$sub');
+    dir.createSync(recursive: true);
+
+    for (final e in pngs.entries) {
+      final name = _pngName[e.key];
+      if (name != null) {
+        await File('${dir.path}\\$name').writeAsBytes(e.value);
+      }
+    }
+
+    final data = {
+      'deviceId': run.deviceId,
+      'version': run.version,
+      'time': run.timestamp.toIso8601String(),
+      'slopes': [for (final s in run.slots) s.slope],
+      'slots': [
+        for (final s in run.slots)
+          {
+            'index': s.index,
+            'result': s.classification.label,
+            'ct': s.ct,
+            'slope': s.slope,
+            'data': s.curve, // raw draw
+          },
+      ],
+    };
+    await File('${dir.path}\\data.json').writeAsString(jsonEncode(data));
+    return dir.path;
+  }
+
+  static void revealInExplorer(String path) {
+    try {
+      Process.run('explorer.exe', [path]);
+    } catch (_) {}
+  }
+}

@@ -1,0 +1,43 @@
+﻿; Inno Setup script — trình cài đặt FBT_RAPID App (Windows)
+; Biên dịch: "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer.iss
+; Kết quả:   C:\Users\nvdat\Downloads\FBT_RAPID-Setup-v1.0.4.exe
+
+#define MyAppName "FBT_RAPID"
+#define MyAppVersion "1.0.4"
+#define MyAppPublisher "Fortebiotech"
+#define MyAppExeName "fbt_dxd_app.exe"
+#define MySource "C:\Users\nvdat\Downloads\app\build\windows\x64\runner\Release"
+#define MyIcon "c:\Users\nvdat\Downloads\app\windows\runner\resources\app_icon.ico"
+
+[Setup]
+AppId={{B7E9F3A2-5C41-4D8E-9A6B-2F1C8D4E7A90}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+DefaultDirName={autopf}\{#MyAppName}
+DefaultGroupName={#MyAppName}
+DisableProgramGroupPage=yes
+OutputDir=C:\Users\nvdat\Downloads
+OutputBaseFilename=FBT_RAPID-Setup-v{#MyAppVersion}
+Compression=lzma2
+SolidCompression=yes
+WizardStyle=modern
+PrivilegesRequired=lowest
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+SetupIconFile={#MyIcon}
+UninstallDisplayIcon={app}\{#MyAppExeName}
+
+[Files]
+Source: "{#MySource}\*"; DestDir: "{app}"; Excludes: "HUONG-DAN.txt"; Flags: recursesubdirs ignoreversion
+
+[Icons]
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\Gỡ cài đặt {#MyAppName}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+[Tasks]
+Name: "desktopicon"; Description: "Tạo biểu tượng ngoài màn hình (Desktop)"; GroupDescription: "Tùy chọn:"
+
+[Run]
+Filename: "{app}\{#MyAppExeName}"; Description: "Mở {#MyAppName} ngay"; Flags: nowait postinstall skipifsilent

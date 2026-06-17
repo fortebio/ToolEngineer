@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Stop-Process -Name fbt_dxd_app -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(flutter build windows)",
+      "Read(//c/Users/nvdat/Downloads/FBT-DXD/src/**)"
+    ]
+  }
+}
