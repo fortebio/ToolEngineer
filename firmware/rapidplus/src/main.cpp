@@ -65,8 +65,6 @@ void NetworkTask(void *pvParameters)
 {
   while (1)
   {
-    // server.handleClient();
-
     updateFirmware();
 
     vTaskDelay(pdMS_TO_TICKS(10));

@@ -14,16 +14,11 @@ String ssid = "";
 String password = "";
 uint64_t epsid = ESP.getEfuseMac();
 String id(String(epsid).c_str());
-// String id_device = "";
 String id_device = "RAPIDPlus";
 
 extern int language = 0;
 
 const char *serverName = "https://script.google.com/macros/s/AKfycbw2VXXLX6fUMgmyRrSgNgEi3b4gSyE2bdctQe_DNOnlZ58EfPclQrXrlMenH0y7SH5X/exec";
-
-// const char *ntpServer = "pool.ntp.org";
-// const long gmtOffset_sec = 25200; // Múi giờ GMT+7 (Việt Nam)
-// const int daylightOffset_sec = 0;
 
 /***********************************************************************
  * Function: connectBLE()

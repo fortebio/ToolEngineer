@@ -2229,7 +2229,6 @@ void sensor6035::eSensor1stReadingFunc()
                     {
                         acquisitionControl.addErrorCount();
                     }
-                    // Serial.printf("channel %d, count %d, value: %d, flag: %d\n", iChannel, acquisitionControl.getSizeValues(), sensorResp, flagres);
 
                     if (acquisitionControl.isMaxErrorReached())
                     {
@@ -2257,20 +2256,20 @@ void sensor6035::eSensor1stReadingFunc()
                     }
 
                     /* Error handling for too dark conditions */
-                    if ((acquisitionControl.getSum() <= 5) &&
-                        (acquisitionControl.getSizeValues() == acquisitionControl.getRepeats())) // if all the reading are zero, which means too dark to read, add error and continue
-                    {
-                        error.addError(
-                            errorLightSensor, // errorModule
-                            errorTooDark,     // errorType
-                            sensorStep,       // errorProcessStep
-                            iChannel          // errorSlot
-                        );
-                        for (size_t i = 0; i < acquisitionControl.getRepeats(); i++)
-                        {
-                            acquisitionControl.store((sensor67Value[iChannel][COUNTER - 1] / 8)); // store zero for the error reading, and continue the process, in case all reading are error
-                        }
-                    }
+                    // if ((acquisitionControl.getSum() <= 5) &&
+                    //     (acquisitionControl.getSizeValues() == acquisitionControl.getRepeats())) // if all the reading are zero, which means too dark to read, add error and continue
+                    // {
+                    //     error.addError(
+                    //         errorLightSensor, // errorModule
+                    //         errorTooDark,     // errorType
+                    //         sensorStep,       // errorProcessStep
+                    //         iChannel          // errorSlot
+                    //     );
+                    //     for (size_t i = 0; i < acquisitionControl.getRepeats(); i++)
+                    //     {
+                    //         acquisitionControl.store((sensor67Value[iChannel][COUNTER - 1] / 8)); // store zero for the error reading, and continue the process, in case all reading are error
+                    //     }
+                    // }
                     // add 100 ms to measurement time
                     sensor67ValueTime = millis() + 100;
                 }
@@ -2287,7 +2286,6 @@ void sensor6035::eSensor1stReadingFunc()
                     errRereadTime = 0;
                     // convert the value and output
                     sensor67Value[iChannel][COUNTER] = meanResponse;
-                    // sensor67Value[iChannel][COUNTER] = (float(sensorResp)-calMatrix[iChannel][1])/calMatrix[iChannel][0];
                     info_display((float(meanResponse) - FORTE_ORIGINS[iChannel]) / FORTE_SLOPES[iChannel]);
                     info_display(",");
 
@@ -2306,11 +2304,6 @@ void sensor6035::eSensor1stReadingFunc()
                         COUNTER++;
                         if (COUNTER >= MEASUREMENTLOOPS) // OPTO_DURATION/OPTO_INTERVAL)
                         {
-                            // finish the reading, update the step
-                            sensorStep = eSensormaintain; // only read during amplification
-                            // info_displayln("eSensormaintain");
-                            COUNTER = 0;
-                            // iChannel = 0;
                             // IMPORTANT: persist the amplification record (and error log) to EEPROM
                             // BEFORE telling the display to refresh. DisplayTask runs on the other core
                             // and, the moment changeScreen is set, calls screen_Result() ->
@@ -2337,6 +2330,9 @@ void sensor6035::eSensor1stReadingFunc()
 
                             // EEPROM (record + errors) is fully committed now — only here is it safe to
                             // let DisplayTask read it back for the result screen and the Google Sheet.
+                            // finish the reading, update the step
+                            sensorStep = eSensormaintain; // only read during amplification
+                            COUNTER = 0;
                             _displayCLD.type_infor = escreenFinished;
                             _displayCLD.bheadershow = true;
                             _displayCLD.changeScreen = true;
@@ -2366,15 +2362,6 @@ void sensor6035::eSensor1stReadingFunc()
     else
     {
         info_displayln("Reading error, takes too long time");
-        // for (uint8_t i = 0; i < 10; i++)
-        // {
-        //     error.addError(
-        //         errorLightSensor, // errorModule
-        //         errorNoData,      // errorType
-        //         sensorStep,       // errorProcessStep
-        //         i                 // errorSlot
-        //     );
-        // }
     }
 }
 
