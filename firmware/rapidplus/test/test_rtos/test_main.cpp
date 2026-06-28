@@ -28,6 +28,12 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 
+// Some Unity variants (e.g. the ESP-IDF SDK copy on the include path) don't
+// expose TEST_MESSAGE; fall back to Serial so diagnostics compile/print anyway.
+#ifndef TEST_MESSAGE
+#define TEST_MESSAGE(msg) Serial.println(msg)
+#endif
+
 // Flip to 1 to deliberately break the ordering in test_ordering_write_before_signal
 // (signal BEFORE writing the record) and prove the regression test actually fails.
 #define INJECT_ORDERING_BUG 0
@@ -624,6 +630,7 @@ static void test_mutex_prevents_lost_updates(void)
 
 void setup()
 {
+    Serial.begin(115200);
     delay(2000); // let USB-serial settle so the host test monitor catches output
     UNITY_BEGIN();
 

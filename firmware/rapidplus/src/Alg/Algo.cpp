@@ -387,9 +387,21 @@ double range_of(std::vector<double> &_array, size_t start, size_t window)
  *  return: true if a qualifying jump is detected at index, false otherwise
  *  (including out-of-range positions)
  */
+// After a genuine step the signal often overshoots/settles for a few samples
+// before flattening, so the flatness check skips JUMP_SETTLE_SKIP samples right
+// after the jump and measures the slope over the SETTLED window. This lets a real
+// step that decays into a flat level still be recognized as a break (e.g. a
+// 294->360 step that settles back to ~345), while a sustained amplification ramp
+// still fails the slope/total_rise guards.
+#define JUMP_SETTLE_SKIP 3 // post-jump settling samples to skip before the flatness check
+#define JUMP_FLAT_WINDOW 6 // window length for the flatness (mean-slope) check
+
 bool checkJump(std::vector<double> &_array, double crossing, size_t index)
 {
-    if ((index < 4) || ((index + 6) >= _array.size()))
+    // Bounds: range_of(index-7, 8) needs index >= 7 (otherwise size_t underflows
+    // to an out-of-bounds read); mean_slope(index+skip, window) reads up to
+    // _array[index + skip + window], so guard the upper end too.
+    if ((index < 7) || ((index + JUMP_SETTLE_SKIP + JUMP_FLAT_WINDOW) >= _array.size()))
     {
         return false;
     }
@@ -397,12 +409,13 @@ bool checkJump(std::vector<double> &_array, double crossing, size_t index)
     if (jump < crossing)
         return false;
 
-    // GUARD MỚI: jump phải vượt trội so với biên độ pre-window (8 điểm trước, x2.5)
+    // GUARD: jump phải vượt trội so với biên độ pre-window (8 điểm trước, x2.5)
     double pre_range = range_of(_array, index - 7, 8);
     if (jump < pre_range * 2.5)
         return false;
 
-    double slope = mean_slope(_array, index, 6);
+    // Flatness measured AFTER the settling transient (skip JUMP_SETTLE_SKIP samples).
+    double slope = mean_slope(_array, index + JUMP_SETTLE_SKIP, JUMP_FLAT_WINDOW);
     if (fabs(slope) > 1.0)
         return false;
     int total_rise = _array[index + 6] - _array[index + 1];

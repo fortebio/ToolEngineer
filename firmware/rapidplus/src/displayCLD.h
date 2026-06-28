@@ -50,7 +50,7 @@ typedef enum
     ewaitLysisTube,
     eheatLysis,
     ewaitphase2,
-    epreheating67, // this include the 2 heating blocks and 2 hot lids
+    eheating67, // this include the 2 heating blocks and 2 hot lids
     ewaitampTube,
     eoptoreading,
     // eshowresult,
@@ -85,7 +85,11 @@ typedef enum
     eSetPowerLed,
     eSavePowerLed,
     eSaveCalib, // display set power led
-    eUpdateOTA
+    eUpdateOTA,
+    epreheat67,         // wait for the preheat to be finished
+    ecalibPreheatStart, // calib flow p0: prompt to press red to start preheat 55C
+    ecalibPreheating,   // calib flow p0: heating heater2,3 to 55C
+    ecalibSelect,       // calib flow p1: choose Calib (blue) or Amplification (red)
 } e_statuslcd;
 
 class displayCLD
@@ -135,8 +139,15 @@ public:
     void ErrRebootDisplay(); // show the reboot msg after error happened
     void RestartProcess(String strDescript, String strValue);
 
-    void preHeat67CLD_Header(); // display inf
-    void preHeat67CLD();        // heat to 67 degree
+    void drawHeat67Header(const char *line1, const char *line2); // shared header renderer for the two 67C screens
+    void Heat67LCD_Header();                                     // display inf
+    void Heat67LCD();                                            // heat to 67 degree
+    void Preheat67LCD_Header();                                  // display inf
+    void Preheat67LCD();                                         // heat to 67 degree
+
+    void calibPreheatStartLCD(); // calib p0: prompt press red to preheat 55C
+    void calibPreheatingLCD();   // calib p0: heating heater2,3 to 55C
+    void calibSelectLCD();       // calib p1: choose Calib or Amplification
 
     void preHeat80CLD_Header(); // display inf
     void preHeat80CLD();        // heat to 80 degree

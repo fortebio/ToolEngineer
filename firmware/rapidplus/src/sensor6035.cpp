@@ -1685,17 +1685,14 @@ void sensor6035::Snapshot()
  */
 void sensor6035::eSensorPreheat()
 {
-    // if((millis() - START_DURATION_TIME) <= OPTO_PREHEAT_DURATION+50*1000)
     if (COUNTER < PREHEATLOOPS)
     {
         if ((millis() - START_INTERVAL_TIME) >= OPTO_INTERVAL) // start a new loop
         {
-            // bSensorReadingFlag = true;
             // Reset interval timing to prepare the next reading
-            START_INTERVAL_TIME += OPTO_INTERVAL; // millis();
+            START_INTERVAL_TIME += OPTO_INTERVAL;
             // Open LED channel
             iChannel = 0; // start reading from the 1st LED/Sensor
-            // info_displayln("turn on 1st one");
             _LED.LED_on_unguarded(iChannel);
             sensor67ValueTime = millis() + LED_DELAY_TIME + acquisitionControl.getRepeats() * 100;
         }
@@ -1713,91 +1710,10 @@ void sensor6035::eSensorPreheat()
                 }
                 else
                 {
-                    // info_displayf("channel %d, count %d\n", iChannel, COUNTER);
-                    // Open channel
-                    // if (iChannel > 4)
-                    // {
-                    //     I2CMux1.openChannel(I2C_Channel[4+5-iChannel]);
-                    // }
-                    // else
-                    // {
-                    //     I2CMux.openChannel(I2C_Channel[4-iChannel]);
-                    // }
                 }
-
-                // Print RFU data
-                // Word sensorResp = 0xFFFF;//VEML6035_GET_ALS_DATA();
-                // bool flagres = VEML6035_GET_ALS_DATA_I2C_Res(&sensorResp);
-
-                // Error checking
-                //  if (flagres || (sensorResp == 0) || (sensorResp == 0xFFFF))     //if error happened, start the err process
-                //  {
-                //      // info_displayf("Reading error. flag: %d; resp: %d\n", flagres, sensorResp);
-                //      errRereadTime = millis() + 100;     //try to read again after 100ms
-                //      errCnt++;
-                //      if (flagres)
-                //      {
-                //          errRecord[iChannel][0]++;
-                //      }
-                //      else if (sensorResp == 0)
-                //      {
-                //          errRecord[iChannel][1]++;
-                //      }
-                //      else
-                //      {
-                //          errRecord[iChannel][2]++;
-                //      }
-
-                //     if (errCnt > 10)
-                //     {
-                //         info_displayf("\n%dth opto sensor error!!! More details are shown as below:\n", iChannel+1);
-                //         for (uint8_t i = 0; i < 10; i++)
-                //         {
-                //             for (uint8_t j = 0; j < 3; j++)
-                //             {
-                //                 if (errRecord[i][j])
-                //                 {
-                //                     info_displayf("Opto sensor %d reading err type %d for %d times\n", i+1, j, errRecord[i][j]);
-                //                     errRecord[i][j] = 0;
-                //                 }
-                //             }
-                //         }
-                //         if (flagres)        // communication err
-                //         {
-                //             _displayCLD.ErrorProcessatBegin("Opto sensor error\n Please power off/on", String(iChannel+1));
-                //         }
-                //         else if (sensorResp == 0)   // sensor reading is zero, too dark or error
-                //         {
-                //             _displayCLD.ErrorProcessatBegin("Too dark\n Please check", String(iChannel+1));
-                //         }
-                //         else if (sensorResp == 0xFFFF)  //sensor reading maximum, too bright or error
-                //         {
-                //             _displayCLD.ErrorProcessatBegin("Too bright\n Please check", String(iChannel+1));
-                //         }
-                //         // ESP.restart();
-                //         // rerun();
-                //         _PIDControl.rerun();
-                //         _sensor6035.rerun();
-                //         return;
-                //     }
-                //     return;
-                // }
-
-                // float sensorvalue = (float(sensorResp)-FORTE_ORIGINS[iChannel])/FORTE_SLOPES[iChannel];
-                // info_displayf("%f, ", sensorvalue);
 
                 // Off LED
                 _LED.LED_off_unguarded(iChannel);
-
-                // Close channel
-                // if(iChannel > 4)
-                // {
-                //     I2CMux1.closeChannel(I2C_Channel[4+5-iChannel]);
-                // }
-                // else
-                // {
-                //     I2CMux.closeChannel(I2C_Channel[4-iChannel]);
-                // }
 
                 iChannel++;
                 if (iChannel < OPTOCHANNELS)
@@ -1813,22 +1729,17 @@ void sensor6035::eSensorPreheat()
                     info_displayf("\nfinish %d rounds preheating\n", COUNTER);
                     if (COUNTER >= PREHEATLOOPS)
                     {
-                        if (_PIDControl.getphase2ready())
-                        {
-                            info_display("heater is finished as well, update the display status\n");
-                            _displayCLD.type_infor = ewaitampTube;
-                            _displayCLD.changeScreen = true;
-                            _buzzer.BuzzerAlert();
-                        }
+                        // if (_PIDControl.getphase2ready())
+                        // {
+                        //     info_display("heater is finished as well, update the display status\n");
+                        // _displayCLD.type_infor = ewaitampTube;
+                        // _displayCLD.changeScreen = true;
+                        // _buzzer.BuzzerAlert();
+                        // }
                         info_displayf("finish preheating, maintain the sensor heating\n");
                         // finish the reading, update the step
                         sensorStep = eSensormaintain; // preheat for 15mins already, enter maintain mode
                                                       //  info_displayln("eSensormaintain");
-
-                        // eSensorParaIni();       //prepare for next loop at maintainance
-                        // COUNTER = 0;
-                        // iChannel = 0;
-                        // sensor67ValueTime = millis() + LED_DELAY_TIME;
                         return;
                     }
                 }
@@ -1850,10 +1761,6 @@ void sensor6035::eSensorPreheat()
             // finish the reading, update the step
             sensorStep = eSensormaintain; // preheat for 15mins already, enter maintain mode
                                           //  info_displayln("eSensormaintain");
-
-            // eSensorParaIni();       //prepare for next loop at maintainance
-            // COUNTER = 0;
-            // iChannel = 0;
             return;
         }
         else
@@ -1896,93 +1803,8 @@ void sensor6035::eSensorMaintain()
                     return;
                 }
             }
-            else
-            {
-                // // info_displayf("channel %d, count %d\n", iChannel, COUNTER);
-                // // Open channel
-                // if (iChannel > 4)
-                // {
-                //     I2CMux1.openChannel(I2C_Channel[4+5-iChannel]);
-                // }
-                // else
-                // {
-                //     I2CMux.openChannel(I2C_Channel[4-iChannel]);
-                // }
-            }
-
-            // Print RFU data
-            // Word sensorResp = 0;//VEML6035_GET_ALS_DATA();
-            // bool flagres = VEML6035_GET_ALS_DATA_I2C_Res(&sensorResp);
-
-            // Error checking
-            //  if (flagres || (sensorResp == 0) || (sensorResp == 0xFFFF))     //if error happened, start the err process
-            //  {
-            //      // info_displayf("Reading error. flag: %d; resp: %d\n", flagres, sensorResp);
-            //      errRereadTime = millis() + 100;     //try to read again after 100ms
-            //      errCnt++;
-            //      if (flagres)
-            //      {
-            //          errRecord[iChannel][0]++;
-            //      }
-            //      else if (sensorResp == 0)
-            //      {
-            //          errRecord[iChannel][1]++;
-            //      }
-            //      else
-            //      {
-            //          errRecord[iChannel][2]++;
-            //      }
-
-            //     if (errCnt > 10)
-            //     {
-            //         info_displayf("\n%dth opto sensor error!!! More details are shown as below:\n", iChannel+1);
-            //         for (uint8_t i = 0; i < 10; i++)
-            //         {
-            //             for (uint8_t j = 0; j < 3; j++)
-            //             {
-            //                 if (errRecord[i][j])
-            //                 {
-            //                     info_displayf("Opto sensor %d reading err type %d for %d times\n", i+1, j, errRecord[i][j]);
-            //                     errRecord[i][j] = 0;
-            //                 }
-            //             }
-            //         }
-            //         if (flagres)        // communication err
-            //         {
-            //             _displayCLD.ErrorProcessatBegin("Opto sensor error\n Please power off/on", String(iChannel+1));
-            //         }
-            //         else if (sensorResp == 0)   // sensor reading is zero, too dark or error
-            //         {
-            //             _displayCLD.ErrorProcessatBegin("Too dark\n Please check", String(iChannel+1));
-            //         }
-            //         else if (sensorResp == 0xFFFF)  //sensor reading maximum, too bright or error
-            //         {
-            //             _displayCLD.ErrorProcessatBegin("Too bright\n Please check", String(iChannel+1));
-            //         }
-            //         // ESP.restart();
-            //         // rerun();
-            //         _PIDControl.rerun();
-            //         _sensor6035.rerun();
-            //         return;
-            //     }
-            //     return;
-            // }
-
-            // float sensorvalue = (float(sensorResp)-FORTE_ORIGINS[iChannel])/FORTE_SLOPES[iChannel];
-            // info_displayf("%f, ", sensorvalue);
-
             // Off LED
             _LED.LED_off_unguarded(iChannel);
-
-            // Close channel
-            // if(iChannel > 4)
-            // {
-            //     I2CMux1.closeChannel(I2C_Channel[4+5-iChannel]);
-            // }
-            // else
-            // {
-            //     I2CMux.closeChannel(I2C_Channel[4-iChannel]);
-            // }
 
             iChannel++;
             if (iChannel < OPTOCHANNELS)
@@ -1994,7 +1816,6 @@ void sensor6035::eSensorMaintain()
             else
             {
                 info_displayf("finish one round maintenance\n");
-                // bSensorReadingFlag = false;                         //finish one round reading, heating during the interval
             }
         }
     }

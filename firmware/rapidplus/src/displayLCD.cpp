@@ -521,29 +521,25 @@ void displayCLD::ErrRebootDisplay()
 }
 
 /***********************************************************************
- * Function: preHeat67CLD_Header()
- * Description: Draws the static header for the 67C/sensor preheat screen
- *  once per show (guarded by bheadershow): "Preheat heater and sensor in
- *  15mins" with warning band/box. If the sensor preheat is not ready it
- *  offers a green-button skip; if ready and PID phase2 is ready it
- *  advances type_infor to ewaitampTube, sets changeScreen and beeps.
- *  Clears bheadershow when done.
- * pramameter: none
+ * Function: drawHeat67Header()
+ * Description: Shared static-header renderer for the two 67C/preheat screens
+ *  (Heat67LCD_Header and Preheat67LCD_Header). Guarded by bheadershow: clears
+ *  the screen, prints the two given title lines and the warning band/box, then
+ *  clears bheadershow.
+ * pramameter: line1, line2 - the two title text lines to show
  *  return: none
  */
-void displayCLD::preHeat67CLD_Header()
+void displayCLD::drawHeat67Header(const char *line1, const char *line2)
 {
-
   if (bheadershow)
   {
-    // info_displayln("header show");
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
     this->display->setTextColor(Forte_Green);
     this->display->setCursor(15, 60);
-    this->display->print("Preheat heater and"); // update from 67, as the target temperature of liquid is 65 degree
+    this->display->print(line1);
     this->display->setCursor(15, 90);
-    this->display->print("sensor in 15mins");
+    this->display->print(line2);
     this->display->drawRect(30, 140, 272, 80, RED);
     this->display->drawRect(29, 139, 274, 82, RED);
     for (int i = 18; i <= 310; i += 10)
@@ -554,36 +550,32 @@ void displayCLD::preHeat67CLD_Header()
     }
     this->display->drawCircle(55, 180, 22, RED);
     this->display->fillCircle(55, 180, 17, RED);
-    if (!_sensor6035.getSensorPreheatReady())
-    {
-      this->display->setTextSize(1);
-      this->display->setTextColor(GREEN);
-      this->display->setCursor(15, 235);
-      this->display->print("Press green to skip sensor preheat");
-    }
-    else
-    {
-      if (_PIDControl.getphase2ready()) // check the status of heater
-      {
-        _displayCLD.type_infor = ewaitampTube;
-        _displayCLD.changeScreen = true;
-        _buzzer.BuzzerAlert();
-      }
-    }
     bheadershow = false; // header has been showed
   }
 }
 
 /***********************************************************************
- * Function: preHeat67CLD()
- * Description: Dynamic refresh part of the 67C preheat screen. When a new
- *  temperature sample is ready it redraws the four-value readout
- *  (bottom[1], bottom[2], hotlid[0], hotlid[1]) in Forte_Green if PID
- *  phase2 is ready or RED otherwise, then clears the new-temperature flag.
+ * Function: Heat67LCD_Header()
+ * Description: Static header for the "heating amplifier block and sensor"
+ *  screen (shown once per bheadershow). Delegates to drawHeat67Header().
  * pramameter: none
  *  return: none
  */
-void displayCLD::preHeat67CLD()
+void displayCLD::Heat67LCD_Header()
+{
+  drawHeat67Header("Heating amplifier ", "block and sensor");
+}
+
+/***********************************************************************
+ * Function: Heat67LCD()
+ * Description: Dynamic refresh of the "heating to 67C" screen. On each new
+ *  temperature sample it redraws the four-value readout (bottom[1], bottom[2],
+ *  hotlid[0], hotlid[1]) in RED. Once all four reach their targets
+ *  (amplifTemp-1.5 / HOTLID23_TEMP-2) it switches type_infor to epreheat67.
+ * pramameter: none
+ *  return: none
+ */
+void displayCLD::Heat67LCD()
 {
   if (_bottomThermometer.getNewTemperatureScreenFlag()) // if there is temperature data to display
   {
@@ -592,17 +584,144 @@ void displayCLD::preHeat67CLD()
     double *temperature = _PIDControl.getBottomTemperature();
     double *temperatureHotlid = _PIDControl.getHotlidTemperature();
     this->display->setTextSize(2);
-    if (_PIDControl.getphase2ready())
+    this->display->setTextColor(RED);
+    this->display->printf("%d:%d:%d:%d", int(temperature[1]), int(temperature[2]), int(temperatureHotlid[0]), int(temperatureHotlid[1]));
+    _bottomThermometer.clearNewTemperatureScreenFlag();                   // clear the flag after display the temperature
+    if ((temperature[1] >= (_ForteSetting.parameter.amplifTemp - 1.5))    //
+        && (temperature[2] >= (_ForteSetting.parameter.amplifTemp - 1.5)) //
+        && (temperatureHotlid[0] >= (HOTLID23_TEMP - 2))                  //
+        && (temperatureHotlid[1] >= (HOTLID23_TEMP - 2)))                 //
     {
-      this->display->setTextColor(Forte_Green);
+      _displayCLD.type_infor = epreheat67; // if the temperature of heater and hotlid is ready, then go to next screen
+      _displayCLD.bheadershow = true;      // set the flag to show header
+      _displayCLD.changeScreen = true;     // set the flag to change screen
     }
-    else
-    {
-      this->display->setTextColor(RED);
-    }
+  }
+}
+
+/***********************************************************************
+ * Function: Preheat67LCD_Header()
+ * Description: Static header for the "waiting for sensor to warm up" screen
+ *  (shown once per bheadershow). Delegates to drawHeat67Header().
+ * pramameter: none
+ *  return: none
+ */
+void displayCLD::Preheat67LCD_Header()
+{
+  drawHeat67Header("Waiting for sensor", "to warm up !!!");
+  this->display->setTextSize(1);
+  this->display->setTextColor(GREEN);
+  this->display->setCursor(30, 235);
+  this->display->printf("Press greenbutton to skip preheat");
+}
+
+/***********************************************************************
+ * Function: Preheat67LCD()
+ * Description: Dynamic refresh of the "waiting for sensor" screen. On each new
+ *  temperature sample it redraws the four-value readout (bottom[1], bottom[2],
+ *  hotlid[0], hotlid[1]) in Forte_Green, then clears the new-temperature flag.
+ * pramameter: none
+ *  return: none
+ */
+void displayCLD::Preheat67LCD()
+{
+  if (_bottomThermometer.getNewTemperatureScreenFlag()) // if there is temperature data to display
+  {
+    this->display->fillRect(90, 160, 180, 50, BLACK);
+    this->display->setCursor(90, 190);
+    double *temperature = _PIDControl.getBottomTemperature();
+    double *temperatureHotlid = _PIDControl.getHotlidTemperature();
+    this->display->setTextSize(2);
+    this->display->setTextColor(Forte_Green);
     this->display->printf("%d:%d:%d:%d", int(temperature[1]), int(temperature[2]), int(temperatureHotlid[0]), int(temperatureHotlid[1]));
     _bottomThermometer.clearNewTemperatureScreenFlag(); // clear the flag after display the temperature
   }
+}
+
+/***********************************************************************
+ * Function: calibPreheatStartLCD()
+ * Description: Calib flow p0 prompt. Header "Calib preheat 55C / Press RED to
+ *  start" plus a live heater2:heater3 temperature readout. Heaters are still
+ *  off here; pressing RED starts the preheat (handled in button.cpp).
+ * pramameter: none
+ *  return: none
+ */
+void displayCLD::calibPreheatStartLCD()
+{
+  drawHeat67Header("RPL preheat 55*C", "before calibration");
+  // if (_bottomThermometer.getNewTemperatureScreenFlag())
+  // {
+  this->display->fillRect(90, 160, 180, 50, BLACK);
+  this->display->setCursor(90, 190);
+  // double *temperature = _PIDControl.getBottomTemperature();
+  this->display->setTextSize(2);
+  this->display->setTextColor(RED);
+  this->display->setCursor(90, 175);
+  this->display->printf("Press RED to");
+  this->display->setCursor(90, 205);
+  this->display->printf("start preheat");
+  this->changeScreen = false; // set the flag to change screen
+  //   _bottomThermometer.clearNewTemperatureScreenFlag();
+  // }
+}
+
+/***********************************************************************
+ * Function: calibPreheatingLCD()
+ * Description: Calib flow p0 heating screen. Header "Preheating 55C / please
+ *  wait" plus the live heater2:heater3 readout (RED). Does not transition by
+ *  itself; the PID (calibPreheat55) advances type_infor to ecalibSelect after
+ *  reaching 55C and holding 5 minutes.
+ * pramameter: none
+ *  return: none
+ */
+void displayCLD::calibPreheatingLCD()
+{
+  drawHeat67Header("Preheating 55C", "please wait ...");
+  if (_bottomThermometer.getNewTemperatureScreenFlag())
+  {
+    this->display->fillRect(90, 160, 180, 50, BLACK);
+    this->display->setCursor(90, 190);
+    double *temperature = _PIDControl.getBottomTemperature();
+    this->display->setTextSize(2);
+    this->display->setTextColor(RED);
+    this->display->printf("%d : %d", int(temperature[1]), int(temperature[2]));
+    _bottomThermometer.clearNewTemperatureScreenFlag();
+  }
+}
+
+/***********************************************************************
+ * Function: calibSelectLCD()
+ * Description: Calib flow p1 choice menu (drawn once). BLUE = Calibration,
+ *  RED = Amplification. Heaters keep maintaining 55C while this is shown.
+ * pramameter: none
+ *  return: none
+ */
+void displayCLD::calibSelectLCD()
+{
+  this->display->fillScreen(BLACK);
+  this->display->drawRoundRect(8, 0, 305, 240, 10, Forte_Green);
+  this->display->drawRoundRect(8, 40, 305, 170, 0, Forte_Green);
+
+  this->display->setTextColor(WHITE);
+  this->display->setTextSize(2);
+  this->display->setCursor(60, 30);
+  this->display->println("Preheated 55C");
+
+  this->display->setTextSize(2);
+  this->display->setTextColor(GREEN);
+  this->display->setCursor(40, 100);
+  this->display->print("Calibration");
+  this->display->setTextColor(RED);
+  this->display->setCursor(40, 140);
+  this->display->print("Amplification");
+
+  this->display->setTextSize(1);
+  this->display->setTextColor(GREEN);
+  this->display->setCursor(20, 230);
+  this->display->print("Green: Calib");
+  this->display->setTextColor(RED);
+  this->display->setCursor(200, 230);
+  this->display->print("Red: Amp");
 }
 
 /***********************************************************************
@@ -849,6 +968,8 @@ void displayCLD::waitAmpTube()
     return;
   }
   timeRefresh = now + 10 * 1000; // refresh every 10 seconds
+
+  // _buzzer.BuzzerAlert();
   if (language == 0)
   {
   }
@@ -877,11 +998,6 @@ void displayCLD::waitAmpTube()
     this->display->println("Press Red to");
     this->display->setCursor(90, 205);
     this->display->print("Measure");
-    // this->display->setTextColor(WHITE);
-    // this->display->setTextSize(1);
-    // this->display->setCursor(30, 20);
-    // this->display->print("Kit ID: ");
-    // this->display->print(String(_ForteSetting.parameter.kitId));
   }
 }
 
@@ -916,8 +1032,6 @@ void displayCLD::waitAmplification30min()
   unsigned long now = millis();
   if (timer30minEnd < now) // if reached 30mins
   {
-    //   type_infor = ewaitphase2; //change status to next step
-    //   _buzzer.BuzzerAlert();
     return;
   }
   if (timeRefresh > now) // no refresh needed
@@ -948,8 +1062,6 @@ void displayCLD::waitAmplification30min()
     bheadershow = false;
   }
   this->display->fillRect(18, 150, 320, 100, BLACK);
-  // this->display->setTextSize(2);
-  // this->display->setTextColor();
   this->display->setCursor(90, 190);
   unsigned long timeleft = (timer30minEnd - now) / 1000;     // seconds left
   this->display->printf("%d Minute", (timeleft / (60) + 1)); // show the time left
@@ -1418,11 +1530,37 @@ void displayCLD::loop()
       waitBtnStartPhase2();
       break;
 
-    case epreheating67:
+    case eheating67:
     {
-      dbg_display("epreheating67");
-      this->preHeat67CLD_Header();
-      this->preHeat67CLD();
+      dbg_display("eheating67");
+      this->Heat67LCD_Header();
+      this->Heat67LCD();
+      break;
+    }
+    case epreheat67:
+    {
+      dbg_display("waitingpreheat67");
+      this->Preheat67LCD_Header();
+      this->Preheat67LCD();
+      break;
+    }
+    case ecalibPreheatStart:
+    {
+      dbg_display("ecalibPreheatStart");
+      this->calibPreheatStartLCD();
+      break; // keep refreshing the temperature readout
+    }
+    case ecalibPreheating:
+    {
+      dbg_display("ecalibPreheating");
+      this->calibPreheatingLCD();
+      break; // keep refreshing the temperature readout
+    }
+    case ecalibSelect:
+    {
+      dbg_display("ecalibSelect");
+      this->calibSelectLCD();
+      this->changeScreen = false; // static menu, draw once
       break;
     }
 
@@ -1612,8 +1750,6 @@ void displayCLD::loop()
 
     // EEPROM.end();
     show_IconWifi();
-    // show_IconBluetooth();
-    // this->changeScreen = false;
   }
 }
 
@@ -2105,6 +2241,8 @@ void displayCLD::calculate(void)
     tmp = tmp * 10 + this->led_power[i];
   }
   _ForteSetting.parameter.led_power[this->slot] = tmp;
+  // Mark the block valid (length == sizeof) so begin() loads it on the next boot.
+  _ForteSetting.parameter.length = sizeof(_ForteSetting.parameter);
   EEPROM.begin(_EEPROM_SIZE);
   EEPROM.put(PARAMETERPOS, _ForteSetting.parameter);
   EEPROM.commit();
@@ -2135,6 +2273,8 @@ void displayCLD::saving_calib(void)
   this->display->print("Saved calibration!");
 
   _ForteSetting.parameter.slopes[this->slot] = _sensor6035.cal_calib[0];
+  // Mark the block valid (length == sizeof) so begin() loads it on the next boot.
+  _ForteSetting.parameter.length = sizeof(_ForteSetting.parameter);
   EEPROM.begin(_EEPROM_SIZE);
   EEPROM.put(PARAMETERPOS, _ForteSetting.parameter);
   EEPROM.commit();

@@ -411,7 +411,7 @@ void buttonManager::handleShortPress_Red()
     // Skip to amplification stage directly
     // _PIDControl.waitWarmAmpTube = true; // reset the flag in case user press red button to start heating but then change their mind and press blue button to skip preheat
     _PIDControl.timeStartWait = millis();
-    _displayCLD.type_infor = epreheating67;
+    _displayCLD.type_infor = eheating67;
     _displayCLD.bheadershow = true;
     _displayCLD.changeScreen = true;
     _PIDControl.setPreheat67();
@@ -425,6 +425,27 @@ void buttonManager::handleShortPress_Red()
     _displayCLD.type_infor = ewaitampTube;
     _displayCLD.bheadershow = true;
     _displayCLD.changeScreen = true;
+  }
+  else if (_displayCLD.type_infor == ecalibPreheatStart)
+  {
+    // calib p0: user pressed RED -> start preheating heater2,3 to 55C
+    _PIDControl.setCalibPreheat55();
+    _displayCLD.type_infor = ecalibPreheating;
+    _displayCLD.bheadershow = true;
+    _displayCLD.changeScreen = true;
+    dbg_button("red button - calib preheat 55C start");
+  }
+  else if (_displayCLD.type_infor == ecalibSelect)
+  {
+    // calib p1: user chose Amplification -> heat to 65/75 with a 5-minute hold
+    _PIDControl.hotlidWaitMs = 5 * 60000;
+    _PIDControl.timeStartWait = millis();
+    _PIDControl.setPreheat67();
+    _sensor6035.setStepeSensorpreheat();
+    _displayCLD.type_infor = eheating67;
+    _displayCLD.bheadershow = true;
+    _displayCLD.changeScreen = true;
+    dbg_button("red button - calib -> amplification");
   }
   else if (_displayCLD.type_infor == ewaitampTube)
   {
@@ -538,17 +559,32 @@ void buttonManager::handleShortPress_Blue()
   else if (_displayCLD.type_infor == ewaitphase2)
   {
     _PIDControl.timeStartWait = 0; // millis() - (10 * 60000);
-    _displayCLD.type_infor = epreheating67;
+    _displayCLD.type_infor = eheating67;
     _displayCLD.bheadershow = true;
     _displayCLD.changeScreen = true;
     _PIDControl.setPreheat67();
     _sensor6035.setStepeSensorpreheat();
     dbg_button("green button - start heating to 67");
   }
-  else if (_displayCLD.type_infor == epreheating67)
+  else if (_displayCLD.type_infor == ecalibSelect)
   {
-    _sensor6035.skip2Maintain();
-    _PIDControl.timeStartWait = 0;
+    // calib p1: user chose Calibration -> enter the existing calib menu while
+    // heater2,3 keep maintaining 55C (pidStep stays epidcalibmaintain55).
+    _sensor6035.setStepeSensorwait();
+    _displayCLD.type_infor = eSelectSlot;
+    _displayCLD.changeScreen = true;
+    dbg_button("green button - calib -> select slot");
+  }
+  else if (_displayCLD.type_infor == epreheat67)
+  {
+    // _PIDControl.timeStartWait = 0;
+    _displayCLD.type_infor = ewaitampTube;
+    _displayCLD.changeScreen = true;
+    _PIDControl.setPID23Ready();
+
+    // _sensor6035.skip2Maintain();
+    // _PIDControl.timeStartWait = 0;
+    // _displayCLD.bheadershow = true;
     dbg_button("green button - skip opto preheat");
   }
   else if (_displayCLD.type_infor == eSettingMenu)
@@ -699,18 +735,21 @@ void buttonManager::handleLongPress_Red()
 // ----------------------------------------------------------------
 /***********************************************************************
  * Function: handleLongPress_Blue()
- * Description: Handles a BLUE long press by setting the sensor step to wait,
- * switching the display to the amplification-select screen (type_infor =
- * eSelectAmpli), and requesting a screen redraw.
+ * Description: Handles a BLUE long press by setting the sensor step to wait and
+ * opening the calib-preheat entry (type_infor = ecalibPreheatStart): a prompt to
+ * press RED to preheat heater2,3 to 55C before choosing Calib or Amplification.
  * pramameter: none
  *  return: none
  */
 void buttonManager::handleLongPress_Blue()
 {
+  // Calib flow p0: prompt to preheat heater2,3 to 55C before calib/amp.
+  // Heaters stay off until the user presses RED (handleShortPress_Red).
   _sensor6035.setStepeSensorwait();
-  _displayCLD.type_infor = eSelectAmpli;
+  _displayCLD.type_infor = ecalibPreheatStart;
+  _displayCLD.bheadershow = true;
   _displayCLD.changeScreen = true;
-  info_display("Blue long-press - calibrating");
+  info_display("Blue long-press - calib preheat 55C");
 }
 
 // ----------------------------------------------------------------

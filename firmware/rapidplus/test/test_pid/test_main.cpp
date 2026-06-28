@@ -28,6 +28,12 @@
 #include <unity.h>
 #include <PID_v1.h>
 
+// Some Unity variants (e.g. the ESP-IDF SDK copy on the include path) don't
+// expose TEST_MESSAGE; fall back to Serial so diagnostics compile/print anyway.
+#ifndef TEST_MESSAGE
+#define TEST_MESSAGE(msg) Serial.println(msg)
+#endif
+
 // ===========================================================================
 // REAL firmware constants — MUST stay in sync with the firmware.
 // (define.h is not includable in a test, so they are mirrored here.)

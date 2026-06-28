@@ -3,7 +3,8 @@
 
 #define LYSIS_TEMP _ForteSetting.parameter.lysisTemp
 #define AMPLIF_TEMP _ForteSetting.parameter.amplifTemp
-#define READY_PREHEAT_TEMP 55.0
+#define READY_PREHEAT_TEMP 60.0
+#define CALIB_PREHEAT_TEMP 55.0 // calib flow: preheat target for heater2,3
 #define TOPHEATER2PWMLOW _ForteSetting.parameter.hotlidPWM[0][0]
 #define TOPHEATER2PWMHIGH _ForteSetting.parameter.hotlidPWM[0][1]
 #define TOPHEATER3PWMLOW _ForteSetting.parameter.hotlidPWM[1][0]
@@ -18,10 +19,6 @@
  */
 PIDControl::PIDControl(/* args */)
 {
-    // myPID = new PID(&CURRENT_TEMP_PID, &RESPONSE_SIGNAL, &TARGET_TEMP, Kp, Ki, Kd, DIRECT);
-    // myPID.SetMode(AUTOMATIC);
-    // myPID2.SetMode(AUTOMATIC);
-    // myPID3.SetMode(AUTOMATIC);
 }
 
 /***********************************************************************
@@ -358,6 +355,16 @@ void PIDControl::loop()
         MaintainHotlid23();
         break;
     }
+    case epidcalibpreheat55: // calib flow: preheat heater2,3 to 55C then 5-min hold
+    {
+        calibPreheat55();
+        break;
+    }
+    case epidcalibmaintain55: // calib flow: hold heater2,3 at 55C during select/calib
+    {
+        calibMaintain55();
+        break;
+    }
     default:
         break;
     }
@@ -398,6 +405,7 @@ void PIDControl::rerun()
     myPID3->Compute();
     myPIDhotlid2->Compute();
     myPIDhotlid3->Compute();
+    hotlidWaitMs = 15 * 60000; // restore the normal 15-min hotlid wait (calib->amp sets 5 min)
     pidStep = epidready;
 }
 
@@ -936,8 +944,7 @@ void PIDControl::Heat1Preheat80()
         RESPONSE_SIGNAL = RESPONSE_SIGNAL * 1.0;
         analogWrite(HEATER1IO, (int)RESPONSE_SIGNAL);
         pidStep = epid1ready;
-        _displayCLD.type_infor = ewaitLysisTube;
-        _displayCLD.changeScreen = true;
+        this->timeStartWait = millis();
 
         _buzzer.BuzzerAlert();
 
@@ -955,6 +962,8 @@ void PIDControl::Heat1Preheat80()
         // info_displayln("Continue hotlid1 heating");
         info_displayln("=================================================================");
         START_INTERVAL_TIME = millis(); // record time for hotlid heat up
+        _displayCLD.type_infor = ewaitLysisTube;
+        _displayCLD.changeScreen = true;
     }
 }
 
@@ -1024,9 +1033,140 @@ void PIDControl::setPreheat67()
 }
 
 /***********************************************************************
+ * Function: setCalibPreheat55()
+ * Description: Calib flow entry: switch heater1 off and enter the
+ *  epidcalibpreheat55 step so heater2,3 begin warming to CALIB_PREHEAT_TEMP.
+ *  Resets the 5-minute hold latch/timer.
+ * pramameter: none
+ *  return: none
+ */
+void PIDControl::setCalibPreheat55()
+{
+    analogWrite(HEATER1IO, PWM_OFF);
+    bCalib55Reached = false;
+    timeCalibReached = 0;
+    pidStep = epidcalibpreheat55;
+}
+
+/***********************************************************************
+ * Function: calibPreheat55()
+ * Description: Calib flow: drives ONLY heater2 and heater3 to
+ *  CALIB_PREHEAT_TEMP (55C) via myPID2/myPID3 (heater1 and the hotlids stay
+ *  OFF). Each heater has an overheat cut-off; otherwise the PID drives the PWM.
+ *  Once both heaters reach 55C it holds for 5 minutes, then advances to
+ *  epidcalibmaintain55 and shows the Calib/Amp select screen (ecalibSelect).
+ * pramameter: none
+ *  return: none
+ */
+void PIDControl::calibPreheat55()
+{
+    // Only the two amplification heaters run during calib preheat.
+    analogWrite(HEATER1IO, PWM_OFF);
+    analogWrite(HOTLID2IO, PWM_OFF);
+    analogWrite(HOTLID3IO, PWM_OFF);
+    analogWrite(HOTLID23IO, PWM_OFF);
+
+    TARGET_TEMP = CALIB_PREHEAT_TEMP;
+
+    // heater2 (shared in/out/setpoint with heater3, so handle sequentially)
+    CURRENT_TEMP_PID = bottomTemperature[1];
+    if (CURRENT_TEMP_PID > CALIB_PREHEAT_TEMP + OVERHEAT_THRESHOLD2) // safety cut off
+    {
+        analogWrite(HEATER2IO, PWM_OFF);
+    }
+    else
+    {
+        myPID2->Compute();
+        analogWrite(HEATER2IO, (int)RESPONSE_SIGNAL);
+    }
+
+    // heater3
+    CURRENT_TEMP_PID = bottomTemperature[2];
+    if (CURRENT_TEMP_PID > CALIB_PREHEAT_TEMP + OVERHEAT_THRESHOLD3) // safety cut off
+    {
+        analogWrite(HEATER3IO, PWM_OFF);
+    }
+    else
+    {
+        myPID3->Compute();
+        analogWrite(HEATER3IO, (int)RESPONSE_SIGNAL);
+    }
+
+    if (btemperatureOut)
+    {
+        info_displayf("\nTimeCB\t%.2f\tCalibPreheat\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\n", millis() / 1000.0, bottomTemperature[1], bottomTemperature[2], CALIB_PREHEAT_TEMP);
+    }
+
+    // Hold 5 minutes after BOTH heaters first reach 55C, then go to the choice screen.
+    if ((bottomTemperature[1] >= CALIB_PREHEAT_TEMP - 1) && (bottomTemperature[2] >= CALIB_PREHEAT_TEMP - 1))
+    {
+        if (!bCalib55Reached)
+        {
+            bCalib55Reached = true;
+            timeCalibReached = millis();
+        }
+        else if ((millis() - timeCalibReached) > (5 * 60000)) // 5-minute hold
+        {
+            pidStep = epidcalibmaintain55;
+            _displayCLD.type_infor = ecalibSelect;
+            _displayCLD.bheadershow = true;
+            _displayCLD.changeScreen = true;
+            _buzzer.BuzzerAlert();
+            info_displayln("Calib preheat 55C ready, choose Calib (blue) or Amplification (red)");
+        }
+    }
+    else
+    {
+        bCalib55Reached = false; // fell below target -> restart the hold timer
+    }
+}
+
+/***********************************************************************
+ * Function: calibMaintain55()
+ * Description: Calib flow: holds heater2 and heater3 at CALIB_PREHEAT_TEMP
+ *  (55C) via myPID2/myPID3 with an overheat cut-off (heater1 and hotlids stay
+ *  OFF). Runs continuously while the user is on the Calib/Amp select screen and
+ *  throughout the calibration reading.
+ * pramameter: none
+ *  return: none
+ */
+void PIDControl::calibMaintain55()
+{
+    analogWrite(HEATER1IO, PWM_OFF);
+    analogWrite(HOTLID2IO, PWM_OFF);
+    analogWrite(HOTLID3IO, PWM_OFF);
+    analogWrite(HOTLID23IO, PWM_OFF);
+
+    TARGET_TEMP = CALIB_PREHEAT_TEMP;
+
+    CURRENT_TEMP_PID = bottomTemperature[1];
+    if (CURRENT_TEMP_PID > CALIB_PREHEAT_TEMP + OVERHEAT_THRESHOLD2)
+        analogWrite(HEATER2IO, PWM_OFF);
+    else
+    {
+        myPID2->Compute();
+        analogWrite(HEATER2IO, (int)RESPONSE_SIGNAL);
+    }
+
+    CURRENT_TEMP_PID = bottomTemperature[2];
+    if (CURRENT_TEMP_PID > CALIB_PREHEAT_TEMP + OVERHEAT_THRESHOLD3)
+        analogWrite(HEATER3IO, PWM_OFF);
+    else
+    {
+        myPID3->Compute();
+        analogWrite(HEATER3IO, (int)RESPONSE_SIGNAL);
+    }
+
+    if (btemperatureOut)
+    {
+        info_displayf("\nTimeCM\t%.2f\tCalibMaintain\tTemperature\t%.2f\t%.2f\tTarget\t%.2f\n", millis() / 1000.0, bottomTemperature[1], bottomTemperature[2], CALIB_PREHEAT_TEMP);
+    }
+}
+
+/***********************************************************************
  * Function: Heat2_55()
  * Description: Gently pre-warms heater2 (HEATER2IO, myPID2) to the ready
- *  preheat temperature (READY_PREHEAT_TEMP = 55) while pid1 stays at 80. If
+ *  preheat temperature (READY_PREHEAT_TEMP = 60) while pid1 stays at 80. If
  *  more than 1 degree above target it keeps the heater off (still Computing the
  *  PID to track), otherwise it drives the PWM from the myPID2 output. No
  *  hard over/under-heat error handling here, only a passive cooldown path.
@@ -1075,7 +1215,7 @@ void PIDControl::Heat2_55()
 /***********************************************************************
  * Function: Heat3_55()
  * Description: Gently pre-warms heater3 (HEATER3IO, myPID3) to the ready
- *  preheat temperature (READY_PREHEAT_TEMP = 55) while pid1 stays at 80. If
+ *  preheat temperature (READY_PREHEAT_TEMP = 60) while pid1 stays at 80. If
  *  more than 1 degree above target it keeps the heater off (still Computing the
  *  PID to track), otherwise it drives the PWM from the myPID3 output. No
  *  hard over/under-heat error handling here, only a passive cooldown path.
@@ -1464,33 +1604,33 @@ void PIDControl::heatNewLid23()
         info_displayf("\nTimePT3\t%.2f\tTopHeater3\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, HOTLID23_TEMP, (int)RESPONSE_SIGNAL);
     }
 
-    if ((millis() - this->timeStartWait) > (15 * 60000)) // wait for 15 minutes, if the user still doesn't put the amp tube, then alert
+    // Advance to the amp-tube wait ONLY when both hotlids have reached temperature,
+    // the 15-minute wait has elapsed, AND the opto sensor has finished preheating.
+    // pidStep must NOT flip to epid23ready before the sensor is ready: once it does,
+    // heatNewLid23() stops being dispatched (the state machine calls MaintainHotlid23
+    // instead), so this transition could never be retried and the UI would hang on the
+    // "waiting for sensor" screen. Keeping all three conditions here lets it retry every
+    // cycle until the sensor catches up.
+    if (topHeater2Flag == 1 && topHeater3Flag == 1 &&
+        (millis() - this->timeStartWait) > this->hotlidWaitMs &&
+        _sensor6035.getSensorPreheatReady())
     {
+        this->timeStartWait = 0;
+        pidStep = epid23ready;
+        _displayCLD.type_infor = ewaitampTube;
+        _displayCLD.changeScreen = true;
+        _buzzer.BuzzerAlert();
 
-        // check if both of heater2 and heater3 are at the right range
-        if (topHeater2Flag == 1 && topHeater3Flag == 1)
-        {
-            this->timeStartWait = 0;
-            pidStep = epid23ready;
-            if (_sensor6035.getSensorPreheatReady())
-            {
-                _displayCLD.type_infor = ewaitampTube;
-                _displayCLD.changeScreen = true;
-                _buzzer.BuzzerAlert();
-            }
-            info_displayf("Temperature (C): %.2f:%.2f\n", HotlidTemperature[INDEX_HOTLID2], HotlidTemperature[INDEX_HOTLID3]);
+        info_displayf("Temperature (C): %.2f:%.2f\n", HotlidTemperature[INDEX_HOTLID2], HotlidTemperature[INDEX_HOTLID3]);
 
-            // Print Phase 1 PID end message
-            info_displayln("=================================================================");
-            info_displayln("End of hotlid2&3 heat.");
+        // Print Phase 1 PID end message
+        info_displayln("=================================================================");
+        info_displayln("End of hotlid2&3 heat.");
 
-            // Print time taken
-            info_display("Total time taken: ");
-            info_display((millis() - START_INTERVAL_TIME) / 60000);
-            info_displayln(" minutes");
-            info_displayln("Wait button or sensor preheat");
-            info_displayln("=================================================================");
-        }
+        // Print time taken
+        info_display("Total time taken: ");
+        info_display((millis() - START_INTERVAL_TIME) / 60000);
+        info_displayln(" minutes");
     }
 }
 

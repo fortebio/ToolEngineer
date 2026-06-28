@@ -36,8 +36,10 @@ typedef enum
     epid3startpreHeat67, // preheat heater3 to 67
     epid3preHeat67,      // preheat heater3 to 67
     ehotlid23heat,       // heat hotlid2
-    epid23ready          //,        //heater2 and heater3 are ready, wait for next step
+    epid23ready,         // heater2 and heater3 are ready, wait for next step
     // epidfinish          //finish the testing, result review or restart
+    epidcalibpreheat55,  // calib flow: preheat heater2,3 to 55C then 5-min hold
+    epidcalibmaintain55  // calib flow: hold heater2,3 at 55C during select/calib
 } e_pidstep;
 
 class PIDControl
@@ -72,6 +74,10 @@ private:
     bool foverHeatErr = false;             // RFU
     unsigned long START_OverHeat_TIME = 0; // RFU
 
+    // Calib-preheat (55C) flow timers
+    uint32_t timeCalibReached = 0; // millis() when heater2,3 first reached 55C
+    bool bCalib55Reached = false;  // latched once 55C reached, starts the 5-min hold
+
     // flag to control the simulation enable or disable
     bool bheater1Simu = false;
     bool bheater2Simu = false;
@@ -84,6 +90,9 @@ private:
 public:
     // bool waitWarmAmpTube = false; // after preheat the sensor, wait for the amp tube to be put in and heat up to 67 degree
     uint32_t timeStartWait = 0;
+    // Wait after both hotlids reach temp before showing the amp-tube prompt.
+    // Default 15 min (normal lysis->amp run); the calib->amp path sets it to 5 min.
+    uint32_t hotlidWaitMs = 15 * 60000;
     PIDControl(/* args */);
     ~PIDControl();
     void begin();
@@ -111,7 +120,10 @@ public:
     void pid1Maintain80(); // maintain heat1 to be 80 when heat up hotlid1 and maintain
     // void MaintainHotlid1();
 
-    void setPreheat67(); // change the status to set epidstartpreHeat67 after button pressing
+    void setPreheat67();      // change the status to set epidstartpreHeat67 after button pressing
+    void setCalibPreheat55(); // calib flow: enter preheat heater2,3 to 55C
+    void calibPreheat55();    // calib flow: heat heater2,3 to 55C, hold 5 min, then maintain
+    void calibMaintain55();   // calib flow: hold heater2,3 at 55C during calib/select
     void Heat2_55();
     void Heat3_55();
     void StartPreheat2_67();

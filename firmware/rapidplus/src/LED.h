@@ -16,6 +16,7 @@ class LED
 private:
     /* data */
     Adafruit_MCP23X17 mcp;
+    bool mcpReady = false; // true only after mcp.begin_I2C() has succeeded
     const int LED_CHANNEL[10] = {LED0, LED1, LED2, LED3, LED4, LED5, LED6, LED7, LED8, LED9};
 
     // All PWM variables, configurable

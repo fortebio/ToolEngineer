@@ -141,8 +141,9 @@ bool ForteSetting::HeaterStepSet()
     {
         info_displayln("Skip to start the Amplification preheating directly");
         _PIDControl.setPreheat67();
+        _PIDControl.timeStartWait = millis(); // seed the hotlid 15-min wait origin (like the button paths)
         _sensor6035.setStepeSensorpreheat();
-        _displayCLD.type_infor = epreheating67; // updated to start preheat directly in 26 Feb, 2024
+        _displayCLD.type_infor = eheating67; // updated to start preheat directly in 26 Feb, 2024
         _displayCLD.bheadershow = true;
         _displayCLD.changeScreen = true;
 
@@ -900,23 +901,33 @@ void ForteSetting::begin()
     parastructure paraEEPROM;
     EEPROM.begin(_EEPROM_SIZE);
     EEPROM.get(PARAMETERPOS, paraEEPROM);
-    if (FirmwareVer == "v2.4.2" && paraEEPROM.kpid3[0] == 0 && paraEEPROM.kpid3[1] == 0 && paraEEPROM.kpid3[2] == 0)
-    {
-        parameter.kpid3[0] = 60;
-        parameter.kpid3[1] = 0.1;
-        parameter.kpid3[2] = 40;
-    }
-    EEPROM.put(PARAMETERPOS, parameter);
-    EEPROM.commit();
     info_displayf("check para in EEPROM, length is %d\n", paraEEPROM.length);
     if (paraEEPROM.length == sizeof(parameter)) // if the length of the parameter in EEPROM is not -1 or 0, then use it.
     {
         info_displayf("there is para in the EEPROM with length %d\n", sizeof(parameter));
-        parameter = paraEEPROM;
+        parameter = paraEEPROM; // keep the user's saved configuration across reboots
+
+        // One-time migration: configs saved before kpid3 existed have kpid3 == {0,0,0}.
+        // Seed the defaults and persist so it sticks. Done ONLY inside the valid-config
+        // branch so we never write back garbage (e.g. on a fresh/erased EEPROM).
+        if (FirmwareVer == "v2.4.2" &&
+            parameter.kpid3[0] == 0 && parameter.kpid3[1] == 0 && parameter.kpid3[2] == 0)
+        {
+            parameter.kpid3[0] = 60;
+            parameter.kpid3[1] = 0.1;
+            parameter.kpid3[2] = 40;
+            parameter.length = sizeof(parameter);
+            EEPROM.put(PARAMETERPOS, parameter);
+            EEPROM.commit();
+            info_displayln("kpid3 seeded to defaults and saved");
+        }
         paraDisplay(parameter);
     }
     else
     {
+        // Fresh / erased EEPROM: run on compiled defaults but DON'T persist them here,
+        // so the device keeps prompting until a real config is saved (each save path
+        // writes parameter.length = sizeof, which is what makes it persist on reboot).
         info_displayln("there is no para in the EEPROM");
         _displayCLD.ErrorDisplay("No prarmeter in the EEPROM, please initialize it, default parameter is used now");
         delay(3000);

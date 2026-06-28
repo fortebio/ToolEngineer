@@ -19,6 +19,9 @@ String id_device = "RAPIDPlus";
 extern int language = 0;
 
 const char *serverName = "https://script.google.com/macros/s/AKfycbw2VXXLX6fUMgmyRrSgNgEi3b4gSyE2bdctQe_DNOnlZ58EfPclQrXrlMenH0y7SH5X/exec";
+const char *serverName2 = "https://api.fortebio.tech/api/v1/results/ingest";
+const char *API_KEY = "";
+// const char *API_tmp = "?api_key=";
 
 /***********************************************************************
  * Function: connectBLE()
@@ -578,12 +581,12 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
 
     serializeJson(dataPostGoogleSheet, jsonPost);
 
-    Serial.printf("Heap before doc free: %u, largest: %u\n",
-                  ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+    // Serial.printf("Heap before doc free: %u, largest: %u\n",
+    // ESP.getFreeHeap(), ESP.getMaxAllocHeap());
   } // <- JsonDocument destructed here, ~25-40KB returned to heap
 
-  Serial.printf("Heap after doc free:  %u, largest: %u, jsonPost=%u bytes\n",
-                ESP.getFreeHeap(), ESP.getMaxAllocHeap(), jsonPost.length());
+  // Serial.printf("Heap after doc free:  %u, largest: %u, jsonPost=%u bytes\n",
+  //               ESP.getFreeHeap(), ESP.getMaxAllocHeap(), jsonPost.length());
 
   // Now open TLS with the maximum free heap available.
   // setInsecure() skips cert chain validation -> smaller mbedTLS allocation.
@@ -614,7 +617,7 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Connection", "close");
 
-  Serial.printf("POSTing %u bytes...\n", jsonPost.length());
+  // Serial.printf("POSTing %u bytes...\n", jsonPost.length());
   uint32_t t0 = millis();
   int httpResponseCode = http.POST(jsonPost);
   uint32_t dt = millis() - t0;
@@ -636,6 +639,56 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
     Serial.printf("POST FAIL in %u ms, code=%d (%s)\n",
                   dt, httpResponseCode, http.errorToString(httpResponseCode).c_str());
   }
+  delay(100); // give the TLS handshake a moment to complete before POSTing
+  http.end();
+  delay(100); // give the TLS handshake a moment to complete before POSTing
+
+  // Now POST to the ForteBio ingest API. This is a separate endpoint from GAS /exec
+  // and is used for the cloud dashboard. It expects the same JSON payload, but
+  // requires an API key in the Authorization header.
+  // String url_2 = String(serverName2) + String(API_KEY);
+  if (!http.begin(client, serverName2))
+  {
+    Serial.println("client.connect() failed");
+    http.end();
+    return;
+  }
+  // GAS /exec only emits the 302 AFTER doPost() finishes appending to the sheet,
+  // which currently takes ~35-40s (Data sheet has grown large). The old 30s cut us
+  // off mid-execution -> code=-11 (read Timeout) even though the write was fine.
+  // 60s leaves margin above the observed GAS latency. (Root fix: speed up doPost.)
+  http.setTimeout(60000);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Connection", "close");
+
+  t0 = millis();
+  httpResponseCode = http.POST(jsonPost);
+  // Read the POST response body once (the stream can only be consumed once).
+  String responsePost = http.getString();
+  responsePost = http.getString();
+  Serial.printf("Post response: %s\n", responsePost.c_str());
+
+  dt = millis() - t0;
+
+  // 2xx = direct success; 302 from GAS = script accepted and processed the data.
+  ok = (httpResponseCode >= 200 && httpResponseCode < 300) ||
+       (httpResponseCode == HTTP_CODE_FOUND); // 302
+  if (ok)
+  {
+    Serial.printf("POST OK in %u ms, code=%d\n", dt, httpResponseCode);
+  }
+  else if (httpResponseCode > 0)
+  {
+    Serial.printf("POST HTTP error in %u ms, code=%d, response=%s\n",
+                  dt, httpResponseCode, http.getString().c_str());
+  }
+  else
+  {
+    Serial.printf("POST FAIL in %u ms, code=%d (%s)\n",
+                  dt, httpResponseCode, http.errorToString(httpResponseCode).c_str());
+  }
+
+  delay(100); // give the TLS handshake a moment to complete before POSTing
   http.end();
 }
 

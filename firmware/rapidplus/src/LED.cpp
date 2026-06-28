@@ -37,6 +37,13 @@ LED::~LED()
  */
 void LED::_mcp_digitalWrite(uint8_t pin, uint8_t val)
 {
+    // Guard: the MCP I/O expander is only initialized in LED::begin()
+    // (mcp.begin_I2C()), which runs inside _sensor6035.begin() — AFTER the
+    // early init (displayCLD/ForteSetting). If an error screen fires before
+    // that (e.g. empty-EEPROM -> ErrorDisplay -> BuzzerAlarm), writing to the
+    // uninitialized mcp dereferences a NULL I2C device -> panic/reset loop.
+    if (!mcpReady)
+        return;
     mcp.digitalWrite(pin, val);
 }
 
@@ -59,6 +66,7 @@ void LED::begin()
         delay(10000);
         ESP.restart();
     }
+    mcpReady = true; // I2C expander is up — MCP writes are now safe
     // configure LED pin for output, and output to turn off the LED
     for (size_t i = 0; i < 10; i++)
     {
