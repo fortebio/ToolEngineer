@@ -62,7 +62,7 @@ void Wifi_Connect(void);
  * @brief googlesheet API
  * @version 2.2
  */
-void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops);
+uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops);
 
 /**
  * @brief postData_Chart

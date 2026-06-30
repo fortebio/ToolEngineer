@@ -555,6 +555,44 @@ void displayCLD::drawHeat67Header(const char *line1, const char *line2)
 }
 
 /***********************************************************************
+ * Function: drawHeaderNofication()
+ * Description: Shared static-header renderer for the two 67C/preheat screens
+ *  (Heat67LCD_Header and Preheat67LCD_Header). Guarded by bheadershow: clears
+ *  the screen, prints the four given title lines and the warning band/box, then
+ *  clears bheadershow.
+ * pramameter: line1, line2, line3, line4 - the four title text lines to show
+ *  return: none
+ */
+void displayCLD::drawHeaderNofication(const char *line1, const char *line2, const char *line3, const char *line4)
+{
+  this->display->fillScreen(BLACK);
+  this->display->setTextSize(2);
+  this->display->setTextColor(Forte_Green);
+  this->display->setCursor(15, 60);
+  this->display->print(line1);
+  this->display->setCursor(15, 90);
+  this->display->print(line2);
+  this->display->drawRect(30, 140, 272, 80, GREEN);
+  this->display->drawRect(29, 139, 274, 82, GREEN);
+  for (int i = 18; i <= 310; i += 10)
+  {
+    static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
+    this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
+    this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
+  }
+
+  this->display->setTextSize(2);
+  this->display->setTextColor(GREEN);
+  this->display->setCursor(30, 240);
+  this->display->print(line3);
+  this->display->setCursor(30, 260);
+  this->display->print(line4);
+
+  // this->display->drawCircle(55, 180, 22, RED);
+  // this->display->fillCircle(55, 180, 17, RED);
+}
+
+/***********************************************************************
  * Function: Heat67LCD_Header()
  * Description: Static header for the "heating amplifier block and sensor"
  *  screen (shown once per bheadershow). Delegates to drawHeat67Header().
@@ -1196,10 +1234,11 @@ void displayCLD::screen_Result(char key)
       WiFi.begin(ssid.c_str(), password.c_str());
     }
 
+    uint16_t httpCode = 0;
     /* Post data and errors to Google Sheet */
     if ((WiFi.status() == WL_CONNECTED) && (key == 'f'))
     {
-      postData_GoogleSheet(CT_value, result, loops);
+      httpCode = postData_GoogleSheet(CT_value, result, loops);
     }
     else
     {
@@ -1281,10 +1320,45 @@ void displayCLD::screen_Result(char key)
       postError_fullGoogleSheet();
     }
 
+    // this->display->setTextSize(1);
+    // if (httpCode >= 200 && httpCode <= 302 && key == 'f')
+    // {
+    //   this->display->setTextColor(GREEN);
+    //   this->display->setCursor(10, 230);
+    //   this->display->printf("Upload Success");
+    //   this->display->setTextColor(WHITE);
+    //   this->display->setCursor(160, 230);
+    //   this->display->printf("Press white: next");
+    // }
+    // else if (key == 'f')
+    // {
+    //   this->display->setTextColor(WHITE);
+    //   this->display->setCursor(160, 230);
+    //   this->display->printf("Press white: next");
+    //   this->display->setTextColor(RED);
+    //   this->display->setCursor(10, 230);
+    //   this->display->printf("Upload Failed");
+    // }
+    // else
+    // {
+    //   this->display->setTextColor(WHITE);
+    //   this->display->setCursor(10, 230);
+    //   this->display->printf("Press white: next");
+    // }
+    if (key == 'f')
+    {
+      bool ok = httpCode >= 200 && httpCode <= 302;
+      this->display->setTextColor(ok ? GREEN : RED);
+      this->display->setCursor(10, 230);
+      this->display->printf(ok ? "Upload Success" : "Upload Failed");
+      this->display->setCursor(160, 230);
+    }
+    else
+    {
+      this->display->setCursor(10, 230);
+    }
     this->display->setTextColor(WHITE);
-    this->display->setTextSize(1);
-    this->display->setCursor(15, 230);
-    this->display->printf("Press white key to test next");
+    this->display->printf("Press white: next");
 
     // this->display->drawBitmap(280, 210, play_hover, 19, 20, RED);
     this->display->fillTriangle(305, 230, 305, 220, 320, 225, RED);

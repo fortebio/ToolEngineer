@@ -140,10 +140,11 @@ public:
     void RestartProcess(String strDescript, String strValue);
 
     void drawHeat67Header(const char *line1, const char *line2); // shared header renderer for the two 67C screens
-    void Heat67LCD_Header();                                     // display inf
-    void Heat67LCD();                                            // heat to 67 degree
-    void Preheat67LCD_Header();                                  // display inf
-    void Preheat67LCD();                                         // heat to 67 degree
+    void drawHeaderNofication(const char *line1, const char *line2, const char *line3, const char *line4);
+    void Heat67LCD_Header();    // display inf
+    void Heat67LCD();           // heat to 67 degree
+    void Preheat67LCD_Header(); // display inf
+    void Preheat67LCD();        // heat to 67 degree
 
     void calibPreheatStartLCD(); // calib p0: prompt press red to preheat 55C
     void calibPreheatingLCD();   // calib p0: heating heater2,3 to 55C

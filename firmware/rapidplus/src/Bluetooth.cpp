@@ -453,12 +453,12 @@ float rounded(float value)
  * pramameter: loops - number of amplification loops (raw data points per slot)
  *  return: none
  */
-void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
+uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
 {
   if (WiFi.status() != WL_CONNECTED)
   {
     Serial.println("postData_GoogleSheet: WiFi not connected, skip");
-    return;
+    return 0;
   }
 
   // Precondition for the TLS handshake below: the Bluetooth Classic stack must be
@@ -607,7 +607,7 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
   if (!http.begin(client, serverName))
   {
     Serial.println("http.begin() failed");
-    return;
+    return 0;
   }
   // GAS /exec only emits the 302 AFTER doPost() finishes appending to the sheet,
   // which currently takes ~35-40s (Data sheet has grown large). The old 30s cut us
@@ -620,6 +620,7 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
   // Serial.printf("POSTing %u bytes...\n", jsonPost.length());
   uint32_t t0 = millis();
   int httpResponseCode = http.POST(jsonPost);
+  uint16_t tmpHttpCode = httpResponseCode;
   uint32_t dt = millis() - t0;
 
   // 2xx = direct success; 302 from GAS = script accepted and processed the data.
@@ -651,7 +652,7 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
   {
     Serial.println("client.connect() failed");
     http.end();
-    return;
+    return 0;
   }
   // GAS /exec only emits the 302 AFTER doPost() finishes appending to the sheet,
   // which currently takes ~35-40s (Data sheet has grown large). The old 30s cut us
@@ -664,9 +665,7 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
   t0 = millis();
   httpResponseCode = http.POST(jsonPost);
   // Read the POST response body once (the stream can only be consumed once).
-  String responsePost = http.getString();
-  responsePost = http.getString();
-  Serial.printf("Post response: %s\n", responsePost.c_str());
+  // Serial.printf("Post response: %s\n", responsePost.c_str());
 
   dt = millis() - t0;
 
@@ -690,6 +689,7 @@ void postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops)
 
   delay(100); // give the TLS handshake a moment to complete before POSTing
   http.end();
+  return tmpHttpCode;
 }
 
 /***********************************************************************
