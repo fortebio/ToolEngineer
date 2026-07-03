@@ -31,22 +31,15 @@ extern volatile bool gBtReleased;
 void releaseBluetoothStack();
 
 void connectBLE();
-void BLEloop();
 // void saveParaToEEPROM();
-void saveJsonToEEPROM(char *jsondata, uint32_t jsonlen);
 void readEEPROM();
 void paraDisplay(parastructure);
 void loadParaFromEEPROM();
-void loadJsonFromEEPROM();
-// bool loadJsonFromEEPROM(char *jsondata);
 
 void connectWIFI();
 void saveSettingDevice();
 void loadSettingDevice();
-void Write_language_ToEEPROM();
-void Read_language_fromEEPROM();
 void getDataAmplificationEEPROM(void);
-void getData(void);
 String getData_toChart(void);
 String getCT_toChart(float tmp, char c);
 String getResult_toChart(char tmp);

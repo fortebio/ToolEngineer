@@ -112,17 +112,6 @@ buttonManager::buttonManager()
   }
 }
 
-/***********************************************************************
- * Function: ~buttonManager()
- * Description: Destructor. No dynamic resources are held, so it performs
- * no cleanup.
- * pramameter: none
- *  return: none
- */
-buttonManager::~buttonManager()
-{
-}
-
 // ================================================================
 // buttonStart() — attach ISR on CHANGE edge
 // ================================================================

@@ -19,81 +19,6 @@
  * Button configuration
  * Buzzer configuration
  * Firmware version configuration
- *
- * @change log:
- *
- * - v1.48
- * PID parameter output
- * PID parameter clear when rerun
- * output Json data with pararead command
- * error msg optimising
- * change PCB version to V1.3 by default
- * opto sensor optimising on error process
- * display firmware version at the function selection display
- * - v1.46
- * Support the loops to 40, so the configuration, memory and FLASH need to be
- * upgraded
- * - v1.45
- * Output log when it's overheat and underheat
- * - v1.44:
- * Update the temperature control logic of top heater during amplification
- * Output pid parameter at command "pararead"
- * - v1.43:
- * 1. Update file PIDControl.cpp
- * Unify the temperature+PID output format.
- * Format is: "Timexxx" + Time(in second) + Heater No. +
- * Reading/Heating/Maintain + Temperature value/(Target temperature+PWM) How to
- * use it:
- * 1. Connect device and open the SerialDebug tool
- * 2. Connect the correct port, clear the old log
- * 3. Send command "TemperatureOutput", then device will output the temperature
- * reading and PWM at any stage
- * 4. Operat the machine to finish the different stage
- * 5. Copy or save all the log data
- * 6. Paste the data into Excel
- * 7. Filter all the colums
- * 8. Choose different heater at the 3rd column, then you can get the
- * temperature value
- *
- * Output data example, no need to know the details, it can be understand easily
- * by real log data e.g.1  TimeRB	1173.81	BottomHeater
- * Reading	32.19	65.5	65.38 1st item: "TimeRB" means
- * Time+Reading+BottomHeater; other: "TimeRT"" means Time+Reading+TopHeater 2nd
- * item: "1173.81" means time in second 3rd item: "BottomHeater" is the name of
- * all the bottom heaters. Other value: "TopHeater" means all top heaters; 4th
- * item: "Reading" is the status; 5th item: Temperature value.
- *
- * e.g.2  TimeMB2	1168.10	Heater2	Maintain	Temperature	65.5
- * Target	65.00	PWM	0 1st item: "TimeMB2" means
- * Time+Maintain+BottomHeater+No.(1-3); other value is "TimePT2", meaning
- * Time+Preheat+TopHeater+No.(1-4) 2nd item: "1168.10" means time in second 3rd
- * item: "Heater2" means BottomHeater+No.(1-3). Other value: "TopHeater3" means
- * TopHeater+No.(1-4) 4th item: "Maintain" means the maintain temperature
- * status; other value: "Heating" means preheating 5th item: "Temperature" means
- * the following item is temperature value 6th item: Temperature value 7th item:
- * "Target" means the following item is target temperature value 8th item:
- * Target temperature value 9th item: "PWM" means the following item is PWM
- * value 10th item: PWM value
- *
- *
- * - v1.42:
- * 1. Time output with temperature value by command "TemperatureOutput"
- * 2. New PID value
- * 3. Add threshold for top heater
- * 4. Adjust the overheat parameter
- * 5. Variable conflict between main loop and each channel testing
- * 6. PID and overheat is configurable: Add PID1&PID2 para, overheat temperature
- * value for bottom and top
- * 7. Adjust the para configuration file. Make sure seq of thermometer is zero.
- * Prepare for different scenarios, especially the sequence of the thermal
- * sensor
- *
- * - v1.41:
- * Update PID parameter gotten from heat stress testing
- * Error process, can only restart the power after error happened
- * More error detection on temperature reading by thermometer
- * Alg bug fixings
- *
  */
 
 #include "time.h"
@@ -117,7 +42,6 @@
 // 1024~4095: record, 3K
 
 #define _EEPROM_SIZE 4096 // add additional for para, record and json file storage.
-// #define _EEPROM_SIZE 8192              // add additional for para, record and json file storage.
 #define PARAMETERPOS 512               // Record start at 512 with length to be 1800(store 90 rounds data), the
                                        // first 512 is reserved for Forte to use
 #define RECORDPOS (PARAMETERPOS + 512) // parameter start after record, the length of parameter is 336
@@ -153,7 +77,6 @@ typedef enum
   errorHeaterTopLeft,
 } errorModule;
 
-// #pragma pack(2)
 typedef struct
 {
   uint8_t errorModule = 0;           /*************************************
@@ -183,7 +106,6 @@ typedef struct
   unsigned long long errorTimes = 0; /* times of the same error happened, used for error process */
 } ErrorRecord;                       /* define the structure for recording the error type and times, used for opto sensor reading error process */
 
-// #pragma pack(0)
 struct parastructure
 {
   int length = 0; // length of the structure, to indicate EEPROM has parameter
@@ -234,7 +156,6 @@ struct parastructure
                                           // fluorescence increase
   uint8_t sg_order = 2;                   // interpolation smoothing order
   uint8_t sg_window = 4;                  // smoothing window size for algorithm
-  // int sg_window_display = 2;              // window size for display to users
   uint8_t baseline_start = 3; // start of baselining (minutes)
   uint8_t baseline_range = 4; // range of baselining (minutes)
 
@@ -408,12 +329,6 @@ extern volatile bool gBtReleased;
 
 // GPIO used for Fan
 #define FANIO 12
-// #define FANIO 5
-
-// Threshold value of overheat and underheat delta value -> move to PIDControl.h
-//  #define OVERHEAT_THRESHOLD  2.0           //If temperature is too hot, used
-//  for both of Lysis and Amplification #define UNDERHEAT_THRESHOLD  -2.0 //If
-//  temperature is not hot enough, used for both of Lysis and Amplification
 
 // before PID control
 #define DELTA_FULLPWM 80 // full PWM output when the temperature difference from the target
@@ -422,16 +337,12 @@ extern volatile bool gBtReleased;
                          // temperature is lower than it
 
 // target temperature of top heater
-// #define HOTLID1_TEMP 60.0
 #define HOTLID23_TEMP 75.0
 
 // GPIO used for bottom heater
 #define HEATER1IO 33 // heater1
 #define HEATER2IO 25 // heater2
 #define HEATER3IO 26 // heater3
-
-// GPIO used for top heater 1
-// #define HOTLID1IO 5
 
 // GPIO used for top heater2&3, PCB V1.1 and V1.2
 #define HOTLID23IO 16

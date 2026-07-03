@@ -319,13 +319,6 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
             find_sigmoidal_feature(recordOut, recordIn.parameters);
             predict_outcome(recordOut, recordIn.parameters);
         }
-        // else
-        // {
-        //     recordOut.peak_features.clear();
-        //     recordOut.outcome.transition_time.clear();
-        //     recordOut.outcome.plateau_point.clear();
-        //     strcpy(recordOut.outcome.outcome, "Break");
-        // }
 
         if (!validForDetection ||
             (breakIndex && risingIndex && recordOut.outcome.outcome[0] == 'N'))
@@ -654,13 +647,6 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
             find_sigmoidal_feature(recordOut, recordIn.parameters);
             predict_outcome(recordOut, recordIn.parameters);
         }
-        // else
-        // {
-        //     recordOut.peak_features.clear();
-        //     recordOut.outcome.transition_time.clear();
-        //     recordOut.outcome.plateau_point.clear();
-        //     strcpy(recordOut.outcome.outcome, "Break");
-        // }
 
         if (!validForDetection ||
             (breakIndex && risingIndex && recordOut.outcome.outcome[0] == 'N'))
@@ -833,139 +819,6 @@ void sensor6035::Basic_Initialization_Auto_Mode()
     // 2.) Switch On the ALS Sensor
     VEML6035_SET_SD(VEML6035_ALS_SD_ON);
     delay(100);
-}
-
-// Auto/Self-Timed Mode Initialization Function
-/***********************************************************************
- * Function: Auto_Mode()
- * Description: Full VEML6035 Auto/Self-Timed mode configuration for the
- *  currently selected sensor: sets sensitivity x1, digital gain double,
- *  gain double, 100ms integration time, persistence 1, ALS interrupt
- *  channel/enable, white channel disabled, high/low interrupt thresholds
- *  (10000/8000), disables power-saving mode, powers the sensor on, clears
- *  the initial interrupt and waits 300ms.
- * pramameter: none
- *  return: none
- */
-void sensor6035::Auto_Mode()
-{
-    // 1.) Initialization
-    // Switch Off the ALS Sensor
-    //  VEML6035_SET_SD(VEML6035_ALS_SD_ON);
-    VEML6035_SET_SD(VEML6035_ALS_SD_OFF);
-
-    // 2.) Setting up ALS/White Channel
-    // ALS_CONF0
-    // Set the Sensitivity
-    VEML6035_SET_SENS(VEML6035_SENS_0_x1);
-
-    // Set the Digital Gain (DG)
-    VEML6035_SET_DG(VEML6035_DG_1_DOUBLE);
-
-    // Set the Gain
-    VEML6035_SET_GAIN(VEML6035_GAIN_1_DOUBLE);
-
-    // Set the Integration Time
-    VEML6035_SET_ALS_IT(VEML6035_ALS_IT_100ms);
-
-    // Set the Persistence
-    VEML6035_SET_ALS_PERS(VEML6035_ALS_PERS_1);
-
-    // Set the Interrupt Channel
-    VEML6035_SET_INT_CHANNEL(VEML6035_ALS_CH_INT_EN);
-
-    // Enable/Disable White Channel
-    VEML6035_SET_CHANNEL_EN(VEML6035_WHITE_CH_DIS);
-
-    // Enable/Disable Interrupt
-    VEML6035_SET_INT_EN(VEML6035_ALS_INT_EN);
-
-    // ALS_WH
-    // Set the ALS/White Interrupt Higher Threshold
-    VEML6035_SET_ALS_HighThreshold(10000);
-
-    // ALS_WL
-    // Set the ALS/White Interrupt Lower Threshold
-    VEML6035_SET_ALS_LowThreshold(8000);
-
-    // Power Saving Mode
-    // Disable the Power Saving Mode
-    VEML6035_SET_PSM_EN(VEML6035_ALS_PSM_DIS);
-
-    // 3.) Switch On the ALS Sensor
-    VEML6035_SET_SD(VEML6035_ALS_SD_ON);
-
-    // Clear Initial Interrupt
-    VEML6035_GET_IF();
-
-    delay(300);
-}
-
-// Power Saving Mode Initialization Function
-/***********************************************************************
- * Function: Power_Saving_Mode()
- * Description: Configures the selected VEML6035 like Auto_Mode() but with
- *  Power Saving Mode enabled (PSM wait 3.2) to reduce sensor power draw.
- *  Sets sensitivity/gain/integration time/persistence/interrupt and
- *  thresholds, powers the sensor on, clears the initial interrupt and
- *  waits 1s.
- * pramameter: none
- *  return: none
- */
-void sensor6035::Power_Saving_Mode()
-{
-    // 1.) Initialization
-    // Switch Off the ALS Sensor
-    VEML6035_SET_SD(VEML6035_ALS_SD_ON);
-
-    // 2.) Setting up ALS/White Channel
-    // ALS_CONF0
-    // Set the Sensitivity
-    VEML6035_SET_SENS(VEML6035_SENS_0_x1);
-
-    // Set the Digital Gain (DG)
-    VEML6035_SET_DG(VEML6035_DG_1_DOUBLE);
-
-    // Set the Gain
-    VEML6035_SET_GAIN(VEML6035_GAIN_1_DOUBLE);
-
-    // Set the Integration Time
-    VEML6035_SET_ALS_IT(VEML6035_ALS_IT_100ms);
-
-    // Set the Persistence
-    VEML6035_SET_ALS_PERS(VEML6035_ALS_PERS_1);
-
-    // Set the Interrupt Channel
-    VEML6035_SET_INT_CHANNEL(VEML6035_ALS_CH_INT_EN);
-
-    // Enable/Disable White Channel
-    VEML6035_SET_CHANNEL_EN(VEML6035_WHITE_CH_DIS);
-
-    // Enable/Disable Interrupt
-    VEML6035_SET_INT_EN(VEML6035_ALS_INT_EN);
-
-    // ALS_WH
-    // Set the ALS/White Interrupt Higher Threshold
-    VEML6035_SET_ALS_HighThreshold(10000);
-
-    // ALS_WL
-    // Set the ALS/White Interrupt Lower Threshold
-    VEML6035_SET_ALS_LowThreshold(8000);
-
-    // Power Saving Mode
-    // Disable the Power Saving Mode
-    VEML6035_SET_PSM_EN(VEML6035_ALS_PSM_EN);
-
-    // Set Power Saving Mode Waiting Time
-    VEML6035_SET_PSM_WAIT(VEML6035_ALS_PSM_WAIT_3_2);
-
-    // 3.) Switch On the ALS Sensor
-    VEML6035_SET_SD(VEML6035_ALS_SD_ON);
-
-    // Clear Initial Interrupt
-    VEML6035_GET_IF();
-
-    delay(1000);
 }
 
 /***********************************************************************
@@ -1533,43 +1386,6 @@ void sensor6035::Snapshot_loop_test()
         }
     }
 
-    // for(iChannel = 5; iChannel < 10; iChannel++)
-    // {
-    //     _LED.LED_on(iChannel);        // turn on the LED
-    //     delay(800);
-    //     I2CMux1.openChannel(I2C_Channel[4+5-iChannel]);
-    //     info_display("Sensor ");
-    //     info_display(iChannel+1);
-    //     info_display(": ");
-    //     errCnt = 0;
-    //     Snapshot();
-    //     while (errCnt)
-    //     {
-    //         Snapshot();
-    //         if (errCnt > 10)
-    //         {
-    //             info_displayf("\n%dth opto sensor error!!! More details are shown as below:\n", iChannel+1);
-    //             for (uint8_t i = 5; i < 10; i++)
-    //             {
-    //                 for (uint8_t j = 0; j < 3; j++)
-    //                 {
-    //                     if (errRecord[i][j])
-    //                     {
-    //                         info_displayf("Opto sensor %d reading err type %d for %d times\n", i+1, j, errRecord[i][j]);
-    //                         errRecord[i][j] = 0;
-    //                     }
-    //                 }
-    //             }
-    //             _displayCLD.ErrorProcessatBegin("Opto sensor error\n Please restart power", String(iChannel+1));
-    //             sleep(3);
-    //             break;
-    //             // errCnt = 1;     //recheck after 3 seconds
-    //         }
-    //     }
-    //     _LED.LED_off(iChannel);       //turn off the LED
-    //     I2CMux1.closeChannel(I2C_Channel[4+5-iChannel]);
-
-    // }
     _LED.LED_PWM_Set(0); // Switch off LED driver after the testing
     info_displayln("////////////////");
 }
@@ -1592,10 +1408,6 @@ void sensor6035::Snapshot()
     /* read the value and send back */
     Word sensorResp = 0xFFFF; // VEML6035_GET_ALS_DATA();
     bool flagres = VEML6035_GET_ALS_DATA_I2C_Res(&sensorResp);
-    // if (!flagres && (sensorResp == 0) && (errCnt > 5))  //if read value 0 for 5 times, then change it to correct one, in case the real reading is zero
-    // {
-    //     /* code */
-    // }
 
     if (flagres || (sensorResp == 0) || (sensorResp == 0xFFFF)) // if error happened, start the err process
     {
@@ -1615,53 +1427,8 @@ void sensor6035::Snapshot()
             errRecord[iChannel][2]++;
         }
 
-        // if (errCnt > 3)     //if err more than 3 times, then try to initialize it
-        // {
-        //     Reset_Sensor();
-        //     // Basic_Initialization_Auto_Mode();
-        //     VEML6035_SET_CHANNEL_EN(VEML6035_WHITE_CH_DIS);
-        //     // VEML6035_SET_CHANNEL_EN(VEML6035_WHITE_CH_EN);
-        //     //2.) Switch On the ALS Sensor
-        //     VEML6035_SET_SD(VEML6035_ALS_SD_ON);
-        //     delay(50);
-        //     // ChannelEnableProcess(ChannelEnableRead);        //read the initial value
-        //     ChannelEnableProcess(ChannelEnableSet);         //set the required value and read again
-        //     // ALS_IT_Process(ALSITRead);        //read the initial value
-        //     ALS_IT_Process(ALSITSet);         //set the required value and read again
-        //     // GainProcess(GAINRead);        //read the initial value
-        //     GainProcess(GAINSet);         //set the required value and read again
-        //     // DigitalGainProcess(DGRead);        //read the initial value
-        //     DigitalGainProcess(DGSet);         //set the required value and read again
-        //     // SENS(SENSRead);        //read the initial value
-        //     SENS(SENSSet);         //set the required value and read again
-        // }
-
         return;
     }
-    // if(flagRes)
-    // {
-    //     info_displayln("sensor error reading once");
-    //     for (uint8_t i = 2; i < 12; i++)
-    //     {
-    //         delay(100);     //wait 100ms before reading again
-    //         flagRes = VEML6035_GET_ALS_DATA_I2C_Res(&value);
-    //         if (flagRes)
-    //         {
-    //             info_displayf("Read failure %d times\n", i);
-    //             if (i == 11)
-    //             {
-    //                 errCnt = 12;
-    //                 return;
-    //             }
-
-    //         }
-    //         else
-    //         {
-    //             info_displayf("Read success at %dth time\n", i);
-    //             break;
-    //         }
-    //     }
-    // }
     errCnt = 0;
     info_display("Single Shot: {Green: ");
     info_display(sensorResp);
@@ -2076,21 +1843,6 @@ void sensor6035::eSensor1stReadingFunc()
                         }
                     }
 
-                    /* Error handling for too dark conditions */
-                    // if ((acquisitionControl.getSum() <= 5) &&
-                    //     (acquisitionControl.getSizeValues() == acquisitionControl.getRepeats())) // if all the reading are zero, which means too dark to read, add error and continue
-                    // {
-                    //     error.addError(
-                    //         errorLightSensor, // errorModule
-                    //         errorTooDark,     // errorType
-                    //         sensorStep,       // errorProcessStep
-                    //         iChannel          // errorSlot
-                    //     );
-                    //     for (size_t i = 0; i < acquisitionControl.getRepeats(); i++)
-                    //     {
-                    //         acquisitionControl.store((sensor67Value[iChannel][COUNTER - 1] / 8)); // store zero for the error reading, and continue the process, in case all reading are error
-                    //     }
-                    // }
                     // add 100 ms to measurement time
                     sensor67ValueTime = millis() + 100;
                 }
@@ -2189,9 +1941,8 @@ void sensor6035::eSensor1stReadingFunc()
 /***********************************************************************
  * Function: clear()
  * Description: Resets the acquisition state for a fresh run: zeroes
- *  START_INTERVAL_TIME, COUNTER and iChannel, clears the 7-element
- *  SENSOR_DATA buffer and wipes the entire 10 x amplification_time
- *  sensor67Value measurement matrix.
+ *  START_INTERVAL_TIME, COUNTER and iChannel, and wipes the entire
+ *  10 x amplification_time sensor67Value measurement matrix.
  * pramameter: none
  *  return: none
  */
@@ -2202,65 +1953,12 @@ void sensor6035::clear()
     START_INTERVAL_TIME = 0;
     COUNTER = 0;
     iChannel = 0;
-    for (size_t i = 0; i < 7; i++)
-    {
-        SENSOR_DATA[i] = 0;
-    }
 
     uint8_t loops = _ForteSetting.parameter.amplification_time;
 
     for (size_t i = 0; i < 10 * loops; i++)
     {
         sensor67Value[i / loops][i % loops] = 0;
-    }
-}
-
-/***********************************************************************
- * Function: switchSensorAcquisitionState()
- * Description: Powers the currently selected VEML6035's ALS acquisition
- *  on or off by writing the shutdown (SD) bit.
- * pramameter: state - true to switch the sensor on (SD_ON), false to
- *  switch it off (SD_OFF)
- *  return: none
- */
-void sensor6035::switchSensorAcquisitionState(bool state)
-{
-    if (state == true)
-    {
-        VEML6035_SET_SD(VEML6035_ALS_SD_ON);
-    }
-    else
-    {
-        VEML6035_SET_SD(VEML6035_ALS_SD_OFF);
-    }
-}
-
-/***********************************************************************
- * Function: switchAllSensorsAcquisitionState()
- * Description: Switches the ALS acquisition state on or off for all 10
- *  sensors by opening each mux channel in turn, calling
- *  switchSensorAcquisitionState() and closing the channel.
- * pramameter: state - true to power all sensors on, false to power them
- *  off
- *  return: none
- */
-void sensor6035::switchAllSensorsAcquisitionState(bool state)
-{
-    // process the 1st 5 sensors
-    for (int iChannel = 0; iChannel < 5; iChannel++)
-    {
-        I2CMux.openChannel(I2C_Channel[iChannel]);
-        switchSensorAcquisitionState(state);
-        delay(10);
-        I2CMux.closeChannel(I2C_Channel[iChannel]);
-    }
-    // process the 2nd 5 sensors
-    for (int iChannel = 0; iChannel < 5; iChannel++)
-    {
-        I2CMux1.openChannel(I2C_Channel[iChannel]);
-        switchSensorAcquisitionState(state);
-        delay(10);
-        I2CMux1.closeChannel(I2C_Channel[iChannel]);
     }
 }
 
@@ -2357,43 +2055,6 @@ void sensor6035::reConfigSensors()
 }
 
 /***********************************************************************
- * Function: connectToSensor()
- * Description: Opens the given slot's I2C channel and validates its
- *  configuration; if checkSensorConfiguration() fails it re-establishes
- *  the settings via reConfigSingleSensor() and re-opens the channel,
- *  leaving the sensor selected and ready to read.
- * pramameter: slot - sensor/slot index (0-9) to connect to
- *  return: none
- */
-void sensor6035::connectToSensor(int slot)
-{
-    openSensorChannel(slot);
-    if (!checkSensorConfiguration())
-    {
-        info_displayln("[W] Re-establishing sensor configuration.");
-        reConfigSingleSensor(slot);
-        openSensorChannel(slot);
-    }
-    // VEML6035_SET_ALS_IT(VEML6035_ALS_IT_800ms);
-    // VEML6035_SET_SD(VEML6035_ALS_SD_ON);
-    delay(10);
-}
-
-/***********************************************************************
- * Function: disconnectFromSensor()
- * Description: Powers the currently selected sensor's ALS off (SD_OFF) and
- *  closes the given slot's I2C-mux channel to release the bus.
- * pramameter: slot - sensor/slot index (0-9) to disconnect from
- *  return: none
- */
-void sensor6035::disconnectFromSensor(int slot)
-{
-    VEML6035_SET_SD(VEML6035_ALS_SD_OFF);
-    delay(10);
-    closeSensorChannel(slot);
-}
-
-/***********************************************************************
  * Function: testShot()
  * Description: Manual diagnostic single-slot reading. Turns off all LEDs,
  *  lights the given slot's LED, opens its channel and accumulates repeated
@@ -2450,24 +2111,6 @@ void sensor6035::testShot(int slot)
 
     meanResponse = acquisitionControl.getSum();
 
-    // Word sensorResp = 0xFFFF;
-    // float integratedResponse = 0.0;
-    // bool flagres;
-    // uint8_t repeats = 8;
-    // openSensorChannel(slot);
-    // delay(400);
-    // info_display("{shots: ")
-    // for(uint8_t i=0; i<repeats;i++)
-    // {
-    //     flagres = VEML6035_GET_ALS_DATA_I2C_Res(&sensorResp);
-    //     integratedResponse += sensorResp;
-    //     info_display(sensorResp);
-    //     info_display(", ");
-    //     delay(100);
-    // }
-    // info_displayln("}");
-    // integratedResponse /= repeats;
-
     closeSensorChannel(slot);
     info_display("{Green: ");
     info_display(meanResponse);
@@ -2475,25 +2118,6 @@ void sensor6035::testShot(int slot)
     // Snapshot();
     // delay(100);
     _LED.LED_off_unguarded(slot);
-    // VEML6035_SET_SD(VEML6035_ALS_SD_OFF);
-
-    // info_display(VEML6035_GET_ALS_IT());
-    // info_display(", ");
-    // info_display(VEML6035_GET_GAIN());
-    // info_display(", ");
-    // info_display(VEML6035_GET_DG());
-    // info_display(", ");
-    // info_display(VEML6035_GET_SENS());
-    // info_display(", ");
-    // info_display(VEML6035_GET_CHANNEL_EN_Bit());
-    // info_display(", ");
-    // info_display(VEML6035_GET_Delay());
-    // info_display(", ");
-    // info_display(VEML6035_GET_ALS_Mode());
-    // info_display(", ");
-    // info_display(VEML6035_GET_PSM_EN_Bit());
-    // // closeSensorChannel(slot);
-    // info_displayln("////////////////");
 }
 
 /***********************************************************************

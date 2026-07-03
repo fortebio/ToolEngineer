@@ -52,16 +52,11 @@ private:
     e_sensorStep sensorStep = eSensorwait;
     uint8_t iChannel = 0; // record the channel that is reading
 
-    Word SENSOR_DATA[7] = {0};
-    // float (* calMatrix)[2];// set to _ForteSetting.parameter.slopes later at begin()
-
     // variables for testing LOD
-    int delayTime = 4000;
     int _heater1_PWM = 0;
     int _heater2_PWM = 0;
     int _heater3_PWM = 0;
 
-    int _top_heater1_PWM = 0;
     int _top_heater2_PWM = 0;
     int _top_heater3_PWM = 0;
 
@@ -104,10 +99,6 @@ public:
         reConfigSingleSensor(slot);
     }
 
-    void connectToSensor(int slot);
-
-    void disconnectFromSensor(int slot);
-
     void testShot(int slot);
 
     /* Function calib */ //////////////////////////////////////
@@ -136,7 +127,6 @@ public:
     void eSensorParaIni();
     bool getSensorPreheatReady();
 
-    bool JsonDataSplit();
     void setCounterDisplayflag(bool flag);
 
     void outputHeader();
@@ -144,8 +134,6 @@ public:
 
 private:
     void Basic_Initialization_Auto_Mode();
-    void Auto_Mode();
-    void Power_Saving_Mode();
     void setI2CChannelSeq();
     void ResetAllSensors();
     void ResetSingleSensor(uint8_t slot)
@@ -176,10 +164,8 @@ private:
     void closeSensorChannel(int slot);
     void openSensorChannel(int slot);
 
-    void switchAllSensorsAcquisitionState(bool state);
     bool checkSensorConfiguration();
     void reConfigSingleSensor(int slot);
-    void switchSensorAcquisitionState(bool state);
 
     unsigned long sensor67ValueTime = 0;
 

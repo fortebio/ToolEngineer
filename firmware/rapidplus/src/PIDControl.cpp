@@ -73,13 +73,6 @@ void PIDControl::begin()
     myPID3->SetMode(AUTOMATIC);
     myPIDhotlid2->SetMode(AUTOMATIC);
     myPIDhotlid3->SetMode(AUTOMATIC);
-    // Limit the hotlid PID output to the configured safe PWM, instead of the
-    // default 0~255, to avoid overdriving the top heaters. Use the larger of the
-    // two configured PWM values since the high/low labels can be swapped by config.
-    // double hotlid2MaxPWM = max(TOPHEATER2PWMHIGH, TOPHEATER2PWMLOW);
-    // double hotlid3MaxPWM = max(TOPHEATER3PWMHIGH, TOPHEATER3PWMLOW);
-    // myPIDhotlid2->SetOutputLimits(0, hotlid2MaxPWM);
-    // myPIDhotlid3->SetOutputLimits(0, hotlid3MaxPWM);
 
     // Heater1
     pinMode(HEATER1IO, OUTPUT);
@@ -407,59 +400,6 @@ void PIDControl::rerun()
     myPIDhotlid3->Compute();
     hotlidWaitMs = 15 * 60000; // restore the normal 15-min hotlid wait (calib->amp sets 5 min)
     pidStep = epidready;
-}
-
-/***********************************************************************
- * Function: rerunPIDBottom()
- * Description: Resets only the bottom heater PIDs. Stops the bottom heaters
- *  (heater1/2/3) and flushes the integral term of myPID, myPID2 and myPID3 by
- *  forcing their output to zero (CURRENT_TEMP_PID well above target, Compute)
- *  then restoring CURRENT_TEMP_PID to target. Does not change pidStep.
- * pramameter: none
- *  return: none
- */
-void PIDControl::rerunPIDBottom(void)
-{
-    stopHeaterBottom();
-    delay(110);
-    // clear the Isum in the PID
-    double Ki = _ForteSetting.parameter.kpid[1];    // 0.1
-    double Ki_2 = _ForteSetting.parameter.kpid2[1]; // 0.1
-    CURRENT_TEMP_PID = TARGET_TEMP + 255 * 10 / Ki;
-    myPID->Compute();
-    CURRENT_TEMP_PID = TARGET_TEMP + 255 * 10 / Ki_2;
-    myPID2->Compute();
-    myPID3->Compute();
-    delay(120);
-    CURRENT_TEMP_PID = TARGET_TEMP;
-    myPID->Compute();
-    CURRENT_TEMP_PID = TARGET_TEMP;
-    myPID2->Compute();
-    myPID3->Compute();
-}
-
-/***********************************************************************
- * Function: rerunPIDTop()
- * Description: Resets only the top hotlid PIDs. Stops the top heaters
- *  (hotlid2/3) and flushes the integral term of myPIDhotlid2 and myPIDhotlid3
- *  by forcing their output to zero (CURRENT_TEMP_PID well above target,
- *  Compute) then restoring CURRENT_TEMP_PID to target. Does not change pidStep.
- * pramameter: none
- *  return: none
- */
-void PIDControl::rerunPIDTop(void)
-{
-    stopHeaterTop();
-    delay(110);
-    // clear the Isum in the top hotlid PID
-    double Ki_3 = _ForteSetting.parameter.kpid3[1];
-    CURRENT_TEMP_PID = TARGET_TEMP + 255 * 10 / Ki_3;
-    myPIDhotlid2->Compute();
-    myPIDhotlid3->Compute();
-    delay(120);
-    CURRENT_TEMP_PID = TARGET_TEMP;
-    myPIDhotlid2->Compute();
-    myPIDhotlid3->Compute();
 }
 
 /***********************************************************************
@@ -818,11 +758,6 @@ double *PIDControl::getBottomTemperature()
 {
     return bottomTemperature;
 }
-
-// void PIDControl::heatOffset(int value)
-// {
-//     temperatureOffset = value;
-// }
 
 /***********************************************************************
  * Function: getHotlidTemperature()
@@ -1833,31 +1768,6 @@ void PIDControl::Maintain2_67()
         info_displayf("\nTimeMB2\t%.2f\tHeater2\tMaintain\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, (int)RESPONSE_SIGNAL);
     }
 }
-
-/***********************************************************************
- * Function: StopHeating()
- * Description: Switches off every heating output: bottom heater1/2/3
- *  (HEATER1/2/3IO) and the top hotlids, covering both the legacy combined
- *  HOTLID23IO (PCB V1.2) and the separate HOTLID2IO/HOTLID3IO (PCB V1.3).
- * pramameter: none
- *  return: none
- */
-void PIDControl::StopHeating()
-{
-    analogWrite(HEATER1IO, PWM_OFF); // switch off heater1
-    analogWrite(HEATER2IO, PWM_OFF); // switch off heater2
-    analogWrite(HEATER3IO, PWM_OFF); // switch off heater3
-    // PCB V1.2
-    analogWrite(HOTLID23IO, PWM_OFF);
-    // PCB V1.3
-    analogWrite(HOTLID2IO, PWM_OFF);
-    analogWrite(HOTLID3IO, PWM_OFF);
-}
-
-// void PIDControl::setepidfinish()
-// {
-//     pidStep = epidfinish;
-// }
 
 /***********************************************************************
  * Function: stopAllHeating()

@@ -148,18 +148,6 @@ bool AcquisitionControl::isMaxErrorReached()
 }
 
 /***********************************************************************
- * Function: setRepeats()
- * Description: Sets the number of samples to acquire by assigning the
- *  repeats member.
- * pramameter: repeat - the number of repeats to configure.
- *  return: none
- */
-void AcquisitionControl::setRepeats(uint8_t repeat)
-{
-    repeats = repeat;
-}
-
-/***********************************************************************
  * Function: getRepeats()
  * Description: Returns the currently configured number of repeats.
  * pramameter: none
@@ -181,32 +169,6 @@ void AcquisitionControl::clear()
 {
     values.clear();
     numErrors = 0;
-}
-
-/***********************************************************************
- * Function: getAverage()
- * Description: Computes the arithmetic mean of the stored values. Returns
- *  0.0 when no values are present; otherwise sums all samples and divides
- *  by the count.
- * pramameter: none
- *  return: double - the mean of the stored values, or 0.0 if empty.
- */
-double AcquisitionControl::getAverage()
-{
-    if (values.size() == 0)
-    {
-        return 0.0;
-    }
-    else
-    {
-        double mean = 0x0;
-        for (double j : values)
-        {
-            mean += j;
-        }
-        mean /= values.size();
-        return mean;
-    }
 }
 
 /***********************************************************************
@@ -245,17 +207,6 @@ void AcquisitionControl::addErrorCount()
 }
 
 /***********************************************************************
- * Function: getNumErrors()
- * Description: Returns the current accumulated error count.
- * pramameter: none
- *  return: uint8_t - the numErrors member value.
- */
-uint8_t AcquisitionControl::getNumErrors()
-{
-    return numErrors;
-}
-
-/***********************************************************************
  * Function: getSizeValues()
  * Description: Returns the number of samples currently stored in the values
  *  vector, cast to uint8_t.
@@ -265,29 +216,6 @@ uint8_t AcquisitionControl::getNumErrors()
 uint8_t AcquisitionControl::getSizeValues()
 {
     return uint8_t(values.size());
-}
-
-/***********************************************************************
- * Function: setNumMaxErrors()
- * Description: Sets the maximum allowed error count by assigning the
- *  maxErrors member.
- * pramameter: _maxErrors - the maximum number of errors to configure.
- *  return: none
- */
-void AcquisitionControl::setNumMaxErrors(uint8_t _maxErrors)
-{
-    maxErrors = _maxErrors;
-}
-
-/***********************************************************************
- * Function: getNumMaxErrors()
- * Description: Returns the configured maximum allowed error count.
- * pramameter: none
- *  return: uint8_t - the maxErrors member value.
- */
-uint8_t AcquisitionControl::getNumMaxErrors()
-{
-    return maxErrors;
 }
 
 /***********************************************************************

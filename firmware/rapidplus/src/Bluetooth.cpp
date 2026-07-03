@@ -16,12 +16,8 @@ uint64_t epsid = ESP.getEfuseMac();
 String id(String(epsid).c_str());
 String id_device = "RAPIDPlus";
 
-extern int language = 0;
-
 const char *serverName = "https://script.google.com/macros/s/AKfycbw2VXXLX6fUMgmyRrSgNgEi3b4gSyE2bdctQe_DNOnlZ58EfPclQrXrlMenH0y7SH5X/exec";
 const char *serverName2 = "https://api.fortebio.tech/api/v1/results/ingest";
-const char *API_KEY = "";
-// const char *API_tmp = "?api_key=";
 
 /***********************************************************************
  * Function: connectBLE()
@@ -41,40 +37,6 @@ void connectBLE()
   if (gBtReleased)
     return;
   SerialBT.begin("RAPID PLUS -" + String(ESP.getEfuseMac())); // Bluetooth device name
-  // bool status_BT = false;
-  // EEPROM.begin(_EEPROM_SIZE);
-  // EEPROM.get(ADDR_CHECK_BT, status_BT);
-  // if (status_BT == false)
-  // {
-  //   SerialBT.begin("RAPID PLUS -" + String(ESP.getEfuseMac())); // Bluetooth device name
-  //   status_BT = true;
-  //   EEPROM.put(ADDR_CHECK_BT, status_BT);
-  // }
-  // else
-  // {
-  //   SerialBT.end();
-  //   status_BT = false;
-  //   EEPROM.put(ADDR_CHECK_BT, status_BT);
-  // }
-  // EEPROM.end();
-}
-
-/***********************************************************************
- * Function: BLEloop()
- * Description: Polls SerialBT for incoming data; if available, reads the
- *  string and echoes it back over Bluetooth with a "received data:" prefix,
- *  then delays 300ms.
- * pramameter: none
- *  return: none
- */
-void BLEloop()
-{
-  if (SerialBT.available())
-  {
-    SerialBT.printf("received data: %s\n", SerialBT.readString());
-    dbg_bluetooth("receive data");
-  }
-  delay(300);
 }
 
 /***********************************************************************
@@ -258,36 +220,6 @@ void loadSettingDevice()
   ssid = EEPROM.readString(ADDR_SSID);
   password = EEPROM.readString(ADDR_PASSWORD);
   id_device = EEPROM.readString(ADDR_ID_DEVICE_BASE);
-  EEPROM.end();
-}
-
-/***********************************************************************
- * Function: Write_language_ToEEPROM()
- * Description: Writes the current global language selection to EEPROM byte
- *  address 200 and commits the change.
- * pramameter: none
- *  return: none
- */
-void Write_language_ToEEPROM()
-{
-  EEPROM.begin(_EEPROM_SIZE);
-  EEPROM.write(200, language);
-  delay(50);
-  EEPROM.commit();
-}
-
-/***********************************************************************
- * Function: Read_language_fromEEPROM()
- * Description: Reads the stored language selection from EEPROM byte address
- *  200 into the global language variable.
- * pramameter: none
- *  return: none
- */
-void Read_language_fromEEPROM()
-{
-  EEPROM.begin(_EEPROM_SIZE);
-  language = EEPROM.read(200);
-  delay(50);
   EEPROM.end();
 }
 
@@ -580,13 +512,7 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
     }
 
     serializeJson(dataPostGoogleSheet, jsonPost);
-
-    // Serial.printf("Heap before doc free: %u, largest: %u\n",
-    // ESP.getFreeHeap(), ESP.getMaxAllocHeap());
   } // <- JsonDocument destructed here, ~25-40KB returned to heap
-
-  // Serial.printf("Heap after doc free:  %u, largest: %u, jsonPost=%u bytes\n",
-  //               ESP.getFreeHeap(), ESP.getMaxAllocHeap(), jsonPost.length());
 
   // Now open TLS with the maximum free heap available.
   // setInsecure() skips cert chain validation -> smaller mbedTLS allocation.
@@ -617,7 +543,6 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Connection", "close");
 
-  // Serial.printf("POSTing %u bytes...\n", jsonPost.length());
   uint32_t t0 = millis();
   int httpResponseCode = http.POST(jsonPost);
   uint16_t tmpHttpCode = httpResponseCode;
@@ -647,7 +572,6 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
   // Now POST to the ForteBio ingest API. This is a separate endpoint from GAS /exec
   // and is used for the cloud dashboard. It expects the same JSON payload, but
   // requires an API key in the Authorization header.
-  // String url_2 = String(serverName2) + String(API_KEY);
   if (!http.begin(client, serverName2))
   {
     Serial.println("client.connect() failed");
@@ -664,8 +588,6 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
 
   t0 = millis();
   httpResponseCode = http.POST(jsonPost);
-  // Read the POST response body once (the stream can only be consumed once).
-  // Serial.printf("Post response: %s\n", responsePost.c_str());
 
   dt = millis() - t0;
 

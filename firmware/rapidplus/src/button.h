@@ -1,4 +1,3 @@
-/*
 #ifndef _BUTTON_H
 #define _BUTTON_H
 
@@ -7,42 +6,6 @@
 #include "sensor6035.h"
 #include "updateOTA.h"
 
-// typedef void (*hanler)();
-typedef void (*buttonCallback)();
-typedef enum {
-    B_RED,
-  B_BLUE,
-  B_WHITE
-} e_statusbutton;
-
-class buttonManager
-{
-private:
-    /// data
-public:
-    buttonManager();
-~buttonManager();
-void buttonStart();
-// void handleButton();
-
-bool buttonRed;
-bool buttonGreen;
-bool buttonWhite;
-};
-
-
-#endif
-*/
-
-#ifndef _BUTTON_H
-#define _BUTTON_H
-
-#include "define.h"
-#include "ForteSetting.h"
-#include "sensor6035.h"
-#include "updateOTA.h"
-
-typedef void (*buttonCallback)();
 typedef enum
 {
     B_RED,
@@ -101,15 +64,9 @@ private:
 
 public:
     buttonManager();
-    ~buttonManager();
 
     void buttonStart(); // Attach ISR (call once in setup())
     void loop();        // Poll + process (call every iteration of Arduino loop())
-
-    // Legacy fields — kept for API compatibility, not actively used
-    bool buttonRed;
-    bool buttonGreen;
-    bool buttonWhite;
 };
 
 #endif

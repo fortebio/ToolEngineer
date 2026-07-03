@@ -27,17 +27,13 @@ typedef enum
     epidready,           // ready to start
     epid1startpreHeat80, // make sure it's not overheat
     epid1preheat80,      // heat heat1 to 80
-    // epid1hotlid,         // activate the hotlid
     epid1ready, // lysis is ready
-    // epid1maintain80,    //maintain heat1 to 80 for 10mins, and check the hotlid temperature and make sure it's won't overheat
-    epid1finish,         // time out for 10mins, wait for next step
     epid2startpreHeat67, // check before preheat heater2 to 67
     epid2preHeat67,      // preheat heater2 to 67
     epid3startpreHeat67, // preheat heater3 to 67
     epid3preHeat67,      // preheat heater3 to 67
     ehotlid23heat,       // heat hotlid2
     epid23ready,         // heater2 and heater3 are ready, wait for next step
-    // epidfinish          //finish the testing, result review or restart
     epidcalibpreheat55,  // calib flow: preheat heater2,3 to 55C then 5-min hold
     epidcalibmaintain55  // calib flow: hold heater2,3 at 55C during select/calib
 } e_pidstep;
@@ -67,12 +63,6 @@ private:
     unsigned long topSensorRespTime = 0;    // timer to record when the top temperature sensor should response the value
 
     unsigned long START_INTERVAL_TIME = 0;
-    int COUNTER = 0;
-
-    bool flagheat80Setting = false;
-    uint8_t foverHeat = 0;                 // if it's over heat, then need to cool down. e.g. 80->67. This is set to check normal process, not for over heat error
-    bool foverHeatErr = false;             // RFU
-    unsigned long START_OverHeat_TIME = 0; // RFU
 
     // Calib-preheat (55C) flow timers
     uint32_t timeCalibReached = 0; // millis() when heater2,3 first reached 55C
@@ -98,8 +88,6 @@ public:
     void begin();
     void loop();
     void rerun();
-    void rerunPIDBottom(); // rerun the PID for bottom heater
-    void rerunPIDTop();    // rerun the PID for top heater
 
     void sensorSeq();
 
@@ -116,9 +104,7 @@ public:
     void setpid1startpreHeat80(); // button set this to start pid1 process
     void StartPreheat80();
     void Heat1Preheat80(); // pre heat the heat block 1 to 80
-    // void HeatHotlid1();             //heat the hotlid 1 to 80
     void pid1Maintain80(); // maintain heat1 to be 80 when heat up hotlid1 and maintain
-    // void MaintainHotlid1();
 
     void setPreheat67();      // change the status to set epidstartpreHeat67 after button pressing
     void setCalibPreheat55(); // calib flow: enter preheat heater2,3 to 55C
@@ -134,19 +120,13 @@ public:
     void Preheat3_67();
     void Maintain3_67();
 
-    void heatOldLid23();
     void heatNewLid23();
     void HeatHotlid23();
 
-    void maintainOldLid23();
     void maintainNewLid23();
     void MaintainHotlid23();
 
     bool getphase2ready();
-
-    // void setepidfinish();
-
-    void StopHeating();
 
     void stopAllHeating();
     void stopHeaterBottom(void);

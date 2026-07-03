@@ -32,8 +32,6 @@ void Fan::begin()
 {
     pinMode(FANIO, OUTPUT);    // sets the pin as output
     digitalWrite(FANIO, HIGH); // Turn on the Fan
-    // digitalWrite(FANIO, PWM_OFF);
-    // analogWrite(FANIO, 0x50);
 }
 
 /***********************************************************************
@@ -48,7 +46,6 @@ void Fan::loop()
 {
     // set here in case the Fan is on/off based on the tempeature, or adjust the speed via PWM
     digitalWrite(FANIO, HIGH); // Turn on the Fan
-    //  digitalWrite(FANIO, PWM_FULL);     //Turn on the Fan
 }
 
 /***********************************************************************
@@ -60,7 +57,6 @@ void Fan::loop()
 void Fan::FanStart()
 {
     digitalWrite(FANIO, HIGH); // Turn on the Fan
-    // digitalWrite(FANIO, PWM_FULL);     //Turn on the Fan
 }
 
 /***********************************************************************
@@ -72,7 +68,6 @@ void Fan::FanStart()
 void Fan::FanStop()
 {
     digitalWrite(FANIO, LOW); // Turn off the Fan
-    // digitalWrite(FANIO, PWM_OFF);     //Turn off the Fan
 }
 
 Fan _Fan;

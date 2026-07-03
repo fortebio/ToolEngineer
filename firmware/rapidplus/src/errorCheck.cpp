@@ -3,8 +3,6 @@
 #include <ArduinoJson.h>
 
 ErrorCheck error; // global variable to record the error type and times, used for opto sensor reading error process
-void postError_Googlesheet(uint8_t errorModule, uint8_t errorType, uint8_t errorProcessStep, uint8_t errorSlot);
-void postError_fullGoogleSheet(void);
 
 /***********************************************************************
  * Function: postError_Googlesheet()

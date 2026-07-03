@@ -23,16 +23,11 @@ class AcquisitionControl
         void store(Word value);
         bool isFinished();
         bool isMaxErrorReached();
-        void setRepeats(uint8_t repeat);
         uint8_t getRepeats();
         void clear();
-        double getAverage();
         Word getSum();
-        uint8_t getNumErrors();
         uint8_t getSizeValues();
         void addErrorCount();
-        void setNumMaxErrors(uint8_t maxErrors);
-        uint8_t getNumMaxErrors();
         bool isClear();
         void fixValuesErrors();
 };

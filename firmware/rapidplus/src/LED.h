@@ -19,9 +19,6 @@ private:
     bool mcpReady = false; // true only after mcp.begin_I2C() has succeeded
     const int LED_CHANNEL[10] = {LED0, LED1, LED2, LED3, LED4, LED5, LED6, LED7, LED8, LED9};
 
-    // All PWM variables, configurable
-    int PWM_ON = 10;
-
     void _mcp_digitalWrite(uint8_t pin, uint8_t val);
 
 public:
@@ -29,9 +26,6 @@ public:
     ~LED();
     void begin();
     void LED_PWM_Set(int value);
-    void LED_on(int channel);
-    void LED_off(int channel);
-    void LED_OFF_ALL();
     void BuzzerOn();
     void BuzzerOff();
     uint8_t getPWMValue(int LEDChannel);

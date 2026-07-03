@@ -19,7 +19,6 @@ private:
     uint32_t recvLen = 0;        //length of the received data
     unsigned long recvTime = 0; //time to receive the last daqta, used to check all data is received
     bool moreMsg = false;       //used for long msg receiving
-    // bool breceiving = false;
 
 
     bool BuzzerConfig();
@@ -28,17 +27,13 @@ private:
     bool TemperatureOutput();
     bool HeaterStepSet();
     bool JsonDataConfig();
-    bool JsonFileRead();
     bool ParaRead();
     bool EEPROMRead();
     bool resultOutput();
     bool restart();
     bool start_amplification_simulation();
 
-    // void SensorTest(char command);
-
     int paraIntSplit(char * source, int *para);
-    void SerialCmdProcess(char command);
 
 public:
     ForteSetting(/* args */);

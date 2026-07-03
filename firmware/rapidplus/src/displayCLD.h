@@ -33,18 +33,10 @@ private:
     bool taken;
 };
 
-// typedef enum
-// {
-//     VietNamese,
-//     English,
-//     Null
-// } language_pointer;
-
 typedef enum
 {
     escreenStart, // display start screen
     ewaitingReadsensor,
-    // echoosetube,        //not use in the new design
     epreheating80,
     eheathotlid1,
     ewaitLysisTube,
@@ -53,24 +45,15 @@ typedef enum
     eheating67, // this include the 2 heating blocks and 2 hot lids
     ewaitampTube,
     eoptoreading,
-    // eshowresult,
-    // eincreaseto80,  //
     eprepare,
     escreenResult,
     escreenErrorResult,
     escreenFinished,
     escreenReview,
     errprocess, // error process display, for button to check err status
-    // eErrResart,          //restart after the button is pressed
     escreenRestart,  // used for restart display
     ebuttonrestart,  // when press white button to restart
     ewaitingtimeout, // wait above display to be finished
-    // escreenAverageResult,
-    // ecalibSensor,
-    // e_setting,
-    // e_connect_bluetooth,
-    // e_language,
-    // logdata
     eSettingMenu,
     eUpLoadData,
     eSettingBluetooth,
@@ -140,7 +123,6 @@ public:
     void RestartProcess(String strDescript, String strValue);
 
     void drawHeat67Header(const char *line1, const char *line2); // shared header renderer for the two 67C screens
-    void drawHeaderNofication(const char *line1, const char *line2, const char *line3, const char *line4);
     void Heat67LCD_Header();    // display inf
     void Heat67LCD();           // heat to 67 degree
     void Preheat67LCD_Header(); // display inf
@@ -171,16 +153,7 @@ public:
      * @brief Setting Menu
      */
     void setting_Menu(void);
-    void setting_Language(void);
-    void setting_Bluetooth(void);
     void setting_Wifi(void);
-    /*    void screen_Calib();
-        void waiting_Calib();
-        void screen_Calib_Complete();
-        void log_data();
-        void set_language();
-        void setting();
-    */
 
     /* Calibration */
     void display_Select_menu_calib(void);
@@ -203,7 +176,6 @@ public:
     uint8_t index = 0;
     uint8_t led_power[3] = {0};
 
-    void set_connect_bluetooth();
     //  e_statuslcd type_infor = escreenStart;
     e_statuslcd type_infor = escreenStart; // e_language;    //start directly
     int couter = 0;
@@ -211,7 +183,6 @@ public:
     bool changeScreen = true;
     bool temperatureShow = false;
     bool bheadershow = false; // if there is header needed to show static, then only write once without refreshing every time
-    // language_pointer language_state = Null; // 0: Vietnamese 1: English
     int language = 1; // 0:VietNamese 1: English //change default as English
     volatile int step = 1;
 };

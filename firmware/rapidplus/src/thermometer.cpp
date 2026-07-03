@@ -30,9 +30,8 @@ thermometer::~thermometer()
 /***********************************************************************
  * Function: begin()
  * Description: Initializes the Dallas temperature sensor. Starts the driver,
- *  switches it to non-blocking conversion mode, records the start time in
- *  microseconds via gettimeofday() (RFU for timeout checks), triggers the
- *  first temperature conversion request and waits 1 second.
+ *  switches it to non-blocking conversion mode, triggers the first
+ *  temperature conversion request and waits 1 second.
  * pramameter: none
  *  return: none
  */
@@ -42,10 +41,6 @@ void thermometer::begin()
     this->DallasSensor->begin();
     this->DallasSensor->setWaitForConversion(false); // here configure to non-block mode
 
-    // record start time, RFU to check the timeout issue
-    struct timeval tv_now;
-    gettimeofday(&tv_now, NULL);
-    time_us_start = (int64_t)tv_now.tv_sec * 1000000L + (int64_t)tv_now.tv_usec;
     this->DallasSensor->requestTemperatures();
     delay(1000);
 }
@@ -64,10 +59,10 @@ void thermometer::loop()
 
 /***********************************************************************
  * Function: readHeatBlkTemperature()
- * Description: If a temperature conversion has completed, records the read
- *  timestamp (millis()), gets the number of detected sensors, reads each
- *  sensor's Celsius temperature into sensorTemp[], then requests a new
- *  conversion and sets the newTemeraturePID and newTemperatureScreen flags.
+ * Description: If a temperature conversion has completed, gets the number of
+ *  detected sensors, reads each sensor's Celsius temperature into sensorTemp[],
+ *  then requests a new conversion and sets the newTemeraturePID and
+ *  newTemperatureScreen flags.
  * pramameter: none
  *  return: none
  */
@@ -75,7 +70,6 @@ void thermometer::readHeatBlkTemperature()
 {
     if (this->DallasSensor->isConversionComplete())
     {
-        temperatureReadingTime = millis(); // record the time immediately to try record the time that close to the tempeature reading
         tempSensorQuantity = this->DallasSensor->getDeviceCount();
 
         for (size_t i = 0; i < tempSensorQuantity; i++)
@@ -161,19 +155,6 @@ bool thermometer::getNewTemperatureScreenFlag()
 void thermometer::clearNewTemperatureScreenFlag()
 {
     newTemperatureScreen = false;
-}
-
-// this is the time to read the temperature of all the 3 heater blocks
-/***********************************************************************
- * Function: getTemperatureReadingTime()
- * Description: Returns the millis() timestamp captured when the most recent
- *  temperature conversion completed.
- * pramameter: none
- *  return: unsigned long - the temperatureReadingTime in milliseconds.
- */
-unsigned long thermometer::getTemperatureReadingTime()
-{
-    return temperatureReadingTime;
 }
 
 thermometer _bottomThermometer(ONE_WIRE); // this is the 3 sensors used for heating block

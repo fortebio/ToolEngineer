@@ -241,7 +241,6 @@ void setup()
   _Fan.begin();
   _PIDControl.timeoutSetting();
 
-  // postData_Chart();
   checkFirmware();
 
   /****** Create RTOS Tasks *****/

@@ -18,8 +18,6 @@ Support auto configuration, the frequency and duration
  */
 buzzer::buzzer(/* args */)
 {
-    // pinMode(BUZZER, OUTPUT);
-    // digitalWrite(BUZZER, 1);
 }
 
 /***********************************************************************
@@ -157,21 +155,6 @@ void buzzer::BuzzerSet(int onDuration, int offDuration, int times)
 }
 
 /***********************************************************************
- * Function: buzzer::BuzzerLongSet()
- * Description: Configures the repeating "long" pattern parameters: the gap
- *  (longInterval) inserted after each beep session and how many times
- *  (longTimes) the whole session repeats.
- * pramameter: interval - the long interval gap in ms after each session
- * pramameter: times - the number of times the session repeats (longTimes)
- *  return: none
- */
-void buzzer::BuzzerLongSet(int interval, int times)
-{
-    longInterval = interval;
-    this->longTimes = times;
-}
-
-/***********************************************************************
  * Function: buzzer::BuzzerConfig()
  * Description: Configures the full buzzer pattern from a 5-element array:
  *  para[0]=duration_on, para[1]=duration_off, para[2]=times,
@@ -215,17 +198,6 @@ void buzzer::BuzzerAlert()
     int para[] = {1000, 500, 3, 0, 3};
     BuzzerConfig(para);
     BuzzerStart();
-}
-
-/***********************************************************************
- * Function: buzzer::BuzzerChoose()
- * Description: Intended to select a buzzer pattern by type; currently an
- *  empty stub with no implementation.
- * pramameter: type - the pattern type to choose (unused)
- *  return: none
- */
-void buzzer::BuzzerChoose(int type)
-{
 }
 
 /***********************************************************************

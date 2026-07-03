@@ -5,7 +5,6 @@
 #include <cstring>
 #include <vector>
 #include <ArduinoJson.h>
-// #include "..\ForteSetting.h"
 
 // Define Point class
 class Point
@@ -42,7 +41,6 @@ const char OutcomePositive[] = "Positive";
 const char OutcomeNegative[] = "Negative";
 const char OutcomeSlightPositive[] = "Slight Positive";
 const char OutcomeError[] = "Error";
-const char OutcomeBreak[] = "Break";
 
 // Define FeatureDetection class
 class FeatureDetection
@@ -173,7 +171,6 @@ public:
     double transition_percentile;    // percentile used for calcuating transition time (Ct) & fluorescence increase
     uint8_t sg_order;                // interpolation smoothing order
     uint8_t sg_window;               // smoothing window size for algorithm
-    // int sg_window_display;              // window size for display to users
     uint8_t baseline_start; // start of baselining (minutes)
     uint8_t baseline_range; // range of baselining (minutes)
 
@@ -193,7 +190,6 @@ public:
         _json["transition_percentile"] = transition_percentile;
         _json["sg_order"] = sg_order;
         _json["sg_window"] = sg_window;
-        // _json["sg_window_display"] = sg_window_display;
         _json["baseline_start"] = baseline_start;
         _json["baseline_range"] = baseline_range;
         return _json;
@@ -209,7 +205,6 @@ public:
         transition_percentile = _json["transition_percentile"];
         sg_order = _json["sg_order"];
         sg_window = _json["sg_window"];
-        // sg_window_display = _json["sg_window_display"];
         baseline_start = _json["baseline_start"];
         baseline_range = _json["baseline_range"];
     }
@@ -227,7 +222,6 @@ public:
         transition_percentile = 0.25;
         sg_order = 0;
         sg_window = 2;
-        // sg_window_display = 2;
         baseline_start = 3;
         baseline_range = 4;
     }
@@ -262,8 +256,6 @@ public:
 
     void fromEEPROM(JsonDocument &_doc)
     {
-        // JsonObject _json_parameters = _doc["parameters"];
-        // parameters.fromJSON(_json_parameters);
         parameters.fromEEPROM();
         JsonArray _json_times = _doc["time_data"].as<JsonArray>();
         loadVectorFromJSON(time_data, _json_times);
@@ -366,39 +358,5 @@ private:
         }
     }
 };
-
-// // Define Calibration class
-// struct Calibration {
-//     double slopes[10];
-//     double origins[10];
-// };
-
-// // Define Configuration class
-// class Configuration {
-// public:
-//     Calibration calibration;
-//     double led_power[20];
-//     char units[20];
-//     char device_id[20];
-//     int slots;
-//     int amplification_time;
-//     int measurement_interval;
-//     char software_version[20];
-
-//     // Constructor
-//     Configuration(Calibration calib, const double* led, const char* unit, const char* dev_id,
-//         int slot, int ampl_time, int meas_interval, const char* soft_ver)
-//         : calibration(calib), slots(slot),
-//         amplification_time(ampl_time), measurement_interval(meas_interval) {
-//         // Copy LED values directly into led_power
-//         for (int i = 0; i < 10; ++i) {
-//             led_power[i] = led[i];
-//         }
-//         // Copy unit, dev_id, and soft_ver strings
-//         strncpy(units, unit, sizeof(units));
-//         strncpy(device_id, dev_id, sizeof(device_id));
-//         strncpy(software_version, soft_ver, sizeof(software_version));
-//     }
-// };
 
 #endif // ALGOCLASSES_H

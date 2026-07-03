@@ -14,8 +14,6 @@
 // #include "sensor6035.h"
 
 #define Forte_Green 0x25F8
-#define VIOLET 0xA81F
-String measure_value = "";
 
 // bool butt = 1;  // 0: blue, 1: green
 
@@ -118,32 +116,6 @@ void show_IconWifi(void)
   }
 }
 
-/***********************************************************************
- * Function: show_IconBluetooth()
- * Description: Free function that manages Bluetooth power state based on
- *  the current screen. While type_infor is escreenResult or escreenStart
- *  it marks BT as on; once the state leaves those screens it ends the
- *  SerialBT connection one time (turning Bluetooth off during a process).
- * pramameter: none
- *  return: none
- */
-void show_IconBluetooth(void)
-{
-  static bool turnOn_BT = false; // turn off BT when Process is runing and save BT state to turn off once
-  if (_displayCLD.type_infor == escreenResult || _displayCLD.type_infor == escreenStart)
-  {
-    turnOn_BT = true;
-  }
-  else
-  {
-    if (turnOn_BT == true)
-    {
-      turnOn_BT = false;
-      /* turn off bluetooth*/
-      SerialBT.end();
-    }
-  }
-}
 /***********************************************************************
  * Function: displayWaitingUpData()
  * Description: Free function that shows the "Data Uploading...!" /
@@ -552,44 +524,6 @@ void displayCLD::drawHeat67Header(const char *line1, const char *line2)
     this->display->fillCircle(55, 180, 17, RED);
     bheadershow = false; // header has been showed
   }
-}
-
-/***********************************************************************
- * Function: drawHeaderNofication()
- * Description: Shared static-header renderer for the two 67C/preheat screens
- *  (Heat67LCD_Header and Preheat67LCD_Header). Guarded by bheadershow: clears
- *  the screen, prints the four given title lines and the warning band/box, then
- *  clears bheadershow.
- * pramameter: line1, line2, line3, line4 - the four title text lines to show
- *  return: none
- */
-void displayCLD::drawHeaderNofication(const char *line1, const char *line2, const char *line3, const char *line4)
-{
-  this->display->fillScreen(BLACK);
-  this->display->setTextSize(2);
-  this->display->setTextColor(Forte_Green);
-  this->display->setCursor(15, 60);
-  this->display->print(line1);
-  this->display->setCursor(15, 90);
-  this->display->print(line2);
-  this->display->drawRect(30, 140, 272, 80, GREEN);
-  this->display->drawRect(29, 139, 274, 82, GREEN);
-  for (int i = 18; i <= 310; i += 10)
-  {
-    static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
-    this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
-    this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
-  }
-
-  this->display->setTextSize(2);
-  this->display->setTextColor(GREEN);
-  this->display->setCursor(30, 240);
-  this->display->print(line3);
-  this->display->setCursor(30, 260);
-  this->display->print(line4);
-
-  // this->display->drawCircle(55, 180, 22, RED);
-  // this->display->fillCircle(55, 180, 17, RED);
 }
 
 /***********************************************************************
@@ -1320,31 +1254,7 @@ void displayCLD::screen_Result(char key)
       postError_fullGoogleSheet();
     }
 
-    // this->display->setTextSize(1);
-    // if (httpCode >= 200 && httpCode <= 302 && key == 'f')
-    // {
-    //   this->display->setTextColor(GREEN);
-    //   this->display->setCursor(10, 230);
-    //   this->display->printf("Upload Success");
-    //   this->display->setTextColor(WHITE);
-    //   this->display->setCursor(160, 230);
-    //   this->display->printf("Press white: next");
-    // }
-    // else if (key == 'f')
-    // {
-    //   this->display->setTextColor(WHITE);
-    //   this->display->setCursor(160, 230);
-    //   this->display->printf("Press white: next");
-    //   this->display->setTextColor(RED);
-    //   this->display->setCursor(10, 230);
-    //   this->display->printf("Upload Failed");
-    // }
-    // else
-    // {
-    //   this->display->setTextColor(WHITE);
-    //   this->display->setCursor(10, 230);
-    //   this->display->printf("Press white: next");
-    // }
+    this->display->setTextSize(1);
     if (key == 'f')
     {
       bool ok = httpCode >= 200 && httpCode <= 302;
@@ -1424,119 +1334,6 @@ void displayCLD::screen_errorResult(void)
   changeScreen = false;
 }
 // }
-
-/***********************************************************************
- * Function: set_connect_bluetooth()
- * Description: WiFi setup over Bluetooth flow. Shows the current WiFi ID,
- *  password and ID (Vietnamese "Cài đặt WIFI" when language==0, else
- *  English "WIFI Set up"), then calls connectWIFI() to receive new
- *  credentials over Bluetooth, saves them to EEPROM via saveSettingDevice()
- *  and reloads them, displays a success message and the updated values,
- *  then restarts the ESP.
- * pramameter: none
- *  return: none
- */
-void displayCLD::set_connect_bluetooth()
-{
-  if (language == 0)
-  {
-    this->display->fillScreen(BLACK);
-    // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->setTextSize(2);
-    this->display->setTextColor(ORANGE);
-    this->display->setCursor(70, 30);
-    this->display->print("Cài đặt WIFI");
-    this->display->drawRect(18, 50, 296, 50, WHITE);
-    this->display->setTextColor(WHITE);
-    this->display->setTextSize(1);
-    this->display->setCursor(25, 90);
-    this->display->print("WiFi ID: " + ssid);
-    this->display->drawRect(18, 110, 296, 50, WHITE);
-    this->display->setCursor(25, 150);
-    this->display->print("Password: " + password);
-    this->display->drawRect(18, 170, 296, 50, WHITE);
-    this->display->setCursor(25, 210);
-    this->display->print("ID: " + id);
-    connectWIFI();       // Obtain Wifi ID and password from user via bluetooth
-    saveSettingDevice(); // save Wifi ID and password in EEPROM
-    loadSettingDevice();
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(2);
-    this->display->setCursor(25, 120);
-    this->display->setTextColor(GREEN);
-    this->display->print("Cài đặt thành công!");
-    delay(2000);
-    this->display->fillScreen(BLACK);
-    // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->setTextSize(2);
-    this->display->setTextColor(ORANGE);
-    this->display->setCursor(70, 30);
-    this->display->print("Cài đặt  WIFI");
-    this->display->drawRect(18, 50, 296, 50, WHITE);
-    this->display->setTextColor(WHITE);
-    this->display->setTextSize(1);
-    this->display->setCursor(25, 90);
-    this->display->print("WiFi ID: " + ssid);
-    this->display->drawRect(18, 110, 296, 50, WHITE);
-    this->display->setCursor(25, 150);
-    this->display->print("Password: " + password);
-    this->display->drawRect(18, 170, 296, 50, WHITE);
-    this->display->setCursor(25, 200);
-    this->display->print("ID: " + id);
-    delay(2000);
-    ESP.restart();
-  }
-  else
-  {
-    this->display->fillScreen(BLACK);
-    // this->display->drawRect(0,0,320,240,BLUE);
-    // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->setTextSize(2);
-    this->display->setTextColor(ORANGE);
-    this->display->setCursor(70, 30);
-    this->display->print("WIFI Set up");
-    this->display->drawRect(18, 50, 296, 50, WHITE);
-    this->display->setTextColor(WHITE);
-    this->display->setTextSize(1);
-    this->display->setCursor(25, 90);
-    this->display->print("WiFi ID: " + ssid);
-    this->display->drawRect(18, 110, 296, 50, WHITE);
-    this->display->setCursor(25, 150);
-    this->display->print("Password: " + password);
-    this->display->drawRect(18, 170, 296, 50, WHITE);
-    this->display->setCursor(25, 210);
-    this->display->print("ID: " + id);
-    connectWIFI();       // Obtain Wifi ID and password from user via bluetooth
-    saveSettingDevice(); // save Wifi ID and password in EEPROM
-    loadSettingDevice();
-    // Update newScreen
-    this->display->fillScreen(BLACK);
-    this->display->setTextSize(2);
-    this->display->setCursor(25, 120);
-    this->display->setTextColor(GREEN);
-    this->display->print("Succesfull!");
-    delay(2000);
-    this->display->fillScreen(BLACK);
-    // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->setTextSize(2);
-    this->display->setTextColor(ORANGE);
-    this->display->setCursor(70, 30);
-    this->display->print("WIFI Set up");
-    this->display->drawRect(18, 50, 296, 50, WHITE);
-    this->display->setTextColor(WHITE);
-    this->display->setTextSize(1);
-    this->display->setCursor(25, 90);
-    this->display->print("WiFi ID: " + ssid);
-    this->display->drawRect(18, 110, 296, 50, WHITE);
-    this->display->setCursor(25, 150);
-    this->display->print("Password: " + password);
-    this->display->drawRect(18, 170, 296, 50, WHITE);
-    this->display->setCursor(25, 200);
-    this->display->print("ID: " + id);
-    delay(2000);
-    ESP.restart();
-  }
-}
 
 /***********************************************************************
  * Function: settingSucces()
@@ -1644,13 +1441,6 @@ void displayCLD::loop()
       break;
     }
 
-      // case eincreaseto80:
-      // {
-      //   dbg_display("eincreaseto80");
-      //   this->preHeat80CLD_Header();
-      //   this->preHeat80CLD();
-      //   break;
-      // }
     case eoptoreading:
     case ewaitingReadsensor:
     {
@@ -1697,11 +1487,6 @@ void displayCLD::loop()
       // this->RestartProcess("Reboot after Err", "Rebooting...");
       break;
     }
-    // case eErrResart:
-    // {
-    //   this->RestartProcess("Reboot after Err", "Rebooting...");
-    //   break;
-    // }
     case escreenRestart:
     {
       // this->ErrRebootDisplay();
@@ -1973,17 +1758,6 @@ void displayCLD::setting_Wifi(void)
   }
   delay(1000);
   esp_restart();
-}
-
-/***********************************************************************
- * Function: setting_Language()
- * Description: Placeholder for a language settings screen. Currently
- *  empty; performs no action.
- * pramameter: none
- *  return: none
- */
-void displayCLD::setting_Language(void)
-{
 }
 
 /* Function Calib */

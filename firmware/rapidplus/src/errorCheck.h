@@ -130,7 +130,6 @@ typedef struct
                                    *   4: Wrong data from sensor */
     uint8_t errorProcessStep = 0; /* record which step of the error process, used for error process. For example, if the error is "no data from sensor", then we can do different process for different step, such as first time, second time, third time, etc. The value is starting from 0, and increase by 1 each time the same error happened. */
     uint8_t errorSlot = 0;
-    // uint8_t index = 0; /* record the index of the error in the error vector, used for error process. For example, if there are multiple errors in the error vector, we can use this index to identify which error is being processed. The value is starting from 0, and increase by 1 each time a new error is added to the error vector. */
 } ErrorRecord_t;
 
 typedef class
@@ -138,11 +137,6 @@ typedef class
 public:
     std::vector<ErrorRecord_t> error;
     uint8_t numUnit = 0; // quantity of the unit that has error, used for error process. For example, if the error is "no data from sensor", then we can check how many sensors have no data, and do different process for different quantity, such as 1 sensor, 2 sensors, 3 sensors, etc.
-
-    size_t errorSize()
-    {
-        return error.size() * sizeof(ErrorRecord_t);
-    }
 
     void addError(uint8_t errorModule, uint8_t errorType, uint8_t errorProcessStep, uint8_t errorSlot)
     {
@@ -158,17 +152,8 @@ public:
         _errorRecord.errorType = errorType;
         _errorRecord.errorProcessStep = errorProcessStep;
         _errorRecord.errorSlot = errorSlot;
-        // _errorRecord.index = numUnit; // the index will be updated in the error process, used for error process
         numUnit++;
         error.push_back(_errorRecord);
-    }
-    void deleteError(size_t index)
-    {
-        if (index < error.size())
-        {
-            error.erase(error.begin() + index);
-            numUnit--;
-        }
     }
     void saveErrorToEEPROM()
     {

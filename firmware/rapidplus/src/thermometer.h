@@ -12,12 +12,10 @@ private:
     /* data */
     OneWire *OneWireSensor;
     DallasTemperature *DallasSensor;
-    int64_t time_us_start;
     uint8_t tempSensorQuantity;
     double sensorTemp[HOTLIDQUANTITY];    //used by bottom heater and top heater
     bool newTemperatureScreen = false;      //flag for screen to display
     bool newTemeraturePID = false;          //flag for PID to control
-    unsigned long temperatureReadingTime = 0;       //record the time when read the temperature
 
 public:
     thermometer(int Wire);
@@ -31,7 +29,6 @@ public:
     void clearNewTemperatureFlag();
     bool getNewTemperatureScreenFlag();
     void clearNewTemperatureScreenFlag();
-    unsigned long getTemperatureReadingTime();
 };
 
 

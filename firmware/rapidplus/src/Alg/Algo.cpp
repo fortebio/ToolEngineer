@@ -1,4 +1,3 @@
-#include <iostream>
 #include <vector>
 #include "AlgoData.h"
 #include "Algo.h"
@@ -70,27 +69,6 @@ size_t find_crossing_lower_than_reversed(const std::vector<double> &_array, doub
 }
 
 /***********************************************************************
- * Function: find_crossing_higher_than_reversed()
- * Description: Scans _array backward from start_index down to index 0 and
- *  returns the index of the first element that is greater than or equal to
- *  'crossing' (first upward crossing searching in reverse).
- * pramameter: _array = data to search; crossing = threshold value;
- *  start_index = index to begin the reverse scan
- *  return: index of the first element >= crossing, or -1 if none found
- */
-size_t find_crossing_higher_than_reversed(const std::vector<double> &_array, double crossing, int start_index)
-{
-    for (int index = start_index; index >= 0; --index)
-    {
-        if (_array[index] >= crossing)
-        {
-            return index;
-        }
-    }
-    return -1;
-}
-
-/***********************************************************************
  * Function: mean()
  * Description: Computes the arithmetic mean of the elements of vec over the
  *  half-open index range [startIndex, endIndex), summing the values and
@@ -109,7 +87,6 @@ float mean(const std::vector<double> &vec, int startIndex, int endIndex)
     float sum = 0.0;
     for (int i = startIndex; i < endIndex; i++)
     {
-        // std::cout << vec[i] << std::endl;
         sum += vec[i];
     }
     return (sum) / (double)(endIndex - startIndex); // Calculate average
@@ -158,10 +135,8 @@ void baseline(const std::vector<double> &time_data, const std::vector<double> &r
     // find index of baseline range
     int baselineStart = discardIndex;
     int baselineStop = find_crossing_higher_than(time_data, baseline_start + baseline_range, discardIndex) + 1;
-    // std::cout << "baseline: " << baselineStart << " / " << baselineStop << std::endl;
     // calculate the average value over the baselining range
     double baselineValue = mean(raw_data, baselineStart, baselineStop);
-    // std::cout << "baseline value: " << baselineValue << std::endl;
     // subtract basline
     for (size_t i = 0; i < baselinedData.size(); i++)
     {
@@ -189,7 +164,6 @@ void DiagnosticParameters::fromEEPROM()
     transition_percentile = _ForteSetting.parameter.transition_percentile;
     sg_order = _ForteSetting.parameter.sg_order;
     sg_window = _ForteSetting.parameter.sg_window;
-    // sg_window_display = _json["sg_window_display"];
     baseline_start = _ForteSetting.parameter.baseline_start;
     baseline_range = _ForteSetting.parameter.baseline_range;
 }
@@ -297,35 +271,6 @@ size_t argmax(std::vector<double> &_vector, size_t startIndex)
     return max_i;
 }
 
-// bool check_breakData(std::vector<double> &_array, double crossing, int start_index)
-// {
-//     size_t countIncreases = 0;
-//     // if (crossing <= 4)
-//     // {
-//     //     return true;
-//     // }
-//     for (size_t i = start_index; i < _array.size(); i++)
-//     {
-//         if ((_array[i] - _array[i - 1]) >= 0)
-//         {
-//             countIncreases++;
-//             if ((_array[i + 1] - _array[i]) < 0)
-//             {
-//                 countIncreases = 0;
-//             }
-//             if (countIncreases >= 9)
-//             {
-//                 break;
-//             }
-//         }
-//     }
-//     Serial.printf("Break data increases count: %d\n", countIncreases);
-//     if (countIncreases == 0)
-//     {
-//         return false;
-//     }
-//     return true;
-// }
 /***********************************************************************
  * Function: mean_slope()
  * Description: Computes the average first difference (mean slope) of
@@ -424,26 +369,6 @@ bool checkJump(std::vector<double> &_array, double crossing, size_t index)
 
     return true;
 }
-// bool checkJump(std::vector<double> &_array, double crossing, size_t index)
-// {
-//     if ((index < 4) || ((index + 6) >= _array.size()))
-//     {
-//         return false;
-//     }
-//     double jump = _array[index + 1] - _array[index];
-//     // printf("_array[%d]: %0.3f\t_array[%d]: %0.3f\t", index, _array[index], index+1, _array[index+1]);
-//     // printf("Jump: %0.3f\n", jump);
-//     if (jump < crossing)
-//         return false;
-//     double slope = mean_slope(_array, index, 6);
-//     if (fabs(slope) > 1.0)
-//         return false;
-//     int total_rise = _array[index + 6] - _array[index + 1];
-//     if (total_rise > crossing)
-//         return false;
-
-//     return true;
-// }
 
 /***********************************************************************
  * Function: is_rising_trend()
@@ -622,16 +547,6 @@ void predict_outcome(Record &record, DiagnosticParameters &parameters)
         return;
     }
 
-    // // calculate transition time ("Ct value")
-    // record.outcome.transition_time.i = find_crossing_lower_than_reversed(
-    //     record.differential_data,
-    //     record.peak_features.main_peak.y * parameters.transition_percentile,
-    //     record.peak_features.main_peak.i);
-    // // if no point found, then assign to first point (really rare occurrence)
-    // if (record.outcome.transition_time.i == -1)
-    // {
-    //     record.outcome.transition_time.i = 0;
-    // }
     for (size_t i = 0; i < 12; i++)
     {
         double crossing = record.peak_features.main_peak.y * parameters.transition_percentile * thresholdIncreaseRate;
@@ -677,17 +592,12 @@ void predict_outcome(Record &record, DiagnosticParameters &parameters)
     // calculate increase
     record.outcome.increase = record.outcome.plateau_point.y - record.outcome.transition_time.y;
 
-    // Serial.println("About to detect");
-    // Serial.println(record.outcome.increase);
-
     // Test 2: Check for fluorescence increase above threshold
     if (record.outcome.increase > parameters.min_increase)
     { // check for fluorescence increase
-        // Serial.println("Increase yes");
         // test 3: Test for min sharpness
         if (record.peak_features.main_peak.y > parameters.min_sharpness)
         { // check for main peak having min steepness
-            // Serial.println("Sharpness yes");
             // Test 4: Test for lag pahse (if applicable)
             if (record.outcome.transition_time.x < parameters.detection_margin_time)
             {
@@ -696,16 +606,10 @@ void predict_outcome(Record &record, DiagnosticParameters &parameters)
             }
             else if (parameters.detect_shape == false)
             { // if not using shape detection, give positive
-                // Serial.println("Shape Off - Yes");
                 strcpy(record.outcome.outcome, OutcomePositive);
             }
-            // else if ((record.outcome.plateau_point.x - record.outcome.transition_time.x) < 3)
-            // {
-            //     strcpy(record.outcome.outcome, OutcomeBreak);
-            // }
             else if (record.peak_features.detected_shape())
             { // if using shape detected, check if the shape is right
-                // Serial.println("Shape On -  yes");
                 strcpy(record.outcome.outcome, OutcomePositive);
             }
             else if (record.peak_features.detected_ea())
@@ -719,11 +623,6 @@ void predict_outcome(Record &record, DiagnosticParameters &parameters)
         {
             strcpy(record.outcome.outcome, OutcomeSlightPositive);
         }
-        //  if positive, turn negative if main peak is at the last point in array
-        // 22/04/2024: originally created to disable potential spike at long Ct, but removed to detect low conc cts
-        // if (strcmp(outcome.outcome, OutcomeSlightPositive) == 0 && peak_features.left_arm.i >= y_data.size()-2) {
-        //     strcpy(outcome.outcome, OutcomeNegative);
-        // }
         return;
     }
 }
