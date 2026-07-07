@@ -4,10 +4,12 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import '../services/app_prefs.dart';
 import '../services/app_settings.dart';
 import '../services/backup_service.dart';
 import '../services/device_api.dart';
 import '../services/storage_paths.dart';
+import '../util/i18n.dart';
 
 class SettingsScreen extends StatefulWidget {
   final AppSettings settings;
@@ -255,6 +257,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          _section('${tr('us.appearance')} & ${tr('us.language')}'),
+          Card(
+            margin: EdgeInsets.zero,
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: Icon(AppPrefs.instance.isDark
+                      ? Icons.dark_mode
+                      : Icons.light_mode),
+                  title: Text(tr('us.darkMode')),
+                  value: AppPrefs.instance.isDark,
+                  onChanged: (v) => AppPrefs.instance.setDark(v),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.language),
+                  title: Text(tr('us.language')),
+                  trailing: DropdownButton<String>(
+                    value: AppPrefs.instance.localeCode,
+                    underline: const SizedBox.shrink(),
+                    items: [
+                      for (final e in kSupportedLanguages.entries)
+                        DropdownMenuItem(value: e.key, child: Text(e.value)),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) AppPrefs.instance.setLocale(v);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
           // _section('Kết nối máy'),
           // TextField(
           //   controller: _ip,
@@ -327,25 +362,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
           //   style: TextStyle(fontSize: 12, color: Colors.grey),
           // ),
 
-          const SizedBox(height: 24),
-          _section('Thông tin người dùng'),
-          TextField(
-            controller: _name,
-            decoration: const InputDecoration(
-              labelText: 'Tên người dùng',
-              prefixIcon: Icon(Icons.person_outline),
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _org,
-            decoration: const InputDecoration(
-              labelText: 'Đơn vị / phòng khám',
-              prefixIcon: Icon(Icons.business_outlined),
-              border: OutlineInputBorder(),
-            ),
-          ),
+          // const SizedBox(height: 24),
+          // _section('Thông tin người dùng'),
+          // TextField(
+          //   controller: _name,
+          //   decoration: const InputDecoration(
+          //     labelText: 'Tên người dùng',
+          //     prefixIcon: Icon(Icons.person_outline),
+          //     border: OutlineInputBorder(),
+          //   ),
+          // ),
+          // const SizedBox(height: 8),
+          // TextField(
+          //   controller: _org,
+          //   decoration: const InputDecoration(
+          //     labelText: 'Đơn vị / phòng khám',
+          //     prefixIcon: Icon(Icons.business_outlined),
+          //     border: OutlineInputBorder(),
+          //   ),
+          // ),
 
           const SizedBox(height: 24),
           _section('Vị trí lưu file'),
@@ -391,12 +426,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 icon: const Icon(Icons.drive_folder_upload_outlined),
                 label: const Text('Chọn thư mục…'),
               ),
-              OutlinedButton.icon(
-                onPressed:
-                    widget.settings.saveDir.isEmpty ? null : _resetSaveDir,
-                icon: const Icon(Icons.restart_alt),
-                label: const Text('Về mặc định'),
-              ),
+              // OutlinedButton.icon(
+              //   onPressed:
+              //       widget.settings.saveDir.isEmpty ? null : _resetSaveDir,
+              //   icon: const Icon(Icons.restart_alt),
+              //   label: const Text('Về mặc định'),
+              // ),
               OutlinedButton.icon(
                 onPressed: _openSaveDir,
                 icon: const Icon(Icons.folder_open),
@@ -411,30 +446,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
 
-          const SizedBox(height: 24),
-          _section('Sao lưu & Khôi phục'),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _backup,
-                icon: const Icon(Icons.backup_outlined),
-                label: const Text('Sao lưu lịch sử'),
-              ),
-              OutlinedButton.icon(
-                onPressed: _restore,
-                icon: const Icon(Icons.restore),
-                label: const Text('Khôi phục từ file'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Sao lưu xuất lịch sử + cài đặt ra 1 file JSON (chọn nơi lưu — vd USB, Drive). '
-            'Khôi phục đọc lại file đó: Gộp (giữ dữ liệu hiện có) hoặc Thay thế.',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
+          // const SizedBox(height: 24),
+          // _section('Sao lưu & Khôi phục'),
+          // Wrap(
+          //   spacing: 8,
+          //   runSpacing: 8,
+          //   children: [
+          //     OutlinedButton.icon(
+          //       onPressed: _backup,
+          //       icon: const Icon(Icons.backup_outlined),
+          //       label: const Text('Sao lưu lịch sử'),
+          //     ),
+          //     OutlinedButton.icon(
+          //       onPressed: _restore,
+          //       icon: const Icon(Icons.restore),
+          //       label: const Text('Khôi phục từ file'),
+          //     ),
+          //   ],
+          // ),
+          // const SizedBox(height: 4),
+          // const Text(
+          //   'Sao lưu xuất lịch sử + cài đặt ra 1 file JSON (chọn nơi lưu — vd USB, Drive). '
+          //   'Khôi phục đọc lại file đó: Gộp (giữ dữ liệu hiện có) hoặc Thay thế.',
+          //   style: TextStyle(fontSize: 12, color: Colors.grey),
+          // ),
 
           // const SizedBox(height: 24),
           // Center(

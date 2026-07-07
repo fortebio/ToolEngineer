@@ -26,9 +26,11 @@ class TempChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     if (samples.isEmpty) {
-      return const Center(
-        child: Text('Chưa có dữ liệu.', style: TextStyle(color: Colors.grey)),
+      return Center(
+        child: Text('Chưa có dữ liệu.',
+            style: TextStyle(color: cs.onSurfaceVariant)),
       );
     }
     final t0 = samples.first.t;
@@ -84,11 +86,13 @@ class TempChart extends StatelessWidget {
         verticalInterval: xInterval,
         horizontalInterval: yMinor,
         getDrawingHorizontalLine: (value) => isMajorY(value)
-            ? FlLine(color: Colors.black26, strokeWidth: 1)
-            : FlLine(color: Colors.black12, strokeWidth: 0.5),
+            ? FlLine(color: cs.outline, strokeWidth: 1)
+            : FlLine(color: cs.outlineVariant, strokeWidth: 0.5),
+        getDrawingVerticalLine: (_) =>
+            FlLine(color: cs.outlineVariant, strokeWidth: 0.5),
       ),
       borderData:
-          FlBorderData(show: true, border: Border.all(color: Colors.black12)),
+          FlBorderData(show: true, border: Border.all(color: cs.outlineVariant)),
       titlesData: FlTitlesData(
         topTitles:
             const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -123,7 +127,7 @@ class TempChart extends StatelessWidget {
         distanceCalculator: (touch, spot) => (touch - spot).distance,
         touchSpotThreshold: 20,
         getTouchedSpotIndicator: (barData, indexes) => indexes.map((i) {
-          final color = barData.color ?? Colors.black45;
+          final color = barData.color ?? cs.onSurfaceVariant;
           return TouchedSpotIndicatorData(
             FlLine(
               color: color.withOpacity(0.7),
@@ -217,6 +221,7 @@ class TempChannelBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Wrap(
       spacing: 8,
       runSpacing: 4,
@@ -234,7 +239,7 @@ class TempChannelBar extends StatelessWidget {
               ? 'Bấm để ẩn ${kTempChannels[i]}'
               : 'Bấm để hiện ${kTempChannels[i]}',
           avatar: CircleAvatar(
-            backgroundColor: on ? kTempColors[i] : Colors.grey.shade400,
+            backgroundColor: on ? kTempColors[i] : cs.outlineVariant,
             radius: 7,
           ),
           label: Text('${kTempChannels[i]}$valueText'),

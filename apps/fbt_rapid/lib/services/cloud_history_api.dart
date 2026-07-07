@@ -55,19 +55,42 @@ class CloudRunsPage {
   });
 }
 
-/// Client đọc lịch sử nhiều máy từ cloud qua Apps Script `doGet`.
+/// Giao diện CHUNG cho mọi nguồn cloud (Google/self-hosted/RAPID ERP). Các màn
+/// Cloud (`cloud_devices`/`cloud_runs`) chỉ phụ thuộc giao diện này; nguồn cụ
+/// thể do [buildCloudClient] (xem rapid_erp_api.dart) quyết định theo
+/// [CloudSource]. Nhờ vậy thêm nguồn mới KHÔNG phải sửa UI.
+abstract class CloudHistoryClient {
+  /// Danh sách máy (id, số lần chạy, lần mới nhất).
+  Future<List<CloudDevice>> listDevices({bool fresh = false});
+
+  /// Một trang tóm tắt các lần chạy của 1 máy (KHÔNG kèm đường cong).
+  Future<CloudRunsPage> listRuns(String deviceId, {int limit = 10, int offset = 0});
+
+  /// Chi tiết 1 lần chạy (kèm `curves` để vẽ đồ thị CT khi nguồn có).
+  Future<TestResult> fetchRun(String fileId);
+}
+
+/// Client đọc lịch sử nhiều máy từ cloud qua Apps Script `doGet` (nguồn Google,
+/// hợp đồng `action=ids|runs|run`).
 ///
 /// Backend: [sheet/getData.js] — xem hợp đồng API ở docs/APP_SPEC.md §10.
 /// Khác với [DeviceApi] (đọc trực tiếp 1 máy qua LAN), client này đọc dữ liệu
 /// đã đẩy lên Google Drive, gom theo từng `id_device`.
-class CloudHistoryApi {
+class CloudHistoryApi implements CloudHistoryClient {
   /// URL web app Apps Script, dạng:
   /// `https://script.google.com/macros/s/<DEPLOY_ID>/exec`
   final String baseUrl;
   final Duration timeout;
 
-  CloudHistoryApi(String url, {this.timeout = const Duration(seconds: 20)})
-      : baseUrl = url.trim();
+  /// Header gửi kèm MỌI request — vd `{'Authorization': 'Bearer <token>'}` cho
+  /// server tự host. Rỗng (mặc định) cho Apps Script Google (không cần auth).
+  final Map<String, String> headers;
+
+  CloudHistoryApi(
+    String url, {
+    this.timeout = const Duration(seconds: 20),
+    this.headers = const {},
+  }) : baseUrl = url.trim();
 
   Uri _uri(Map<String, String> params) {
     final u = Uri.parse(baseUrl);
@@ -83,7 +106,9 @@ class CloudHistoryApi {
     }
     http.Response resp;
     try {
-      resp = await http.get(_uri(params)).timeout(timeout ?? this.timeout);
+      resp = await http
+          .get(_uri(params), headers: headers.isEmpty ? null : headers)
+          .timeout(timeout ?? this.timeout);
     } catch (e) {
       throw CloudApiException('Không kết nối được cloud: $e');
     }
@@ -110,6 +135,7 @@ class CloudHistoryApi {
   ///
   /// Quét toàn bộ folder (hàng nghìn file) nên có thể mất 20–60s — dùng timeout
   /// dài hơn mặc định để không bị cắt giữa chừng.
+  @override
   Future<List<CloudDevice>> listDevices({bool fresh = false}) async {
     final json = await _getJson(
       {'action': 'ids', if (fresh) 'nocache': '1'},
@@ -123,6 +149,7 @@ class CloudHistoryApi {
 
   /// action=runs → một trang tóm tắt các lần chạy của 1 máy (mới nhất trước,
   /// KHÔNG kèm đường cong — gọi [fetchRun] khi cần vẽ đồ thị).
+  @override
   Future<CloudRunsPage> listRuns(
     String deviceId, {
     int limit = 10,
@@ -146,6 +173,7 @@ class CloudHistoryApi {
   }
 
   /// action=run → chi tiết 1 lần chạy (kèm `curves` để vẽ đồ thị CT).
+  @override
   Future<TestResult> fetchRun(String fileId) async {
     final json = await _getJson({'action': 'run', 'fileId': fileId});
     final run = json['run'];

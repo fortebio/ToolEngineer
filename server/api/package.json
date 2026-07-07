@@ -1,0 +1,14 @@
+{
+  "name": "fbt-rapid-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API tự host nhận kết quả FBT_RAPID (POST) + phục vụ app đọc (action=ids|runs|run).",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.12.0"
+  }
+}

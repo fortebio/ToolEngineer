@@ -357,7 +357,7 @@ class _ActiveChartState extends State<_ActiveChart> {
                       child: RepaintBoundary(
                         key: widget.repaintKey,
                         child: Container(
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.surface,
                           padding: const EdgeInsets.all(12),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -396,7 +396,7 @@ class _ActiveChartState extends State<_ActiveChart> {
                   OutlinedButton.icon(
                     onPressed: () => setState(() => _showRaw = !_showRaw),
                     icon: Icon(_showRaw ? Icons.expand_more : Icons.terminal),
-                    label: Text(_showRaw ? 'Ẩn UART' : 'UART thô'),
+                    label: Text(_showRaw ? 'Ẩn UART' : 'Hiển thị UART'),
                   ),
                   OutlinedButton.icon(
                     onPressed: widget.onSave,
@@ -446,8 +446,8 @@ class _RawUartPanelState extends State<_RawUartPanel> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(6),
+        color: const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -456,14 +456,15 @@ class _RawUartPanelState extends State<_RawUartPanel> {
             padding: const EdgeInsets.fromLTRB(10, 4, 4, 0),
             child: Row(
               children: [
-                const Icon(Icons.terminal, size: 16, color: Color(0xFF9CDCFE)),
+                const Icon(Icons.terminal, size: 8, color: Color(0xFF9CDCFE)),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'UART thô — ${widget.reader.rawLines.length} dòng',
+                    'UART — ${widget.reader.rawLines.length} dòng',
                     style: const TextStyle(
-                        color: Color(0xFFD4D4D4),
-                        fontSize: 12,
+                        // color: Color(0xFFD4D4D4),
+                        color: Color(0xFF1E1E1E),
+                        fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -515,8 +516,8 @@ class _RawUartPanelState extends State<_RawUartPanel> {
                       lines[i],
                       style: const TextStyle(
                         fontFamily: 'monospace',
-                        fontSize: 11,
-                        color: Color(0xFFD4D4D4),
+                        fontSize: 14,
+                        color: Color(0xFF1E1E1E),
                         height: 1.3,
                       ),
                     ),

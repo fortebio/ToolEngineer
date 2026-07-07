@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/test_result.dart';
 import '../services/result_export.dart';
+import '../services/session_store.dart';
 import '../util/chart_capture.dart';
 import '../util/curve_processing.dart';
 import '../util/format.dart';
@@ -297,8 +298,9 @@ class _ResultDetailScreenState extends State<ResultDetailScreen> {
         Expanded(
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: Colors.black26),
+              color: Theme.of(context).colorScheme.surface,
+              border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant),
               borderRadius: BorderRadius.circular(8),
             ),
             padding: const EdgeInsets.fromLTRB(8, 12, 12, 8),
@@ -343,7 +345,8 @@ class _ResultDetailScreenState extends State<ResultDetailScreen> {
           ],
         ),
         actions: [
-          if (r.curvesAreRaw)
+          // Lưu đồ thị: cho mọi user đã đăng nhập (về thư mục đã chỉ định).
+          if (r.curvesAreRaw && SessionStore.canSaveCharts)
             IconButton(
               tooltip: 'Lưu đồ thị (chọn loại)',
               onPressed: _saving ? null : _saveDialog,

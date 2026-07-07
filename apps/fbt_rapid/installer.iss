@@ -1,9 +1,9 @@
 ﻿; Inno Setup script — trình cài đặt FBT_RAPID App (Windows)
 ; Biên dịch: "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer.iss
-; Kết quả:   C:\Users\nvdat\Downloads\FBT_RAPID-Setup-v1.0.4.exe
+; Kết quả:   C:\Users\nvdat\Downloads\FBT_RAPID-Setup-v1.0.6.exe
 
 #define MyAppName "FBT_RAPID"
-#define MyAppVersion "1.0.4"
+#define MyAppVersion "1.0.6"
 #define MyAppPublisher "Fortebiotech"
 #define MyAppExeName "fbt_dxd_app.exe"
 #define MySource "C:\Users\nvdat\Downloads\app\build\windows\x64\runner\Release"
@@ -30,6 +30,9 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Files]
 Source: "{#MySource}\*"; DestDir: "{app}"; Excludes: "HUONG-DAN.txt"; Flags: recursesubdirs ignoreversion
+; esptool đi kèm (tab Kỹ Thuật → Nạp code) — ép gói từ windows\vendor\ kể cả khi CMake chưa copy.
+; skipifsourcedoesntexist: chưa đặt esptool.exe thì vẫn đóng gói được (không lỗi compile).
+Source: "C:\Users\nvdat\Downloads\app\windows\vendor\esptool.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

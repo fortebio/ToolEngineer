@@ -1,24 +1,38 @@
 # FBT_RAPID App (Flutter)
 
 App đồng hành của thiết bị **Forte Rapid+ / FBT_RAPID**: xem **lịch sử xét nghiệm** + **đồ thị CT**,
-quản lý **nhiều máy qua cloud**, **theo dõi nhiệt độ realtime qua UART**, và **cài đặt** thiết bị.
+quản lý **nhiều máy qua cloud**, **công cụ kỹ thuật** (log nhiệt UART · đọc serial · nạp firmware ESP),
+và **cài đặt** thiết bị.
+
+App **yêu cầu đăng nhập**; **3 vai trò** — **Khách hàng** (`user`) · **Nhân viên** (`admin`) · **Root** —
+quyết định thấy/làm được gì (xem §1.6).
 
 Build cho **Windows trước**. Kết nối:
 
+- **Đăng nhập** qua **Apps Script accounts riêng** (`POST`) — xác thực + phân quyền (mã máy được cấp).
 - **WiFi/HTTP** — lấy kết quả trực tiếp từ máy (`GET /getdata`).
 - **Google Drive** qua **Apps Script `doGet`** — đọc lịch sử nhiều máy (link gắn sẵn trong app).
 - **UART/COM** — đọc nhiệt độ thời gian thực từ máy.
 
-**Hướng dẫn người dùng**: [../docs/HUONG_DAN_SU_DUNG.md](../docs/HUONG_DAN_SU_DUNG.md).
-Thiết kế chi tiết: [../docs/APP_SPEC.md](../docs/APP_SPEC.md) · Backend cloud: [../sheet/getData.js](../sheet/getData.js).
+Backend lịch sử: [sheet/getData.js](sheet/getData.js) · Backend accounts: [sheet/userAuth.js](sheet/userAuth.js)
+· Hướng dẫn kiến trúc/gotchas (dev): [CLAUDE.md](CLAUDE.md).
 
 ---
 
 ## 1. Tính năng
 
-App có **4 tab**: **Lịch sử** (cục bộ) · **Cloud** (nhiều máy) · **Nhiệt độ** (UART) · **Cài đặt**.
+Sau khi **đăng nhập** (§1.6), giao diện dùng **thanh điều hướng dọc ẩn hẳn** — *đưa chuột tới mép trái*
+để hiện (overlay **trượt** vào, có "tay nắm" gợi ý). Tab **nội dung theo vai trò**:
 
-### 1.1 Lịch sử (cục bộ — lấy trực tiếp từ máy)
+- **Khách hàng** (`user`): **Lịch sử**.
+- **Nhân sự** (`admin`/`root`): **+ Kỹ Thuật** (Log nhiệt · Đọc serial · Nạp code).
+- **Root**: **+ Quản lý User** (§1.7).
+
+**Thiết lập** + **Đăng xuất** nằm trong **menu của icon tài khoản** (cuối thanh dọc) — KHÔNG còn là tab.
+Tab **Lịch sử** là màn **GỘP** hai nguồn **Cục bộ | Cloud** (nút gạt). *(Hiện "Cục bộ" đang tạm ẩn — chỉ
+hiển thị Cloud; bật lại bằng cờ `_showLocal` trong `history_combined_screen.dart`.)*
+
+### 1.1 Lịch sử › Cục bộ (lấy trực tiếp từ máy)
 
 - **Lấy kết quả từ máy**: gọi `GET /getdata` tới IP máy (cùng mạng WiFi), lưu lần chạy thành 1 bản ghi
   trên PC (`shared_preferences`).
@@ -26,7 +40,7 @@ App có **4 tab**: **Lịch sử** (cục bộ) · **Cloud** (nhiều máy) · *
 - Xoá 1 bản ghi hoặc xoá tất cả.
 - Bấm vào bản ghi → màn **chi tiết** (xem §1.4).
 
-### 1.2 Cloud (lịch sử nhiều máy từ Google Drive)
+### 1.2 Lịch sử › Cloud (nhiều máy từ Google Drive)
 
 - **Danh sách mã máy**: mỗi máy hiện **số lần chạy**, **FW** (version firmware mới nhất), **mốc mới nhất**.
   Danh sách được **cache** (hiện tức thì, làm mới ngầm; server cache 5′ giảm tải Apps Script).
@@ -39,7 +53,13 @@ App có **4 tab**: **Lịch sử** (cục bộ) · **Cloud** (nhiều máy) · *
     để xem offline; khử trùng theo `fileId`.
 
 
-### 1.3 Nhiệt độ (đọc UART/COM, realtime)
+### 1.3 Kỹ Thuật (chỉ nhân sự) — Log nhiệt · Đọc serial · Nạp code
+
+Tab **Kỹ Thuật** gộp 3 công cụ qua nút gạt (chỉ nhân sự: root/nhân viên). **Các dropdown cổng chỉ hiện
+cổng USB-serial** (CP210x/CH340/FTDI/ESP USB-JTAG…), bỏ cổng native/Bluetooth (`util/serial_ports.dart`).
+3 công cụ **dùng chung phần cứng COM** → đóng cổng ở công cụ này trước khi dùng đúng cổng đó ở công cụ kia.
+
+#### Log nhiệt (đọc UART/COM, realtime)
 
 Theo dõi nhiệt độ máy RPL qua cổng USB-COM (@115200). App gửi lệnh `TemperatureOutput` để máy xuất nhiệt.
 
@@ -69,6 +89,26 @@ Theo dõi nhiệt độ máy RPL qua cổng USB-COM (@115200). App gửi lệnh 
 - Nếu mở cổng mà **chưa thấy dữ liệu** (lệnh máy là toggle), app **tự gửi lại lệnh** sau ~3s để lấy nhiệt;
   hoặc bấm **Gửi lệnh** thủ công.
 
+#### Đọc serial (console raw, đa cổng)
+
+Console đọc/ghi thô để kiểm tra/debug — **mở nhiều cổng COM cùng lúc**, mỗi cổng 1 tab riêng (log RX +
+ô gửi). Chọn cổng + baud → **Mở cổng**; xem dữ liệu đến dạng **text hoặc HEX** (tự cuộn), **gửi lệnh** kèm
+ký tự xuống dòng (None/LF/CR/CRLF). Không parse — raw thuần.
+
+#### Nạp code (flash firmware ESP qua esptool)
+
+Nạp firmware cho **ESP32 / ESP32-S3 / ESP32-C3 / ESP8266** bằng **esptool** (gọi qua `Process`):
+
+- Chọn **cổng** + **loại chip** + **baud nạp**; **Kiểm tra chip** (`flash_id`: chip/MAC/dung lượng flash).
+- 3 file `.bin` (**Bootloader / Partition / Firmware**) với **offset chỉnh được** (tự đặt mặc định theo
+  chip; để trống file nào thì bỏ qua file đó).
+- **Flash mode** (keep/dio/qio/…) + **Flash size** — chỉnh khi *nạp xong boot-loop* (sai mode rất hay gặp).
+- **Nạp** (`write_flash`) · **Xóa flash** (erase, có xác nhận) · **Dừng** (kill tiến trình); log esptool
+  **stream trực tiếp**.
+- **Theo dõi serial sau khi nạp** (mặc định bật): tự mở COM đọc **log boot** để xem **lý do reset/boot**.
+- **esptool đi kèm app**: đặt `esptool.exe` cạnh `fbt_dxd_app.exe` (qua installer + `windows/vendor/`); app
+  **tự dò** → không cần nhập đường dẫn (không thấy file kèm → gọi `esptool` trên PATH).
+
 ### 1.4 Chi tiết kết quả & đồ thị CT (dùng chung cho Lịch sử và Cloud)
 
 - **Bố cục**: **đồ thị CT bên trái**, **kết quả bệnh bên phải** (cửa sổ hẹp tự xếp dọc: đồ thị trên,
@@ -89,7 +129,8 @@ Theo dõi nhiệt độ máy RPL qua cổng USB-COM (@115200). App gửi lệnh 
   Pipeline `raw → ÷slope → baseline → SG`, **tham số mặc định firmware** (baseline 3–7′, SG window 4 / order 2).
   Nút **"Xem cả 4 đồ thị"** hiển thị cả 4 cùng lúc. Tab **Lịch sử** (`/getdata`) cũng có đủ 4 đồ thị **nếu
   firmware trả thêm `amplification` (raw) + `slopes`**; nếu chỉ trả `#1..#10` (đã xử lý) thì hiện 1 đường.
-- **Lưu kết quả**: nút **Lưu** ở **trên cùng** (AppBar) màn kết quả → **checklist chọn loại đồ thị**
+- **Lưu kết quả** (cho **mọi tài khoản đã đăng nhập**, kể cả Khách hàng — `SessionStore.canSaveCharts`):
+  nút **Lưu** ở **trên cùng** (AppBar) màn kết quả → **checklist chọn loại đồ thị**
   (Raw / Calib / Baseline / SG) → lưu **gom theo mã máy**: `<thư mục lưu>\FBT_RAPID_ketqua\<MãMáy>\<Ngày_Giờ_Firmware>\`,
   gồm các **ảnh PNG** đã chọn (`raw`, `calib`, `baseline`, `baseline_sg`) + **`data.json`** (data raw,
   slopes, version firmware, kết quả/CT từng slot). Mỗi ảnh PNG kèm **bảng "Kết quả bệnh"** bên phải (như
@@ -97,20 +138,59 @@ Theo dõi nhiệt độ máy RPL qua cổng USB-COM (@115200). App gửi lệnh 
   Đồ thị lưu theo **slot đang chọn**. (Màn **"Xem cả 4 đồ thị"** vẫn có nút **Lưu** cả 4 cùng lúc.)
 - Hiện **Firmware** của lần chạy nếu có.
 
-### 1.5 Cài đặt
+### 1.5 Thiết lập (trong icon tài khoản — màn DÙNG CHUNG mọi vai trò)
 
-- **Kết nối máy**: nhập IP máy + **Kiểm tra kết nối** (ping `/getdata`).
-- **Khoảng đọc (giây)**: quy đổi trục thời gian của đồ thị CT (mặc định 20).
-- **Cài WiFi cho máy**: form SSID/mật khẩu (xem §5 — cần firmware bổ sung `/setwifi`).
-- **Thông tin người dùng**: tên, đơn vị/phòng khám.
-- **Vị trí lưu file**: chọn **thư mục gốc** cho mọi file lưu ra — **kết quả CT**
-  (`<gốc>\FBT_RAPID_ketqua\`) và **log nhiệt** (`<gốc>\FBT_RAPID_templog\`). Mặc định là **Documents**;
-  có nút **Chọn thư mục…**, **Về mặc định**, **Mở thư mục**.
-- **Sao lưu & Khôi phục**: xuất **lịch sử xét nghiệm + cài đặt** ra 1 file JSON (chọn nơi lưu — USB/Drive…);
-  khôi phục từ file đó (**Gộp** giữ dữ liệu hiện có, hoặc **Thay thế**).
+Mở qua **icon tài khoản** (cuối thanh nav) → **Thiết lập**. Một màn dùng chung
+(`user_settings_screen.dart`) cho cả nhân sự lẫn khách hàng (đồng bộ giống nhau):
 
-> Link cloud (Apps Script `/exec`) **gắn sẵn trong code** (`kDefaultCloudApiUrl`) → tab Cloud chạy ngay,
-> không cần nhập. Đổi link: sửa hằng đó rồi build lại.
+- **Tài khoản**: email · vai trò (Khách hàng / Nhân viên / Root) · **mã máy được cấp** + nút
+  **Đổi mật khẩu** / **Đổi email** (gọi `userAuth.js`; đổi email cần cột `email` trong sheet).
+- **Nhà cung cấp**: thông tin Fortebiotech.
+- **Giao diện & Ngôn ngữ**: **sáng/tối** + **ngôn ngữ** (Việt/Anh đầy đủ; Trung/Thái đã có khung). Lưu cục bộ
+  qua `AppPrefs` (đổi ngôn ngữ → rebuild toàn app; theme áp **live**).
+- **Khoảng đọc (giây)**: quy đổi trục thời gian đồ thị CT (mặc định 20).
+- **Vị trí lưu file**: thư mục gốc cho mọi file lưu (`<gốc>\FBT_RAPID_ketqua\`, `<gốc>\FBT_RAPID_templog\`);
+  nút **Chọn thư mục… / Về mặc định / Mở thư mục**. Mặc định **Documents**.
+- **Sao lưu & Khôi phục**: xuất **lịch sử + cài đặt** ra 1 file JSON; khôi phục (**Gộp** hoặc **Thay thế**).
+
+> Link cloud + accounts (`/exec`) **gắn sẵn trong code** (`kDefaultCloudApiUrl`, `kDefaultAuthApiUrl`) →
+> chạy ngay, không cần nhập. Đổi deploy: sửa hằng đó rồi build lại.
+
+### 1.6 Đăng nhập & phân quyền (3 vai trò)
+
+Mở app là vào **màn đăng nhập** (tài khoản + mật khẩu). Xác thực qua **Apps Script accounts RIÊNG**
+([sheet/userAuth.js](sheet/userAuth.js)) — web app + Google Sheet riêng, **tách khỏi** backend lịch
+sử cloud. Phiên **lưu cục bộ** → lần sau vào thẳng; **Đăng xuất** trong menu icon tài khoản.
+
+| Vai trò (`role`) | Hiển thị | Quyền |
+| --- | --- | --- |
+| `root` | **Root** | Full app + **Quản lý User** (§1.7) — thêm/sửa/xóa **mọi** tài khoản; **thấy mọi máy** |
+| `admin` | **Nhân viên** | Full app (Lịch sử + Kỹ Thuật + Thiết lập); **chỉ thấy mã máy được cấp** (trừ khi `ids = "*"` thì full); được Lưu/Đồng bộ/Lấy-từ-máy/Xóa — **KHÔNG** quản lý tài khoản |
+| `user` | **Khách hàng** | **Read-only**: chỉ xem đồ thị **mã máy được cấp**; ẩn Kỹ Thuật + mọi nút ghi (vẫn **lưu được ảnh** đồ thị) |
+
+Phân quyền qua `SessionStore.current`: `isStaff` (root+admin) quyết định **`canWrite`** (Lưu/Đồng bộ/Xóa) +
+hiện tab **Kỹ Thuật**; `canManageUsers` (= root). **Phạm vi XEM máy** = `allowAll` (`canSee()`): chỉ **root**
+(super-admin) **hoặc** `ids` chứa `"*"` mới thấy tất cả — **admin không có `"*"` chỉ thấy mã được cấp**, như
+khách hàng. Lọc enforce **ở client** (cloud/history fetch hết rồi `canSee`). Tài khoản (username · mật khẩu ·
+vai trò · **mã máy được cấp** · email · active) quản lý trên **Google Sheet** (tab `Accounts`).
+
+> ⚠️ Deploy script accounts **phải** đặt **"Who has access" = Anyone** (không thì app nhận trang đăng nhập
+> Google thay vì JSON). Mật khẩu **băm SHA-256 + salt** trong sheet (`sha256$salt$hash`, tương thích ngược
+> tài khoản plaintext cũ; hàm `migratePasswordsToHash()` chạy tay để băm hết). App gửi mật khẩu qua HTTPS,
+> server băm/so khớp. Schema + setup ở **đầu file `userAuth.js`**.
+
+### 1.7 Quản lý User (chỉ Root)
+
+Tab dọc riêng cho **root**. Mở → **hỏi lại mật khẩu** (chỉ giữ trong RAM, không lưu) → danh sách tài khoản.
+Thao tác (qua `POST {action: listUsers|saveUser|deleteUser}`, **root-gated** bởi `requireAdmin_`):
+
+- **Tạo user** (nút +): username · mật khẩu · vai trò (Root/Nhân viên/Khách hàng) · mã máy · tên · email.
+- **Cấp/đổi mã máy**: bấm 1 user → sửa ô mã máy.
+- **Tắt / Bật** tài khoản: công tắc trên từng dòng.
+- **Xóa** user (backend chặn xóa/hạ **root cuối cùng**).
+
+> Bootstrap: vì quản lý là **root-only**, đặt 1 tài khoản `role = root` trong sheet (sửa tay 1 lần) rồi
+> đăng nhập bằng tài khoản đó.
 
 ---
 
@@ -142,11 +222,14 @@ flutter build windows
 
 ## 4. Cách dùng nhanh
 
-1. Tab **Cloud**: chọn (hoặc tìm/sắp xếp) **mã máy** → xem các lần chạy (phân trang) → bấm 1 lần để xem
-   **đồ thị CT** → tuỳ chọn **Đồng bộ về máy**.
-2. Tab **Lịch sử**: (cần nhập IP ở Cài đặt) → **Lấy kết quả từ máy** → bấm bản ghi để xem kết quả + đồ thị.
-3. Tab **Nhiệt độ**: cắm máy qua USB → bấm cổng **COM** → xem 6 nhiệt + đồ thị realtime → **Lưu log/đồ thị**;
-   menu ⌛ để **xem lại** log/đồ thị đã lưu.
+0. **Đăng nhập** (tài khoản từ sheet Accounts). **Hover mép trái** để hiện thanh tab dọc.
+1. Tab **Lịch sử** (Cloud): chọn/tìm **mã máy** → xem các lần chạy → bấm để xem **đồ thị CT** → **Lưu**.
+2. Tab **Kỹ Thuật** (nhân sự) — nút gạt 3 công cụ:
+   - **Log nhiệt**: cắm máy USB → bấm cổng **COM** → xem 6 nhiệt + đồ thị realtime → **Lưu** (⌛ xem lại).
+   - **Đọc serial**: mở 1+ cổng COM → đọc/gửi raw (text/HEX) để debug.
+   - **Nạp code**: chọn cổng + chip → chọn .bin → **Nạp** (esptool); theo dõi log boot ngay sau nạp.
+3. **Icon tài khoản → Thiết lập**: đổi theme/ngôn ngữ, mật khẩu/email, nơi lưu file.
+4. **Root** → tab **Quản lý User**: tạo/sửa/xóa tài khoản, cấp mã máy (`*` = full), tắt/bật.
 
 ## 5. Giới hạn hiện tại
 
@@ -157,14 +240,18 @@ flutter build windows
 - **Nhiệt độ**: lệnh `TemperatureOutput` của máy là **toggle** (không có ack). Nếu không thấy dữ liệu, bấm
   **Gửi lệnh** để bật/tắt lại.
 
-Roadmap (`/setwifi`, `/config`…) xem [../docs/APP_SPEC.md](../docs/APP_SPEC.md).
+Roadmap: `/setwifi`, `/config`…
 
 ## 6. Đóng gói & phân phối (Windows)
 
 - **Portable (ZIP)**: nén thư mục `build\windows\x64\runner\Release\` (kèm 3 DLL VC++ runtime:
   `msvcp140.dll`, `vcruntime140.dll`, `vcruntime140_1.dll`) → người dùng giải nén và chạy `.exe`.
-- **Installer** (khuyến nghị): script [../tools/installer.iss](../tools/installer.iss) (Inno Setup) tạo
-  `FBT_RAPID-Setup-vX.Y.Z.exe` — cài không cần admin, có shortcut Start Menu + gỡ cài đặt.
+- **Installer** (khuyến nghị): script [installer.iss](installer.iss) (Inno Setup) tạo
+  `FBT_RAPID-Setup-vX.Y.Z.exe` — cài không cần admin, có shortcut Start Menu + gỡ cài đặt. **Phải
+  `flutter build windows --release` TRƯỚC** (script trỏ thư mục Release).
+- **esptool kèm theo** (tab Nạp code): đặt `esptool.exe` vào `windows/vendor/` → CMake copy nó cạnh
+  `fbt_dxd_app.exe` mỗi lần build + installer tự gói (xem [windows/vendor/README.md](windows/vendor/README.md));
+  app tự dò, không cần đường dẫn ngoài.
 
 > App chưa ký số → Windows SmartScreen có thể cảnh báo 1 lần (*More info → Run anyway*).
 
@@ -172,32 +259,47 @@ Roadmap (`/setwifi`, `/config`…) xem [../docs/APP_SPEC.md](../docs/APP_SPEC.md
 
 ```
 lib/
-  main.dart                          # entry + theme
+  main.dart                          # entry + theme/locale (AppPrefs) + cổng đăng nhập (_AuthGate)
   models/test_result.dart            # mô hình kết quả; parse /getdata + cloud; version; slope; 4-đồ-thị
+  models/user_session.dart           # 3 vai trò root/admin/user; canSee = allowAll(root|ids '*'); isStaff=canWrite
   services/device_api.dart           # HTTP tới máy (GET /getdata, /setwifi)
   services/cloud_history_api.dart    # HTTP tới Apps Script doGet (ids / runs / run)
+  services/auth_api.dart             # POST accounts: login/đổi mk·email/quản lý user (theo redirect 302 + drain)
+  services/session_store.dart        # phiên toàn cục (isStaff/canWrite/canManageUsers) + lưu/khôi phục
+  services/app_prefs.dart            # theme (sáng/tối) + ngôn ngữ — ChangeNotifier toàn cục, lưu prefs
   services/cloud_cache.dart          # cache danh sách máy cục bộ (load tức thì)
   services/history_store.dart        # lưu + đồng bộ lịch sử cục bộ (add / addAll, dedupe)
-  services/app_settings.dart         # cấu hình; cloudApiUrl gắn sẵn (kDefaultCloudApiUrl)
+  services/app_settings.dart         # cấu hình; cloudApiUrl + authApiUrl gắn sẵn (kDefault*ApiUrl)
   services/temperature_serial.dart   # đọc UART/COM (flutter_libserialport), parse TimeRB/TimeRT, đa COM
+                                     #   (refreshPorts lọc qua util/serial_ports.dart → chỉ USB-serial)
   services/temperature_store.dart    # lưu/đọc log (JSON+CSV) + ảnh đồ thị (PNG)
-  screens/home_shell.dart            # điều hướng 4 tab
-  screens/history_screen.dart        # lịch sử cục bộ + lấy kết quả từ máy
-  screens/cloud_devices_screen.dart  # danh sách máy cloud (cache + tìm kiếm + sắp xếp + FW)
+  screens/login_screen.dart          # màn đăng nhập (gọi AuthApi)
+  screens/home_shell.dart            # nav dọc ẩn (hover hiện) theo vai trò; Thiết lập trong icon tài khoản
+  screens/history_combined_screen.dart   # tab Lịch sử GỘP: nút gạt Cục bộ | Cloud
+  screens/history_screen.dart        # Lịch sử › Cục bộ + lấy kết quả từ máy
+  screens/cloud_devices_screen.dart  # Lịch sử › Cloud: danh sách máy (cache + tìm + sắp xếp + lọc quyền)
   screens/cloud_runs_screen.dart     # lịch sử 1 máy (phân trang + đồng bộ)
   screens/result_detail_screen.dart  # kết quả bệnh + đồ thị CT (chọn 4 dạng đường cong)
   screens/curve_compare_screen.dart  # xem cả 4 đồ thị cùng lúc
-  screens/temperature_log_screen.dart    # tab Nhiệt độ: đa COM realtime + lưu log/đồ thị
+  screens/tech_screen.dart               # tab Kỹ Thuật: nút gạt Log nhiệt | Đọc serial | Nạp code
+  screens/temperature_log_screen.dart    # Log nhiệt: đa COM realtime + lưu log/đồ thị
+  screens/serial_console_screen.dart     # Đọc serial: console raw đa cổng (đọc/ghi, text/HEX) để debug
+  screens/flasher_screen.dart            # Nạp code: flash ESP qua esptool (Process) + theo dõi log boot
   screens/saved_logs_screen.dart         # danh sách log đã lưu
   screens/saved_log_detail_screen.dart   # xem lại 1 log: vẽ lại đồ thị + thống kê
   screens/saved_charts_screen.dart       # gallery ảnh đồ thị đã lưu
-  screens/settings_screen.dart       # kết nối máy, WiFi, người dùng
-  widgets/ct_chart.dart              # đồ thị CT (fl_chart, đệm trục + y=0)
-  widgets/temp_chart.dart            # đồ thị nhiệt + chú thích + chip ẩn/hiện kênh (tái dùng realtime/xem lại)
+  screens/user_settings_screen.dart  # Thiết lập DÙNG CHUNG (tài khoản/theme/ngôn ngữ/lưu/sao lưu)
+  screens/user_management_screen.dart    # Quản lý User (root): tạo/sửa/xóa/tắt-bật tài khoản
+  screens/settings_screen.dart       # (CŨ — không dùng; thay bằng user_settings_screen.dart)
+  widgets/ct_chart.dart              # đồ thị CT (fl_chart; trục tung làm tròn bội số 50 + y=0)
+  widgets/temp_chart.dart            # đồ thị nhiệt + chú thích + chip ẩn/hiện kênh (realtime/xem lại)
   widgets/result_badge.dart          # chip phân loại kết quả
   util/format.dart                   # format ngày giờ, CT
+  util/i18n.dart                     # tr('key') + roleLabel() (Việt/Anh; fallback Việt)
+  util/serial_ports.dart             # usableSerialPorts(): lọc chỉ cổng USB-serial (đọc/ghi/nạp)
   util/curve_processing.dart         # baseline + Savitzky–Golay (port từ firmware)
   util/chart_capture.dart            # chụp RepaintBoundary → PNG
+windows/vendor/esptool.exe           # (đặt tay) esptool kèm app — CMake copy cạnh exe khi build
 ```
 
-Phụ thuộc: `http`, `fl_chart`, `shared_preferences`, `flutter_libserialport` (UART).
+Phụ thuộc: `http`, `fl_chart`, `shared_preferences`, `flutter_libserialport` (UART), `file_selector` (chọn file).

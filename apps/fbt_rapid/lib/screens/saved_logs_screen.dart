@@ -87,7 +87,7 @@ class _SavedLogsScreenState extends State<SavedLogsScreen> {
                       children: [
                         if (s.hasRaw)
                           IconButton(
-                            tooltip: 'Xem UART thô',
+                            tooltip: 'Xem UART',
                             icon: const Icon(Icons.terminal),
                             onPressed: () => Navigator.push(
                               context,

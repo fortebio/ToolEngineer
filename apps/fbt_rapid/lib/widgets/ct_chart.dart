@@ -54,6 +54,7 @@ class CtChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final bars = <LineChartBarData>[];
     final barSlots = <int>[]; // slot.index ứng với từng bar (cho tooltip)
     double maxX = 1;
@@ -110,10 +111,17 @@ class CtChart extends StatelessWidget {
         minY: minY,
         maxY: maxY,
         lineBarsData: bars,
-        gridData: FlGridData(show: true, horizontalInterval: yInterval),
+        gridData: FlGridData(
+          show: true,
+          horizontalInterval: yInterval,
+          getDrawingHorizontalLine: (_) =>
+              FlLine(color: cs.outlineVariant, strokeWidth: 1),
+          getDrawingVerticalLine: (_) =>
+              FlLine(color: cs.outlineVariant, strokeWidth: 0.5),
+        ),
         borderData: FlBorderData(
           show: true,
-          border: Border.all(color: Colors.black12),
+          border: Border.all(color: cs.outlineVariant),
         ),
         titlesData: FlTitlesData(
           topTitles:
@@ -139,7 +147,7 @@ class CtChart extends StatelessWidget {
         ),
         extraLinesData: ExtraLinesData(
           horizontalLines: [
-            HorizontalLine(y: 0, color: Colors.black45, strokeWidth: 1),
+            HorizontalLine(y: 0, color: cs.outline, strokeWidth: 1),
           ],
         ),
         // Tooltip: chỉ hiện ĐÚNG slot mà con trỏ trỏ vào (chọn theo khoảng cách
@@ -149,7 +157,7 @@ class CtChart extends StatelessWidget {
           distanceCalculator: (touch, spot) => (touch - spot).distance,
           touchSpotThreshold: 20,
           getTouchedSpotIndicator: (barData, indexes) => indexes.map((i) {
-            final color = barData.color ?? Colors.black45;
+            final color = barData.color ?? cs.onSurfaceVariant;
             return TouchedSpotIndicatorData(
               FlLine(
                 color: color.withOpacity(0.7),

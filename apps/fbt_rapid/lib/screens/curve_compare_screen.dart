@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/test_result.dart';
 import '../services/result_export.dart';
+import '../services/session_store.dart';
 import '../util/chart_capture.dart';
 import '../util/curve_processing.dart';
 import '../util/format.dart';
@@ -76,11 +77,13 @@ class _CurveCompareScreenState extends State<CurveCompareScreen> {
       appBar: AppBar(
         title: Text('4 đồ thị — ${formatDateTime(r.timestamp)}'),
         actions: [
-          IconButton(
-            tooltip: 'Lưu 4 đồ thị + dữ liệu',
-            onPressed: _saveAll,
-            icon: const Icon(Icons.save_alt),
-          ),
+          // Lưu đồ thị: cho mọi user đã đăng nhập.
+          if (SessionStore.canSaveCharts)
+            IconButton(
+              tooltip: 'Lưu 4 đồ thị + dữ liệu',
+              onPressed: _saveAll,
+              icon: const Icon(Icons.save_alt),
+            ),
           TextButton(
             onPressed: () =>
                 setState(() => _visible.addAll(r.slots.map((s) => s.index))),
@@ -125,7 +128,7 @@ class _CurveCompareScreenState extends State<CurveCompareScreen> {
                         child: RepaintBoundary(
                           key: _keyFor(v),
                           child: Container(
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.surface,
                             padding: const EdgeInsets.all(12),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,

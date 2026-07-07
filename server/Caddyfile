@@ -1,0 +1,7 @@
+# Reverse proxy + HTTPS tự động (Let's Encrypt) cho server FBT_RAPID.
+# {$PUBLIC_HOST} lấy từ .env (vd fbtrapid.duckdns.org). Caddy tự xin + gia hạn
+# chứng chỉ, chuyển hết /api, /ingest, /health vào container api:3000.
+# Đặt PUBLIC_HOST=localhost khi test cục bộ → Caddy dùng CA nội bộ (không gọi Let's Encrypt).
+{$PUBLIC_HOST} {
+	reverse_proxy api:3000
+}

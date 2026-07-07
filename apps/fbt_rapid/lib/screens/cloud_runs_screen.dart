@@ -4,6 +4,8 @@ import '../models/test_result.dart';
 import '../services/app_settings.dart';
 import '../services/cloud_history_api.dart';
 import '../services/history_store.dart';
+import '../services/rapid_erp_api.dart';
+import '../services/session_store.dart';
 import '../util/format.dart';
 import 'result_detail_screen.dart';
 
@@ -12,11 +14,13 @@ import 'result_detail_screen.dart';
 class CloudRunsScreen extends StatefulWidget {
   final AppSettings settings;
   final CloudDevice device;
+  final CloudSource source;
 
   const CloudRunsScreen({
     super.key,
     required this.settings,
     required this.device,
+    this.source = CloudSource.google,
   });
 
   @override
@@ -26,8 +30,8 @@ class CloudRunsScreen extends StatefulWidget {
 class _CloudRunsScreenState extends State<CloudRunsScreen> {
   static const _pageSize = 10;
 
-  late final CloudHistoryApi _api =
-      CloudHistoryApi(widget.settings.cloudApiUrl);
+  late final CloudHistoryClient _api =
+      buildCloudClient(widget.settings, widget.source);
   final _store = HistoryStore();
 
   List<TestResult> _runs = [];
@@ -187,11 +191,13 @@ class _CloudRunsScreenState extends State<CloudRunsScreen> {
       appBar: AppBar(
         title: Text('Máy ${widget.device.id}'),
         actions: [
-          IconButton(
-            tooltip: 'Đồng bộ trang này về máy',
-            onPressed: (_loading || _syncing || _runs.isEmpty) ? null : _sync,
-            icon: const Icon(Icons.cloud_download_outlined),
-          ),
+          // User là read-only → ẩn nút đồng bộ về máy (chỉ admin).
+          if (SessionStore.canWrite)
+            IconButton(
+              tooltip: 'Đồng bộ trang này về máy',
+              onPressed: (_loading || _syncing || _runs.isEmpty) ? null : _sync,
+              icon: const Icon(Icons.cloud_download_outlined),
+            ),
           IconButton(
             tooltip: 'Tải lại',
             onPressed:

@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_libserialport/flutter_libserialport.dart';
 
+import '../util/serial_ports.dart';
+
 /// 6 kênh nhiệt theo thứ tự cố định (khớp dòng TimeRB + TimeRT của firmware).
 const List<String> kTempChannels = [
   'Lysis', // BottomHeater[0]
@@ -327,7 +329,7 @@ class TemperatureLogController extends ChangeNotifier {
 
   void refreshPorts() {
     try {
-      available = SerialPort.availablePorts;
+      available = usableSerialPorts(); // chỉ cổng USB-serial (đọc/ghi/nạp)
     } catch (_) {
       available = [];
     }
