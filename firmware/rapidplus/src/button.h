@@ -67,6 +67,13 @@ public:
 
     void buttonStart(); // Attach ISR (call once in setup())
     void loop();        // Poll + process (call every iteration of Arduino loop())
+
+    // Inject a short press from another task (e.g. the web dashboard). Posts to
+    // the same pendingEvent queue that loop() drains, so the handler runs in the
+    // InputTask context - safe w.r.t. _displayCLD/_PIDControl shared state.
+    void postShortPress(e_statusbutton b);
 };
+
+extern buttonManager _buttonManager;
 
 #endif

@@ -115,6 +115,11 @@ public:
 
     bool bSensorReadingGet();
 
+    // Current amplification round index (0..MEASUREMENTLOOPS). The latest
+    // completed round is getCurrentLoop()-1; used by the web dashboard to stream
+    // one live chart point per completed round.
+    uint8_t getCurrentLoop() { return COUNTER; }
+
     bool bResultGet(float *CT_value, char *result);
     bool bResultPutToGoogleSheet(float *CT_value,
                                  char *result,

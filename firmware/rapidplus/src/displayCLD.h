@@ -147,6 +147,10 @@ public:
     void startAmplification();
     void waitAmplification30min();
 
+    // Remaining seconds for the web dashboard (0 if that phase isn't running).
+    uint32_t lysisRemainSec() const { uint32_t n = millis(); return timer10minEnd > n ? (timer10minEnd - n) / 1000 : 0; }
+    uint32_t ampRemainSec() const { uint32_t n = millis(); return timer30minEnd > n ? (timer30minEnd - n) / 1000 : 0; }
+
     void prepare();
 
     /**

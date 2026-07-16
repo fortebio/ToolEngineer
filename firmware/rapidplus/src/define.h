@@ -41,7 +41,7 @@
 // 512~1023: para with parastructure format, 512 bytes
 // 1024~4095: record, 3K
 
-#define _EEPROM_SIZE 4096 // add additional for para, record and json file storage.
+#define _EEPROM_SIZE 4096              // add additional for para, record and json file storage.
 #define PARAMETERPOS 512               // Record start at 512 with length to be 1800(store 90 rounds data), the
                                        // first 512 is reserved for Forte to use
 #define RECORDPOS (PARAMETERPOS + 512) // parameter start after record, the length of parameter is 336
@@ -156,8 +156,8 @@ struct parastructure
                                           // fluorescence increase
   uint8_t sg_order = 2;                   // interpolation smoothing order
   uint8_t sg_window = 4;                  // smoothing window size for algorithm
-  uint8_t baseline_start = 3; // start of baselining (minutes)
-  uint8_t baseline_range = 4; // range of baselining (minutes)
+  uint8_t baseline_start = 3;             // start of baselining (minutes)
+  uint8_t baseline_range = 4;             // range of baselining (minutes)
 
   // Device info
   char units[10] = "nM FAM";      // Units, "units"
@@ -371,7 +371,7 @@ extern volatile bool gBtReleased;
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "v2.4.2"; // add function calib
+static String FirmwareVer = "v2.4.3"; // add function calib
 
 extern SemaphoreHandle_t gI2CMutex;
 extern SemaphoreHandle_t gSPIMutex;

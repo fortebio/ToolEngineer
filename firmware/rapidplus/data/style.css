@@ -1,46 +1,233 @@
-html {
-  font-family: Arial, Helvetica, sans-serif;
-  display: inline-block;
-  text-align: center;
+/* ============================================================
+ * RAPID dashboard - Clinical Light theme.
+ * Self-contained, no external fonts/CDN (works offline on the
+ * device SoftAP). Design tokens first, then components.
+ * ============================================================ */
+:root {
+  /* brand + surface */
+  --navy: #0a1128;
+  --blue: #034078;
+  --blue-600: #1263a8;
+  --bg: #f4f6f9;
+  --card: #ffffff;
+  --hairline: #e6eaf0;
+  /* text */
+  --ink: #1f2a37;
+  --muted: #6b7280;
+  --on-navy: #eaf1f8;
+  --on-navy-dim: #9fb3c8;
+  /* status */
+  --green: #16a34a;
+  --amber: #d97706;
+  --red: #dc2626;
+  --info: #2563eb;
+  /* metrics */
+  --radius: 14px;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 4px 14px rgba(16, 24, 40, .06);
+  --nav-h: 62px;
+  --maxw: 480px;
 }
-h1 {
-  font-size: 1.8rem;
-  color: white;
-}
-p {
-  font-size: 1.4rem;
-}
-.topnav {
-  overflow: hidden;
-  background-color: #0A1128;
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
 }
 body {
-  margin: 0;
-}
-.content {
-  padding: 5%;
-}
-.card-grid {
-  max-width: 1200px;
+  max-width: var(--maxw);
   margin: 0 auto;
-  display: grid;
-  grid-gap: 2rem;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  min-height: 100vh;
+  padding-bottom: var(--nav-h);
 }
+
+/* ---------- Header ---------- */
+.header {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.8rem;
+  min-height: 80px;
+  padding: 0.85rem 1.1rem;
+  background: linear-gradient(135deg, #0d1a3a 0%, var(--navy) 100%);
+  color: #fff;
+}
+.device-name { font-size: 1.5rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.1; }
+.company-name {
+  font-size: 0.55rem; font-weight: 600; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--on-navy-dim); margin-top: 3px;
+}
+.status {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.72rem; font-weight: 700; white-space: nowrap;
+  padding: 0.28rem 0.6rem; border-radius: 999px;
+}
+.status.on  { color: #d1fadf; background: rgba(22, 163, 74, .22); }
+.status.off { color: #ffd7d7; background: rgba(220, 38, 38, .22); }
+.status-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+/* ---------- Screens ---------- */
+.screens { padding: 1rem; }
+.screen { display: none; animation: fade .18s ease; }
+.screen.active { display: block; }
+@keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Banners (notify + state) ---------- */
+.banner {
+  display: flex; align-items: center; gap: 0.9rem;
+  background: var(--card); border: 1px solid var(--hairline);
+  border-left-width: 4px; border-radius: var(--radius);
+  padding: 0.85rem 1rem; margin-bottom: 0.85rem; min-height: 84px;
+  box-shadow: var(--shadow);
+}
+.banner.notify { border-left-color: var(--amber); }
+.banner.state  { border-left-color: var(--info); }
+.banner.state.heat { border-left-color: var(--amber); }
+.banner.hidden { display: none; }
+.banner-icon {
+  flex: none; display: grid; place-items: center;
+  width: 44px; height: 44px; border-radius: 12px;
+  background: #eef2f7; color: var(--muted);
+}
+.banner-icon svg { width: 24px; height: 24px; display: block; }
+.banner.notify .banner-icon { background: #fdf1e3; color: var(--amber); }
+.banner.state  .banner-icon { background: #e8f0fd; color: var(--info); }
+.banner.state.heat .banner-icon { background: #fdf1e3; color: var(--amber); }
+.banner-title { font-size: 1.02rem; font-weight: 700; line-height: 1.25; }
+.banner-sub { font-size: 0.83rem; color: var(--muted); margin-top: 0.15rem; }
+
+/* ---------- Cards ---------- */
 .card {
-  background-color: white;
-  box-shadow: 2px 2px 12px 1px rgba(140,140,140,.5);
+  background: var(--card); border: 1px solid var(--hairline);
+  border-radius: var(--radius); padding: 1rem; margin-bottom: 0.85rem;
+  box-shadow: var(--shadow);
 }
 .card-title {
-  font-size: 1.2rem;
-  font-weight: bold;
-  color: #034078
+  margin: 0 0 0.75rem; font-size: 0.72rem; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--blue);
 }
-.time {
-  font-size: 0.8rem;
-  font-weight: bold;
+.time { font-size: 0.78rem; font-weight: 600; color: var(--muted); margin: -0.4rem 0 0.7rem; }
+
+/* ---------- Temperature grid ---------- */
+.temp-grid { display: grid; gap: 0.7rem; }
+.temp-grid.one  { grid-template-columns: 1fr; }
+.temp-grid.four { grid-template-columns: 1fr 1fr; }
+.temp-box {
+  background: linear-gradient(180deg, #fbfcfe 0%, #f2f5fa 100%);
+  border: 1px solid var(--hairline); border-radius: 12px;
+  padding: 0.85rem 0.7rem; text-align: center;
 }
-.chart-container {
-  padding-right: 5%;
-  padding-left: 5%;
+.temp-val {
+  font-size: 1.7rem; font-weight: 700; color: var(--navy);
+  font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1;
+}
+.temp-lbl {
+  font-size: 0.72rem; font-weight: 600; color: var(--muted);
+  margin-top: 0.4rem; letter-spacing: .03em;
+}
+
+/* ---------- Button states (rounded-rectangle chips) ---------- */
+.btn-row { display: flex; gap: 0.6rem; }
+.btn-chip {
+  flex: 1; text-align: center; cursor: pointer; font-family: inherit;
+  padding: 0.75rem 0.4rem; border-radius: 12px;
+  font-size: 0.82rem; font-weight: 700; letter-spacing: .05em;
+  color: #fff; border: 1.5px solid transparent;
+  transition: background .12s, box-shadow .12s, transform .08s, filter .12s;
+}
+.btn-chip:hover  { filter: brightness(1.06); }
+.btn-chip:active { transform: scale(0.95); filter: brightness(1.12); }
+/* always tinted with their own colour */
+.btn-chip.red   { background: #e23b3b; border-color: #c62f2f; }
+.btn-chip.green { background: #1fa64d; border-color: #178a3f; }
+.btn-chip.white { background: #ffffff; border-color: #cbd5e1; color: var(--ink); }
+/* pressed / lit -> brighter + glow */
+.btn-chip.red.on   { background: #ff5757; box-shadow: 0 0 0 3px rgba(226,59,59,.30), 0 4px 14px rgba(226,59,59,.5); }
+.btn-chip.green.on { background: #2ec46a; box-shadow: 0 0 0 3px rgba(31,166,77,.30), 0 4px 14px rgba(31,166,77,.5); }
+.btn-chip.white.on { box-shadow: 0 0 0 3px rgba(148,163,184,.45), 0 4px 14px rgba(16,24,40,.15); }
+
+/* ---------- Chart / Setting ---------- */
+.chart-container { width: 100%; height: 320px; }
+.setting-row { font-size: 0.98rem; color: var(--ink); margin: 0.4rem 0; }
+.setting-row span { font-weight: 700; }
+.reload-btn {
+  margin-top: 0.8rem; padding: 0.65rem 1.5rem; font-size: 0.95rem; font-weight: 600;
+  background: var(--blue); color: #fff; border: none; border-radius: 10px; cursor: pointer;
+  transition: background .15s;
+}
+.reload-btn:hover { background: var(--blue-600); }
+
+/* ---------- Bottom nav ---------- */
+.bottom-nav {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: var(--maxw); height: var(--nav-h);
+  display: flex; background: var(--card); border-top: 1px solid var(--hairline);
+  box-shadow: 0 -2px 12px rgba(16, 24, 40, .05);
+}
+.nav-item {
+  position: relative; flex: 1; border: none; background: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; font-size: 0.68rem; font-weight: 600; color: var(--muted);
+  transition: color .15s;
+}
+.nav-item .nav-ico { line-height: 0; }
+.nav-item .nav-ico svg { width: 22px; height: 22px; display: block; }
+.nav-item.active { color: var(--blue); }
+.nav-item.active::before {
+  content: ""; position: absolute; top: 0; width: 32px; height: 3px;
+  border-radius: 0 0 3px 3px; background: var(--blue);
+}
+
+/* ============================================================
+ * Desktop / wide screens: left sidebar nav, wider grid content.
+ * ============================================================ */
+@media (min-width: 820px) {
+  :root { --side-w: 224px; }
+
+  body {
+    max-width: none; margin: 0;
+    padding: 0 0 0 var(--side-w);   /* room for the fixed sidebar */
+  }
+
+  /* bottom nav -> left sidebar */
+  .bottom-nav {
+    left: 0; top: 0; transform: none;
+    width: var(--side-w); max-width: none; height: 100vh;
+    flex-direction: column; justify-content: flex-start; gap: 0.25rem;
+    padding-top: 1rem;
+    border-top: none; border-right: 1px solid var(--hairline);
+    box-shadow: 2px 0 14px rgba(16, 24, 40, .04);
+  }
+  .nav-item {
+    flex: none; flex-direction: row; justify-content: flex-start;
+    height: 46px; padding: 0 1.3rem; gap: 0.85rem; font-size: 0.92rem;
+  }
+  .nav-item .nav-ico svg { width: 20px; height: 20px; }
+  /* active indicator: inset left bar + subtle tint (robust, always aligned) */
+  .nav-item.active::before { display: none; }
+  .nav-item.active {
+    background: rgba(3, 64, 120, .06);
+    box-shadow: inset 3px 0 0 var(--blue);
+  }
+
+  /* content: left-aligned to match the header, capped for readability */
+  .header { padding-left: 1.6rem; padding-right: 1.6rem; }
+  .screens { max-width: 940px; margin: 0; padding: 1.5rem 1.6rem; }
+
+  /* Home: banners span full width, cards in a balanced 2-column grid */
+  #screen-home {
+    display: grid; gap: 1rem; align-items: start;
+    grid-template-columns: 1fr 1fr;
+  }
+  #screen-home .banner { grid-column: 1 / -1; margin-bottom: 0; }
+  #screen-home .card { margin-bottom: 0; }
+  /* Amplification: 4 temps in one row so it matches Lysis height (no gap) */
+  #screen-home .temp-grid.four { grid-template-columns: repeat(4, 1fr); }
+  /* Buttons: full-width row below the two temperature cards */
+  #screen-home > .card:last-child { grid-column: 1 / -1; }
+
+  /* bigger chart on desktop */
+  .chart-container { height: 460px; }
+  #screen-process .card, #screen-setting .card { max-width: 900px; }
 }

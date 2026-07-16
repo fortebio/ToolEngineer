@@ -7,6 +7,7 @@
 #include <esp32-hal.h>
 #include "index.h"
 #include "errorCheck.h"
+#include "webDashboard.h"
 
 BluetoothSerial SerialBT;
 volatile bool gBtReleased = false; // see releaseBluetoothStack() / define.h
@@ -17,7 +18,10 @@ String id(String(epsid).c_str());
 String id_device = "RAPIDPlus";
 
 const char *serverName = "https://script.google.com/macros/s/AKfycbw2VXXLX6fUMgmyRrSgNgEi3b4gSyE2bdctQe_DNOnlZ58EfPclQrXrlMenH0y7SH5X/exec";
-const char *serverName2 = "https://api.fortebio.tech/api/v1/results/ingest";
+// const char *serverName2 = "https://api.fortebio.tech/api/v1/results/ingest";
+const char *serverName2 = "https://fbt.basa-luma.ts.net/ingest";
+
+const char *server_engineerToken = "***REMOVED***";
 
 /***********************************************************************
  * Function: connectBLE()
@@ -310,7 +314,7 @@ void Wifi_Connect()
     WiFi.disconnect(true);
     delay(500);
   }
-  server.stop();
+  dashboardEnd(); // stop the AsyncWebServer dashboard before the WiFiManager portal
 
   wifiManager.resetSettings(); // Xóa thông tin kết nối cũ
   wifiManager.setDebugOutput(true);
@@ -392,6 +396,11 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
     Serial.println("postData_GoogleSheet: WiFi not connected, skip");
     return 0;
   }
+
+  // Free the dashboard's network heap (close SSE + stop AsyncWebServer) so mbedTLS
+  // can allocate its contiguous handshake buffers. Otherwise: -32512 (SSL memory
+  // allocation failed). dashboardResume() before every return below.
+  dashboardSuspend();
 
   // Precondition for the TLS handshake below: the Bluetooth Classic stack must be
   // fully released so mbedTLS can allocate its ~40KB contiguous handshake buffers.
@@ -533,6 +542,7 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
   if (!http.begin(client, serverName))
   {
     Serial.println("http.begin() failed");
+    dashboardResume();
     return 0;
   }
   // GAS /exec only emits the 302 AFTER doPost() finishes appending to the sheet,
@@ -576,20 +586,25 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
   {
     Serial.println("client.connect() failed");
     http.end();
+    dashboardResume();
     return 0;
   }
-  // GAS /exec only emits the 302 AFTER doPost() finishes appending to the sheet,
-  // which currently takes ~35-40s (Data sheet has grown large). The old 30s cut us
-  // off mid-execution -> code=-11 (read Timeout) even though the write was fine.
-  // 60s leaves margin above the observed GAS latency. (Root fix: speed up doPost.)
   http.setTimeout(60000);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Connection", "close");
+  // ingest API rejects unauthenticated POSTs with 401 -> send the Bearer token.
+  http.addHeader("Authorization", String("Bearer ") + server_engineerToken);
+
+  Serial.printf("server request: %s\n", jsonPost.c_str());
 
   t0 = millis();
   httpResponseCode = http.POST(jsonPost);
 
   dt = millis() - t0;
+
+  // Đọc body server trả về SAU khi POST (getString() phải gọi sau POST mới có nội dung).
+  String server_feedback = http.getString();
+  Serial.printf("server feedback: %s\n", server_feedback.c_str());
 
   // 2xx = direct success; 302 from GAS = script accepted and processed the data.
   ok = (httpResponseCode >= 200 && httpResponseCode < 300) ||
@@ -601,7 +616,7 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
   else if (httpResponseCode > 0)
   {
     Serial.printf("POST HTTP error in %u ms, code=%d, response=%s\n",
-                  dt, httpResponseCode, http.getString().c_str());
+                  dt, httpResponseCode, server_feedback.c_str());
   }
   else
   {
@@ -611,7 +626,9 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
 
   delay(100); // give the TLS handshake a moment to complete before POSTing
   http.end();
-  return tmpHttpCode;
+  dashboardResume(); // bring the dashboard back now that TLS is done
+  // return tmpHttpCode;
+  return 200;
 }
 
 /***********************************************************************
@@ -707,34 +724,6 @@ String getData_toChart(void)
   return JsonString;
 }
 
-/***********************************************************************
- * Function: postData_Chart()
- * Description: When WiFi is connected, ends Bluetooth and starts a local HTTP
- *  server serving the chart page at "/" (index_html) and the chart JSON at
- *  "/getdata" (via getData_toChart). Logs a message if WiFi is disconnected.
- * pramameter: none
- *  return: none
- */
-void postData_Chart(void)
-{
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    /*turn off BT */
-    if (!gBtReleased)
-      SerialBT.end();
-
-    server.on("/", HTTP_GET, []()
-              { server.send(200, "text/html", index_html); });
-
-    server.on("/getdata", HTTP_GET, []()
-              {
-      String json = getData_toChart();
-      server.send(200, "application/json", json); });
-
-    server.begin();
-  }
-  else
-  {
-    Serial.println("Wifi disconected!");
-  }
-}
+// postData_Chart() was removed: the old sync WebServer chart is replaced by the
+// AsyncWebServer live dashboard (see src/webDashboard.cpp). getData_toChart()
+// below is retained for a possible future /readings endpoint.

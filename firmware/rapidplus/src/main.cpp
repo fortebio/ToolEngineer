@@ -14,10 +14,9 @@ Version 1.4 note: add function sellect language
 #include "ForteSetting.h"
 #include "Fan.h"
 #include "errorCheck.h"
+#include "webDashboard.h"
 
 buttonManager _buttonManager;
-
-WebServer server(80);
 
 /****** RTOS Handles ******/
 TaskHandle_t displayTaskHandle = NULL;
@@ -66,6 +65,7 @@ void NetworkTask(void *pvParameters)
   while (1)
   {
     updateFirmware();
+    dashboardLoop(); // push the "home" SSE event (self-throttled to 1/s)
 
     vTaskDelay(pdMS_TO_TICKS(10));
   }
@@ -224,6 +224,14 @@ void setup()
     Serial.print(".");
   }
   delay(100);
+
+  // If WiFi (STA) didn't connect, fall back to a SoftAP so the dashboard is still
+  // reachable. dashboardLoop() (NetworkTask) starts the server once STA or AP is up.
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.println("\n[wifi] STA not connected -> SoftAP fallback");
+    dashboardStartAP();
+  }
 
   _displayCLD.begin();
   _ForteSetting.begin();

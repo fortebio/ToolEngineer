@@ -263,6 +263,19 @@ void buttonManager::processEvent(e_statusbutton index, e_buttonEvent event)
   }
 }
 
+/***********************************************************************
+ * Function: postShortPress()
+ * Description: Queue a short-press event for button `b` from another task
+ *  (the web dashboard). Only writes pendingEvent; loop() (InputTask, core 1)
+ *  drains it and runs the handler in the normal task context.
+ * pramameter: b = which button (B_RED/B_BLUE/B_WHITE)
+ *  return: none
+ */
+void buttonManager::postShortPress(e_statusbutton b)
+{
+  btnState[b].pendingEvent = BTN_EVENT_SHORT_PRESS;
+}
+
 // ================================================================
 // loop() — call from Arduino loop(), every 1ms
 // ================================================================

@@ -24,7 +24,6 @@ extern String id;
 
 extern BluetoothSerial SerialBT;
 
-extern WebServer server;
 extern const char *serverName;
 
 extern volatile bool gBtReleased;
@@ -56,11 +55,5 @@ void Wifi_Connect(void);
  * @version 2.2
  */
 uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops);
-
-/**
- * @brief postData_Chart
- *
- */
-void postData_Chart(void);
 
 #endif
