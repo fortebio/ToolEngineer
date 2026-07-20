@@ -3,7 +3,7 @@
 ## Mục tiêu
 
 Thay trang chart kiểu polling bằng dashboard nhiều màn hình đẩy dữ liệu qua SSE
-(Server-Sent Events), theo bố cục trong `GUI_SSE/GUI.md`. Dựng trước bản chạy được
+(Server-Sent Events), theo bố cục trong `docs/GUI_SSE/GUI.md`. Dựng trước bản chạy được
 trên trình duyệt (server giả lập, không cần nạp firmware).
 
 ## Đã thay đổi

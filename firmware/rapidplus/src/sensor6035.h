@@ -48,6 +48,10 @@ private:
     unsigned long START_INTERVAL_TIME = 0; // this is to record the start time of 1 round/loop reading
 
     uint8_t COUNTER = 0;
+    // Rounds the LAST finished run had. COUNTER is zeroed the moment amplification
+    // completes, but sensor67Value keeps the curve, so this retains its length for
+    // post-run read-back (web /curve). Cleared by clear() when a new run starts.
+    uint8_t lastRunLoops = 0;
     bool flagCounterDisplay = false; // control to display counter or timeZ
     e_sensorStep sensorStep = eSensorwait;
     uint8_t iChannel = 0; // record the channel that is reading
@@ -117,8 +121,12 @@ public:
 
     // Current amplification round index (0..MEASUREMENTLOOPS). The latest
     // completed round is getCurrentLoop()-1; used by the web dashboard to stream
-    // one live chart point per completed round.
+    // one live chart point per completed round. Reads 0 once the run finishes.
     uint8_t getCurrentLoop() { return COUNTER; }
+
+    // Rounds of the last finished run (0 if none / a new run has started). Lets the
+    // web serve the stored curve after COUNTER is zeroed at the end of a run.
+    uint8_t getLastRunLoops() { return lastRunLoops; }
 
     bool bResultGet(float *CT_value, char *result);
     bool bResultPutToGoogleSheet(float *CT_value,

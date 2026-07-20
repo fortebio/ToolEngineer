@@ -37,6 +37,8 @@ void loadParaFromEEPROM();
 
 void connectWIFI();
 void saveSettingDevice();
+// Full parameter struct as the JSON shape JsonDataConfig() parses (web GET /config).
+String paraToJson(parastructure para);
 void loadSettingDevice();
 void getDataAmplificationEEPROM(void);
 String getData_toChart(void);

@@ -80,10 +80,20 @@ void readEEPROM()
  * pramameter: para - the parameter structure whose fields are to be displayed
  *  return: none
  */
-void paraDisplay(parastructure para)
+/***********************************************************************
+ * Function: paraToJson()
+ * Description: Serialises the whole parameter struct into the SAME JSON shape
+ *  ForteSetting::JsonDataConfig() parses, so a client can GET this, edit a field
+ *  and POST it back. The web Setting tab uses it for GET /config.
+ *  Note the shape is not uniform: slopes/origins are nested under
+ *  "opto calibration" and the algorithm fields under "parameters", while
+ *  LED power / PID / temps / buzzer / kitId are top-level. Keep it in step with
+ *  the containsKey blocks in ForteSetting.cpp - they are the contract.
+ * pramameter: para - the struct to serialise
+ *  return: String - the JSON document
+ */
+String paraToJson(parastructure para)
 {
-  info_displayf("Length: %d\n", para.length);
-
   DynamicJsonDocument paradata(3000); // support maximum 3K
 
   paradata["para version"] = para.para_version;
@@ -158,13 +168,29 @@ void paraDisplay(parastructure para)
     temperatureOffset.add(para.temperatureOffset[i]);
   }
 
+  // hotlidPWM is settable via the "top heater PWM" key (ForteSetting.cpp) but was
+  // never emitted here, so a GET could not pre-fill it. Shape: [[low,high],[low,high]]
+  // to match hotlidPWM[i][0]=low / [i][1]=high as the PIDControl macros read them.
+  JsonArray topPWM = paradata.createNestedArray("top heater PWM");
+  for (int i = 0; i < 2; i++)
+  {
+    JsonArray row = topPWM.createNestedArray();
+    row.add(para.hotlidPWM[i][0]);
+    row.add(para.hotlidPWM[i][1]);
+  }
+
   paradata["buzzer"] = para.buzzerOn ? "On" : "Off";
   paradata["kitId"] = para.kitId;
 
-  // Output metadata
   String output;
-  serializeJsonPretty(paradata, output);
-  info_displayln(output + "@");
+  serializeJson(paradata, output);
+  return output;
+}
+
+void paraDisplay(parastructure para)
+{
+  info_displayf("Length: %d\n", para.length);
+  info_displayln(paraToJson(para) + "@");
 }
 
 /***********************************************************************
@@ -397,6 +423,8 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
     return 0;
   }
 
+  Serial.println("[up] begin: suspend dashboard + build JSON");
+
   // Free the dashboard's network heap (close SSE + stop AsyncWebServer) so mbedTLS
   // can allocate its contiguous handshake buffers. Otherwise: -32512 (SSL memory
   // allocation failed). dashboardResume() before every return below.
@@ -553,6 +581,7 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Connection", "close");
 
+  Serial.printf("[up] GAS POST begin (heap free=%u, blocks up to ~90s)\n", ESP.getFreeHeap());
   uint32_t t0 = millis();
   int httpResponseCode = http.POST(jsonPost);
   uint16_t tmpHttpCode = httpResponseCode;
@@ -596,6 +625,7 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
   http.addHeader("Authorization", String("Bearer ") + server_engineerToken);
 
   Serial.printf("server request: %s\n", jsonPost.c_str());
+  Serial.printf("[up] ingest POST begin (heap free=%u)\n", ESP.getFreeHeap());
 
   t0 = millis();
   httpResponseCode = http.POST(jsonPost);

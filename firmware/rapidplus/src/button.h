@@ -9,7 +9,7 @@
 typedef enum
 {
     B_RED,
-    B_BLUE,
+    B_GREEN,
     B_WHITE
 } e_statusbutton;
 
@@ -72,6 +72,12 @@ public:
     // the same pendingEvent queue that loop() drains, so the handler runs in the
     // InputTask context - safe w.r.t. _displayCLD/_PIDControl shared state.
     void postShortPress(e_statusbutton b);
+
+    // Same queue, long-press event. The web calibration wizard needs this: calibration
+    // is entered by a BLUE long-press (handleLongPress_Blue), which postShortPress
+    // cannot reach - a short green/BLUE press from escreenStart starts an 80C preheat
+    // instead. processEvent() already dispatches BTN_EVENT_LONG_PRESS.
+    void postLongPress(e_statusbutton b);
 };
 
 extern buttonManager _buttonManager;

@@ -3,3 +3,9 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+# Auto-generated gzip of the web UI (tools/pio_gzip_data.py rebuilds these before every
+# LittleFS image). Build output - not highcharts.js.gz, which ships pre-made upstream.
+data/index.html.gz
+data/script.js.gz
+data/style.css.gz

@@ -233,22 +233,28 @@ struct parastructure
 // gated on this flag. Defined in Bluetooth.cpp.
 extern volatile bool gBtReleased;
 
-// below macro function can support the data print via both of serial port and
-// BLE
-#define info_displayf(...)         \
-  {                                \
-    DEBUG_COM.printf(__VA_ARGS__); \
-    SerialBT.printf(__VA_ARGS__);  \
+// Print to both USB serial and Bluetooth SPP. The SerialBT half is skipped once
+// releaseBluetoothStack() has run (gBtReleased): after that the BT controller memory
+// is freed, so touching SerialBT is use-after-free (GOTCHA 1). The dashboard now
+// releases BT at startup on every WiFi boot, so this guard matters device-wide - USB
+// serial (DEBUG_COM) stays on regardless.
+#define info_displayf(...)           \
+  {                                  \
+    DEBUG_COM.printf(__VA_ARGS__);   \
+    if (!gBtReleased)                \
+      SerialBT.printf(__VA_ARGS__);  \
   }
-#define info_displayln(...)         \
-  {                                 \
-    DEBUG_COM.println(__VA_ARGS__); \
-    SerialBT.println(__VA_ARGS__);  \
+#define info_displayln(...)          \
+  {                                  \
+    DEBUG_COM.println(__VA_ARGS__);  \
+    if (!gBtReleased)                \
+      SerialBT.println(__VA_ARGS__); \
   }
-#define info_display(...)         \
-  {                               \
-    DEBUG_COM.print(__VA_ARGS__); \
-    SerialBT.print(__VA_ARGS__);  \
+#define info_display(...)            \
+  {                                  \
+    DEBUG_COM.print(__VA_ARGS__);    \
+    if (!gBtReleased)                \
+      SerialBT.print(__VA_ARGS__);   \
   }
 
 // GPIO used for LCD

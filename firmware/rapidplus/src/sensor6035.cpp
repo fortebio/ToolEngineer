@@ -1905,6 +1905,10 @@ void sensor6035::eSensor1stReadingFunc()
                             // let DisplayTask read it back for the result screen and the Google Sheet.
                             // finish the reading, update the step
                             sensorStep = eSensormaintain; // only read during amplification
+                            // Keep the run length before clearing COUNTER: sensor67Value still
+                            // holds the curve, and the web /curve needs its length to draw the
+                            // finished run on the Result tab.
+                            lastRunLoops = COUNTER;
                             COUNTER = 0;
                             _displayCLD.type_infor = escreenFinished;
                             _displayCLD.bheadershow = true;
@@ -1952,6 +1956,12 @@ void sensor6035::clear()
     // closeSensorChannel(iChannel);
     START_INTERVAL_TIME = 0;
     COUNTER = 0;
+    // ponytail: clear() only runs at boot (sensor6035.cpp ~147; the displayLCD call is
+    // commented out), so this does NOT invalidate lastRunLoops per run. That is exactly
+    // why handleCurve carries two guards (COUNTER==0 && !eoptoreading) instead of
+    // trusting a per-run reset. Don't read this line as a real run-lifecycle hook -
+    // wiring clear() into the run start is the deeper fix if the guards ever fall short.
+    lastRunLoops = 0;
     iChannel = 0;
 
     uint8_t loops = _ForteSetting.parameter.amplification_time;

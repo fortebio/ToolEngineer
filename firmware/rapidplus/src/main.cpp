@@ -215,23 +215,22 @@ void setup()
   loadSettingDevice();
   error.readErrorFromEEPROM(); // read error record from EEPROM, used for error process
 
+  WiFi.mode(WIFI_STA);
+  // Power save OFF. The ESP32 defaults to WIFI_PS_MIN_MODEM, which parks the radio
+  // between DTIM beacons: 100-300 ms latency spikes and dropped packets. That is
+  // invisible for a one-shot request but wrecks a 1 s SSE stream + AsyncWebServer -
+  // the dashboard stutters and requests time out. Costs a few mA on a mains device.
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
   WiFi.begin(ssid.c_str(), password.c_str());
-  int retries = 0;
-  while (WiFi.status() != WL_CONNECTED && retries < 20)
-  {
-    delay(50); // đợi 50ms mỗi lần
-    retries++;
-    Serial.print(".");
-  }
-  delay(100);
 
-  // If WiFi (STA) didn't connect, fall back to a SoftAP so the dashboard is still
-  // reachable. dashboardLoop() (NetworkTask) starts the server once STA or AP is up.
-  if (WiFi.status() != WL_CONNECTED)
-  {
-    Serial.println("\n[wifi] STA not connected -> SoftAP fallback");
-    dashboardStartAP();
-  }
+  // Do NOT block here waiting for STA, and do NOT decide the SoftAP fallback yet.
+  // This used to wait 20*50ms+100ms = 1.1 s and then give up - but a router + DHCP
+  // routinely needs 1-3 s (see CLAUDE.md GOTCHA 5), so a perfectly good network was
+  // abandoned on most boots. And dashboardStartAP() does WiFi.mode(WIFI_AP), which
+  // kills STA for good: no retry until the next reboot.
+  // dashboardLoop() (NetworkTask) now gives STA a fair grace period and only then
+  // falls back, without blocking setup().
 
   _displayCLD.begin();
   _ForteSetting.begin();

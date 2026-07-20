@@ -5,6 +5,7 @@ To receive the full command, here will wait 10ms after receiving, if there is no
 
 #include "ForteSetting.h"
 #include "Bluetooth.h"
+#include "webDashboard.h" // dashboardDeviceBusy(): re-checked before applying web settings
 
 /// @brief Buzzer control
 /// "Buzzer", beep one time for 1 seond
@@ -894,8 +895,141 @@ void ForteSetting::begin()
  * pramameter: none (reads/writes members recvData, recvLen, recvTime, moreMsg)
  *  return: none
  */
+/***********************************************************************
+ * Function: postConfigJson() / postWifiCreds() / postDeviceId()
+ * Description: Queue a settings change coming from the web. Called on the
+ *  AsyncTCP task: they ONLY copy the strings and raise the flag (written last),
+ *  never touching `parameter` or EEPROM. drainPending() does the real work on
+ *  SettingTask. Reject while a request is still pending so a burst of POSTs
+ *  cannot clobber an unapplied one.
+ * pramameter: the payload
+ *  return: false if another request is still queued
+ */
+bool ForteSetting::postConfigJson(const String &json)
+{
+    if (pendingKind != PEND_NONE)
+        return false;
+    pendingA = json;
+    cfgSeq++;
+    cfgState = CFG_PENDING;    // set BEFORE the flag: once pendingKind is published,
+    __sync_synchronize();      // release: payload+state visible before the flag (2 cores)
+    pendingKind = PEND_CONFIG; // SettingTask may drain and set CFG_APPLIED at once,
+    return true;               // and a later CFG_PENDING here would clobber it.
+}
+
+bool ForteSetting::postWifiCreds(const String &ssid_, const String &pass_)
+{
+    if (pendingKind != PEND_NONE)
+        return false;
+    pendingA = ssid_;
+    pendingB = pass_;
+    cfgSeq++;
+    cfgState = CFG_PENDING; // before the flag - see postConfigJson()
+    __sync_synchronize();
+    pendingKind = PEND_WIFI;
+    return true;
+}
+
+bool ForteSetting::postDeviceId(const String &id)
+{
+    if (pendingKind != PEND_NONE)
+        return false;
+    pendingA = id;
+    cfgSeq++;
+    cfgState = CFG_PENDING; // before the flag - see postConfigJson()
+    __sync_synchronize();
+    pendingKind = PEND_ID;
+    return true;
+}
+
+/***********************************************************************
+ * Function: drainPending()
+ * Description: Apply a web-queued settings change. Runs on SettingTask, so it
+ *  is the ONLY task doing EEPROM writes for settings (JsonDataConfig() and
+ *  saveSettingDevice() each do their own EEPROM.begin/end - overlapping them
+ *  from two tasks would free the shared 4096-byte buffer under the other).
+ *
+ *  Re-checks dashboardDeviceBusy() HERE, not just in the web handler: the check
+ *  in the handler is a TOCTOU (the user can start a run between the POST and
+ *  this drain). Checking and applying in the same task closes that window.
+ * pramameter: none
+ *  return: none
+ */
+void ForteSetting::drainPending()
+{
+    // Deferred reboot after a WiFi save: the HTTP response must go out first.
+    if (restartAt && millis() >= restartAt)
+    {
+        info_displayln("[cfg] restarting to apply WiFi");
+        delay(50);
+        ESP.restart();
+    }
+
+    if (pendingKind == PEND_NONE)
+        return;
+    __sync_synchronize(); // acquire: pair with the release in post*() so pendingA/B
+                          // are fully visible on this core before we read them
+
+    e_pending kind = pendingKind;
+
+    // Never apply settings while the device is running / calibrating / uploading.
+    if (dashboardDeviceBusy())
+    {
+        // Dropped on purpose: applying mid-run would change setpoints under a live
+        // sample. Publish it so the web can say so instead of reporting "Saved" -
+        // the POST already ACKed before this check could run (TOCTOU).
+        Serial.println("[cfg] device busy - queued settings dropped");
+        cfgState = CFG_BUSY;
+        pendingKind = PEND_NONE;
+        return;
+    }
+
+    if (kind == PEND_CONFIG)
+    {
+        // Feed the SAME parser the Serial path uses. It reads recvData only, and it
+        // applies just the keys present (every field is containsKey-guarded), so a
+        // per-card subset merges onto the current values and is then persisted.
+        strlcpy(recvData, pendingA.c_str(), sizeof(recvData));
+        recvLen = strlen(recvData);
+        JsonDataConfig();
+        recvLen = 0;
+        recvData[0] = '\0';
+    }
+    else if (kind == PEND_WIFI)
+    {
+        ssid = pendingA;
+        password = pendingB;
+        saveSettingDevice();
+        info_displayln("[cfg] WiFi saved: " + ssid);
+        // Cannot connect in place: the radio is shared, so associating to a router on
+        // another channel drops every SoftAP client (including the browser that just
+        // posted this). Reboot instead and let setup()'s WiFi.begin + AP fallback run.
+        restartAt = millis() + 1500;
+    }
+    else if (kind == PEND_ID)
+    {
+        // Two separate stores: the global id_device (EEPROM ADDR_ID_DEVICE_BASE, what
+        // the dashboard and the Google Sheet upload use) and parameter.device_id
+        // (PARAMETERPOS). Keep them in sync or the web would show one and upload another.
+        id_device = pendingA;
+        saveSettingDevice();
+        strlcpy(parameter.device_id, pendingA.c_str(), sizeof(parameter.device_id));
+        parameter.length = sizeof(parameter);
+        EEPROM.begin(_EEPROM_SIZE);
+        EEPROM.put(PARAMETERPOS, parameter);
+        EEPROM.commit();
+        EEPROM.end();
+        info_displayln("[cfg] device id: " + id_device);
+    }
+
+    cfgState = CFG_APPLIED; // written to EEPROM; the web can now trust a read-back
+    pendingKind = PEND_NONE;
+}
+
 void ForteSetting::loop()
 {
+    drainPending(); // web-queued settings (SettingTask owns the EEPROM writes)
+
     if (Serial.available() > 0)
     {
         info_displayln("data received from Serial port");

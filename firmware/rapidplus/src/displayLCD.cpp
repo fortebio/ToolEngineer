@@ -10,6 +10,7 @@
 // #include "update_firmware.h"
 #include "Bluetooth.h"
 #include "PIDControl.h"
+#include "webDashboard.h"
 #include <string>
 // #include "sensor6035.h"
 
@@ -974,6 +975,56 @@ void displayCLD::waitAmpTube()
 }
 
 /***********************************************************************
+ * Function: waitAmpTube()
+ * Description: Rate-limited screen (refreshes every 10s) prompting the
+ *  user to put the amplification tube in and close the lid, with a RED
+ *  warning box/circle and the "Press Red to Measure" prompt in the
+ *  English branch; the language==0 branch is empty.
+ * pramameter: none
+ *  return: none
+ */
+void displayCLD::waitAmpSetName()
+{
+  unsigned long now = millis();
+  if (timeRefresh > now) // no refresh needed
+  {
+    return;
+  }
+  timeRefresh = now + 10 * 1000; // refresh every 10 seconds
+
+  // _buzzer.BuzzerAlert();
+  if (language == 0)
+  {
+  }
+  else
+  {
+    this->display->fillScreen(BLACK);
+    this->display->setTextSize(2);
+    this->display->setTextColor(Forte_Green);
+    this->display->setCursor(15, 60);
+    this->display->print("Name the disease ");
+    this->display->setCursor(15, 90);
+    this->display->print("slot on the App");
+    this->display->drawRect(30, 140, 272, 80, RED);
+    this->display->drawRect(29, 139, 274, 82, RED);
+    for (int i = 18; i <= 310; i += 10)
+    {
+      static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
+      this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
+      this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
+    }
+    this->display->drawCircle(55, 180, 22, RED);
+    this->display->fillCircle(55, 180, 17, RED);
+    this->display->setTextSize(2);
+    this->display->setTextColor(RED);
+    this->display->setCursor(90, 175);
+    this->display->println("Press Red to");
+    this->display->setCursor(90, 205);
+    this->display->print("Skip");
+  }
+}
+
+/***********************************************************************
  * Function: startAmplification()
  * Description: Initializes the amplification countdown by setting
  *  timer30minEnd to now + AMPLIFICATION_DURATION, re-arming bheadershow
@@ -1136,6 +1187,30 @@ void displayCLD::screen_Result(char key)
     float CT_value[10] = {0};
     char result[10] = {0};
     uint8_t loops = _ForteSetting.parameter.amplification_time;
+
+    // Everything below - EEPROM read, the per-cycle CSV dump, the WiFi wait and the
+    // ~1 minute mbedTLS upload - runs on THIS (Display) task, which cannot redraw the
+    // TFT until the result grid at the very end. So the panel would sit frozen on the
+    // amplification screen for about a minute and look hung. Draw a clear status screen
+    // FIRST so the operator sees the device is working, not stuck. It stays static
+    // (the task is blocked in the upload) - that is expected, not a freeze.
+    // Only when the upload will actually run: finished ('f') AND on STA (SoftAP has no
+    // internet, so it skips the upload and there is nothing to wait for).
+    if (key == 'f' && !dashboardIsAP() && WiFi.status() == WL_CONNECTED)
+    {
+      this->display->fillScreen(BLACK);
+      this->display->setTextSize(2);
+      this->display->setTextColor(Forte_Green);
+      this->display->setCursor(30, 80);
+      this->display->print("Uploading results");
+      this->display->setTextColor(WHITE);
+      this->display->setCursor(30, 120);
+      this->display->print("Please wait...");
+      this->display->setTextColor(LIGHTGREY);
+      this->display->setCursor(30, 155);
+      this->display->print("up to ~1 minute");
+    }
+
     // Fully release the Bluetooth Classic stack (not just SerialBT.end()) here.
     // SerialBT.end() alone leaves the controller + bluedroid (~60KB) resident and
     // FRAGMENTING the heap, so the later HTTPS upload can't get a big enough
@@ -1159,13 +1234,25 @@ void displayCLD::screen_Result(char key)
       }
       info_displayln(_ForteSetting.parameter.amplifTemp);
     }
-    int retries = 0;
-    while (WiFi.status() != WL_CONNECTED && retries < 50)
+    // Reconnect STA once if it dropped, then just WAIT for it.
+    //
+    // This used to call WiFi.begin() on EVERY one of 50 iterations. Each call re-enters
+    // esp_wifi_set_mode()/connect and thrashes the WiFi+lwIP stack, so the AsyncTCP task
+    // serving the dashboard blocks on the tcpip core lock and stops feeding the task
+    // watchdog -> "task_wdt: async_tcp (CPU 1)" -> abort() -> reboot, right at the end of
+    // every run. It only bit once a dashboard existed to be starved.
+    //
+    // Skipped entirely on the SoftAP fallback: STA has no working credentials there, so
+    // the loop would burn its full 5 s (>= the 5 s watchdog) on every run, and
+    // WiFi.begin() would tear down the AP the browser is sitting on.
+    if (!dashboardIsAP() && ssid.length() > 0 && WiFi.status() != WL_CONNECTED)
     {
-      delay(100);
-      retries++;
-      Serial.print(".");
-      WiFi.begin(ssid.c_str(), password.c_str());
+      WiFi.begin(ssid.c_str(), password.c_str()); // once, not once per retry
+      for (int retries = 0; retries < 50 && WiFi.status() != WL_CONNECTED; retries++)
+      {
+        delay(100); // yields - other tasks (async_tcp included) keep running
+        Serial.print(".");
+      }
     }
 
     uint16_t httpCode = 0;
@@ -1178,6 +1265,9 @@ void displayCLD::screen_Result(char key)
     {
       bool flag = _sensor6035.bResultGet(CT_value, result);
     }
+
+    // Cache per-slot results for the web dashboard Process-tab table (GET /slots).
+    dashboardSetResults(CT_value, result);
 
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);
@@ -1432,6 +1522,14 @@ void displayCLD::loop()
       dbg_display("ecalibSelect");
       this->calibSelectLCD();
       this->changeScreen = false; // static menu, draw once
+      break;
+    }
+
+    case ewaitname:
+    {
+      // Naming gate before heating: the web shows the slot-naming card here; the TFT
+      // reuses the wait screen. RED (web Confirm or physical) starts the preheat.
+      waitAmpSetName();
       break;
     }
 

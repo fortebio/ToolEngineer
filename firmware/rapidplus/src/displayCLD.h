@@ -50,7 +50,7 @@ typedef enum
     escreenErrorResult,
     escreenFinished,
     escreenReview,
-    errprocess, // error process display, for button to check err status
+    errprocess,      // error process display, for button to check err status
     escreenRestart,  // used for restart display
     ebuttonrestart,  // when press white button to restart
     ewaitingtimeout, // wait above display to be finished
@@ -73,6 +73,8 @@ typedef enum
     ecalibPreheatStart, // calib flow p0: prompt to press red to start preheat 55C
     ecalibPreheating,   // calib flow p0: heating heater2,3 to 55C
     ecalibSelect,       // calib flow p1: choose Calib (blue) or Amplification (red)
+    ewaitname,          // amp flow: name the slots on the web BEFORE heating starts;
+                        // RED here confirms + begins the 67C preheat, WHITE cancels
 } e_statuslcd;
 
 class displayCLD
@@ -123,10 +125,10 @@ public:
     void RestartProcess(String strDescript, String strValue);
 
     void drawHeat67Header(const char *line1, const char *line2); // shared header renderer for the two 67C screens
-    void Heat67LCD_Header();    // display inf
-    void Heat67LCD();           // heat to 67 degree
-    void Preheat67LCD_Header(); // display inf
-    void Preheat67LCD();        // heat to 67 degree
+    void Heat67LCD_Header();                                     // display inf
+    void Heat67LCD();                                            // heat to 67 degree
+    void Preheat67LCD_Header();                                  // display inf
+    void Preheat67LCD();                                         // heat to 67 degree
 
     void calibPreheatStartLCD(); // calib p0: prompt press red to preheat 55C
     void calibPreheatingLCD();   // calib p0: heating heater2,3 to 55C
@@ -143,13 +145,22 @@ public:
     void waitBtnStartPhase2();
 
     void waitAmpTube();
+    void waitAmpSetName();
 
     void startAmplification();
     void waitAmplification30min();
 
     // Remaining seconds for the web dashboard (0 if that phase isn't running).
-    uint32_t lysisRemainSec() const { uint32_t n = millis(); return timer10minEnd > n ? (timer10minEnd - n) / 1000 : 0; }
-    uint32_t ampRemainSec() const { uint32_t n = millis(); return timer30minEnd > n ? (timer30minEnd - n) / 1000 : 0; }
+    uint32_t lysisRemainSec() const
+    {
+        uint32_t n = millis();
+        return timer10minEnd > n ? (timer10minEnd - n) / 1000 : 0;
+    }
+    uint32_t ampRemainSec() const
+    {
+        uint32_t n = millis();
+        return timer30minEnd > n ? (timer30minEnd - n) / 1000 : 0;
+    }
 
     void prepare();
 
@@ -187,7 +198,7 @@ public:
     bool changeScreen = true;
     bool temperatureShow = false;
     bool bheadershow = false; // if there is header needed to show static, then only write once without refreshing every time
-    int language = 1; // 0:VietNamese 1: English //change default as English
+    int language = 1;         // 0:VietNamese 1: English //change default as English
     volatile int step = 1;
 };
 extern displayCLD _displayCLD;

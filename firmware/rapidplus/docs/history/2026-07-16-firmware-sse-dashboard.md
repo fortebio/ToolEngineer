@@ -179,3 +179,19 @@ reconnect (EventSource auto-retry) sau khi xong. Upload hiếm (sau mỗi run) n
 
 **Cần verify trên máy:** chạy 1 upload sau khi nạp → không còn `-32512`, và dashboard
 quay lại sau đó. (Nếu vẫn thiếu heap: giảm `client.setBufferSizes()` cho TLS.)
+
+## Đổi nút BLUE → GREEN, thứ tự GREEN → RED → WHITE
+
+Nút vật lý thật màu **green** (enum firmware đặt tên legacy `B_BLUE`). Đổi UI + web
+contract từ "blue" sang "green", thứ tự trái→phải **GREEN → RED → WHITE**. Mapping:
+`/control?btn=green` → `B_BLUE` (không đổi enum firmware).
+
+- `data/index.html` — chip `bGreen`/`data-btn="green"` đưa lên đầu.
+- `data/style.css` — `.btn-chip.green` màu xanh lá (#1fa64d, on #2ec46a).
+- `data/script.js` — `dot("bGreen", b.green)`.
+- `webDashboard.cpp` — `/control` `green→B_BLUE`; home JSON key `buttons.green`.
+- `tools/sse_test_server.py` — home_at/_control/selftest dùng `green`.
+- `CLAUDE.md` — cập nhật contract.
+
+Verify: mock selftest OK, screenshot đúng thứ tự GREEN/RED/WHITE, `/control?btn=green`
+→ `{"ok":true}`. Đổi cả firmware + data/ → nạp `upload` **và** `uploadfs`.

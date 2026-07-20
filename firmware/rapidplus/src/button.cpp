@@ -26,7 +26,7 @@
 // ================================================================
 static const uint8_t buttonPins[NumberButton] = {
     BUTTON_RED,  // B_RED   = 0
-    BUTTON_BLUE, // B_BLUE  = 1
+    BUTTON_BLUE, // B_GREEN  = 1
     BUTTON_WHITE // B_WHITE = 2
 };
 
@@ -61,15 +61,15 @@ static void IRAM_ATTR isrRed()
 /***********************************************************************
  * Function: isrBlue()
  * Description: IRAM-resident ISR for the BLUE button GPIO CHANGE edge.
- * Reads the BLUE pin (active-low) into btnState[B_BLUE].rawPressed and
+ * Reads the BLUE pin (active-low) into btnState[B_GREEN].rawPressed and
  * records the edge timestamp via millis(). Does no business logic.
  * pramameter: none
  *  return: none
  */
 static void IRAM_ATTR isrBlue()
 {
-  btnState[B_BLUE].rawPressed = !digitalRead(buttonPins[B_BLUE]);
-  btnState[B_BLUE].lastEdgeTime = millis();
+  btnState[B_GREEN].rawPressed = !digitalRead(buttonPins[B_GREEN]);
+  btnState[B_GREEN].lastEdgeTime = millis();
 }
 
 /***********************************************************************
@@ -130,7 +130,7 @@ void buttonManager::buttonStart()
     pinMode(buttonPins[i], INPUT_PULLUP);
   }
   attachInterrupt(digitalPinToInterrupt(buttonPins[B_RED]), isrRed, CHANGE);
-  attachInterrupt(digitalPinToInterrupt(buttonPins[B_BLUE]), isrBlue, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(buttonPins[B_GREEN]), isrBlue, CHANGE);
   attachInterrupt(digitalPinToInterrupt(buttonPins[B_WHITE]), isrWhite, CHANGE);
 }
 
@@ -151,7 +151,7 @@ void buttonManager::buttonStart()
  * ms, then while held fires BTN_EVENT_LONG_PRESS once after longPressMs, or
  * on release fires BTN_EVENT_SHORT_PRESS if no long-press occurred. Sets
  * the button's pendingEvent for later dispatch.
- * pramameter: index = button index (B_RED/B_BLUE/B_WHITE) to poll;
+ * pramameter: index = button index (B_RED/B_GREEN/B_WHITE) to poll;
  * pramameter: longPressMs = hold threshold in ms for this button's long press
  *  return: none
  */
@@ -222,7 +222,7 @@ void buttonManager::pollButton(uint8_t index, uint16_t longPressMs)
  * short press it stops the buzzer then calls the per-button
  * handleShortPress_Red/Blue/White; for a long press it calls the
  * per-button handleLongPress_Red/Blue/White.
- * pramameter: index = which button (B_RED/B_BLUE/B_WHITE) the event belongs to;
+ * pramameter: index = which button (B_RED/B_GREEN/B_WHITE) the event belongs to;
  * pramameter: event = the event type (BTN_EVENT_SHORT_PRESS/BTN_EVENT_LONG_PRESS)
  *  return: none
  */
@@ -238,7 +238,7 @@ void buttonManager::processEvent(e_statusbutton index, e_buttonEvent event)
     case B_RED:
       handleShortPress_Red();
       break;
-    case B_BLUE:
+    case B_GREEN:
       handleShortPress_Blue();
       break;
     case B_WHITE:
@@ -253,7 +253,7 @@ void buttonManager::processEvent(e_statusbutton index, e_buttonEvent event)
     case B_RED:
       handleLongPress_Red();
       break;
-    case B_BLUE:
+    case B_GREEN:
       handleLongPress_Blue();
       break;
     case B_WHITE:
@@ -268,12 +268,28 @@ void buttonManager::processEvent(e_statusbutton index, e_buttonEvent event)
  * Description: Queue a short-press event for button `b` from another task
  *  (the web dashboard). Only writes pendingEvent; loop() (InputTask, core 1)
  *  drains it and runs the handler in the normal task context.
- * pramameter: b = which button (B_RED/B_BLUE/B_WHITE)
+ * pramameter: b = which button (B_RED/B_GREEN/B_WHITE)
  *  return: none
  */
 void buttonManager::postShortPress(e_statusbutton b)
 {
   btnState[b].pendingEvent = BTN_EVENT_SHORT_PRESS;
+}
+
+/***********************************************************************
+ * Function: postLongPress()
+ * Description: Queue a LONG press as if the button had been held, so a web
+ *  request can reach the long-press handlers. Needed by the web calibration
+ *  wizard: calibration is entered by BLUE long-press (handleLongPress_Blue);
+ *  a short press from the start screen starts an 80C preheat instead.
+ *  Same one-slot queue as postShortPress - InputTask drains it and runs the
+ *  handler in the normal task context.
+ * pramameter: b = which button (B_RED/B_GREEN/B_WHITE)
+ *  return: none
+ */
+void buttonManager::postLongPress(e_statusbutton b)
+{
+  btnState[b].pendingEvent = BTN_EVENT_LONG_PRESS;
 }
 
 // ================================================================
@@ -291,7 +307,7 @@ void buttonManager::loop()
 {
   // Poll all 3 buttons with their respective long-press thresholds
   pollButton(B_RED, LONG_PRESS_RED_MS);
-  pollButton(B_BLUE, LONG_PRESS_BLUE_MS);
+  pollButton(B_GREEN, LONG_PRESS_BLUE_MS);
   pollButton(B_WHITE, LONG_PRESS_WHITE_MS);
 
   // Manual display recovery: hold BLUE + WHITE together for ~1.5s.
@@ -309,7 +325,7 @@ void buttonManager::loop()
   static uint32_t chordStart = 0;
   static uint32_t lastBothSeen = 0;
   static bool chordFired = false;
-  bool bluePressed = btnState[B_BLUE].rawPressed;
+  bool bluePressed = btnState[B_GREEN].rawPressed;
   bool whitePressed = btnState[B_WHITE].rawPressed;
   uint32_t nowMs = millis();
   bool bothPressed = bluePressed && whitePressed;
@@ -320,7 +336,7 @@ void buttonManager::loop()
     // Suppress single-button events on both buttons IMMEDIATELY — not
     // just when chord finally fires — so even a sub-threshold dual press
     // doesn't trigger WHITE short-press restart on release.
-    btnState[B_BLUE].longPressFired = true;
+    btnState[B_GREEN].longPressFired = true;
     btnState[B_WHITE].longPressFired = true;
   }
 
@@ -335,7 +351,7 @@ void buttonManager::loop()
     {
       chordFired = true;
       _displayCLD.requestReinit = true;
-      btnState[B_BLUE].pendingEvent = BTN_EVENT_NONE;
+      btnState[B_GREEN].pendingEvent = BTN_EVENT_NONE;
       btnState[B_WHITE].pendingEvent = BTN_EVENT_NONE;
       Serial.println("Display reinit triggered by BLUE+WHITE chord");
     }
@@ -408,17 +424,22 @@ void buttonManager::handleShortPress_Red()
     _displayCLD.startHeating10mins();
     dbg_button("Red Btn - start heating lysis");
   }
-  else if (_displayCLD.type_infor == escreenStart)
+  else if (_displayCLD.type_infor == escreenStart ||
+           _displayCLD.type_infor == ewaitname)
   {
-    // Skip to amplification stage directly
-    // _PIDControl.waitWarmAmpTube = true; // reset the flag in case user press red button to start heating but then change their mind and press blue button to skip preheat
+    // RED starts the 67C amplification preheat. Two ways in:
+    //   escreenStart -> the PHYSICAL Amplification button heats DIRECTLY (no naming gate).
+    //   ewaitname    -> the web named the slots first, then Confirm (RED) heats.
+    // The web "Amplification" chip does NOT press RED at escreenStart; it calls
+    // /control?btn=ampname to enter ewaitname (see controlHandler), so only the physical
+    // button reaches this branch from escreenStart.
     _PIDControl.timeStartWait = millis();
     _displayCLD.type_infor = eheating67;
     _displayCLD.bheadershow = true;
     _displayCLD.changeScreen = true;
     _PIDControl.setPreheat67();
     _sensor6035.setStepeSensorpreheat();
-    dbg_button("red button - start amplification");
+    dbg_button("red button - start amplification preheat");
   }
   else if (_displayCLD.type_infor == eSelectAmpli)
   {
@@ -451,6 +472,13 @@ void buttonManager::handleShortPress_Red()
   }
   else if (_displayCLD.type_infor == ewaitampTube)
   {
+    // Wipe the PREVIOUS run before this one starts. clear() only ran at boot until now,
+    // so sensor67Value/COUNTER/lastRunLoops kept the last run's curve - which is why a
+    // fresh run showed leftover data and /curve needed two guards. Clear BEFORE setting
+    // eoptoreading so SensorTask cannot start reading (and racing COUNTER/iChannel)
+    // until the buffer is zeroed. The previous run stays in EEPROM for Result review
+    // until THIS run overwrites it at the end.
+    _sensor6035.clear();
     _displayCLD.type_infor = eoptoreading;
     _displayCLD.changeScreen = true;
     _displayCLD.startAmplification();
@@ -523,7 +551,7 @@ void buttonManager::handleShortPress_Red()
 }
 
 // ----------------------------------------------------------------
-// BLUE short press — original: case B_BLUE in buttonProcess()
+// BLUE short press — original: case B_GREEN in buttonProcess()
 // ----------------------------------------------------------------
 /***********************************************************************
  * Function: handleShortPress_Blue()
@@ -675,6 +703,13 @@ void buttonManager::handleShortPress_White()
   }
   if (_displayCLD.ErrorStatus())
   {
+    return;
+  }
+  if (_displayCLD.type_infor == ewaitname)
+  {
+    // Cancel the naming gate before any heating started -> back to the start screen.
+    _displayCLD.type_infor = escreenStart;
+    _displayCLD.changeScreen = true;
     return;
   }
   if (_displayCLD.type_infor == eSettingMenu)

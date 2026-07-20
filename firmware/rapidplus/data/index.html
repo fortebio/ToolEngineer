@@ -4,16 +4,19 @@
     <meta charset="utf-8">
     <title>RAPID</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" type="image/png" href="icons8-prawn-48.png">
+    <link rel="icon" type="image/png" href="logo.png">
     <link rel="stylesheet" type="text/css" href="style.css">
     <script src="highcharts.js"></script>
   </head>
   <body>
     <!-- ============ HEADER ============ -->
     <header class="header">
-      <div class="header-text">
-        <div id="deviceName" class="device-name">RAPIDPlus</div>
-        <div id="companyName" class="company-name">Fortebiotech</div>
+      <div class="brand-mark">
+        <img src="logo.png" alt="Forte Biotech">
+        <div class="header-text">
+          <div id="deviceName" class="device-name">RAPIDPlus</div>
+          <div id="companyName" class="company-name">Fortebiotech</div>
+        </div>
       </div>
       <span id="status" class="status off">
         <span class="status-dot"></span><span id="statusText">Offline</span>
@@ -36,6 +39,28 @@
           </div>
         </div>
 
+        <!-- Button states -->
+        <div class="card wide">
+          <p class="card-title">Buttons</p>
+          <div class="btn-row">
+            <button type="button" id="bGreen" class="btn-chip green off" data-btn="green">GREEN</button>
+            <button type="button" id="bRed" class="btn-chip red off" data-btn="red">RED</button>
+            <button type="button" id="bWhite" class="btn-chip white off" data-btn="white">WHITE</button>
+          </div>
+        </div>
+
+        <!-- Temperatures: compact strip (shown while chart is up) -->
+        <div class="card compact wide hide" id="tempCompact">
+          <p class="card-title">Temperatures</p>
+          <div class="temp-strip">
+            <span class="ts"><span class="lbl">Lysis</span><b id="cLysis">-</b></span>
+            <span class="ts"><span class="lbl">Amp L</span><b id="cAmpLeft">-</b></span>
+            <span class="ts"><span class="lbl">Amp R</span><b id="cAmpRight">-</b></span>
+            <span class="ts"><span class="lbl">Top L</span><b id="cTopLeft">-</b></span>
+            <span class="ts"><span class="lbl">Top R</span><b id="cTopRight">-</b></span>
+          </div>
+        </div>
+
         <!-- Current status (icon swapped by JS: clock or thermometer) -->
         <div class="banner state">
           <div id="stateIcon" class="banner-icon">
@@ -47,15 +72,41 @@
           </div>
         </div>
 
-        <!-- Temperatures -->
-        <div class="card">
+        <!-- Slot naming (shown only when amplification is ready to start; naming
+             gates the Start button and reveals the live chart) -->
+        <div class="card wide hide" id="namingCard">
+          <p class="card-title" id="namingTitle">Name the samples</p>
+          <p class="naming-hint">Pick a disease for each slot (tap the field). Blank slots keep their default #1-#10.</p>
+          <table class="slot-table">
+            <thead>
+              <tr><th>Show</th><th>Slot</th><th class="col-name">Disease</th></tr>
+            </thead>
+            <tbody id="namingBody"></tbody>
+          </table>
+          <button type="button" id="confirmNamesBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span id="confirmNamesLabel">Confirm</span>
+          </button>
+        </div>
+
+        <!-- Live amplification chart (shown after names confirmed / while running) -->
+        <div class="card wide hide" id="homeChartCard">
+          <div class="card-head">
+            <p class="card-title">Realtime LAMP Amplification</p>
+            <span class="time">Last update: <span id="lastUpdateHome">-</span></span>
+          </div>
+          <div id="homeChart" class="chart-container"></div>
+        </div>
+
+        <!-- Temperatures: full cards (default) -->
+        <div class="card" id="tempFullLysis">
           <p class="card-title">Lysis</p>
           <div class="temp-grid one">
             <div class="temp-box"><div id="tLysis" class="temp-val">-</div><div class="temp-lbl">Temperature</div></div>
           </div>
         </div>
 
-        <div class="card">
+        <div class="card" id="tempFullAmp">
           <p class="card-title">Amplification</p>
           <div class="temp-grid four">
             <div class="temp-box"><div id="tAmpLeft" class="temp-val">-</div><div class="temp-lbl">Amp Left</div></div>
@@ -65,29 +116,60 @@
           </div>
         </div>
 
-        <!-- Button states -->
-        <div class="card">
-          <p class="card-title">Buttons</p>
-          <div class="btn-row">
-            <button type="button" id="bGreen" class="btn-chip green off" data-btn="green">GREEN</button>
-            <button type="button" id="bRed" class="btn-chip red off" data-btn="red">RED</button>
-            <button type="button" id="bWhite" class="btn-chip white off" data-btn="white">WHITE</button>
-          </div>
-        </div>
       </section>
 
-      <!-- ---- PROCESS (amplification chart) ---- -->
-      <section id="screen-process" class="screen">
+      <!-- ---- RESULT (stored run: results table + saved-curve chart) ---- -->
+      <section id="screen-result" class="screen">
+        <div class="card hide" id="resultChartCard">
+          <div class="card-head">
+            <p class="card-title">Stored run curve</p>
+          </div>
+          <div id="resultChart" class="chart-container"></div>
+        </div>
         <div class="card">
-          <p class="card-title">Realtime LAMP Amplification</p>
-          <p class="time">Last update: <span id="lastUpdate">-</span></p>
-          <div id="chart" class="chart-container"></div>
+          <p class="card-title">Results &amp; slots</p>
+          <table class="slot-table">
+            <thead>
+              <tr><th>Show</th><th>Slot</th><th class="col-name">Disease</th><th>CT</th><th>Result</th></tr>
+            </thead>
+            <tbody id="slotBody"></tbody>
+          </table>
+          <button type="button" id="viewChartBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 12 8 12 11 19 16 5 19 12 21 12"/></svg>
+            View chart
+          </button>
         </div>
       </section>
 
       <!-- ---- SETTING ---- -->
       <section id="screen-setting" class="screen">
-        <div class="card">
+        <!-- Shown while the device is running/calibrating: every card is locked -->
+        <div id="setBusy" class="banner notify hidden">
+          <div class="banner-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <div class="banner-body">
+            <div class="banner-title">Settings locked</div>
+            <div class="banner-sub">The device is busy - settings cannot change during a run.</div>
+          </div>
+        </div>
+
+        <!-- Card menu (built by script.js from the CARDS table) -->
+        <div id="setMenu" class="set-grid"></div>
+
+        <!-- Detail panel for the selected card -->
+        <div id="setDetail" class="card hide">
+          <div class="panel-head">
+            <button type="button" id="setBack" class="back-btn" aria-label="Back">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <p class="card-title" id="setPanelTitle">-</p>
+          </div>
+          <div id="setForm"></div>
+          <div id="setMsg" class="set-msg"></div>
+        </div>
+
+        <div class="card" id="setAbout">
           <p class="card-title">Device</p>
           <p class="setting-row">ID: <span id="setDevice">-</span></p>
           <p class="setting-row">Company: <span id="setCompany">-</span></p>
@@ -101,8 +183,8 @@
       <button type="button" class="nav-item active" data-screen="home">
         <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>Home
       </button>
-      <button type="button" class="nav-item" data-screen="process">
-        <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 12 8 12 11 19 16 5 19 12 21 12"/></svg></span>Process
+      <button type="button" class="nav-item" data-screen="result">
+        <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17v-6"/><path d="M12 17v-4"/><path d="M15 17v-2"/><rect x="3" y="4" width="18" height="16" rx="2"/></svg></span>Result
       </button>
       <button type="button" class="nav-item" data-screen="setting">
         <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Setting

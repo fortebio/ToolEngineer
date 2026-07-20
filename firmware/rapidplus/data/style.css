@@ -4,23 +4,36 @@
  * device SoftAP). Design tokens first, then components.
  * ============================================================ */
 :root {
-  /* brand + surface */
-  --navy: #0a1128;
-  --blue: #034078;
-  --blue-600: #1263a8;
-  --bg: #f4f6f9;
+  /* ---- Forte Biotech brand (measured from the logo, src/download.png) ----
+     Logo palette: #20C6D0 cyan (wordmark + big triangles), #13A2BF deep teal,
+     #21DDBC mint. All three are TOO LIGHT for text: on white they measure
+     2.09 / 3.02 / 1.73 against the 4.5 WCAG AA needs, and white on them is 2.09.
+     So the logo cyan is used for accents/icons/marks only, and text/dark surfaces
+     use shades derived from the SAME hue (183 deg) that do pass. This is a medical
+     device readout - readability wins over hitting the swatch exactly. */
+  --brand: #20C6D0;      /* logo cyan - accents, icons, focus, marks */
+  --brand-mint: #21DDBC; /* logo mint - secondary accent */
+  --brand-teal: #13A2BF; /* logo deep teal - large UI only */
+  --brand-ink: #13757A;  /* text/CTA on white - 5.45:1 */
+  --brand-deep: #083336; /* dark surfaces (header) - white text 13.7:1 */
+
+  /* surface */
+  --navy: var(--brand-deep); /* header + big numerals, now brand-hued */
+  --blue: var(--brand-ink);  /* card titles, primary CTA */
+  --blue-600: #0F5F63;       /* CTA hover: darker, keeps white text >= 7:1 */
+  --bg: #f2f8f9;             /* faint brand tint instead of neutral grey */
   --card: #ffffff;
-  --hairline: #e6eaf0;
+  --hairline: #dfeaec;
   /* text */
   --ink: #1f2a37;
   --muted: #6b7280;
   --on-navy: #eaf1f8;
-  --on-navy-dim: #9fb3c8;
+  --on-navy-dim: #7fc7cd; /* brand-tinted, still 7:1+ on --brand-deep */
   /* status */
   --green: #16a34a;
   --amber: #d97706;
   --red: #dc2626;
-  --info: #2563eb;
+  --info: var(--brand-ink); /* state accent, brand-hued */
   /* metrics */
   --radius: 14px;
   --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 4px 14px rgba(16, 24, 40, .06);
@@ -50,9 +63,13 @@ body {
   gap: 0.8rem;
   min-height: 80px;
   padding: 0.85rem 1.1rem;
-  background: linear-gradient(135deg, #0d1a3a 0%, var(--navy) 100%);
+  background: linear-gradient(60deg, #0C494C 0%, var(--brand-deep) 100%);
   color: #fff;
 }
+/* Logo mark = the triangles only. The wordmark stays as the .company-name text: at
+   header size the logo's own lettering would render ~6px and be unreadable. */
+.brand-mark { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+.brand-mark img { height: 40px; width: auto; display: block; flex: none; }
 .device-name { font-size: 1.5rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.1; }
 .company-name {
   font-size: 0.55rem; font-weight: 600; letter-spacing: .18em;
@@ -87,12 +104,12 @@ body {
 .banner.hidden { display: none; }
 .banner-icon {
   flex: none; display: grid; place-items: center;
-  width: 44px; height: 44px; border-radius: 12px;
-  background: #eef2f7; color: var(--muted);
+  width: 44px; height: 34px; border-radius: 12px;
+  background: #eaf2f3; color: var(--muted);
 }
 .banner-icon svg { width: 24px; height: 24px; display: block; }
 .banner.notify .banner-icon { background: #fdf1e3; color: var(--amber); }
-.banner.state  .banner-icon { background: #e8f0fd; color: var(--info); }
+.banner.state  .banner-icon { background: #e2f5f7; color: var(--info); }
 .banner.state.heat .banner-icon { background: #fdf1e3; color: var(--amber); }
 .banner-title { font-size: 1.02rem; font-weight: 700; line-height: 1.25; }
 .banner-sub { font-size: 0.83rem; color: var(--muted); margin-top: 0.15rem; }
@@ -114,7 +131,7 @@ body {
 .temp-grid.one  { grid-template-columns: 1fr; }
 .temp-grid.four { grid-template-columns: 1fr 1fr; }
 .temp-box {
-  background: linear-gradient(180deg, #fbfcfe 0%, #f2f5fa 100%);
+  background: linear-gradient(180deg, #fafdfd 0%, #eef7f8 100%);
   border: 1px solid var(--hairline); border-radius: 12px;
   padding: 0.85rem 0.7rem; text-align: center;
 }
@@ -138,6 +155,12 @@ body {
 }
 .btn-chip:hover  { filter: brightness(1.06); }
 .btn-chip:active { transform: scale(0.95); filter: brightness(1.12); }
+/* button has no action in the current state */
+.btn-chip.noact { opacity: .45; }
+.btn-chip.noact:hover { filter: none; }
+/* start locked until slot names are confirmed (web-only gate) */
+.btn-chip.locked { opacity: .5; cursor: not-allowed; filter: grayscale(.35); }
+.btn-chip.locked:hover, .btn-chip.locked:active { filter: grayscale(.35); transform: none; }
 /* always tinted with their own colour */
 .btn-chip.red   { background: #e23b3b; border-color: #c62f2f; }
 .btn-chip.green { background: #1fa64d; border-color: #178a3f; }
@@ -146,6 +169,32 @@ body {
 .btn-chip.red.on   { background: #ff5757; box-shadow: 0 0 0 3px rgba(226,59,59,.30), 0 4px 14px rgba(226,59,59,.5); }
 .btn-chip.green.on { background: #2ec46a; box-shadow: 0 0 0 3px rgba(31,166,77,.30), 0 4px 14px rgba(31,166,77,.5); }
 .btn-chip.white.on { box-shadow: 0 0 0 3px rgba(148,163,184,.45), 0 4px 14px rgba(16,24,40,.15); }
+
+/* ---------- Slot naming card (Home) ---------- */
+.naming-hint { font-size: 0.83rem; color: var(--muted); margin: -0.4rem 0 0.7rem; }
+#confirmNamesBtn {
+  display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;
+  padding: 0.7rem 1.5rem; font-family: inherit; font-size: 0.95rem; font-weight: 700;
+  color: #fff; background: var(--green); border: none; border-radius: 10px;
+  box-shadow: 0 3px 12px rgba(22, 163, 74, .28);
+  transition: background .15s, box-shadow .15s, transform .08s;
+}
+#confirmNamesBtn svg { width: 18px; height: 18px; }
+#confirmNamesBtn:hover { filter: brightness(1.06); box-shadow: 0 5px 16px rgba(22, 163, 74, .36); }
+#confirmNamesBtn:active { transform: scale(.97); }
+
+/* ---------- Compact temperature strip (Home, while chart is up) ---------- */
+.card.compact { padding: 0.75rem 1rem; }
+.temp-strip { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; }
+.temp-strip .ts { display: flex; align-items: baseline; gap: 0.4rem; }
+.temp-strip .ts .lbl {
+  font-size: 0.68rem; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.temp-strip .ts b {
+  font-size: 1.05rem; font-weight: 700; color: var(--navy);
+  font-variant-numeric: tabular-nums; letter-spacing: -.01em;
+}
 
 /* ---------- Chart / Setting ---------- */
 .chart-container { width: 100%; height: 320px; }
@@ -158,7 +207,196 @@ body {
 }
 .reload-btn:hover { background: var(--blue-600); }
 
+/* ---------- Result: results table ---------- */
+/* Utility: must beat any component's own display rule. Without !important a later
+   single-class rule (e.g. .set-grid{display:grid}) has equal specificity and wins by
+   source order, so the element stays visible - which is exactly how the Setting panels
+   silently rendered below the menu instead of replacing it. */
+.hide { display: none !important; }
+.slot-table { width: 100%; border-collapse: collapse; margin-bottom: 0.9rem; table-layout: fixed; }
+.slot-table th, .slot-table td {
+  padding: 0.5rem 0.45rem; border-bottom: 1px solid var(--hairline);
+  font-size: 0.85rem; text-align: center;  /* short values centre in their (wide) column */
+}
+.slot-table td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slot-table th {
+  color: var(--muted); font-size: 0.66rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.slot-table th:first-child, .slot-table td:first-child { width: 3.2rem; }
+.slot-table th:nth-child(3), .slot-table td:nth-child(3) { text-align: left; } /* Name */
+.slot-table td:nth-child(2) { font-weight: 700; color: var(--muted); }         /* slot no. */
+.slot-table tbody tr:nth-child(even) { background: #fafbfd; }  /* zebra */
+.slot-table tbody tr:hover { background: #e9f6f7; }            /* later rule -> wins over zebra */
+.slot-table tbody tr:last-child td { border-bottom: none; }
+.slot-table input[type="checkbox"] {
+  width: 15px; height: 15px; accent-color: var(--blue); cursor: pointer; vertical-align: middle;
+}
+.slot-name {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 0.85rem;
+  padding: 0.38rem 0.5rem; border: 1px solid var(--hairline); border-radius: 7px;
+  background: #fafdfd; transition: border-color .12s, background .12s;
+}
+.slot-name:hover { border-color: #a9ccd0; }
+.slot-name:focus { outline: none; border-color: var(--blue); background: #fff; }
+
+/* View chart: primary CTA of the Process tab */
+#viewChartBtn {
+  display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;
+  padding: 0.7rem 1.5rem; font-family: inherit; font-size: 0.95rem; font-weight: 700;
+  color: #fff; background: var(--blue); border: none; border-radius: 10px;
+  box-shadow: 0 3px 12px rgba(3, 64, 120, .28);
+  transition: background .15s, box-shadow .15s, transform .08s;
+}
+#viewChartBtn svg { width: 18px; height: 18px; }
+#viewChartBtn:hover { background: var(--blue-600); box-shadow: 0 5px 16px rgba(3, 64, 120, .36); }
+#viewChartBtn:active { transform: scale(.97); }
+
+/* Card header row: title left, meta right (chart card) */
+.card-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 0.8rem; margin-bottom: 0.7rem;
+}
+.card-head .card-title { margin: 0; }
+.card-head .time { margin: 0; }
+.res-badge {
+  display: inline-block; min-width: 1.5rem; text-align: center;
+  padding: 0.1rem 0.45rem; border-radius: 999px; font-weight: 700; font-size: 0.72rem;
+}
+.res-P { background: #fde0e0; color: #c0392b; }
+.res-N { background: #dcefe0; color: #178a3f; }
+.res-S { background: #fdf4d6; color: #9a7b0a; }
+.res-E { background: #fdebd6; color: #b5651d; }
+.res-B { background: #d9f2f4; color: #0e7c86; }
+.res-empty { color: var(--muted); }
+
+/* ---------- Setting: card menu + detail panels ---------- */
+.set-grid { display: grid; gap: 0.7rem; grid-template-columns: 1fr; margin-bottom: 0.85rem; }
+.set-card {
+  display: flex; align-items: center; gap: 0.85rem; width: 100%; text-align: left;
+  font-family: inherit; cursor: pointer;
+  background: var(--card); border: 1px solid var(--hairline); border-radius: var(--radius);
+  padding: 0.9rem 1rem; box-shadow: var(--shadow);
+  transition: border-color .12s, box-shadow .12s, transform .08s;
+}
+.set-card:hover { border-color: #a9ccd0; box-shadow: 0 4px 16px rgba(16, 24, 40, .1); }
+.set-card:active { transform: scale(.99); }
+.set-card[disabled] { opacity: .45; cursor: not-allowed; }
+.set-card[disabled]:hover { border-color: var(--hairline); box-shadow: var(--shadow); }
+.set-ico {
+  flex: none; display: grid; place-items: center; width: 40px; height: 40px;
+  border-radius: 11px; background: #e2f5f7; color: var(--blue);
+}
+.set-ico svg { width: 21px; height: 21px; display: block; }
+.set-card-body { flex: 1; min-width: 0; }
+.set-card-title { font-size: 0.96rem; font-weight: 700; color: var(--ink); }
+.set-card-desc {
+  font-size: 0.78rem; color: var(--muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.set-chev { flex: none; color: var(--muted); }
+.set-chev svg { width: 18px; height: 18px; display: block; }
+
+.panel-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.9rem; }
+.panel-head .card-title { margin: 0; }
+.back-btn {
+  flex: none; display: grid; place-items: center; width: 32px; height: 32px;
+  border-radius: 9px; border: 1px solid var(--hairline); background: #fafdfd;
+  color: var(--ink); cursor: pointer;
+}
+.back-btn:hover { background: #e9f6f7; }
+.back-btn svg { width: 17px; height: 17px; }
+
+/* form rows */
+.f-row { margin-bottom: 0.8rem; }
+.f-lbl {
+  display: block; font-size: 0.78rem; font-weight: 600; color: var(--muted);
+  margin-bottom: 0.3rem; letter-spacing: .02em;
+}
+.f-lbl .f-unit { font-weight: 500; color: #9aa4b2; }
+.f-in, .f-sel {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 0.9rem;
+  padding: 0.5rem 0.6rem; border: 1px solid var(--hairline); border-radius: 8px;
+  background: #fafdfd; color: var(--ink);
+}
+.f-in:focus, .f-sel:focus { outline: none; border-color: var(--blue); background: #fff; }
+.f-in.bad { border-color: var(--red); background: #fff5f5; }
+.f-arr { display: grid; gap: 0.4rem; grid-template-columns: repeat(2, 1fr); }
+.f-arr.n3 { grid-template-columns: repeat(3, 1fr); }
+.f-arr.n5 { grid-template-columns: repeat(5, 1fr); }
+.f-cell { position: relative; }
+.f-cell .f-idx {
+  position: absolute; top: -0.55rem; left: 0.35rem; font-size: 0.6rem; font-weight: 700;
+  color: var(--muted); background: var(--card); padding: 0 0.2rem;
+}
+.f-hint { font-size: 0.74rem; color: var(--muted); margin: -0.4rem 0 0.7rem; }
+
+.save-btn {
+  display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;
+  margin-top: 0.4rem; padding: 0.65rem 1.4rem; font-family: inherit;
+  font-size: 0.93rem; font-weight: 700; color: #fff; background: var(--blue);
+  border: none; border-radius: 10px; box-shadow: 0 3px 12px rgba(3, 64, 120, .28);
+  transition: background .15s, transform .08s;
+}
+.save-btn:hover { background: var(--blue-600); }
+.save-btn:active { transform: scale(.97); }
+.save-btn[disabled] { opacity: .5; cursor: not-allowed; }
+.set-msg { font-size: 0.83rem; font-weight: 600; margin-top: 0.6rem; min-height: 1.1rem; }
+.set-msg.ok { color: var(--green); }
+.set-msg.err { color: var(--red); }
+
+/* wifi list */
+.wifi-list { display: grid; gap: 0.4rem; margin-bottom: 0.8rem; }
+.wifi-item {
+  display: flex; align-items: center; gap: 0.6rem; width: 100%; cursor: pointer;
+  font-family: inherit; text-align: left;
+  padding: 0.55rem 0.7rem; border: 1px solid var(--hairline); border-radius: 9px;
+  background: #fafdfd;
+}
+.wifi-item:hover { background: #e9f6f7; border-color: #a9ccd0; }
+.wifi-item.sel { border-color: var(--blue); background: #e2f5f7; }
+.wifi-name { flex: 1; font-size: 0.9rem; font-weight: 600; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wifi-meta { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* calib wizard */
+.wz-step { display: flex; gap: 0.7rem; padding: 0.6rem 0; align-items: flex-start; }
+.wz-num {
+  flex: none; display: grid; place-items: center; width: 24px; height: 24px;
+  border-radius: 50%; font-size: 0.72rem; font-weight: 700;
+  background: #eaf2f3; color: var(--muted);
+}
+.wz-step.on .wz-num { background: var(--blue); color: #fff; }
+.wz-step.done .wz-num { background: var(--green); color: #fff; }
+.wz-body { flex: 1; }
+.wz-title { font-size: 0.9rem; font-weight: 700; }
+.wz-step:not(.on) .wz-title { color: var(--muted); font-weight: 600; }
+.wz-sub { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+.wz-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+
+/* ---------- Disease picker (slot name = fixed disease list) ---------- */
+.disease-sel {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 0.85rem;
+  font-weight: 600; color: var(--brand-ink);
+  padding: 0.4rem 1.5rem 0.4rem 0.55rem; border: 1px solid var(--hairline);
+  border-radius: 8px; background: #fafdfd; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+  /* down-chevron drawn as an inline SVG data URI (no external asset) */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 0.5rem center;
+}
+.disease-sel:focus { outline: none; border-color: var(--brand-ink); background-color: #fff; }
+/* an assigned disease reads as a filled chip; an empty slot stays muted grey */
+.disease-sel.assigned { background-color: #e2f5f7; border-color: #bfe4e8; }
+.disease-sel:not(.assigned) { color: var(--muted); font-weight: 500; }
+
 /* ---------- Bottom nav ---------- */
+/* Run in progress (lysis / amplification) -> no nav: the operator stays on Home.
+   The padding that reserved space for it has to go too, or the layout keeps a gap
+   (bottom on mobile, left on desktop where the nav IS the sidebar). */
+body.nonav { padding-bottom: 0; }
+body.nonav .bottom-nav { display: none; }
+
 .bottom-nav {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: var(--maxw); height: var(--nav-h);
@@ -189,6 +427,8 @@ body {
     max-width: none; margin: 0;
     padding: 0 0 0 var(--side-w);   /* room for the fixed sidebar */
   }
+  /* run in progress: sidebar gone -> reclaim its column */
+  body.nonav { padding-left: 0; }
 
   /* bottom nav -> left sidebar */
   .bottom-nav {
@@ -213,10 +453,11 @@ body {
 
   /* content: left-aligned to match the header, capped for readability */
   .header { padding-left: 1.6rem; padding-right: 1.6rem; }
-  .screens { max-width: 940px; margin: 0; padding: 1.5rem 1.6rem; }
+  .screens { max-width: none; margin: 0; padding: 1.5rem 1.6rem; }
 
-  /* Home: banners span full width, cards in a balanced 2-column grid */
-  #screen-home {
+  /* Home: banners span full width, cards in a balanced 2-column grid.
+     Scope to .active so this ID rule doesn't beat .screen{display:none} on other tabs. */
+  #screen-home.active {
     display: grid; gap: 1rem; align-items: start;
     grid-template-columns: 1fr 1fr;
   }
@@ -224,10 +465,11 @@ body {
   #screen-home .card { margin-bottom: 0; }
   /* Amplification: 4 temps in one row so it matches Lysis height (no gap) */
   #screen-home .temp-grid.four { grid-template-columns: repeat(4, 1fr); }
-  /* Buttons: full-width row below the two temperature cards */
-  #screen-home > .card:last-child { grid-column: 1 / -1; }
+  /* Wide cards (buttons, naming, live chart, compact temps) span both columns.
+     Full temp cards (Lysis / Amplification) stay in the 2-column grid. */
+  #screen-home .card.wide { grid-column: 1 / -1; }
 
   /* bigger chart on desktop */
   .chart-container { height: 460px; }
-  #screen-process .card, #screen-setting .card { max-width: 900px; }
+  #screen-setting .card { max-width: 900px; } /* Home/Result fill the width */
 }

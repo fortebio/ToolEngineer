@@ -30,10 +30,28 @@ void dashboardEnd();
 // failed; dashboardLoop() then starts the server on the AP. Logs free heap.
 void dashboardStartAP();
 
+// Cache the per-slot results (CT_value + P/N/S/E/B) for the Process-tab table.
+// Call from screen_Result() once results are computed. Served via GET /slots.
+void dashboardSetResults(const float *ct, const char *result);
+
 // Bracket a TLS upload (postData_GoogleSheet) with these: Suspend frees the
 // dashboard's heap (closes SSE + stops the server) so mbedTLS can allocate;
 // Resume brings the dashboard back afterwards. Prevents the -32512 SSL alloc fail.
 void dashboardSuspend();
 void dashboardResume();
+
+// True when the device is running / calibrating / uploading, i.e. settings must not
+// change. Allowlist of the few idle states (see isBusy in webDashboard.cpp) - the busy
+// set is almost everything, so a denylist would silently leave holes (calib, OTA,
+// tube waits all report phase "idle").
+// Used in three places: the `busy` flag on the home event (client greys the cards),
+// the settings POST handlers (reject with 409), and again inside SettingTask right
+// before applying (closes the TOCTOU between the POST and the apply).
+bool dashboardDeviceBusy();
+
+// True when the dashboard is being served from the SoftAP fallback (STA never joined).
+// Callers must not touch the STA side then: WiFi.begin() re-enters esp_wifi_set_mode()
+// and tears at the AP the browser is on, and STA cannot succeed anyway.
+bool dashboardIsAP();
 
 #endif
