@@ -2,7 +2,8 @@
 
 Firmware ESP32 (PlatformIO / Arduino) cho máy **FBT RAPID** — xét nghiệm LAMP-PCR.
 Đo opto khuếch đại (VEML6035), điều khiển nhiệt (PID heater + hotlid), màn TFT,
-3 nút, upload kết quả lên Google Sheet, và **web dashboard** phục vụ từ thiết bị.
+3 nút, upload kết quả lên **Google Sheet + ingest + ERP cloud** (TLS), và **web dashboard**
+phục vụ từ thiết bị.
 
 **Kiến trúc chi tiết (có sơ đồ):** [docs/architecture/](docs/architecture/). Hướng dẫn cho lập trình viên: [CLAUDE.md](CLAUDE.md). Nhật ký thay đổi: [docs/history/](docs/history/). Spec giao diện: [docs/GUI_SSE/GUI.md](docs/GUI_SSE/GUI.md).
 
@@ -26,6 +27,9 @@ Dashboard phục vụ ngay từ thiết bị, đẩy dữ liệu realtime qua Se
   Other (tham số thuật toán). **Khoá toàn bộ khi máy đang chạy** (chặn cả phía server).
 - **Chart vẽ lại từ đầu run:** thiết bị giữ toàn bộ đường cong; mở web muộn hoặc mất
   kết nối giữa chừng → client gọi `/curve` và backfill lại đủ, không mất đoạn nào.
+- **Xem lại run cũ sau khi tắt/bật máy:** run cuối lưu trong EEPROM. Mở tab Result sau
+  reboot → client tự `POST /reviewlast`, thiết bị nạp lại và tính lại từ EEPROM → bảng
+  kết quả + chart hiện lại (máy mới tinh thì trống, không rác).
 - **Chạy offline:** nếu không có WiFi, thiết bị tự phát SoftAP `RAPID-<id>` → nối
   điện thoại vào, mở `http://192.168.4.1/`. Highcharts nhúng nội bộ nên chart chạy
   cả khi không có internet.

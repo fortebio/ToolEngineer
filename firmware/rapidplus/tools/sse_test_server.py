@@ -96,6 +96,12 @@ _run_start = None              # monotonic when the heater phase began (None = n
 _amp_start = None              # monotonic when Start was pressed (None = not started)
 _ran_before = False            # a run has completed since boot -> device holds a curve
 
+# --reboot boots as if the device just power-cycled with a run still in EEPROM: the RAM
+# result cache is empty (/slots ready=false), but /reviewlast reloads the stored run.
+# Lets the Result-tab "review after reboot" path be tested without power-cycling hardware.
+_stored = "--reboot" in sys.argv
+_reviewed = False              # /reviewlast reloaded the stored EEPROM run
+
 
 def run_state():
     """(phase, rounds_done) mirroring the device. rounds_done == COUNTER (0 outside amp)."""
@@ -395,7 +401,9 @@ class Handler(SimpleHTTPRequestHandler):
         # The whole run the device currently holds, so a late/reconnected browser can
         # redraw everything. j = round index, matches new_readings "i".
         phase, rounds = run_state()
-        n = curve_count(phase, rounds, _ran_before)
+        # After a --reboot, the reloaded run (_reviewed) is served just like a run that
+        # completed this session (_ran_before) - both mean "the device holds a curve".
+        n = curve_count(phase, rounds, _ran_before or _reviewed)
         series = [[reading_at(j)[f"#{ch + 1}"] for j in range(n)] for ch in range(CHANNELS)]
         return self._json({"count": n, "intervalMs": REPORT_INTERVAL_MS, "series": series})
 
@@ -413,9 +421,21 @@ class Handler(SimpleHTTPRequestHandler):
             return self._wifi_post()
         if self.path.startswith("/deviceid"):
             return self._deviceid_post()
+        if self.path.startswith("/reviewlast"):
+            return self._reviewlast()
         if self.path.startswith("/calib"):
             return self._calib()
         self.send_error(404)
+
+    def _reviewlast(self):
+        # Reload the last completed run from EEPROM for the Result tab (device: PEND_REVIEW
+        # on SettingTask). Refuse while busy - it would overwrite the live sensor buffer.
+        global _reviewed
+        if self._busy():
+            return self._json({"ok": False, "error": "device busy"})
+        if _stored:
+            _reviewed = True   # the stored run is now cached -> /slots ready, /curve serves it
+        return self._json({"ok": True, "queued": True})
 
     def _body(self):
         n = int(self.headers.get("Content-Length") or 0)
@@ -471,7 +491,10 @@ class Handler(SimpleHTTPRequestHandler):
         # the PREVIOUS run but /curve already serves the new one -> hide them so the
         # Result tab never shows a table and a chart from different runs.
         phase, _ = run_state()
-        ready = phase != "amplification"
+        # ready gates on results being AVAILABLE, not just on phase: after a --reboot the
+        # RAM cache is empty until /reviewlast reloads the stored run (_reviewed).
+        available = _ran_before or _reviewed or not _stored
+        ready = phase != "amplification" and available
         slots = [{"name": SLOT_NAMES[i],
                   "ct": FAKE_CT[i] if ready else None,
                   "result": FAKE_RESULT[i] if ready else ""}

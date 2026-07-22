@@ -12,6 +12,7 @@
 #include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
 #include <memory> // shared_ptr: keeps the /curve stream state alive across chunk calls
+#include "esp_heap_caps.h" // heap_caps_get_largest_free_block: internal-RAM diag for TLS -32512
 
 extern String id_device;          // defined in Bluetooth.cpp
 void releaseBluetoothStack(void); // defined in Bluetooth.cpp - frees ~60KB BT memory
@@ -410,6 +411,14 @@ void dashboardSetResults(const float *ct, const char *result)
   gResultsReady = true;
 }
 
+// Invalidate the cached results (see header). Pairs with _sensor6035.clear() at run
+// start so the table and the chart share one lifecycle: both go empty together, then
+// both come back together from EEPROM on the next Result view (POST /reviewlast).
+void dashboardClearResults()
+{
+  gResultsReady = false;
+}
+
 // GET /slots -> {ready, slots:[{name, ct, result} x10]}. ct only for P/S (has CT).
 static void handleSlots(AsyncWebServerRequest *req)
 {
@@ -709,6 +718,26 @@ static bool validateConfig(JsonObjectConst o, String &err)
 static void handleConfigGet(AsyncWebServerRequest *req)
 {
   req->send(200, "application/json", paraToJson(_ForteSetting.parameter));
+}
+
+// POST /reviewlast -> reload the last completed run from EEPROM and recompute its
+// results, so the Result tab can review it after a reboot (the RAM cache is gone).
+// Only when idle: the reload overwrites sensor67Value, which SensorTask owns mid-run.
+// SettingTask does the work (bResultGet is a heavy JSON+algo pass); the client polls
+// /slots until ready.
+static void handleReviewLast(AsyncWebServerRequest *req)
+{
+  if (dashboardDeviceBusy())
+  {
+    req->send(409, "application/json", "{\"ok\":false,\"error\":\"device busy\"}");
+    return;
+  }
+  if (!_ForteSetting.postReviewLast())
+  {
+    req->send(503, "application/json", "{\"ok\":false,\"error\":\"busy, retry\"}");
+    return;
+  }
+  req->send(200, "application/json", "{\"ok\":true,\"queued\":true}");
 }
 
 // recvData in ForteSetting is char[2048] and drainPending strlcpy()s into it; leave
@@ -1086,6 +1115,8 @@ void dashboardBegin()
     dashServer.on("/deviceid", HTTP_POST, handleDeviceId);
     dashServer.on("/calib", HTTP_POST, handleCalib);
     dashServer.on("/calib", HTTP_GET, handleCalib);
+    // Result tab: reload the last completed run from EEPROM (review after reboot).
+    dashServer.on("/reviewlast", HTTP_POST, handleReviewLast);
 
     // serveStatic LAST. Handlers are tried in registration order, so with it first
     // every API call first cost four failed LittleFS opens looking for /curve,
@@ -1149,8 +1180,14 @@ void dashboardLoop()
   if (now - lastHeap > 10000)
   {
     lastHeap = now;
-    Serial.printf("[dash] heap free=%u maxAlloc=%u clients=%u ap=%d\n",
-                  ESP.getFreeHeap(), ESP.getMaxAllocHeap(), dashEvents.count(), apActive);
+    // intLargest = largest CONTIGUOUS block in INTERNAL RAM - this (not maxAlloc, which can
+    // count PSRAM) is what mbedTLS must fit its ~32KB handshake buffers into (-32512 when
+    // it can't). intFree = total internal free. Diagnosing the upload -32512 (GOTCHA 2).
+    Serial.printf("[dash] heap free=%u maxAlloc=%u intFree=%u intLargest=%u clients=%u ap=%d\n",
+                  ESP.getFreeHeap(), ESP.getMaxAllocHeap(),
+                  heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                  heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
+                  dashEvents.count(), apActive);
   }
 
   dashEvents.send(buildHomeJson().c_str(), "home", now);
@@ -1196,7 +1233,16 @@ void dashboardSuspend()
   suspended = true;
   if (started)
   {
-    dashEvents.close(); // drop SSE clients -> free their buffers
+    // Do NOT call dashEvents.close() here - it SELF-DEADLOCKS (GOTCHA 14): close() holds the
+    // non-recursive _client_queue_lock across each client's c->close(); AsyncClient::_close()
+    // then calls its disconnect callback SYNCHRONOUSLY on THIS task -> AsyncEventSource::
+    // _handleDisconnect() re-locks the SAME mutex -> hang (power-cycle only). (Removing the
+    // lock instead causes a use-after-free: _handleDisconnect deletes the client mid-close.)
+    // It is a library bug in this ESPAsyncWebServer fork; a delay() does NOT help (it is not
+    // the queue-full ABBA it looks like). Trade-off accepted for now: with the web open the
+    // TLS handshake may hit -32512 (open SSE socket fragments the heap, GOTCHA 2) and the
+    // upload FAILS GRACEFULLY + retries, instead of the device wedging forever. dashServer.end()
+    // is safe (closes only the listen pcb, no client teardown).
     dashServer.end();
     started = false;
   }

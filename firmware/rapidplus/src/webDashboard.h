@@ -34,6 +34,14 @@ void dashboardStartAP();
 // Call from screen_Result() once results are computed. Served via GET /slots.
 void dashboardSetResults(const float *ct, const char *result);
 
+// Drop the cached results so GET /slots reports ready=false. Call when a new run
+// starts (alongside _sensor6035.clear(), which zeroes lastRunLoops/sensor67Value):
+// the table cache (gResultsReady) otherwise outlives the chart data, so /slots would
+// keep serving the OLD run's table while /curve returns count=0 (empty chart). Keeping
+// them in lockstep means a later Result view sees ready=false and re-loads BOTH from
+// EEPROM via POST /reviewlast, instead of a table-with-no-chart desync.
+void dashboardClearResults();
+
 // Bracket a TLS upload (postData_GoogleSheet) with these: Suspend frees the
 // dashboard's heap (closes SSE + stops the server) so mbedTLS can allocate;
 // Resume brings the dashboard back afterwards. Prevents the -32512 SSL alloc fail.

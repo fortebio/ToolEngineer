@@ -173,7 +173,7 @@ function renderHome(d) {
   // Entering the naming stage or a new run -> clear the live chart, so a previous
   // run left on screen (or in the device buffer) never shows under a new one.
   if (
-    (phase === "waitname" || phase === "waitamp" || phase === "amplification") &&
+    ["waitname", "waitamp", "amplification"].indexOf(phase) >= 0 &&
     lastPhase !== phase
   )
     resetView(homeView);
@@ -514,9 +514,53 @@ function loadResultSlots() {
     })
     .then(function (d) {
       buildTable("slotBody", ingestSlots(d), true);
+      // ready=false means no run is cached in RAM (e.g. after a reboot), but the last
+      // run's raw record still lives in EEPROM. Ask the device to reload+recompute it,
+      // then refresh once it lands. Not while a new run is amplifying (that hides the
+      // stale cache on purpose - do not resurrect the previous run over it).
+      if (d && d.ready === false && curPhase !== "amplification")
+        reviewStoredRun();
     })
     .catch(function () {
       buildTable("slotBody", [], true); // offline: still show the 10 empty rows
+    });
+}
+
+/* After a reboot the RAM result cache is empty (/slots ready=false), but the last run's
+ * raw 10x130 record persists in EEPROM. POST /reviewlast -> the device reloads and
+ * recomputes it on SettingTask, then /slots ready flips true and /curve serves the
+ * stored curve. Poll for it to land, then redraw. One attempt at a time. */
+var reviewing = false;
+function reviewStoredRun() {
+  if (reviewing) return;
+  reviewing = true;
+  fetch("/reviewlast", { method: "POST" })
+    .then(function (r) {
+      if (!r.ok) throw 0; // busy, or nothing to review -> stop
+      var tries = 0;
+      (function poll() {
+        fetch("/slots")
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            if (d && d.ready) {
+              buildTable("slotBody", ingestSlots(d), true);
+              if (resultShown) loadCurve(resultView); // stored curve now available
+              reviewing = false;
+            } else if (++tries < 15) {
+              setTimeout(poll, 200); // SettingTask drains in ~10ms; allow a slow flash read
+            } else {
+              reviewing = false; // gave up: EEPROM had no plausible stored run
+            }
+          })
+          .catch(function () {
+            reviewing = false;
+          });
+      })();
+    })
+    .catch(function () {
+      reviewing = false;
     });
 }
 

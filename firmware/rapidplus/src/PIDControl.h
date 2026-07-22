@@ -12,15 +12,11 @@
 #define OVERHEAT_THRESHOLD1 _ForteSetting.parameter.bottomOverheat[0] // If temperature of bottom heater1 is too hot
 #define OVERHEAT_THRESHOLD2 _ForteSetting.parameter.bottomOverheat[1] // If temperature of bottom heater2 is too hot
 #define OVERHEAT_THRESHOLD3 _ForteSetting.parameter.bottomOverheat[2] // If temperature of bottom heater3 is too hot
-// #define OVERHEAT_THRESHOLD_TOP1  _ForteSetting.parameter.topOverheat[0]           //If temperature of top heater1 is too hot
 #define OVERHEAT_THRESHOLD_TOP2 _ForteSetting.parameter.topOverheat[0] // If temperature of top heater2 is too hot
 #define OVERHEAT_THRESHOLD_TOP3 _ForteSetting.parameter.topOverheat[1] // If temperature of top heater3 is too hot
 #define UNDERHEAT_THRESHOLD1 -1 * OVERHEAT_THRESHOLD1                  // If temperature of bottom heater1 is too low
 #define UNDERHEAT_THRESHOLD2 -1 * OVERHEAT_THRESHOLD2                  // If temperature of bottom heater2 is too low
 #define UNDERHEAT_THRESHOLD3 -1 * OVERHEAT_THRESHOLD3                  // If temperature of bottom heater3 is too low
-// #define UNDERHEAT_THRESHOLD_TOP1  -1*OVERHEAT_THRESHOLD_TOP1         //If temperature of top heater1 is too low
-// #define UNDERHEAT_THRESHOLD_TOP2  -1*OVERHEAT_THRESHOLD_TOP2         //If temperature of top heater2 is too low
-// #define UNDERHEAT_THRESHOLD_TOP3  -1*OVERHEAT_THRESHOLD_TOP3         //If temperature of top heater3 is too low
 
 typedef enum
 {
@@ -129,8 +125,6 @@ public:
     bool getphase2ready();
 
     void stopAllHeating();
-    void stopHeaterBottom(void);
-    void stopHeaterTop(void);
 };
 
 extern PIDControl _PIDControl;

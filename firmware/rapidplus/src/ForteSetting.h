@@ -35,6 +35,11 @@ private:
 
     int paraIntSplit(char * source, int *para);
 
+    // Read a framed command from a serial stream into recvData (shared by the Serial and
+    // SerialBT paths - both are Arduino Stream). `window` = inter-byte idle timeout (ms).
+    // Returns false only if the buffer overflowed and was flushed (caller should bail).
+    bool readCommand(Stream &port, unsigned long window);
+
 public:
     ForteSetting(/* args */);
     ~ForteSetting();
@@ -59,12 +64,16 @@ public:
         PEND_CONFIG, // full/partial parameter JSON -> JsonDataConfig()
         PEND_WIFI,   // ssid + password -> saveSettingDevice() + restart
         PEND_ID,     // device id -> saveSettingDevice() (+ parameter.device_id)
+        PEND_REVIEW, // reload the last run from EEPROM -> recompute -> cache for the web
     };
 
     // Return false if a request is already queued (caller should answer 429/503).
     bool postConfigJson(const String &json);
     bool postWifiCreds(const String &ssid, const String &pass);
     bool postDeviceId(const String &id);
+    // Re-load the last completed run from EEPROM and recompute its results, so the web
+    // Result tab can review it even after a reboot (the RAM cache is gone by then).
+    bool postReviewLast();
 
     // ---- Outcome of the last web-queued request --------------------------------
     // The POST can only ACK that it QUEUED: the handler must not block waiting for

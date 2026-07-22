@@ -35,15 +35,11 @@ void readEEPROM();
 void paraDisplay(parastructure);
 void loadParaFromEEPROM();
 
-void connectWIFI();
 void saveSettingDevice();
 // Full parameter struct as the JSON shape JsonDataConfig() parses (web GET /config).
 String paraToJson(parastructure para);
 void loadSettingDevice();
 void getDataAmplificationEEPROM(void);
-String getData_toChart(void);
-String getCT_toChart(float tmp, char c);
-String getResult_toChart(char tmp);
 
 /**
  * @brief Connect to WiFi using WiFiManager

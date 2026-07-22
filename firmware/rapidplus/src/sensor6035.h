@@ -23,9 +23,6 @@
 #define Config_SENS VEML6035_SENS_0_x1
 #define Config_CHANNEL VEML6035_WHITE_CH_EN
 
-static char resultData[10] = {0};
-static float CT_valueData[10] = {0};
-
 typedef enum
 {
     eSensorwait,       // wait before it starts to work
@@ -68,16 +65,9 @@ private:
     unsigned long tic;
 
 public:
-    Word sensor67Value[10][130] = {{1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 1*/
-                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 2*/
-                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 3*/
-                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 4*/
-                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 5*/
-                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 6*/
-                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 7*/
-                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 8*/
-                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40},  /* Slot 9*/
-                                   {1, 2, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40}}; /* Slot 10*/
+    // Zero-init: the buffer is cleared at the start of each run and filled during it (see
+    // CLAUDE.md GOTCHA 7). The old {1,2,..40} demo ramp only "looked like test data".
+    Word sensor67Value[10][130] = {};
 
     sensor6035(/* args */);
     ~sensor6035();
@@ -127,13 +117,15 @@ public:
     // Rounds of the last finished run (0 if none / a new run has started). Lets the
     // web serve the stored curve after COUNTER is zeroed at the end of a run.
     uint8_t getLastRunLoops() { return lastRunLoops; }
+    // Set when re-loading a stored run from EEPROM for review (the record has no length
+    // of its own, so the caller passes amplification_time). Lets /curve serve it.
+    void setLastRunLoops(uint8_t n) { lastRunLoops = n; }
 
     bool bResultGet(float *CT_value, char *result);
     bool bResultPutToGoogleSheet(float *CT_value,
                                  char *result,
                                  struct DiagnosticOutcome *get_outcome,
                                  struct FeatureDetection *get_peak_features);
-    bool bResultPutToChart(float *CT_value, char *result, float **processced_data);
 
     void AlgLoop(char *recvData);
 

@@ -56,7 +56,6 @@ void checkFirmware()
             info_displayln("You have the lasted version");
             otaState = OTA_IDLE;
         }
-        http.end();
     }
     http.end();
 }

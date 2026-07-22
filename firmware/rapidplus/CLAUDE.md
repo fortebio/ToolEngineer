@@ -43,8 +43,11 @@ Globals chính: `_displayCLD`, `_PIDControl`, `_sensor6035`, `_ForteSetting`,
 
 ## Module chính
 
-- `Bluetooth.cpp` — BLE config, EEPROM settings, WiFiManager portal (`Wifi_Connect`),
-  upload TLS (`postData_GoogleSheet`), release BT (`releaseBluetoothStack`).
+- `Bluetooth.cpp` — BLE config (dead — nhả BT), EEPROM settings, WiFiManager portal
+  (`Wifi_Connect`), upload TLS (`postData_GoogleSheet` → **3 đích**: GAS/Google Sheet,
+  ingest `fbt.basa-luma` Bearer token, ERP `api.fortebio` **X-API-Key**; qua
+  `postJsonRetry(url, payload, label, bearer, apiKey, outBody)`), release BT
+  (`releaseBluetoothStack`, gọi sớm ở main.cpp — GOTCHA 1).
 - `displayCLD/displayLCD.cpp` — máy trạng thái UI: `type_infor` kiểu `e_statuslcd`.
 - `PIDControl.cpp` — nhiệt độ: `getBottomTemperature()` = {lysis, ampLeft, ampRight},
   `getHotlidTemperature()` = {topLeft, topRight, ambient}.
@@ -69,8 +72,27 @@ Không ẩn khi **calib** — wizard calib nằm trong tab Setting, ẩn nav là
 Routes: `/` (static), `/events` (SSE), `/control?btn=red|green|white` (bấm nút →
 `_buttonManager.postShortPress`; **green** = nút vật lý `B_BLUE`), `/home` (snapshot),
 `/slots` (bảng kết quả: tên + CT + P/N/S), `/rename?slot=N&name=X` (đổi tên, lưu
-`/slotnames.json` trên LittleFS), `/curve` (toàn bộ đường cong từ đầu run → backfill).
+`/slotnames.json` trên LittleFS), `/curve` (toàn bộ đường cong từ đầu run → backfill),
+`POST /reviewlast` (nạp lại run cuối từ EEPROM để xem sau reboot — xem dưới).
 Kết quả cache qua `dashboardSetResults()` gọi từ `screen_Result()`.
+
+**Xem lại run sau reboot (`POST /reviewlast`)**: cache RAM (`gResultsReady`, `gCT`,
+`lastRunLoops`) mất khi tắt máy, nhưng run cuối còn RAW ở `RECORDPOS`. Client mở Result,
+thấy `/slots ready=false` (và không đang amp) → `POST /reviewlast`. AsyncTCP chỉ enqueue
+`PEND_REVIEW`; **SettingTask** (guard idle) chạy `getDataAmplificationEEPROM()` →
+`bResultGet` → `dashboardSetResults` + `setLastRunLoops(amplification_time)` để `/curve`
+phục vụ đúng số vòng. Heuristic `10 < sensor67Value[0][0] < 60000` bỏ record rỗng
+(EEPROM chưa ghi = `0xFFFF`) → máy mới hiện trống, không rác. **Không** đổi `type_infor`
+(khác `resultOutput()`/`escreenReview` là bản Serial cướp màn TFT). Test:
+`node tools/test_review_reboot.js` (mock `--reboot`).
+
+**Bảng và chart phải cùng lifecycle** (bug desync 2026-07-21): `/slots` dùng `gResultsReady`
+(cache dai), `/curve` dùng `lastRunLoops` (bị `clear()` đầu run mới đưa về 0). Nếu chỉ xóa
+một cái → `/slots ready=true` nhưng `/curve count=0` = **bảng có, chart trống**, và client
+**không tự chữa** vì `reviewStoredRun` chỉ kích khi `ready=false`. Vì vậy `clear()` đầu run
+(button.cpp:481) gọi kèm **`dashboardClearResults()`** (đặt `gResultsReady=false`) để hai
+cache cùng trống → lần vào Result kế `ready=false` → `/reviewlast` nạp lại **cả hai** đồng
+bộ từ EEPROM. Chi tiết: [docs/history/2026-07-21-result-chart-table-desync.md](docs/history/2026-07-21-result-chart-table-desync.md).
 
 **Đặt tên bệnh trước khi chạy — HAI điểm** (client theo `phase`):
 
@@ -166,14 +188,25 @@ Log heap mỗi 10s: `[dash] heap free=.. maxAlloc=.. clients=.. ap=..`.
 
 ## GOTCHAS (quan trọng)
 
-1. **BT release 1 chiều**: `releaseBluetoothStack()` nhả ~60KB, chỉ gọi 1 lần
-   (`gBtReleased` guard). Sau đó KHÔNG dùng `SerialBT.*` nữa (reboot mới có lại).
-   Dashboard nhả BT **ngay lúc khởi động** (mọi boot có STA) để có ~55KB liền mạch cho
-   file lớn. Vì vậy macro `info_display*` (define.h) đã bọc `if (!gBtReleased)` quanh
-   nhánh `SerialBT` — USB serial (`DEBUG_COM`) vẫn chạy, chỉ bỏ BT.
-2. **TLS cần ~32-40KB liền mạch**: `postData_GoogleSheet` release BT, hủy JsonDocument
-   và gọi **`dashboardSuspend()`** trước handshake, `dashboardResume()` sau. Nếu không →
-   `-32512 SSL memory allocation failed`. Dashboard và upload TLS **loại trừ nhau**.
+1. **BT release 1 chiều — nhả NGAY ĐẦU `setup()`, TRƯỚC `WiFi.begin()`**:
+   `releaseBluetoothStack()` (`esp_bt_mem_release(ESP_BT_MODE_BTDM)`, ~60KB) chỉ gọi 1 lần
+   (`gBtReleased` guard). Sau đó KHÔNG dùng `SerialBT.*` nữa (reboot mới có lại). BT là
+   **code chết** (không `SerialBT.begin()` lúc boot; `eSettingBluetooth`/`connectBLE` đã hỏng
+   vì gặp guard; web Setting tab thay cấu hình BT). Macro `info_display*` (define.h) bọc
+   `if (!gBtReleased)` quanh nhánh `SerialBT` — USB serial (`DEBUG_COM`) vẫn chạy.
+   **QUAN TRỌNG (heap)**: nhả BT **SỚM** (main.cpp, trước `WiFi.begin`) thay vì muộn (trong
+   `dashboardBegin`) → allocator xếp WiFi/lwIP/AsyncWebServer quanh vùng đầy → block liền mạch
+   internal **68KB** (trước chỉ 40-47KB, tùy board). Đây là fix gốc rễ của `-32512` lúc upload
+   (mbedTLS cần ~42KB liền mạch — xem GOTCHA 2). `releaseBluetoothStack()` trong `dashboardBegin`
+   giờ là no-op. Đo bằng `heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL)` — **KHÔNG**
+   phải `ESP.getMaxAllocHeap()` (số kia có thể tính cả cap khác). Chi tiết:
+   [docs/history/2026-07-21-erp-upload-and-bt-early-release-heap-fix.md](docs/history/2026-07-21-erp-upload-and-bt-early-release-heap-fix.md).
+2. **TLS cần ~42KB liền mạch (INTERNAL)**: đo thực tế mbedTLS fail ở `intLargest=40948`, chỉ
+   lọt ở `42996`. `postData_GoogleSheet` hủy JsonDocument (chỉ giữ `jsonPost` ~7KB) trước
+   handshake. Sau khi **nhả BT sớm** (GOTCHA 1), block liền mạch idle ~**68KB** → upload còn
+   ~55-60KB → thừa xa → hết `-32512`. Trước đó (nhả BT muộn) chỉ 40-47KB → sát ngưỡng →
+   `-32512` chập chờn. `dashboardSuspend()`/`dashboardResume()` vẫn bọc quanh upload (hạ
+   AsyncWebServer để async_tcp không bị đói — GOTCHA 11), nhưng nay không còn là nút thắt heap.
 3. **Xung đột `HTTP_GET`**: include header dự án (kéo `define.h→WebServer.h`, đặt
    `WEBSERVER_H`) **trước** `<ESPAsyncWebServer.h>` (guard `#ifndef WEBSERVER_H`),
    nếu không clash với `http_parser.h`.
@@ -214,6 +247,15 @@ Log heap mỗi 10s: `[dash] heap free=.. maxAlloc=.. clients=.. ap=..`.
    CPU), và **bỏ qua hẳn khi `dashboardIsAP()`**: ở SoftAP thì STA vô vọng, mà
    `WiFi.begin()` còn phá luôn AP mà browser đang bám. **Bug có sẵn — chỉ lộ khi có
    dashboard để bỏ đói.**
+   **Tương tác với GOTCHA 11 (chế độ hỏng MỚI)**: `screen_Result('f')` vẫn còn 1 lần
+   `WiFi.begin()` (reconnect khi STA rớt) **trước** khi gọi `postData_GoogleSheet`. Cú
+   đó vẫn thrash `async_tcp` y hệt — nhưng vì đã gỡ watchdog (`CONFIG_ASYNC_TCP_USE_WDT=0`)
+   nên **không còn abort→reboot**, thay vào đó dashboard **treo câm vĩnh viễn** (server nhận
+   TCP nhưng không bao giờ trả lời) tới khi tắt/bật nguồn. `postData` có `dashboardSuspend()`
+   nhưng chạy **SAU** khối reconnect → quá muộn. Fix: `dashboardSuspend()` **ngay đầu** khối
+   `WiFi.begin()` retry (hạ server trước khi thrash), và `dashboardResume()` ở nhánh
+   **không-upload** (`bResultGet`, vì nhánh đó không đi qua `postData` nên không ai resume).
+   Lộ khi bấm **"Up Data"** (giữ đỏ → đỏ) lúc STA vừa rớt.
 9. **`sensor67Value` là RAW**, không phải calibrated (kể cả sau
    `getDataAmplificationEEPROM()` nạp lại từ EEPROM). Luôn calibrate **1 lần** khi đọc:
    `(raw - origins[i]) / slopes[i]`.
@@ -237,6 +279,29 @@ Log heap mỗi 10s: `[dash] heap free=.. maxAlloc=.. clients=.. ap=..`.
    → mỗi `/curve`/`/config` tốn 4 lần mở file LittleFS hỏng (spam `vfs_api ... does not
    exist`) rồi mới rơi xuống route; và file trong `data/` trùng tên API sẽ **che khuất**
    route. `/home` sau khi sửa: ~21ms.
+13. **`http.getString()` treo VĨNH VIỄN cuối mỗi upload** (máy đơ tới khi tắt nguồn, cả
+   auto lẫn "Up Data"). `postData_GoogleSheet` gọi `http.getString()` đọc body response,
+   mà `writeToStreamDataBlock` chạy `while(connected() && len==-1){ ... else delay(1); }`
+   **không timeout** ở nhánh chưa có data. Response ingest dùng `Connection: close` +
+   `useHTTP10` → **không có Content-Length** (`_size=-1`), reverse-proxy giữ socket mở
+   **không gửi FIN** → `connected()` mãi true, `available()` mãi 0 → DisplayTask kẹt
+   `delay(1)` vô tận. `setTimeout`/`setHandshakeTimeout` **không phủ** vòng này. Fix:
+   `readBodyDeadlined(http, 5000)` — tự đọc body với deadline 5s idle, thay `getString()`
+   ở **cả 2 chỗ** (ingest + nhánh lỗi GAS). Marker xác nhận: kẹt ngay sau
+   `[up] ingest POST begin` (không tới `server feedback:`); sau fix thấy đủ
+   `server feedback: {...}` → `POST OK code=200` → dashboard resume.
+14. **`dashboardSuspend()` self-deadlock ĐỆ QUY khi có SSE client** (treo vĩnh viễn, chỉ tắt
+   nguồn cứu; cắn khi **≥1 browser mở `/events`**). `AsyncEventSource::close()` giữ
+   `_client_queue_lock` (`std::mutex`, **không đệ quy**) suốt vòng `c->close()`. `c->close()` →
+   `AsyncClient::_close()` gọi `_discard_cb(...)` **ĐỒNG BỘ trên CÙNG task** → SSE `_onDisconnect`
+   → `_handleDisconnect()` **khóa LẠI đúng mutex đó** → hang. **`delay()` VÔ DỤNG** (không phải
+   ABBA queue-đầy như tưởng ban đầu); bỏ lock thì thành use-after-free. Là **bug thư viện**
+   ESPAsyncWebServer fork. Fix của ta: **bỏ hẳn `dashEvents.close()`** trong `dashboardSuspend()`,
+   chỉ `dashServer.end()` (chỉ đóng listen pcb — `AsyncServer::end` không đụng client). Marker:
+   treo ngay sau `[up] begin` (chưa tới `[up] suspended`). **Rủi ro `-32512`** do giữ SSE socket
+   (phân mảnh heap) **nay hết** vì nhả BT sớm cho block liền mạch 68KB (GOTCHA 1/2) — thừa cho
+   TLS dù còn SSE socket. Chi tiết:
+   [docs/history/2026-07-21-erp-upload-and-bt-early-release-heap-fix.md](docs/history/2026-07-21-erp-upload-and-bt-early-release-heap-fix.md).
 
 ## Brand (Forte Biotech)
 
@@ -266,9 +331,33 @@ badge P/N/S/E/B và 10 màu series chart (dữ liệu, cần phân biệt). Chi 
 ```bash
 python tools/sse_test_server.py            # mock ESP32 -> http://localhost:8000
 python tools/sse_test_server.py --full     # scale THẬT: 120 vòng x 20s = run 40 phút
+python tools/sse_test_server.py --reboot   # boot như vừa tắt/bật: run cũ ở EEPROM, RAM trống
 python tools/sse_test_server.py selftest   # tự kiểm các hàm thuần
+python tools/test_no_runtime_wifi_begin.py # guard: KHÔNG WiFi.begin() runtime ngoài setup()
+g++ -O2 -std=c++17 tools/test_readcmd_overflow.cpp -o t && ./t  # readCommand không tràn recvData[2048]
 node tools/test_full_run.js                # E2E full quy trình (chạy với --full)
+node tools/test_review_reboot.js           # E2E xem lại run sau reboot (tự bật mock --reboot)
 ```
+
+**`test_no_runtime_wifi_begin.py`** khoá bất biến chống bug "Up Data treo dashboard"
+(GOTCHA 8/11): `WiFi.begin()` **chỉ** được phép ở `main.cpp` (boot). Bất kỳ caller runtime
+nào (screen_Result, task khác) → deadlock `async_tcp`. Cũng assert `setAutoReconnect(true)`
+còn đó (core tự reconnect STA nền → không cần app gọi begin). Thêm lại begin ngoài setup →
+test đỏ ngay (host-side, không cần máy). Chi tiết:
+[docs/history/2026-07-20-updata-wifi-reconnect-hang.md](docs/history/2026-07-20-updata-wifi-reconnect-hang.md).
+
+### Debug treo dashboard trên máy thật (bán tự động)
+
+```bash
+python tools/probe_dashboard_hang.py 192.168.1.10      # poll /home + SSE, in timeline treo/hồi
+python tools/probe_dashboard_hang.py 192.168.1.10 60   # tự dừng sau 60s + in tóm tắt
+```
+
+Biến "màn treo" thành dữ liệu: poll `/home` + giữ SSE như browser, in **đúng thời điểm**
+dashboard ngừng trả lời và có hồi hay không. Chạy nó rồi **kích bug** (bấm "Up Data" lúc
+WiFi chập chờn, hoặc rút nguồn AP vài giây). Verdict: *stayed ALIVE* (không treo) /
+*DEAD rồi RECOVERED* (transient, đúng với fix gốc rễ) / *DEAD không hồi* (deadlock tái hiện,
+phải tắt/bật nguồn = còn bug).
 
 Mock **được web điều khiển** như máy thật: `waitamp` **đứng chờ** tới khi bấm Start (đỏ),
 `finished` đứng chờ tới khi bấm White. Nhờ vậy gate đặt tên + chart sau run mới test được.

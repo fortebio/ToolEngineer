@@ -140,6 +140,29 @@ void displayWaitingUpData(void)
 }
 
 /***********************************************************************
+ * Function: drawWarnFrame()
+ * Description: Draws the shared hazard/warning frame - a double rectangle,
+ *  the diagonal PINK stripe band, and a filled circle - in `color` (RED or
+ *  GREEN). Extracted from ~9 identical copies across the wait/error screens
+ *  so the band geometry lives in one place. (The x1/x2/y1/y2/y3 that the old
+ *  copies carried were compile-time constants 0/10/100/110/120 - inlined.)
+ * pramameter: color - RED or GREEN frame colour
+ *  return: none
+ */
+void displayCLD::drawWarnFrame(uint16_t color)
+{
+  this->display->drawRect(30, 140, 272, 80, color);
+  this->display->drawRect(29, 139, 274, 82, color);
+  for (int i = 18; i <= 310; i += 10)
+  {
+    this->display->drawLine(i, 100, i + 10, 110, PINK);
+    this->display->drawLine(i, 120, i + 10, 110, PINK);
+  }
+  this->display->drawCircle(55, 180, 22, color);
+  this->display->fillCircle(55, 180, 17, color);
+}
+
+/***********************************************************************
  * Function: screen_Start()
  * Description: Draws the idle/start home screen. Reads the local IP and
  *  renders the "FORTE BIOTECH" header, logo and shrimp bitmaps. When
@@ -301,16 +324,7 @@ void displayCLD::ErrorProcess(String strDescript, String strValue)
     this->display->setTextColor(RED);
     this->display->setCursor(15, 60);
     this->display->print(strDescript);
-    this->display->drawRect(30, 140, 272, 80, RED);
-    this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10)
-    {
-      static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
-      this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
-      this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
-    }
-    this->display->drawCircle(55, 180, 22, RED);
-    this->display->fillCircle(55, 180, 17, RED);
+    this->drawWarnFrame(RED);
     this->display->setTextSize(2);
     this->display->setTextColor(RED);
 
@@ -347,16 +361,7 @@ void displayCLD::RestartProcess(String strDescript, String strValue)
   this->display->setTextColor(RED);
   this->display->setCursor(15, 60);
   this->display->print(strDescript);
-  this->display->drawRect(30, 140, 272, 80, RED);
-  this->display->drawRect(29, 139, 274, 82, RED);
-  for (int i = 18; i <= 310; i += 10)
-  {
-    static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
-    this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
-    this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
-  }
-  this->display->drawCircle(55, 180, 22, RED);
-  this->display->fillCircle(55, 180, 17, RED);
+  this->drawWarnFrame(RED);
   this->display->setTextSize(2);
   this->display->setTextColor(RED);
 
@@ -456,44 +461,6 @@ void displayCLD::TemperatureTopSeqDisplay()
 }
 
 /***********************************************************************
- * Function: NextTestDisplay()
- * Description: Shows a brief "Test next" message in RED, then sets
- *  type_infor to ewaitingtimeout and schedules timeRefresh ~1 second
- *  ahead so the device transitions afterwards.
- * pramameter: none
- *  return: none
- */
-void displayCLD::NextTestDisplay()
-{
-  this->display->fillScreen(BLACK);
-  this->display->setTextSize(2);
-  this->display->setTextColor(RED);
-  this->display->setCursor(42, 60);
-  this->display->print("Test next");
-  type_infor = ewaitingtimeout;
-  timeRefresh = millis() + 1000;
-}
-
-/***********************************************************************
- * Function: ErrRebootDisplay()
- * Description: Shows a brief "Restart testing" message in RED, schedules
- *  timeRefresh ~1 second ahead and sets type_infor to ewaitingtimeout so
- *  the device returns to the start screen after the error.
- * pramameter: none
- *  return: none
- */
-void displayCLD::ErrRebootDisplay()
-{
-  this->display->fillScreen(BLACK);
-  this->display->setTextSize(2);
-  this->display->setTextColor(RED);
-  this->display->setCursor(42, 60);
-  this->display->print("Restart testing");
-  timeRefresh = millis() + 1000;
-  type_infor = ewaitingtimeout;
-}
-
-/***********************************************************************
  * Function: drawHeat67Header()
  * Description: Shared static-header renderer for the two 67C/preheat screens
  *  (Heat67LCD_Header and Preheat67LCD_Header). Guarded by bheadershow: clears
@@ -513,16 +480,7 @@ void displayCLD::drawHeat67Header(const char *line1, const char *line2)
     this->display->print(line1);
     this->display->setCursor(15, 90);
     this->display->print(line2);
-    this->display->drawRect(30, 140, 272, 80, RED);
-    this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10)
-    {
-      static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
-      this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
-      this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
-    }
-    this->display->drawCircle(55, 180, 22, RED);
-    this->display->fillCircle(55, 180, 17, RED);
+    this->drawWarnFrame(RED);
     bheadershow = false; // header has been showed
   }
 }
@@ -716,16 +674,7 @@ void displayCLD::preHeat80CLD_Header()
     this->display->print("Heat up to 80");
     this->display->setCursor(15, 90);
     this->display->print("in about 10min");
-    this->display->drawRect(30, 140, 272, 80, RED);
-    this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10)
-    {
-      static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
-      this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
-      this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
-    }
-    this->display->drawCircle(55, 180, 22, RED);
-    this->display->fillCircle(55, 180, 17, RED);
+    this->drawWarnFrame(RED);
     this->display->setTextSize(2);
     this->display->setTextColor(RED);
     bheadershow = false; // header has been showed
@@ -764,12 +713,11 @@ void displayCLD::preHeat80CLD()
  */
 void displayCLD::waitLysisTube()
 {
-  unsigned long now = millis();
-  if (timeRefresh > now) // no refresh needed
-  {
-    return;
-  }
-  timeRefresh = now + 10 * 1000; // refresh every 10 seconds
+  // Static prompt: draw once per entry, then stop. This used to fillScreen + redraw the
+  // hazard band every 10s for content that never changes (a periodic full-screen black
+  // flash). changeScreen=false makes loop() stop re-calling this screen until the next
+  // state transition sets it true again (e.g. a button press).
+  changeScreen = false;
   if (language == 0)
   {
   }
@@ -782,16 +730,7 @@ void displayCLD::waitLysisTube()
     this->display->print("Put the lysis tube");
     this->display->setCursor(15, 90);
     this->display->print("and close the lid");
-    this->display->drawRect(30, 140, 272, 80, RED);
-    this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10)
-    {
-      static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
-      this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
-      this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
-    }
-    this->display->drawCircle(55, 180, 22, RED);
-    this->display->fillCircle(55, 180, 17, RED);
+    this->drawWarnFrame(RED);
     this->display->setTextSize(2);
     this->display->setTextColor(RED);
     this->display->setCursor(90, 175);
@@ -887,12 +826,11 @@ void displayCLD::startHeating10mins()
  */
 void displayCLD::waitBtnStartPhase2() // can add more buzzer alert in the future
 {
-  unsigned long now = millis();
-  if (timeRefresh > now) // no refresh needed
-  {
-    return;
-  }
-  timeRefresh = now + 10 * 1000; // refresh every 10 seconds
+  // Static prompt: draw once per entry, then stop. This used to fillScreen + redraw the
+  // hazard band every 10s for content that never changes (a periodic full-screen black
+  // flash). changeScreen=false makes loop() stop re-calling this screen until the next
+  // state transition sets it true again (e.g. a button press).
+  changeScreen = false;
   if (language == 0)
   {
   }
@@ -905,16 +843,7 @@ void displayCLD::waitBtnStartPhase2() // can add more buzzer alert in the future
     this->display->print("Take the lysis tube");
     this->display->setCursor(15, 90);
     this->display->print("then close the lid");
-    this->display->drawRect(30, 140, 272, 80, GREEN);
-    this->display->drawRect(29, 139, 274, 82, GREEN);
-    for (int i = 18; i <= 310; i += 10)
-    {
-      static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
-      this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
-      this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
-    }
-    this->display->drawCircle(55, 180, 22, GREEN);
-    this->display->fillCircle(55, 180, 17, GREEN);
+    this->drawWarnFrame(GREEN);
     this->display->setTextSize(2);
     this->display->setTextColor(GREEN);
     this->display->setCursor(90, 175);
@@ -935,12 +864,11 @@ void displayCLD::waitBtnStartPhase2() // can add more buzzer alert in the future
  */
 void displayCLD::waitAmpTube()
 {
-  unsigned long now = millis();
-  if (timeRefresh > now) // no refresh needed
-  {
-    return;
-  }
-  timeRefresh = now + 10 * 1000; // refresh every 10 seconds
+  // Static prompt: draw once per entry, then stop. This used to fillScreen + redraw the
+  // hazard band every 10s for content that never changes (a periodic full-screen black
+  // flash). changeScreen=false makes loop() stop re-calling this screen until the next
+  // state transition sets it true again (e.g. a button press).
+  changeScreen = false;
 
   // _buzzer.BuzzerAlert();
   if (language == 0)
@@ -955,16 +883,7 @@ void displayCLD::waitAmpTube()
     this->display->print("Put the Amp tube");
     this->display->setCursor(15, 90);
     this->display->print("and close the lid");
-    this->display->drawRect(30, 140, 272, 80, RED);
-    this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10)
-    {
-      static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
-      this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
-      this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
-    }
-    this->display->drawCircle(55, 180, 22, RED);
-    this->display->fillCircle(55, 180, 17, RED);
+    this->drawWarnFrame(RED);
     this->display->setTextSize(2);
     this->display->setTextColor(RED);
     this->display->setCursor(90, 175);
@@ -985,12 +904,11 @@ void displayCLD::waitAmpTube()
  */
 void displayCLD::waitAmpSetName()
 {
-  unsigned long now = millis();
-  if (timeRefresh > now) // no refresh needed
-  {
-    return;
-  }
-  timeRefresh = now + 10 * 1000; // refresh every 10 seconds
+  // Static prompt: draw once per entry, then stop. This used to fillScreen + redraw the
+  // hazard band every 10s for content that never changes (a periodic full-screen black
+  // flash). changeScreen=false makes loop() stop re-calling this screen until the next
+  // state transition sets it true again (e.g. a button press).
+  changeScreen = false;
 
   // _buzzer.BuzzerAlert();
   if (language == 0)
@@ -1005,16 +923,7 @@ void displayCLD::waitAmpSetName()
     this->display->print("Name the disease ");
     this->display->setCursor(15, 90);
     this->display->print("slot on the App");
-    this->display->drawRect(30, 140, 272, 80, RED);
-    this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10)
-    {
-      static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
-      this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
-      this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
-    }
-    this->display->drawCircle(55, 180, 22, RED);
-    this->display->fillCircle(55, 180, 17, RED);
+    this->drawWarnFrame(RED);
     this->display->setTextSize(2);
     this->display->setTextColor(RED);
     this->display->setCursor(90, 175);
@@ -1102,12 +1011,11 @@ void displayCLD::waitAmplification30min()
  */
 void displayCLD::prepare()
 {
-  unsigned long now = millis();
-  if (timeRefresh > now) // no refresh needed
-  {
-    return;
-  }
-  timeRefresh = now + 10 * 1000; // refresh every 10 seconds
+  // Static prompt: draw once per entry, then stop. This used to fillScreen + redraw the
+  // hazard band every 10s for content that never changes (a periodic full-screen black
+  // flash). changeScreen=false makes loop() stop re-calling this screen until the next
+  // state transition sets it true again (e.g. a button press).
+  changeScreen = false;
   if (language == 0)
   {
     this->display->fillScreen(BLACK);
@@ -1147,16 +1055,7 @@ void displayCLD::prepare()
     this->display->print("Put the tube inside");
     this->display->setCursor(15, 90);
     this->display->print("and close the lid");
-    this->display->drawRect(30, 140, 272, 80, RED);
-    this->display->drawRect(29, 139, 274, 82, RED);
-    for (int i = 18; i <= 310; i += 10)
-    {
-      static int x1 = 0, y1 = 100, x2 = 10, y2 = 110, y3 = 120;
-      this->display->drawLine(x1 + i, y1, x2 + i, y2, PINK);
-      this->display->drawLine(x1 + i, y3, x2 + i, y2, PINK);
-    }
-    this->display->drawCircle(55, 180, 22, RED);
-    this->display->fillCircle(55, 180, 17, RED);
+    this->drawWarnFrame(RED);
     this->display->setTextSize(2);
     this->display->setTextColor(RED);
     this->display->setCursor(90, 175);
@@ -1247,6 +1146,14 @@ void displayCLD::screen_Result(char key)
     // WiFi.begin() would tear down the AP the browser is sitting on.
     if (!dashboardIsAP() && ssid.length() > 0 && WiFi.status() != WL_CONNECTED)
     {
+      // Take the dashboard down BEFORE WiFi.begin(). The reassociation below thrashes
+      // the WiFi/lwIP stack; with the AsyncWebServer still up, async_tcp blocks on the
+      // tcpip core lock. postData_GoogleSheet() also suspends, but only AFTER this loop
+      // - too late, the starvation already happened here. Since CONFIG_ASYNC_TCP_USE_WDT=0
+      // (GOTCHA 11) that no longer aborts+reboots, so instead the dashboard just HANGS
+      // (server accepts TCP but never answers) until a power cycle. Manual "Up Data"
+      // pressed while STA had dropped hit exactly this. Resumed below on every path.
+      dashboardSuspend();
       WiFi.begin(ssid.c_str(), password.c_str()); // once, not once per retry
       for (int retries = 0; retries < 50 && WiFi.status() != WL_CONNECTED; retries++)
       {
@@ -1259,11 +1166,12 @@ void displayCLD::screen_Result(char key)
     /* Post data and errors to Google Sheet */
     if ((WiFi.status() == WL_CONNECTED) && (key == 'f'))
     {
-      httpCode = postData_GoogleSheet(CT_value, result, loops);
+      httpCode = postData_GoogleSheet(CT_value, result, loops); // suspends again (idempotent) + resumes when done
     }
     else
     {
       bool flag = _sensor6035.bResultGet(CT_value, result);
+      dashboardResume(); // may have suspended above for the reconnect but we're not uploading - bring it back
     }
 
     // Cache per-slot results for the web dashboard Process-tab table (GET /slots).
@@ -1705,8 +1613,20 @@ void displayCLD::loop()
       break;
     }
 
-    // EEPROM.end();
-    show_IconWifi();
+    // WiFi icon: this block re-runs every 100ms on any screen that keeps changeScreen
+    // true (the whole ~40-min amplification run included), so blitting the 19x16 bitmap
+    // every time is thousands of wasted SPI writes for content that only changes on
+    // connect/disconnect. Redraw it only when the link state flipped OR a new screen was
+    // entered (whose fillScreen erased the icon). WiFi.status() itself is a cheap RAM read.
+    static e_statuslcd lastWifiType = (e_statuslcd)-1;
+    static int lastWifiState = -1;
+    int wifiNow = (WiFi.status() == WL_CONNECTED) ? 1 : 0;
+    if (wifiNow != lastWifiState || this->type_infor != lastWifiType)
+    {
+      lastWifiState = wifiNow;
+      lastWifiType = this->type_infor;
+      show_IconWifi();
+    }
   }
 }
 

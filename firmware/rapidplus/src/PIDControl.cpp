@@ -282,12 +282,6 @@ void PIDControl::loop()
     // start to process after receive new tempeature
     _bottomThermometer.clearNewTemperatureFlag(); // this may need to be clear after the process?
 
-    if (_displayCLD.temperatureShow) // if the screen show the tempeature now, then update the new tempeature value
-    {
-        /* code */
-        _displayCLD.changeScreen = true; // only change when there is temperature display
-    }
-
     switch (pidStep)
     {
     case epidready: // get ready, do nothing until user start the testing by press green button
@@ -865,9 +859,7 @@ void PIDControl::Heat1Preheat80()
     else if ((CURRENT_TEMP_PID < TARGET_TEMP - 1) || (CURRENT_TEMP_PID > TARGET_TEMP + 1)) // if it's too low or too high
     {
         // Compute PID and adjust the response signal
-        myPID->Compute();
-        RESPONSE_SIGNAL = RESPONSE_SIGNAL * 1.0;
-        analogWrite(HEATER1IO, (int)RESPONSE_SIGNAL);
+        myPID->Compute();        analogWrite(HEATER1IO, (int)RESPONSE_SIGNAL);
         // digitalWrite(HEATER1IO, HIGH);
         info_displayf("\nTimePB1\t%.2f\tHeater1\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, (int)RESPONSE_SIGNAL);
     }
@@ -875,9 +867,7 @@ void PIDControl::Heat1Preheat80()
     { // if the temperature is between -1~+1
 
         // Compute PID and adjust the response signal
-        myPID->Compute();
-        RESPONSE_SIGNAL = RESPONSE_SIGNAL * 1.0;
-        analogWrite(HEATER1IO, (int)RESPONSE_SIGNAL);
+        myPID->Compute();        analogWrite(HEATER1IO, (int)RESPONSE_SIGNAL);
         pidStep = epid1ready;
         this->timeStartWait = millis();
 
@@ -942,9 +932,7 @@ void PIDControl::pid1Maintain80()
         error.saveErrorToEEPROM();
         return;
     }
-    myPID->Compute();
-    RESPONSE_SIGNAL = RESPONSE_SIGNAL * 1.0;
-    analogWrite(HEATER1IO, RESPONSE_SIGNAL);
+    myPID->Compute();    analogWrite(HEATER1IO, RESPONSE_SIGNAL);
     if (btemperatureOut)
     {
         info_displayf("\nTimeMB1\t%.2f\tHeater1\tMaintain\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, (int)RESPONSE_SIGNAL);
@@ -1138,9 +1126,7 @@ void PIDControl::Heat2_55()
         return;
     }
 
-    myPID2->Compute();
-    RESPONSE_SIGNAL = RESPONSE_SIGNAL * 1.0;
-    analogWrite(HEATER2IO, (int)RESPONSE_SIGNAL);
+    myPID2->Compute();    analogWrite(HEATER2IO, (int)RESPONSE_SIGNAL);
     if (btemperatureOut)
     {
         info_displayf("\nTimePB2\t%.2f\tHeater2\tPreheat55\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, (int)RESPONSE_SIGNAL);
@@ -1187,9 +1173,7 @@ void PIDControl::Heat3_55()
         return;
     }
 
-    myPID3->Compute();
-    RESPONSE_SIGNAL = RESPONSE_SIGNAL * 1.0;
-    analogWrite(HEATER3IO, (int)RESPONSE_SIGNAL);
+    myPID3->Compute();    analogWrite(HEATER3IO, (int)RESPONSE_SIGNAL);
     if (btemperatureOut)
     {
         info_displayf("\nTimePB3\t%.2f\tHeater3\tPreheat55\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, (int)RESPONSE_SIGNAL);
@@ -1285,9 +1269,7 @@ void PIDControl::Preheat2_67()
     {
         /* code */
         // Compute PID and adjust the response signal
-        myPID2->Compute();
-        RESPONSE_SIGNAL = RESPONSE_SIGNAL * 1.0;
-        info_displayf("\nTimePB2\t%.2f\tHeater2\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, (int)RESPONSE_SIGNAL);
+        myPID2->Compute();        info_displayf("\nTimePB2\t%.2f\tHeater2\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, (int)RESPONSE_SIGNAL);
         analogWrite(HEATER2IO, (int)RESPONSE_SIGNAL);
     }
     else
@@ -1398,9 +1380,7 @@ void PIDControl::Preheat3_67()
     {
         /* code */
         // Compute PID and adjust the response signal
-        myPID3->Compute();
-        RESPONSE_SIGNAL = RESPONSE_SIGNAL * 1.0;
-        analogWrite(HEATER3IO, (int)RESPONSE_SIGNAL);
+        myPID3->Compute();        analogWrite(HEATER3IO, (int)RESPONSE_SIGNAL);
         info_displayf("\nTimePB3\t%.2f\tHeater3\tHeating\tTemperature\t%.2f\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, (int)RESPONSE_SIGNAL);
         // info_displayf("\nHeating heater3, tempearature: %.2f, target: %.2f, PID: %d\n", CURRENT_TEMP_PID, TARGET_TEMP, (int)RESPONSE_SIGNAL);
         // limit PID signal to 70% of totl capacity to avoid power supply from overdemand
@@ -1467,9 +1447,7 @@ void PIDControl::Maintain3_67()
         error.saveErrorToEEPROM();
         return;
     }
-    myPID3->Compute();
-    RESPONSE_SIGNAL = RESPONSE_SIGNAL * 1.0;
-    analogWrite(HEATER3IO, (int)RESPONSE_SIGNAL);
+    myPID3->Compute();    analogWrite(HEATER3IO, (int)RESPONSE_SIGNAL);
     if (btemperatureOut)
     {
         info_displayf("\nTimeMB3\t%.2f\tHeater3\tMaintain\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, (int)RESPONSE_SIGNAL);
@@ -1760,9 +1738,7 @@ void PIDControl::Maintain2_67()
         error.saveErrorToEEPROM();
         return;
     }
-    myPID2->Compute();
-    RESPONSE_SIGNAL = RESPONSE_SIGNAL * 1.0;
-    analogWrite(HEATER2IO, (int)RESPONSE_SIGNAL);
+    myPID2->Compute();    analogWrite(HEATER2IO, (int)RESPONSE_SIGNAL);
     if (btemperatureOut)
     {
         info_displayf("\nTimeMB2\t%.2f\tHeater2\tMaintain\tTemperature\t%.4g\tTarget\t%.2f\tPWM\t%d\n", millis() / 1000.0, CURRENT_TEMP_PID, TARGET_TEMP, (int)RESPONSE_SIGNAL);
@@ -1783,37 +1759,6 @@ void PIDControl::stopAllHeating()
     analogWrite(HEATER1IO, PWM_OFF); // switch off heater1
     analogWrite(HEATER2IO, PWM_OFF); // switch off heater2
     analogWrite(HEATER3IO, PWM_OFF); // switch off heater3
-    // PCB V1.2
-    analogWrite(HOTLID23IO, PWM_OFF);
-    // PCB V1.3
-    analogWrite(HOTLID2IO, PWM_OFF);
-    analogWrite(HOTLID3IO, PWM_OFF);
-}
-
-/***********************************************************************
- * Function: stopHeaterBottom()
- * Description: Switches off only the bottom heaters (heater1/2/3 via
- *  HEATER1/2/3IO), leaving the top hotlids untouched.
- * pramameter: none
- *  return: none
- */
-void PIDControl::stopHeaterBottom(void)
-{
-    analogWrite(HEATER1IO, PWM_OFF); // switch off heater1
-    analogWrite(HEATER2IO, PWM_OFF); // switch off heater2
-    analogWrite(HEATER3IO, PWM_OFF); // switch off heater3
-}
-
-/***********************************************************************
- * Function: stopHeaterTop()
- * Description: Switches off only the top hotlids, leaving the bottom heaters
- *  untouched. Covers both the legacy combined HOTLID23IO (PCB V1.2) and the
- *  separate HOTLID2IO/HOTLID3IO (PCB V1.3).
- * pramameter: none
- *  return: none
- */
-void PIDControl::stopHeaterTop(void)
-{
     // PCB V1.2
     analogWrite(HOTLID23IO, PWM_OFF);
     // PCB V1.3

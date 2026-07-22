@@ -20,6 +20,7 @@
 #include "button.h"
 #include "displayCLD.h"
 #include "PIDControl.h"
+#include "webDashboard.h" // dashboardClearResults() when a new run wipes the old one
 
 // ================================================================
 // GPIO pin array
@@ -479,6 +480,12 @@ void buttonManager::handleShortPress_Red()
     // until the buffer is zeroed. The previous run stays in EEPROM for Result review
     // until THIS run overwrites it at the end.
     _sensor6035.clear();
+    // clear() zeroes lastRunLoops + sensor67Value (the chart's source), but the table
+    // cache (gResultsReady) lives in webDashboard and would otherwise keep serving the
+    // PREVIOUS run: /slots ready=true (old table) while /curve count=0 (empty chart).
+    // Drop it here too so both go empty together; the next Result view then reloads BOTH
+    // from EEPROM (ready=false -> POST /reviewlast) instead of a table-without-chart.
+    dashboardClearResults();
     _displayCLD.type_infor = eoptoreading;
     _displayCLD.changeScreen = true;
     _displayCLD.startAmplification();

@@ -215,6 +215,14 @@ void setup()
   loadSettingDevice();
   error.readErrorFromEEPROM(); // read error record from EEPROM, used for error process
 
+  // Release the Bluetooth (BTDM) memory HERE, before WiFi/lwIP allocate, instead of later
+  // in dashboardBegin(). BT is never used in this build (no SerialBT.begin at boot; the web
+  // Setting tab replaced BT config), so esp_bt_mem_release hands its ~60KB to the heap. Doing
+  // it FIRST lets the allocator place WiFi/AsyncWebServer/TLS around the full region, aiming
+  // for a larger contiguous internal block (intLargest) so the mbedTLS handshake (~42KB) fits
+  // on heap-tight boards -> fewer -32512 at upload. Idempotent (gBtReleased guard).
+  releaseBluetoothStack();
+
   WiFi.mode(WIFI_STA);
   // Power save OFF. The ESP32 defaults to WIFI_PS_MIN_MODEM, which parks the radio
   // between DTIM beacons: 100-300 ms latency spikes and dropped packets. That is

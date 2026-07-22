@@ -163,6 +163,23 @@ bool ForteSetting::HeaterStepSet()
     return true;
 }
 
+// Copy a JSON array into a fixed-size parameter array, logging each element. Replaces
+// ~11 identical containsKey+for+cast+store+log blocks in JsonDataConfig(). The array is
+// taken BY REFERENCE (T (&dst)[N]) so both the element type T and the capacity N are
+// deduced from parameter.* itself - and `i < N` clamps to that capacity, so an
+// over-long JSON array can no longer write past the struct field (the heater/setpoint
+// arrays sit next to each other - CLAUDE.md GOTCHA 4). Valid-length input is unchanged.
+template <typename T, size_t N>
+static void loadJsonArr(JsonArray src, T (&dst)[N], const char *label)
+{
+    info_displayln(label);
+    for (size_t i = 0; i < src.size() && i < N; i++)
+    {
+        dst[i] = src[i].as<T>();
+        info_displayln(dst[i]);
+    }
+}
+
 /// @brief to analyze the json data with parameter inside, then write into EEPROM
 /// input the right whole json data directly, then it will get all elements and write into EEPROM
 /// @return return true and all parameter data if it's correct, or return false
@@ -231,37 +248,12 @@ bool ForteSetting::JsonDataConfig()
             if (json_document.containsKey("opto calibration"))
             {
                 JsonObject calibration = json_document["opto calibration"];
-                JsonArray slopes = calibration["slopes"];
-                JsonArray origins = calibration["origins"];
-
-                info_displayln("Calibration - Slopes:");
-                for (int i = 0; i < slopes.size(); i++)
-                {
-                    float f = float(slopes[i]);
-                    parameter.slopes[i] = f;
-                    info_displayln(f);
-                }
-
-                info_displayln("Calibration - Origins:");
-                for (int i = 0; i < origins.size(); i++)
-                {
-                    float f = float(origins[i]);
-                    parameter.origins[i] = f;
-                    info_displayln(f);
-                }
+                loadJsonArr(calibration["slopes"].as<JsonArray>(), parameter.slopes, "Calibration - Slopes:");
+                loadJsonArr(calibration["origins"].as<JsonArray>(), parameter.origins, "Calibration - Origins:");
             }
 
             if (json_document.containsKey("LED power"))
-            {
-                JsonArray ledPower = json_document["LED power"];
-                info_displayln("LED Power:");
-                for (int i = 0; i < ledPower.size(); i++)
-                {
-                    uint8_t u8 = uint8_t(ledPower[i]);
-                    parameter.led_power[i] = u8;
-                    info_displayln(u8);
-                }
-            }
+                loadJsonArr(json_document["LED power"].as<JsonArray>(), parameter.led_power, "LED Power:");
 
             // extract the parameter
             if (json_document.containsKey("parameters"))
@@ -410,100 +402,28 @@ bool ForteSetting::JsonDataConfig()
             }
 
             if (json_document.containsKey("bottom temperature sensor seq"))
-            {
-                JsonArray bottomSensorSeq = json_document["bottom temperature sensor seq"];
-                info_displayln("bottom temperature sensor seq:");
-                for (uint8_t i = 0; i < bottomSensorSeq.size(); i++)
-                {
-                    uint8_t u8 = uint8_t(bottomSensorSeq[i]);
-                    parameter.bottomTemperatureSensorSq[i] = u8;
-                    info_displayln(u8);
-                }
-            }
+                loadJsonArr(json_document["bottom temperature sensor seq"].as<JsonArray>(), parameter.bottomTemperatureSensorSq, "bottom temperature sensor seq:");
 
             if (json_document.containsKey("top temperature sensor seq"))
-            {
-                JsonArray topSensorSeq = json_document["top temperature sensor seq"];
-                info_displayln("top temperature sensor seq:");
-                for (uint8_t i = 0; i < topSensorSeq.size(); i++)
-                {
-                    uint8_t u8 = uint8_t(topSensorSeq[i]);
-                    parameter.topTemperatureSensorSq[i] = u8;
-                    info_displayln(u8);
-                }
-            }
+                loadJsonArr(json_document["top temperature sensor seq"].as<JsonArray>(), parameter.topTemperatureSensorSq, "top temperature sensor seq:");
 
             if (json_document.containsKey("PID parameter"))
-            {
-                JsonArray pidPara = json_document["PID parameter"];
-                info_displayln("PID parameter of bottom heater1:");
-                for (uint8_t i = 0; i < pidPara.size(); i++)
-                {
-                    double tmp = double(pidPara[i]);
-                    parameter.kpid[i] = tmp;
-                    info_displayln(parameter.kpid[i]);
-                }
-            }
+                loadJsonArr(json_document["PID parameter"].as<JsonArray>(), parameter.kpid, "PID parameter of bottom heater1:");
 
             if (json_document.containsKey("PID2 parameter"))
-            {
-                JsonArray pidPara = json_document["PID2 parameter"];
-                info_displayln("PID2 parameter of bottom heater2&3:");
-                for (uint8_t i = 0; i < pidPara.size(); i++)
-                {
-                    double tmp = double(pidPara[i]);
-                    parameter.kpid2[i] = tmp;
-                    info_displayln(parameter.kpid2[i]);
-                }
-            }
+                loadJsonArr(json_document["PID2 parameter"].as<JsonArray>(), parameter.kpid2, "PID2 parameter of bottom heater2&3:");
 
             if (json_document.containsKey("PID3 parameter"))
-            {
-                JsonArray pidPara = json_document["PID3 parameter"];
-                info_displayln("PID3 parameter of top hotlid2&3:");
-                for (uint8_t i = 0; i < pidPara.size(); i++)
-                {
-                    double tmp = double(pidPara[i]);
-                    parameter.kpid3[i] = tmp;
-                    info_displayln(parameter.kpid3[i]);
-                }
-            }
+                loadJsonArr(json_document["PID3 parameter"].as<JsonArray>(), parameter.kpid3, "PID3 parameter of top hotlid2&3:");
 
             if (json_document.containsKey("Bottom overheat value"))
-            {
-                JsonArray overHeat = json_document["Bottom overheat value"];
-                info_displayln("Bottom overheat value:");
-                for (uint8_t i = 0; i < overHeat.size(); i++)
-                {
-                    double tmp = double(overHeat[i]);
-                    parameter.bottomOverheat[i] = tmp;
-                    info_displayln(parameter.bottomOverheat[i]);
-                }
-            }
+                loadJsonArr(json_document["Bottom overheat value"].as<JsonArray>(), parameter.bottomOverheat, "Bottom overheat value:");
 
             if (json_document.containsKey("Top overheat value"))
-            {
-                JsonArray overHeat = json_document["Top overheat value"];
-                info_displayln("Top overheat value:");
-                for (uint8_t i = 0; i < overHeat.size(); i++)
-                {
-                    double tmp = double(overHeat[i]);
-                    parameter.topOverheat[i] = tmp;
-                    info_displayln(parameter.topOverheat[i]);
-                }
-            }
+                loadJsonArr(json_document["Top overheat value"].as<JsonArray>(), parameter.topOverheat, "Top overheat value:");
 
             if (json_document.containsKey("temperature value calibration"))
-            {
-                JsonArray sensorOffset = json_document["temperature value calibration"];
-                info_displayln("temperature value calibration");
-                for (uint8_t i = 0; i < sensorOffset.size(); i++)
-                {
-                    float f = float(sensorOffset[i]);
-                    parameter.temperatureOffset[i] = f;
-                    info_displayln(f);
-                }
-            }
+                loadJsonArr(json_document["temperature value calibration"].as<JsonArray>(), parameter.temperatureOffset, "temperature value calibration");
 
             if (json_document.containsKey("top heater PWM"))
             {
@@ -942,6 +862,15 @@ bool ForteSetting::postDeviceId(const String &id)
     return true;
 }
 
+bool ForteSetting::postReviewLast()
+{
+    if (pendingKind != PEND_NONE)
+        return false;
+    __sync_synchronize(); // no payload; publish the flag last
+    pendingKind = PEND_REVIEW;
+    return true;
+}
+
 /***********************************************************************
  * Function: drainPending()
  * Description: Apply a web-queued settings change. Runs on SettingTask, so it
@@ -1021,9 +950,99 @@ void ForteSetting::drainPending()
         EEPROM.end();
         info_displayln("[cfg] device id: " + id_device);
     }
+    else if (kind == PEND_REVIEW)
+    {
+        // Re-load the last completed run from EEPROM and recompute its results, so the
+        // web Result tab can review it after a reboot (the RAM cache - gResultsReady,
+        // lastRunLoops - is gone by then, but the raw record persists at RECORDPOS,
+        // written by sensor6035 when the run finished). Guarded to idle above, so the
+        // device is not reading the sensor into sensor67Value while we overwrite it.
+        getDataAmplificationEEPROM(); // RECORDPOS -> _sensor6035.sensor67Value (RAW)
+        // Uninitialised EEPROM reads as 0xFFFF; a real run's raw baseline is ~150-260.
+        // Skip if there is no plausible stored run, so a fresh device shows nothing
+        // rather than garbage.
+        uint16_t probe = _sensor6035.sensor67Value[0][0];
+        if (probe > 10 && probe < 60000)
+        {
+            float ct[10] = {0};
+            char res[10] = {0};
+            _sensor6035.bResultGet(ct, res);                           // recompute CT / P-N-S
+            dashboardSetResults(ct, res);                              // cache for GET /slots
+            _sensor6035.setLastRunLoops(parameter.amplification_time); // GET /curve length
+            info_displayln("[review] reloaded last run from EEPROM");
+        }
+        // else: no plausible stored run -> leave the cache empty (Result tab shows nothing).
+    }
 
     cfgState = CFG_APPLIED; // written to EEPROM; the web can now trust a read-back
     pendingKind = PEND_NONE;
+}
+
+bool ForteSetting::readCommand(Stream &port, unsigned long window)
+{
+    recvLen = 0;
+    // Reset moreMsg too: it is a member, and the partial message (recvLen) is wiped here.
+    // A previous call that timed out mid multi-chunk left moreMsg=true; without this reset
+    // the next fresh command would be misparsed as a continuation of the abandoned one.
+    moreMsg = false;
+    recvTime = millis();
+    while (millis() < recvTime + window)
+    {
+        while (port.available() > 0)
+        {
+            // Bound the read by the REMAINING space, not a fixed 2048. recvData is 2048 bytes
+            // and recvLen may already be >0 from a previous chunk, so readBytes(.., 2048) would
+            // write past the end and corrupt the members after recvData. The recvLen guard
+            // below only fires AFTER the write - too late to prevent the overflow.
+            uint16_t len = port.readBytes(recvData + recvLen, sizeof(recvData) - recvLen);
+            if (len == 0)
+                break; // nothing actually read -> avoid recvData[-1] when len+recvLen==0
+            recvTime = millis(); // set receive time first
+            char last = recvData[len + recvLen - 1];
+            if (!moreMsg)
+            {
+                if (recvData[0] == '{')
+                {
+                    if (last == '@' || last == '#') // long json arrived in one receive
+                    {
+                        recvTime = 0;
+                        len--;
+                        info_displayln("\nReceive long json data in 1 receiving");
+                    }
+                    else
+                    {
+                        moreMsg = true;
+                        recvTime += 10000; // wait for additional 10s for the json config data
+                        info_displayln("\nLong json data started, please send next one in 10s");
+                    }
+                }
+            }
+            else if (last == '@' || last == '#') // finish receiving (end char '@' or '#')
+            {
+                moreMsg = false;
+                len--; // remove the end character
+                recvTime = 0;
+                info_displayln("\nLong json data finished, process it now");
+            }
+            else
+            {
+                recvTime += 10000; // wait for 10s
+                info_displayln("\nLong json data continue receiving, please send next one in 10s");
+            }
+            recvLen += len;
+            if (recvLen >= sizeof(recvData)) // buffer full -> flush and bail
+            {
+                recvLen = 0;
+                recvTime = 0;
+                info_displayln("The cmd is too long, please send it again");
+                while (port.available() > 0)
+                    port.readBytes(recvData, sizeof(recvData));
+                return false;
+            }
+        }
+    }
+    recvData[recvLen] = '\0';
+    return true;
 }
 
 void ForteSetting::loop()
@@ -1033,133 +1052,14 @@ void ForteSetting::loop()
     if (Serial.available() > 0)
     {
         info_displayln("data received from Serial port");
-        recvLen = 0;
-        recvTime = millis();
-
-        while (millis() < recvTime + 30)
-        {
-            while (Serial.available() > 0)
-            {
-                uint16_t len = Serial.readBytes(recvData + recvLen, 1024 * 2);
-                recvTime = millis(); // set receive time first
-
-                if (!moreMsg)
-                {
-                    if (recvData[0] == '{')
-                    {
-                        if (recvData[len + recvLen - 1] == '@')
-                        {
-                            recvTime = 0;
-                            len--;
-                            info_displayln("\nReceive long json data in 1 receiving");
-                        }
-                        else if (recvData[len + recvLen - 1] == '#')
-                        {
-                            recvTime = 0;
-                            len--;
-                            info_displayln("\nReceive long json data in 1 receiving");
-                        }
-                        else
-                        {
-                            moreMsg = true;
-                            recvTime += 10000; // wait for additional 10s for the json config data
-                            info_displayln("\nLong json data started, please send next one in 10s");
-                        }
-                    }
-                }
-                else if (recvData[len + recvLen - 1] == '@') // finish receiving
-                {
-                    moreMsg = false;
-                    len--; // remove the end character '@'
-                    recvTime = 0;
-                    info_displayln("\nLong json data finished, process it now");
-                }
-                else if (recvData[len + recvLen - 1] == '#') // finish receiving
-                {
-                    moreMsg = false;
-                    len--; // remove the end character '#'
-                    recvTime = 0;
-                    info_displayln("\nLong json data finished, process it now");
-                }
-                else
-                {
-                    recvTime += 10000; // wait for 10s
-                    info_displayln("\nLong json data continue receiving, please send next one in 10s");
-                }
-                recvLen += len;
-                if (recvLen >= 1024 * 2)
-                {
-                    recvLen = 0;
-                    recvTime = 0;
-                    info_displayln("The cmd is too long, please send it again");
-                    while (Serial.available() > 0)
-                    {
-                        Serial.readBytes(recvData, 1024 * 2);
-                    }
-                    return;
-                }
-            }
-        }
-        recvData[recvLen] = '\0';
-        // info_displayln(recvData);
+        if (!readCommand(Serial, 30))
+            return;
     }
     else if (!gBtReleased && SerialBT.available() > 0)
     {
         info_displayln("data received from BT");
-        recvLen = 0;
-        recvTime = millis();
-        while (millis() < recvTime + 100)
-        {
-            while (SerialBT.available() > 0)
-            {
-                uint16_t len = SerialBT.readBytes(recvData + recvLen, 1024 * 2);
-                recvTime = millis(); // set receive time first
-                if (!moreMsg)
-                {
-                    if (recvData[0] == '{')
-                    {
-                        if (recvData[len + recvLen - 1] == '@')
-                        {
-                            recvTime = 0;
-                            len--;
-                            info_displayln("\nReceive long json data in 1 receiving");
-                        }
-                        else
-                        {
-                            moreMsg = true;
-                            recvTime += 10000; // wait for additional 10s for the json config data
-                            info_displayln("\nLong json data started, please send next one in 10s");
-                        }
-                    }
-                }
-                else if (recvData[len + recvLen - 1] == '@') // finish receiving
-                {
-                    moreMsg = false;
-                    len--; // remove the end character '@'
-                    recvTime = 0;
-                    info_displayln("\nLong json data finished, process it now");
-                }
-                else
-                {
-                    recvTime += 10000; // wait for 10s
-                    info_displayln("\nLong json data continue receiving, please send next one in 10s");
-                }
-                recvLen += len;
-                if (recvLen >= 1024 * 2) // support to receive up to 4K data
-                {
-                    recvLen = 0;
-                    recvTime = 0;
-                    info_displayln("The cmd is too long, please send it again");
-                    while (SerialBT.available() > 0)
-                    {
-                        SerialBT.readBytes(recvData, 1024 * 2);
-                    }
-                    return;
-                }
-            }
-        }
-        recvData[recvLen] = '\0';
-        // info_display(recvData);
+        if (!readCommand(SerialBT, 100))
+            return;
     }
     else
     {

@@ -8,6 +8,7 @@
 #include "index.h"
 #include "errorCheck.h"
 #include "webDashboard.h"
+#include "esp_heap_caps.h" // heap_caps_get_largest_free_block: gate TLS on a big internal block
 
 BluetoothSerial SerialBT;
 volatile bool gBtReleased = false; // see releaseBluetoothStack() / define.h
@@ -18,10 +19,11 @@ String id(String(epsid).c_str());
 String id_device = "RAPIDPlus";
 
 const char *serverName = "https://script.google.com/macros/s/AKfycbw2VXXLX6fUMgmyRrSgNgEi3b4gSyE2bdctQe_DNOnlZ58EfPclQrXrlMenH0y7SH5X/exec";
-// const char *serverName2 = "https://api.fortebio.tech/api/v1/results/ingest";
 const char *serverName2 = "https://fbt.basa-luma.ts.net/ingest";
-
 const char *server_engineerToken = "***REMOVED***";
+
+const char *serverERP = "https://api.fortebio.tech/api/v1/results/ingest";
+const char *server_erpToken = "***REMOVED***";
 
 /***********************************************************************
  * Function: connectBLE()
@@ -403,6 +405,121 @@ float rounded(float value)
   return round(value * 10.0) / 10.0f; // Round to 1 decimal place
 }
 
+// Read an HTTP response body with our OWN idle deadline, because HTTPClient::getString()
+// has none. getString() -> writeToStreamDataBlock() loops
+//   while (connected() && (len > 0 || len == -1)) { if (available()) {...} else delay(1); }
+// with NO timeout on the else branch. The ingest endpoint answers with Connection: close +
+// no Content-Length (so len == -1) but its reverse-proxy keeps the TLS socket open without
+// sending FIN, so connected() stays true and available() stays 0 -> the DisplayTask spins
+// on delay(1) FOREVER (device hangs, power-cycle only; the configured setTimeout/handshake
+// timeouts do not cover this loop). This bounds the read at `idleMs` of no new bytes.
+static String readBodyDeadlined(HTTPClient &http, uint32_t idleMs)
+{
+  String body;
+  WiFiClient *s = http.getStreamPtr();
+  if (!s)
+    return body;
+  uint32_t last = millis();
+  while (http.connected() && millis() - last < idleMs)
+  {
+    while (s->available())
+    {
+      body += (char)s->read();
+      last = millis(); // reset the deadline on every byte received
+    }
+    delay(1);
+  }
+  return body;
+}
+
+// POST `payload` as JSON to `url` over TLS, retrying transient failures. Each attempt
+// builds a FRESH, scoped WiFiClientSecure so the previous connection is fully torn down
+// first: reusing one client across the two upload hosts - or across rapid back-to-back
+// "Up Data" presses - leaves a half-closed TLS socket that the next connect hits as
+// code=-1 (connection refused) / code=-3 (send payload failed). Only network-level
+// failures (code <= 0) and 5xx are retried; a 4xx (e.g. 401 bad token) is permanent, so
+// retrying it would just waste the dashboard-suspended window. `label` tags the serial
+// markers. Auth (each host differs): `bearer` -> "Authorization: Bearer <bearer>" (ingest);
+// `apiKey` -> "X-API-Key: <apiKey>" (ERP); pass nullptr for hosts that need neither (GAS).
+// `outBody` gets the (deadline-bounded) response body for logging. Returns the HTTP/error code.
+static int postJsonRetry(const char *url, const String &payload, const char *label,
+                         const char *bearer, const char *apiKey, String &outBody)
+{
+  const uint8_t ATTEMPTS = 4;
+  // mbedTLS needs a big CONTIGUOUS block of INTERNAL RAM for its handshake buffers; on a
+  // heap-tight board the previous TLS leaves the largest free block below that -> -32512.
+  const size_t TLS_MIN = 33 * 1024;
+  int code = 0;
+  for (uint8_t a = 1; a <= ATTEMPTS; a++)
+  {
+    // Heap gate: wait (up to ~2.5s) for the internal largest-free-block to recover to
+    // TLS_MIN before opening the socket, so the handshake gets its contiguous buffers. The
+    // block grows as the previous attempt's mbedTLS memory frees + coalesces.
+    size_t intLargest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+    uint32_t gate0 = millis();
+    while (intLargest < TLS_MIN && millis() - gate0 < 2500)
+    {
+      delay(150);
+      intLargest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+    }
+
+    WiFiClientSecure client; // fresh per attempt -> no stale/half-closed socket reuse
+    client.setInsecure();    // skip cert chain -> smaller mbedTLS allocation
+    client.setTimeout(60);
+    client.setHandshakeTimeout(30);
+
+    HTTPClient http;
+    http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS); // GAS 302 == success for us
+    http.setReuse(false);
+    http.useHTTP10(true);
+    if (!http.begin(client, url))
+    {
+      Serial.printf("[up] %s begin failed (try %u/%u)\n", label, a, ATTEMPTS);
+      code = -1;
+      delay(400);
+      continue;
+    }
+    http.setTimeout(60000); // header-phase read timeout (GAS emits its 302 after ~6-40s)
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("Connection", "close");
+    if (bearer)
+      http.addHeader("Authorization", String("Bearer ") + bearer);
+    if (apiKey)
+      http.addHeader("X-API-Key", apiKey);
+
+    Serial.printf("[up] %s POST begin (free=%u intLargest=%u try %u/%u)\n",
+                  label, ESP.getFreeHeap(), (unsigned)intLargest, a, ATTEMPTS);
+    uint32_t t0 = millis();
+    code = http.POST(payload);
+    uint32_t dt = millis() - t0;
+    outBody = readBodyDeadlined(http, 5000); // bounded: getString() alone never times out
+    http.end();
+
+    // 2xx = direct success; 302 from GAS = script accepted and processed the data.
+    bool ok = (code >= 200 && code < 300) || code == HTTP_CODE_FOUND;
+    if (ok)
+    {
+      Serial.printf("[up] %s POST OK in %u ms, code=%d (try %u)\n", label, dt, code, a);
+      return code;
+    }
+    // Retry ONLY connection-level failures where the request did NOT complete at the
+    // server: -1 (connection refused / TLS handshake) or -3 (send payload failed), plus
+    // 5xx. Do NOT retry -11 (read Timeout): the body was fully sent, so GAS - which
+    // appends its row BEFORE emitting the 302 - has very likely already PROCESSED it, and
+    // a retry would DUPLICATE the row. It is also pointless when the peer is merely slow /
+    // rate-limiting (GAS under many rapid uploads): each retry just burns another full
+    // 60s. A timed-out GAS is treated as "probably done, move on to ingest".
+    bool retryable = (code == -1) || (code == -3) || (code >= 500);
+    Serial.printf("[up] %s POST FAIL in %u ms, code=%d (%s) try %u/%u%s\n",
+                  label, dt, code, http.errorToString(code).c_str(), a, ATTEMPTS,
+                  retryable ? "" : " [no retry]");
+    if (!retryable)
+      return code;
+    delay(600); // let the socket + TLS stack settle before a fresh attempt
+  }
+  return code;
+}
+
 /***********************************************************************
  * Function: postData_GoogleSheet()
  * Description: Builds a JSON payload of machine specs, per-slot CT values,
@@ -429,6 +546,7 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
   // can allocate its contiguous handshake buffers. Otherwise: -32512 (SSL memory
   // allocation failed). dashboardResume() before every return below.
   dashboardSuspend();
+  Serial.println("[up] suspended"); // marker: past dashboardSuspend (SSE-close deadlock site)
 
   // Precondition for the TLS handshake below: the Bluetooth Classic stack must be
   // fully released so mbedTLS can allocate its ~40KB contiguous handshake buffers.
@@ -440,6 +558,7 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
 
   /* Calculate CT_value and result */
   bool flag = _sensor6035.bResultPutToGoogleSheet(CT_value, result, outcome, peak_features);
+  Serial.println("[up] result computed"); // marker: past the detection algorithm
 
   // Build JSON inside a nested scope so the JsonDocument is destructed
   // (and its ~25-40KB internal pool freed) BEFORE we open the TLS socket.
@@ -551,209 +670,32 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
     serializeJson(dataPostGoogleSheet, jsonPost);
   } // <- JsonDocument destructed here, ~25-40KB returned to heap
 
-  // Now open TLS with the maximum free heap available.
-  // setInsecure() skips cert chain validation -> smaller mbedTLS allocation.
-  WiFiClientSecure client;
-  client.setInsecure();
-  client.setTimeout(60); // socket-level timeout in seconds (Arduino-ESP32 WiFiClient API)
-  client.setHandshakeTimeout(30);
+  // POST to GAS, then to the ingest API. Each call opens a FRESH TLS client and retries
+  // transient failures (postJsonRetry). GAS /exec returns 302 after it finishes appending
+  // (~6-40s) which we treat as success; the ingest API needs a Bearer token. Reusing one
+  // WiFiClientSecure across both hosts / rapid uploads was the -1/-3 "transient" failure.
+  String gasBody;
+  uint16_t tmpHttpCode = postJsonRetry(serverName, jsonPost, "GAS", nullptr, nullptr, gasBody);
 
-  HTTPClient http;
-  // DO NOT follow redirects: GAS /exec returns 302 -> script.googleusercontent.com.
-  // HTTPClient re-POSTs the body to the redirect URL, but that host rejects POST
-  // (returns Google's generic "400 Bad Request" HTML page).
-  // We don't need the redirect target's body anyway — GAS has already processed
-  // the POST data by the time it issues the 302, so 302 == success for us.
-  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-  http.setReuse(false);
-  http.useHTTP10(true);
-  if (!http.begin(client, serverName))
-  {
-    Serial.println("http.begin() failed");
-    dashboardResume();
-    return 0;
-  }
-  // GAS /exec only emits the 302 AFTER doPost() finishes appending to the sheet,
-  // which currently takes ~35-40s (Data sheet has grown large). The old 30s cut us
-  // off mid-execution -> code=-11 (read Timeout) even though the write was fine.
-  // 60s leaves margin above the observed GAS latency. (Root fix: speed up doPost.)
-  http.setTimeout(60000);
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("Connection", "close");
+  delay(100);
 
-  Serial.printf("[up] GAS POST begin (heap free=%u, blocks up to ~90s)\n", ESP.getFreeHeap());
-  uint32_t t0 = millis();
-  int httpResponseCode = http.POST(jsonPost);
-  uint16_t tmpHttpCode = httpResponseCode;
-  uint32_t dt = millis() - t0;
+  // Serial.printf("Engineer server request: %s\n", jsonPost.c_str());
+  String server_feedback;
+  postJsonRetry(serverName2, jsonPost, "ingest", server_engineerToken, nullptr, server_feedback);
+  // Serial.printf("Engineer server feedback: %s\n", server_feedback.c_str());
 
-  // 2xx = direct success; 302 from GAS = script accepted and processed the data.
-  bool ok = (httpResponseCode >= 200 && httpResponseCode < 300) ||
-            (httpResponseCode == HTTP_CODE_FOUND); // 302
-  if (ok)
-  {
-    Serial.printf("POST OK in %u ms, code=%d\n", dt, httpResponseCode);
-  }
-  else if (httpResponseCode > 0)
-  {
-    Serial.printf("POST HTTP error in %u ms, code=%d, response=%s\n",
-                  dt, httpResponseCode, http.getString().c_str());
-  }
-  else
-  {
-    Serial.printf("POST FAIL in %u ms, code=%d (%s)\n",
-                  dt, httpResponseCode, http.errorToString(httpResponseCode).c_str());
-  }
-  delay(100); // give the TLS handshake a moment to complete before POSTing
-  http.end();
-  delay(100); // give the TLS handshake a moment to complete before POSTing
+  delay(100);
 
-  // Now POST to the ForteBio ingest API. This is a separate endpoint from GAS /exec
-  // and is used for the cloud dashboard. It expects the same JSON payload, but
-  // requires an API key in the Authorization header.
-  if (!http.begin(client, serverName2))
-  {
-    Serial.println("client.connect() failed");
-    http.end();
-    dashboardResume();
-    return 0;
-  }
-  http.setTimeout(60000);
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("Connection", "close");
-  // ingest API rejects unauthenticated POSTs with 401 -> send the Bearer token.
-  http.addHeader("Authorization", String("Bearer ") + server_engineerToken);
+  // ERP (api.fortebio.tech) authenticates with an X-API-Key header (NOT Bearer).
+  // Serial.printf("ERP server request: %s\n", jsonPost.c_str());
+  String erp_feedback;
+  postJsonRetry(serverERP, jsonPost, "ERP", nullptr, server_erpToken, erp_feedback);
+  // Serial.printf("ERP server feedback: %s\n", erp_feedback.c_str());
 
-  Serial.printf("server request: %s\n", jsonPost.c_str());
-  Serial.printf("[up] ingest POST begin (heap free=%u)\n", ESP.getFreeHeap());
-
-  t0 = millis();
-  httpResponseCode = http.POST(jsonPost);
-
-  dt = millis() - t0;
-
-  // Đọc body server trả về SAU khi POST (getString() phải gọi sau POST mới có nội dung).
-  String server_feedback = http.getString();
-  Serial.printf("server feedback: %s\n", server_feedback.c_str());
-
-  // 2xx = direct success; 302 from GAS = script accepted and processed the data.
-  ok = (httpResponseCode >= 200 && httpResponseCode < 300) ||
-       (httpResponseCode == HTTP_CODE_FOUND); // 302
-  if (ok)
-  {
-    Serial.printf("POST OK in %u ms, code=%d\n", dt, httpResponseCode);
-  }
-  else if (httpResponseCode > 0)
-  {
-    Serial.printf("POST HTTP error in %u ms, code=%d, response=%s\n",
-                  dt, httpResponseCode, server_feedback.c_str());
-  }
-  else
-  {
-    Serial.printf("POST FAIL in %u ms, code=%d (%s)\n",
-                  dt, httpResponseCode, http.errorToString(httpResponseCode).c_str());
-  }
-
-  delay(100); // give the TLS handshake a moment to complete before POSTing
-  http.end();
   dashboardResume(); // bring the dashboard back now that TLS is done
-  // return tmpHttpCode;
+  (void)tmpHttpCode; // GAS code kept for logging; caller treats any return as "attempted"
   return 200;
 }
 
-/***********************************************************************
- * Function: getResult_toChart()
- * Description: Maps a single-character result code to a human-readable
- *  string: 'N'->"Negative", 'P'->"Positive", 'S'->"Slide Positive",
- *  'E'->"E".
- * pramameter: tmp - the result character code
- *  return: String - the readable result label for the chart
- */
-String getResult_toChart(char tmp)
-{
-  if (tmp == 'N')
-  {
-    return "Negative";
-  }
-  else if (tmp == 'P')
-  {
-    return "Positive";
-  }
-  else if (tmp == 'S')
-  {
-    return "Slide Positive";
-  }
-  else if (tmp == 'E')
-  {
-    return "E";
-  }
-}
-
-/***********************************************************************
- * Function: getCT_toChart()
- * Description: Formats a CT value for the chart: returns "N/A" when the
- *  result is Negative ('N'), otherwise returns the CT value as a string.
- * pramameter: tmp - the CT value
- * pramameter: result - the result character code
- *  return: String - "N/A" for negative results, else the CT value
- */
-String getCT_toChart(float tmp, char result)
-{
-  if (result == 'N')
-  {
-    return "N/A";
-  }
-  else
-  {
-    return String(tmp);
-  }
-}
-
-/***********************************************************************
- * Function: getData_toChart()
- * Description: Loads amplification data from EEPROM, computes per-slot CT
- *  values and results, and serializes them along with the device ID and
- *  the processed amplification curves into a JSON string for the chart web
- *  page. Frees the per-slot processed_data buffers after use.
- * pramameter: none
- *  return: String - the serialized JSON of chart data
- */
-String getData_toChart(void)
-{
-  JsonDocument readings;
-  String JsonString = "";
-  float CT_value[10] = {0};
-  char result[10] = {0};
-  float *processed_data[10] = {NULL};
-
-  uint8_t loops = _ForteSetting.parameter.amplification_time;
-
-  readings["id_device"] = id_device;
-
-  getDataAmplificationEEPROM();
-
-  bool flag = _sensor6035.bResultPutToChart(CT_value, result, processed_data);
-
-  for (size_t i = 0; i < OPTOCHANNELS; i++)
-  {
-    readings["CT_value"][i] = getCT_toChart(CT_value[i], result[i]);
-    readings["result"][i] = getResult_toChart(result[i]);
-
-    for (uint8_t j = 0; j < loops; j++)
-    {
-      readings[String("#") + String(i + 1)][j] = String(processed_data[i][j]);
-    }
-
-    free(processed_data[i]);
-  }
-
-  serializeJson(readings, JsonString);
-
-  Serial.println(JsonString);
-
-  return JsonString;
-}
-
-// postData_Chart() was removed: the old sync WebServer chart is replaced by the
-// AsyncWebServer live dashboard (see src/webDashboard.cpp). getData_toChart()
-// below is retained for a possible future /readings endpoint.
+// postData_Chart() / getData_toChart() were removed: the old sync WebServer chart is
+// replaced by the AsyncWebServer live dashboard (see src/webDashboard.cpp).

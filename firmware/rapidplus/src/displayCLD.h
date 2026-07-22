@@ -95,11 +95,6 @@ public:
     void loop();
     void rerun();
 
-    // Re-initialise the ILI9341 panel (resets via TFT_RESET pin + re-sends
-    // init commands) and force a full redraw on the next loop() iteration.
-    // Safe to call from any task; takes gSPIMutex internally.
-    void reinit();
-
     // Set this from any task to request a panel re-init at the next
     // DisplayTask loop() iteration. Cheaper than calling reinit() directly
     // because it doesn't block the caller waiting for the SPI mutex.
@@ -120,9 +115,10 @@ public:
     bool FinishStatus(); // if the process is finished, then return true
     void TemperatureBottomSeqDisplay();
     void TemperatureTopSeqDisplay();
-    void NextTestDisplay();  // show the reboot msg for the user to know the status
-    void ErrRebootDisplay(); // show the reboot msg after error happened
     void RestartProcess(String strDescript, String strValue);
+    // Shared hazard/warning frame (double rect + PINK stripe band + red/green circle),
+    // was copy-pasted ~9x across the wait/error screens. `color` = RED or GREEN.
+    void drawWarnFrame(uint16_t color);
 
     void drawHeat67Header(const char *line1, const char *line2); // shared header renderer for the two 67C screens
     void Heat67LCD_Header();                                     // display inf
@@ -194,12 +190,9 @@ public:
     //  e_statuslcd type_infor = escreenStart;
     e_statuslcd type_infor = escreenStart; // e_language;    //start directly
     int couter = 0;
-    int instantStatus[2];
     bool changeScreen = true;
-    bool temperatureShow = false;
     bool bheadershow = false; // if there is header needed to show static, then only write once without refreshing every time
     int language = 1;         // 0:VietNamese 1: English //change default as English
-    volatile int step = 1;
 };
 extern displayCLD _displayCLD;
 
