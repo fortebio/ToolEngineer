@@ -221,8 +221,8 @@ static void connectSavedNetworks()
     {
       ssid = tSsid;
       password = tPass;
-      saveSettingDevice();          // commit as the preferred pair (EEPROM)
-      wifiStoreAdd(tSsid, tPass);   // and to the front of the saved list
+      saveSettingDevice();        // commit as the preferred pair (EEPROM)
+      wifiStoreAdd(tSsid, tPass); // and to the front of the saved list
       wifiStoreClearTrial();
       wifiStoreSetTrialResult(WIFI_TRIAL_OK, tSsid);
       Serial.printf("[wifi] '%s' verified and committed\n", tSsid.c_str());
@@ -360,7 +360,7 @@ void setup()
   xTaskCreatePinnedToCore(
       ControlTask,
       "ControlTask",
-      8192,
+      4096,
       NULL,
       5,
       &controlTaskHandle,
@@ -369,7 +369,7 @@ void setup()
   xTaskCreatePinnedToCore(
       SensorTask,
       "SensorTask",
-      16384,
+      10240,
       NULL,
       2,
       &sensorTaskHandle,
@@ -378,7 +378,7 @@ void setup()
   xTaskCreatePinnedToCore(
       DisplayTask,
       "DisplayTask",
-      16384,
+      10240,
       NULL,
       2,
       &displayTaskHandle,
@@ -387,7 +387,7 @@ void setup()
   xTaskCreatePinnedToCore(
       NetworkTask,
       "NetworkTask",
-      8192,
+      6144,
       NULL,
       1,
       &networkTaskHandle,
@@ -396,7 +396,7 @@ void setup()
   xTaskCreatePinnedToCore(
       InputTask,
       "InputTask",
-      8192,
+      3072,
       NULL,
       3,
       &inputTaskHandle,
@@ -432,4 +432,40 @@ void loop()
   //   - NetworkTask : updateFirmware()
   // Nothing left to do on the Arduino loop task; just idle.
   vTaskDelay(pdMS_TO_TICKS(1000));
+
+  // ponytail: temporary stack census. 8192+16384+16384+8192+8192+8192 = 65 536 B of task
+  // stacks, never measured - and the upload dies for want of ~20 KB. uxTaskGetStackHighWaterMark
+  // returns the smallest free stack (BYTES on ESP32) each task has ever had, so `used` below is
+  // its true peak. Whatever is unused here is RAM the upload could have had. Let it run through
+  // one full run + upload first: mbedTLS does its handshake on DisplayTask's stack, so that
+  // peak only shows up after a real upload. Delete this once the sizes are cut.
+  static uint8_t tick = 0;
+  if (++tick >= 10)
+  {
+    tick = 0;
+    struct
+    {
+      const char *name;
+      TaskHandle_t h;
+      uint32_t size;
+    } t[] = {
+        {"Control", controlTaskHandle, 4096},
+        {"Sensor", sensorTaskHandle, 10240},
+        {"Display", displayTaskHandle, 10240},
+        {"Network", networkTaskHandle, 6144},
+        {"Input", inputTaskHandle, 3072},
+        {"Setting", settingTaskHandle, 8192},
+    };
+    uint32_t waste = 0;
+    Serial.print("[stack]");
+    for (auto &e : t)
+    {
+      if (!e.h)
+        continue;
+      uint32_t freeB = uxTaskGetStackHighWaterMark(e.h);
+      Serial.printf(" %s=%u/%u", e.name, (unsigned)(e.size - freeB), (unsigned)e.size);
+      waste += freeB;
+    }
+    Serial.printf(" | unused=%u B\n", (unsigned)waste);
+  }
 }

@@ -988,18 +988,9 @@ void ForteSetting::drainPending()
             char res[10] = {0};
             _sensor6035.bResultGet(ct, res); // recompute CT / P-N-S
             dashboardSetResults(ct, res);    // cache for GET /slots
-            // /curve length: the record carries no length of its own, so DON'T trust the
-            // CURRENT amplification_time (it may have changed since the run -> /curve would
-            // read past the real data into garbage, or truncate it). Scan for the real length
-            // instead: the last round whose slot-0 raw is plausible (10..60000). Rounds past
-            // the run read 0 (run-end zero-inits the staging buffer) or 0xFFFF (virgin EEPROM).
-            uint8_t len = 0;
-            for (uint8_t j = 0; j < 130; j++)
-            {
-                uint16_t v = _sensor6035.sensor67Value[0][j];
-                if (v > 10 && v < 60000)
-                    len = j + 1;
-            }
+            // /curve length - see sensor6035::scanRunLength(). Shared with screen_Result so
+            // the two paths that publish results can never disagree about the run length.
+            uint8_t len = _sensor6035.scanRunLength();
             _sensor6035.setLastRunLoops(len);
             info_displayf("[review] reloaded last run from EEPROM (%u rounds)\n", len);
         }

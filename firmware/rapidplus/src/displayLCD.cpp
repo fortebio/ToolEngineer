@@ -1253,6 +1253,13 @@ void displayCLD::screen_Result(char key)
 
     // Cache per-slot results for the web dashboard Process-tab table (GET /slots).
     dashboardSetResults(CT_value, result);
+    // ...and the curve length in the SAME breath. /slots reads gResultsReady while /curve
+    // reads lastRunLoops, so publishing one without the other gives the Result tab a filled
+    // table and an EMPTY chart - and the client never repairs it, because it only reloads
+    // from EEPROM when /slots says ready=false. That is exactly the "View Chart draws
+    // nothing" report. Measured on the device before this line existed: /slots ready=true,
+    // /curve count=0.
+    _sensor6035.setLastRunLoops(_sensor6035.scanRunLength());
 
     this->display->fillScreen(BLACK);
     this->display->setTextSize(2);

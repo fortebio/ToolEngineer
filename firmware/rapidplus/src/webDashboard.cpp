@@ -1692,22 +1692,23 @@ void dashboardEnd()
 // mid-upload; dashboardResume() lets it come back on the next tick.
 void dashboardSuspend()
 {
+  // The server is left RUNNING through the upload. It used to be stopped here to free heap
+  // for the mbedTLS handshake, but that stop is what killed the dashboard afterwards:
+  //
+  //   dashServer.end() closes only the LISTEN pcb - the SSE client sockets stay established
+  //   on port 80 (closing them self-deadlocks, GOTCHA 14). lwIP's tcp_bind refuses a port
+  //   that any active pcb still holds, so the dashServer.begin() on resume failed with
+  //   "AsyncTCP begin(): bind error: -8" and the dashboard never came back until a reboot.
+  //
+  // And the heap reason is gone: trimming the six task stacks (2026-07-27) gave back
+  // 23 556 B free / 16 384 B contiguous, so the upload now completes on the first attempt
+  // with intLargest = 69 620 against a handshake that needs 32 768-36 352. Starving
+  // async_tcp during the ~15 s of TLS is already accounted for -
+  // CONFIG_ASYNC_TCP_USE_WDT=0 exists for exactly this window (GOTCHA 11).
+  //
+  // `suspended` still stops dashboardLoop() pushing SSE events while DisplayTask is blocked
+  // in mbedTLS; that part costs nothing and keeps the event queue from backing up.
   suspended = true;
-  if (started)
-  {
-    // Do NOT call dashEvents.close() here - it SELF-DEADLOCKS (GOTCHA 14): close() holds the
-    // non-recursive _client_queue_lock across each client's c->close(); AsyncClient::_close()
-    // then calls its disconnect callback SYNCHRONOUSLY on THIS task -> AsyncEventSource::
-    // _handleDisconnect() re-locks the SAME mutex -> hang (power-cycle only). (Removing the
-    // lock instead causes a use-after-free: _handleDisconnect deletes the client mid-close.)
-    // It is a library bug in this ESPAsyncWebServer fork; a delay() does NOT help (it is not
-    // the queue-full ABBA it looks like). Trade-off accepted for now: with the web open the
-    // TLS handshake may hit -32512 (open SSE socket fragments the heap, GOTCHA 2) and the
-    // upload FAILS GRACEFULLY + retries, instead of the device wedging forever. dashServer.end()
-    // is safe (closes only the listen pcb, no client teardown).
-    dashServer.end();
-    started = false;
-  }
 }
 
 void dashboardResume()

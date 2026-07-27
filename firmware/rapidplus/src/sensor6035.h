@@ -121,6 +121,24 @@ public:
     // of its own, so the caller passes amplification_time). Lets /curve serve it.
     void setLastRunLoops(uint8_t n) { lastRunLoops = n; }
 
+    // Real length of the run currently in sensor67Value. The record carries no length of its
+    // own, and amplification_time must NOT be trusted (config can change between the run and
+    // reading it back -> /curve reads past the data into garbage, or truncates it). Scan for
+    // the last round whose slot-0 raw is plausible: rounds past the run read 0 (run-end
+    // zero-inits the staging buffer) or 0xFFFF (virgin EEPROM).
+    // Guarded host-side by tools/test_curve_length.cpp.
+    uint8_t scanRunLength()
+    {
+        uint8_t len = 0;
+        for (uint8_t j = 0; j < 130; j++)
+        {
+            uint16_t v = sensor67Value[0][j];
+            if (v > 10 && v < 60000)
+                len = j + 1;
+        }
+        return len;
+    }
+
     bool bResultGet(float *CT_value, char *result);
     bool bResultPutToGoogleSheet(float *CT_value,
                                  char *result,
