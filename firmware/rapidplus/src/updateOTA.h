@@ -34,10 +34,19 @@ enum OtaState : uint8_t
     OTA_DISMISSED      // user dismissed the prompt; do not re-prompt this boot
 };
 
-void checkFirmware(void);
+// promptOnDevice: when a newer build is found, also take over the TFT with the
+// eUpdateOTA prompt (that is what the boot-time check wants). The WEB check passes
+// false: the operator is looking at the browser, and hijacking the machine's screen
+// from a remote click would strand whoever is standing at the device.
+void checkFirmware(bool promptOnDevice = true);
 void updateFirmware(void);
 
 extern volatile OtaState otaState;
 extern String fwCont, fwVer;
+// Exposed so the web Setting tab can report what is installed vs what is offered.
+extern int currentVersion, fwVersion;
+// millis() of the last completed check, 0 = never checked this boot.
+extern volatile uint32_t otaLastCheck;
+extern volatile bool otaCheckFailed;
 
 #endif

@@ -30,7 +30,7 @@
   --on-navy: #eaf1f8;
   --on-navy-dim: #7fc7cd; /* brand-tinted, still 7:1+ on --brand-deep */
   /* status */
-  --green: #16a34a;
+  --green: #11803a;  /* darkened: white-on-green CTA + 'Saved' text were 3.30 */
   --amber: #d97706;
   --red: #dc2626;
   --info: var(--brand-ink); /* state accent, brand-hued */
@@ -38,6 +38,7 @@
   --radius: 14px;
   --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 4px 14px rgba(16, 24, 40, .06);
   --nav-h: 62px;
+  --header-h: 80px; /* matches .header min-height; desktop sidebar starts below it */
   --maxw: 480px;
 }
 
@@ -66,12 +67,18 @@ body {
   background: linear-gradient(60deg, #0C494C 0%, var(--brand-deep) 100%);
   color: #fff;
 }
-/* Logo mark = the triangles only. The wordmark stays as the .company-name text: at
-   header size the logo's own lettering would render ~6px and be unreadable. */
+/* Full logo (mark + wordmark), background removed so it sits on the dark header. It is
+   sized bigger than the old triangles-only mark so its own lettering stays legible, and
+   .company-name below is hidden because the logo already carries "FORTE BIOTECH" - showing
+   both printed the company name twice. */
 .brand-mark { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
-.brand-mark img { height: 40px; width: auto; display: block; flex: none; }
+.brand-mark img { height: 56px; width: auto; display: block; flex: none; }
 .device-name { font-size: 1.5rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.1; }
+/* Hidden: the full logo above already shows "FORTE BIOTECH", so rendering this text too
+   printed the company name twice in the header. Kept in the DOM (script.js still fills it
+   from the SSE `company` field) so nothing downstream breaks. */
 .company-name {
+  display: none;
   font-size: 0.55rem; font-weight: 600; letter-spacing: .18em;
   text-transform: uppercase; color: var(--on-navy-dim); margin-top: 3px;
 }
@@ -89,6 +96,12 @@ body {
 .screen { display: none; animation: fade .18s ease; }
 .screen.active { display: block; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* Home's two column wrappers are INVISIBLE below the desktop breakpoint: display:contents
+   removes the boxes from layout, so on a phone the cards stack exactly as they did before
+   the wrappers existed (each keeping its own margin). They only become real flex columns
+   inside the wide-screen media query. */
+.home-main, .home-side { display: contents; }
 
 /* ---------- Banners (notify + state) ---------- */
 .banner {
@@ -128,7 +141,7 @@ body {
 
 /* ---------- Temperature grid ---------- */
 .temp-grid { display: grid; gap: 0.7rem; }
-.temp-grid.one  { grid-template-columns: 1fr; }
+.temp-grid.one  { grid-template-columns: minmax(0, 16rem); justify-content: center; }
 .temp-grid.four { grid-template-columns: 1fr 1fr; }
 .temp-box {
   background: linear-gradient(180deg, #fafdfd 0%, #eef7f8 100%);
@@ -155,19 +168,32 @@ body {
 }
 .btn-chip:hover  { filter: brightness(1.06); }
 .btn-chip:active { transform: scale(0.95); filter: brightness(1.12); }
-/* button has no action in the current state */
-.btn-chip.noact { opacity: .45; }
-.btn-chip.noact:hover { filter: none; }
+/* Button has no action in the current state. .45 measured 1.26:1 - the label was
+   effectively invisible, and on this machine the operator still needs to READ a button
+   that is merely inactive to know which step they are on. .6 keeps it clearly secondary
+   while staying legible. (WCAG exempts disabled controls; legibility here is a usability
+   requirement, not a compliance one.) */
+/* Dim with grayscale, NOT opacity. Opacity fades the fill and the label together, so the
+   ratio collapses from both sides - measured 1.90:1 even at .6, i.e. still unreadable.
+   grayscale() is luminance-preserving, so the label stays legible while the chip clearly
+   reads as inactive: 4.68:1 (red) / 3.49:1 (green) at grayscale .65 + opacity .85. */
+.btn-chip.noact { opacity: .85; filter: grayscale(.35); }
+.btn-chip.noact:hover { filter: grayscale(.35); } /* must NOT clear the filter - that made an inactive chip look live */
 /* start locked until slot names are confirmed (web-only gate) */
-.btn-chip.locked { opacity: .5; cursor: not-allowed; filter: grayscale(.35); }
-.btn-chip.locked:hover, .btn-chip.locked:active { filter: grayscale(.35); transform: none; }
-/* always tinted with their own colour */
-.btn-chip.red   { background: #e23b3b; border-color: #c62f2f; }
-.btn-chip.green { background: #1fa64d; border-color: #178a3f; }
+.btn-chip.locked { opacity: .85; cursor: not-allowed; filter: grayscale(.8); }
+.btn-chip.locked:hover, .btn-chip.locked:active { filter: grayscale(.8); transform: none; }
+/* Always tinted with their own colour - these MUST stay red/green to match the physical
+   buttons. Only the shade moved, darkened along the same hue so white text clears AA
+   (red was 4.27, green 3.17). */
+.btn-chip.red   { background: #d92020; border-color: #b81b1b; } /* white 5.03 */
+.btn-chip.green { background: #18803c; border-color: #136832; } /* white 5.01 */
 .btn-chip.white { background: #ffffff; border-color: #cbd5e1; color: var(--ink); }
-/* pressed / lit -> brighter + glow */
-.btn-chip.red.on   { background: #ff5757; box-shadow: 0 0 0 3px rgba(226,59,59,.30), 0 4px 14px rgba(226,59,59,.5); }
-.btn-chip.green.on { background: #2ec46a; box-shadow: 0 0 0 3px rgba(31,166,77,.30), 0 4px 14px rgba(31,166,77,.5); }
+/* Pressed / lit. The fill deliberately does NOT brighten any more: a lighter fill dropped
+   white-on-red to 3.11 and white-on-green to 2.28, i.e. least readable exactly while the
+   operator is looking at the button they just pressed. The lit state now reads from the
+   ring + glow instead, which is just as visible and costs no contrast. */
+.btn-chip.red.on   { box-shadow: 0 0 0 3px rgba(217,32,32,.45), 0 4px 16px rgba(217,32,32,.6); }
+.btn-chip.green.on { box-shadow: 0 0 0 3px rgba(24,128,60,.45), 0 4px 16px rgba(24,128,60,.6); }
 .btn-chip.white.on { box-shadow: 0 0 0 3px rgba(148,163,184,.45), 0 4px 14px rgba(16,24,40,.15); }
 
 /* ---------- Slot naming card (Home) ---------- */
@@ -183,6 +209,16 @@ body {
 #confirmNamesBtn:hover { filter: brightness(1.06); box-shadow: 0 5px 16px rgba(22, 163, 74, .36); }
 #confirmNamesBtn:active { transform: scale(.97); }
 
+/* Mobile layout, chart up: drop the slot table. There it is only a legend, and Highcharts
+   already prints its own #1-#10 legend under the curve - but ten rows push the curve ~600px
+   down the page, so the operator has to scroll past a duplicate legend to watch the run.
+   Kept while NAMING: that is a form, and naming on the phone that scanned the QR is the
+   normal way to start a run. Media query = the exact complement of the desktop one below
+   (min-width 820 AND min-height 600), so a landscape phone counts as mobile here too. */
+@media (max-width: 819px), (max-height: 599px) {
+  #screen-home.active:has(#homeChartCard:not(.hide)) #namingCard { display: none; }
+}
+
 /* ---------- Compact temperature strip (Home, while chart is up) ---------- */
 .card.compact { padding: 0.75rem 1rem; }
 .temp-strip { display: flex; flex-wrap: wrap; gap: 0.5rem 1.4rem; }
@@ -197,7 +233,19 @@ body {
 }
 
 /* ---------- Chart / Setting ---------- */
-.chart-container { width: 100%; height: 320px; }
+/* The curve is the thing being watched, so it takes whatever height the window has:
+   viewport minus the header, minus the bottom nav strip (0 while a run hides it - see
+   body.nonav), minus the card head + page padding. One rule for every screen size and
+   for both charts; min-height keeps it usable on a short landscape phone. Highcharts
+   reflows on window resize by itself, so nothing in script.js has to follow this. */
+.chart-container {
+  width: 100%;
+  height: calc(100vh - var(--header-h) - var(--nav-h) - 6rem);
+  /* Phones reached by the QR code shrink the viewport when the address bar retracts; dvh
+     tracks that, vh does not. Older browsers drop this line and keep the vh one above. */
+  height: calc(100dvh - var(--header-h) - var(--nav-h) - 6rem);
+  min-height: 210px;
+}
 .setting-row { font-size: 0.98rem; color: var(--ink); margin: 0.4rem 0; }
 .setting-row span { font-weight: 700; }
 .reload-btn {
@@ -223,15 +271,47 @@ body {
   color: var(--muted); font-size: 0.66rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: .06em;
 }
-.slot-table th:first-child, .slot-table td:first-child { width: 3.2rem; }
-.slot-table th:nth-child(3), .slot-table td:nth-child(3) { text-align: left; } /* Name */
-.slot-table td:nth-child(2) { font-weight: 700; color: var(--muted); }         /* slot no. */
+/* Column 1 holds the whole sample identity (dot + number + disease) and takes the slack;
+   CT and Result are narrow and fixed, so a row reads left-to-right in one short sweep
+   instead of spanning the full table width. */
+.slot-table th.col-name, .slot-table td.sample { text-align: left; }
+/* Mobile: give CT/Result only what their content needs ("22.3" and a pill) so the sample
+   column keeps room for the disease field. MEASURED at 5.5rem each: sample column 110px,
+   select 35px, content box 2px - the value had nowhere to render. */
+.slot-table th:nth-child(2), .slot-table td:nth-child(2),
+.slot-table th:nth-child(3), .slot-table td:nth-child(3) { width: 3.2rem; }
+/* wrap: the disease picker and the sample field sit side by side when the column is
+   wide, and the sample field drops to a second line when the row gets narrow (mobile
+   Result table) instead of crushing both into an unreadable sliver. */
+.slot-table .sample-cell { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; row-gap: 0.35rem; }
+.slot-table .sample-cell .slot-no {
+  flex: none; min-width: 1.7rem;
+  font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+/* Cap it: with flex:1 alone the select stretched the whole remaining column and the
+   disease field drifted into the middle of the table, far from the slot it belongs to.
+   Narrowed to leave room for the sample field beside it. */
+.slot-table .sample-cell .disease-sel { flex: 1 1 5rem; min-width: 0; max-width: 8rem; }
+.slot-table .sample-cell .sample-name { flex: 2 1 6rem; min-width: 4.5rem; max-width: 13rem; }
+/* td is a flex container here, so the row height comes from its content; keep the cells
+   in the other columns vertically centred against it. */
+.slot-table td.ct, .slot-table tbody td:last-child { vertical-align: middle; }
 .slot-table tbody tr:nth-child(even) { background: #fafbfd; }  /* zebra */
 .slot-table tbody tr:hover { background: #e9f6f7; }            /* later rule -> wins over zebra */
 .slot-table tbody tr:last-child td { border-bottom: none; }
-.slot-table input[type="checkbox"] {
-  width: 15px; height: 15px; accent-color: var(--blue); cursor: pointer; vertical-align: middle;
+
+/* The show/hide control IS the chart legend swatch: it carries the slot's series colour
+   (--series, set per row in script.js). Filled = plotted, hollow = hidden. Still a native
+   checkbox underneath, so keyboard and screen readers are unaffected. */
+.vis-dot {
+  flex: none; -webkit-appearance: none; appearance: none;
+  width: 18px; height: 18px; margin: 0; border-radius: 50%;
+  border: 2px solid var(--series, var(--muted));
+  background: transparent; cursor: pointer;
+  transition: background .12s, box-shadow .12s;
 }
+.vis-dot:checked { background: var(--series, var(--blue)); }
+.vis-dot:hover { box-shadow: 0 0 0 3px rgba(19, 117, 122, .12); }
 .slot-name {
   width: 100%; box-sizing: border-box; font: inherit; font-size: 0.85rem;
   padding: 0.38rem 0.5rem; border: 1px solid var(--hairline); border-radius: 7px;
@@ -239,17 +319,27 @@ body {
 }
 .slot-name:hover { border-color: #a9ccd0; }
 .slot-name:focus { outline: none; border-color: var(--blue); background: #fff; }
+/* Sample label field (beside the disease picker). Shares the slot-name chrome but keeps
+   its own class so fitNameColumn measures only the disease text. */
+.sample-name {
+  box-sizing: border-box; font: inherit; font-size: 0.85rem;
+  padding: 0.38rem 0.5rem; border: 1px solid var(--hairline); border-radius: 7px;
+  background: #fafdfd; color: var(--ink); transition: border-color .12s, background .12s;
+}
+.sample-name::placeholder { color: var(--muted); }
+.sample-name:hover { border-color: #a9ccd0; }
+.sample-name:focus { outline: none; border-color: var(--blue); background: #fff; }
 
 /* View chart: primary CTA of the Process tab */
 #viewChartBtn {
   display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;
   padding: 0.7rem 1.5rem; font-family: inherit; font-size: 0.95rem; font-weight: 700;
   color: #fff; background: var(--blue); border: none; border-radius: 10px;
-  box-shadow: 0 3px 12px rgba(3, 64, 120, .28);
+  box-shadow: 0 3px 12px rgba(19, 117, 122, .28);
   transition: background .15s, box-shadow .15s, transform .08s;
 }
 #viewChartBtn svg { width: 18px; height: 18px; }
-#viewChartBtn:hover { background: var(--blue-600); box-shadow: 0 5px 16px rgba(3, 64, 120, .36); }
+#viewChartBtn:hover { background: var(--blue-600); box-shadow: 0 5px 16px rgba(19, 117, 122, .36); }
 #viewChartBtn:active { transform: scale(.97); }
 
 /* Card header row: title left, meta right (chart card) */
@@ -263,12 +353,36 @@ body {
   display: inline-block; min-width: 1.5rem; text-align: center;
   padding: 0.1rem 0.45rem; border-radius: 999px; font-weight: 700; font-size: 0.72rem;
 }
-.res-P { background: #fde0e0; color: #c0392b; }
-.res-N { background: #dcefe0; color: #178a3f; }
-.res-S { background: #fdf4d6; color: #9a7b0a; }
-.res-E { background: #fdebd6; color: #b5651d; }
-.res-B { background: #d9f2f4; color: #0e7c86; }
+/* Result badges. The colour coding stays (it is data - the operator reads P/N at a
+   glance), but each ink was darkened ALONG ITS OWN HUE until it clears WCAG AA with
+   margin: measured 3.66-4.38 before, 5.0+ now. Same red, same green, just readable -
+   this is the single most important thing on the screen and it had the worst contrast.
+   The letter carries the meaning too, so colour-blind readers never depend on hue. */
+.res-P { background: #fde0e0; color: #b03428; } /* 5.02 */
+.res-N { background: #dcefe0; color: #137234; } /* 5.01 */
+.res-S { background: #fdf4d6; color: #7e6508; } /* 5.09 */
+.res-E { background: #fdebd6; color: #975418; } /* 5.01 */
+.res-B { background: #d9f2f4; color: #0d6f78; } /* 5.04 */
 .res-empty { color: var(--muted); }
+
+/* CT column: tabular figures so the decimal points line up down the column, and a
+   detected row gets the value in full ink. Everything else stays quiet. */
+.slot-table td.ct { font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+#slotBody tr.hit td.ct { font-weight: 700; color: var(--ink); }
+/* Tint carries no meaning on its own (the badge letter does) - it only guides the eye to
+   the rows worth reading first. ID selector so it beats the .slot-table zebra rule. */
+#slotBody tr.hit { background: #fff7f5; }
+#slotBody tr.hit:hover { background: #ffeeea; }
+#slotBody tr.hit .slot-no { color: var(--ink); } /* slot number stops being grey */
+
+/* Legend: P/N/S/E/B are unexplained anywhere else, so a first-time operator has no way
+   to learn what S or B mean. Small, one line, sits under the table. */
+.res-legend {
+  display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem;
+  margin: 0 0 0.9rem; font-size: 0.72rem; color: var(--muted);
+}
+.res-legend span { display: inline-flex; align-items: center; gap: 0.3rem; }
+.res-legend .res-badge { font-size: 0.68rem; }
 
 /* ---------- Setting: card menu + detail panels ---------- */
 .set-grid { display: grid; gap: 0.7rem; grid-template-columns: 1fr; margin-bottom: 0.85rem; }
@@ -281,7 +395,7 @@ body {
 }
 .set-card:hover { border-color: #a9ccd0; box-shadow: 0 4px 16px rgba(16, 24, 40, .1); }
 .set-card:active { transform: scale(.99); }
-.set-card[disabled] { opacity: .45; cursor: not-allowed; }
+.set-card[disabled] { opacity: .6; cursor: not-allowed; } /* .45 measured 1.83 on the description */
 .set-card[disabled]:hover { border-color: var(--hairline); box-shadow: var(--shadow); }
 .set-ico {
   flex: none; display: grid; place-items: center; width: 40px; height: 40px;
@@ -313,7 +427,7 @@ body {
   display: block; font-size: 0.78rem; font-weight: 600; color: var(--muted);
   margin-bottom: 0.3rem; letter-spacing: .02em;
 }
-.f-lbl .f-unit { font-weight: 500; color: #9aa4b2; }
+.f-lbl .f-unit { font-weight: 500; color: #637083; } /* was #9aa4b2 = 2.52 */
 .f-in, .f-sel {
   width: 100%; box-sizing: border-box; font: inherit; font-size: 0.9rem;
   padding: 0.5rem 0.6rem; border: 1px solid var(--hairline); border-radius: 8px;
@@ -335,15 +449,22 @@ body {
   display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;
   margin-top: 0.4rem; padding: 0.65rem 1.4rem; font-family: inherit;
   font-size: 0.93rem; font-weight: 700; color: #fff; background: var(--blue);
-  border: none; border-radius: 10px; box-shadow: 0 3px 12px rgba(3, 64, 120, .28);
+  border: none; border-radius: 10px; box-shadow: 0 3px 12px rgba(19, 117, 122, .28);
   transition: background .15s, transform .08s;
 }
 .save-btn:hover { background: var(--blue-600); }
 .save-btn:active { transform: scale(.97); }
-.save-btn[disabled] { opacity: .5; cursor: not-allowed; }
+.save-btn[disabled] { opacity: .6; cursor: not-allowed; } /* .5 measured 1.49 */
 .set-msg { font-size: 0.83rem; font-weight: 600; margin-top: 0.6rem; min-height: 1.1rem; }
 .set-msg.ok { color: var(--green); }
 .set-msg.err { color: var(--red); }
+
+/* firmware / OTA panel */
+.ota-info { margin-bottom: 0.9rem; }
+.ota-info .setting-row { margin: 0.25rem 0; }
+.ota-sep { border: none; border-top: 1px solid var(--hairline); margin: 1rem 0 0.9rem; }
+.ota-prog { font-variant-numeric: tabular-nums; min-height: 1.1rem; }
+.f-in[type="file"] { padding: 0.4rem; }
 
 /* wifi list */
 .wifi-list { display: grid; gap: 0.4rem; margin-bottom: 0.8rem; }
@@ -354,6 +475,33 @@ body {
   background: #fafdfd;
 }
 .wifi-item:hover { background: #e9f6f7; border-color: #a9ccd0; }
+/* Saved-network row: name on the left, Forget on the right. Not a button itself (its
+   child Forget is), so no hover-as-clickable affordance. */
+.saved-row { cursor: default; }
+.saved-row:hover { background: #fafdfd; border-color: var(--hairline); }
+.wifi-badge {
+  margin-left: 0.5rem; padding: 0.05rem 0.4rem; border-radius: 999px;
+  font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--brand-ink); background: #e2f5f7;
+}
+/* AFTER the base rule on purpose: both are one class, so source order decides. Listed
+   first, the base colours won and 'connected' never actually rendered green. */
+.wifi-badge-on { color: #fff; background: var(--green); } /* white on green 5.03:1 */
+.wifi-forget {
+  flex: none; font-family: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+  color: var(--red); background: transparent; border: 1px solid #f3c9c9; border-radius: 8px;
+  padding: 0.3rem 0.7rem;
+}
+.wifi-forget:hover { background: #fff5f5; }
+.wifi-forget:disabled { opacity: .5; cursor: default; }
+.saved-acts { flex: none; display: flex; gap: 0.4rem; }
+.wifi-use {
+  font-family: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+  color: var(--brand-ink); background: #e2f5f7; border: 1px solid #bfe4e8;
+  border-radius: 8px; padding: 0.3rem 0.7rem;
+}
+.wifi-use:hover { background: #d3eef1; }
+.wifi-use:disabled { opacity: .5; cursor: default; }
 .wifi-item.sel { border-color: var(--blue); background: #e2f5f7; }
 .wifi-name { flex: 1; font-size: 0.9rem; font-weight: 600; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -378,23 +526,39 @@ body {
 .disease-sel {
   width: 100%; box-sizing: border-box; font: inherit; font-size: 0.85rem;
   font-weight: 600; color: var(--brand-ink);
-  padding: 0.4rem 1.5rem 0.4rem 0.55rem; border: 1px solid var(--hairline);
+  padding: 0.4rem 1.25rem 0.4rem 0.45rem; border: 1px solid var(--hairline);
   border-radius: 8px; background: #fafdfd; cursor: pointer;
   -webkit-appearance: none; appearance: none;
   /* down-chevron drawn as an inline SVG data URI (no external asset) */
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 0.5rem center;
+  background-repeat: no-repeat; background-position: right 0.4rem center;
 }
 .disease-sel:focus { outline: none; border-color: var(--brand-ink); background-color: #fff; }
-/* an assigned disease reads as a filled chip; an empty slot stays muted grey */
+/* An assigned disease reads as a filled chip. An UNASSIGNED one drops its box entirely:
+   ten outlined selects sitting empty was the single noisiest thing on the Result tab -
+   the frame drew as much attention as the data. The control is still obviously live
+   (chevron stays, box returns on hover/focus), it just stops competing when it has
+   nothing to say. */
 .disease-sel.assigned { background-color: #e2f5f7; border-color: #bfe4e8; }
-.disease-sel:not(.assigned) { color: var(--muted); font-weight: 500; }
+.disease-sel:not(.assigned) {
+  color: var(--muted); font-weight: 500;
+  border-color: transparent; background-color: transparent;
+  /* Centre the dash: with the box gone it otherwise sits hard left while the chevron
+     stays hard right, and the two read as two unrelated marks in a wide column. */
+  text-align: center;
+}
+.disease-sel:not(.assigned):hover {
+  border-color: var(--hairline); background-color: #fafdfd;
+}
 
 /* ---------- Bottom nav ---------- */
 /* Run in progress (lysis / amplification) -> no nav: the operator stays on Home.
    The padding that reserved space for it has to go too, or the layout keeps a gap
    (bottom on mobile, left on desktop where the nav IS the sidebar). */
-body.nonav { padding-bottom: 0; }
+/* --nav-h goes to 0 as well, so every height computed from it (the chart) reclaims the
+   strip instead of leaving a 62px gap where the nav used to be. .bottom-nav reads it too,
+   but it is display:none here anyway. */
+body.nonav { padding-bottom: 0; --nav-h: 0px; }
 body.nonav .bottom-nav { display: none; }
 
 .bottom-nav {
@@ -418,58 +582,195 @@ body.nonav .bottom-nav { display: none; }
 }
 
 /* ============================================================
- * Desktop / wide screens: left sidebar nav, wider grid content.
+ * Desktop / wide screens: SAME bottom nav as the phone, wider grid content.
+ *
+ * The nav used to turn into a 224px left sidebar here. It is now the bottom bar at every
+ * size: one navigation pattern to learn, the operator's muscle memory carries over from
+ * the phone to the bench PC, and it removes a whole class of layout bugs (the sidebar was
+ * `height: 100vh` while the page scrolled past it, so it ended as a stump mid-page).
  * ============================================================ */
-@media (min-width: 820px) {
-  :root { --side-w: 224px; }
-
+/* Still gated on BOTH dimensions: a phone held sideways is 844-915px wide but only
+   ~390-430px tall, and the wide-screen grids below assume vertical room. */
+@media (min-width: 820px) and (min-height: 600px) {
   body {
     max-width: none; margin: 0;
-    padding: 0 0 0 var(--side-w);   /* room for the fixed sidebar */
+    padding-bottom: var(--nav-h);   /* room for the fixed bottom bar, as on mobile */
   }
-  /* run in progress: sidebar gone -> reclaim its column */
-  body.nonav { padding-left: 0; }
+  body.nonav { padding-bottom: 0; } /* run in progress -> nav hidden, reclaim the strip */
 
-  /* bottom nav -> left sidebar */
-  .bottom-nav {
-    left: 0; top: 0; transform: none;
-    width: var(--side-w); max-width: none; height: 100vh;
-    flex-direction: column; justify-content: flex-start; gap: 0.25rem;
-    padding-top: 1rem;
-    border-top: none; border-right: 1px solid var(--hairline);
-    box-shadow: 2px 0 14px rgba(16, 24, 40, .04);
-  }
-  .nav-item {
-    flex: none; flex-direction: row; justify-content: flex-start;
-    height: 46px; padding: 0 1.3rem; gap: 0.85rem; font-size: 0.92rem;
-  }
-  .nav-item .nav-ico svg { width: 20px; height: 20px; }
-  /* active indicator: inset left bar + subtle tint (robust, always aligned) */
-  .nav-item.active::before { display: none; }
-  .nav-item.active {
-    background: rgba(3, 64, 120, .06);
-    box-shadow: inset 3px 0 0 var(--blue);
-  }
+  /* The bar spans the page, exactly like it does on the phone: there `--maxw` caps both the
+     body and the nav, so they already match. Here the body is full width, so the nav drops
+     its cap too instead of floating as a 620px island under a 1600px page. */
+  .bottom-nav { max-width: none; }
 
   /* content: left-aligned to match the header, capped for readability */
   .header { padding-left: 1.6rem; padding-right: 1.6rem; }
   .screens { max-width: none; margin: 0; padding: 1.5rem 1.6rem; }
 
-  /* Home: banners span full width, cards in a balanced 2-column grid.
-     Scope to .active so this ID rule doesn't beat .screen{display:none} on other tabs. */
+  /* Home on a wide screen, two columns:
+       left  - what the machine is doing and what you can press (status, notification, buttons)
+       right - the numbers (temperatures)
+     With the chart up it becomes 1/3 + 2/3: everything textual squeezes into the left third
+     and the curve takes the rest, because that is what you watch during a run.
+     Scoped to .active so this ID rule doesn't beat .screen{display:none} on other tabs. */
   #screen-home.active {
     display: grid; gap: 1rem; align-items: start;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
-  #screen-home .banner { grid-column: 1 / -1; margin-bottom: 0; }
-  #screen-home .card { margin-bottom: 0; }
+  /* Each column stacks on its OWN. When every card was a direct grid item, a row was as
+     tall as the tallest card across BOTH columns: a 139px temperature card forced 71px
+     gaps between the 84px cards beside it, and the 521px chart tore them apart entirely.
+     Two flex columns make the sides independent of each other's heights. */
+  .home-main, .home-side {
+    display: flex; flex-direction: column; gap: 1rem; min-width: 0;
+  }
+  /* Pin the columns explicitly. Auto-placement is not enough: giving .home-side a
+     grid-row (see the chart rule below) makes it a partially-positioned item, which the
+     algorithm places BEFORE the auto ones - and the two columns swapped sides. */
+  .home-main { order: 1; grid-column: 1; }
+  .home-side { order: 2; grid-column: 2; }
+  #screen-home .banner, #screen-home .card { margin-bottom: 0; }
+
+  /* Reading order inside the left column, independent of DOM order: status first, then
+     notification, then the controls. */
+  #screen-home .banner.state { order: 1; }
+  #screen-home #notify       { order: 2; }
+  #screen-home #buttonsCard  { order: 3; }
+  #screen-home #tempCompact  { order: 4; }
+  /* Right column: the curve sits above the temperature cards while a run is going. */
+  #screen-home #homeChartCard { order: 1; }
+  #screen-home #tempFullLysis { order: 2; }
+  #screen-home #tempFullAmp   { order: 3; }
+  /* Naming table spans BOTH columns: ten rows of slot + disease picker squeezed into half
+     (or a third of) the width starves the select of text room - the same failure measured
+     on the Result table. */
+  #screen-home #namingCard { grid-column: 1 / -1; order: 3; }
+
+  /* While a run is plotting: the curve is the thing being watched, so it takes the window
+     height, and the slot table drops into the LEFT column underneath the status cards -
+     it is the legend for the curves (same dots, same colours) rather than a form. */
+  #screen-home.active:has(#homeChartCard:not(.hide)) #namingCard {
+    grid-column: 1;
+  }
+  /* ...and the chart column must span BOTH rows, otherwise the table starts below the
+     chart's bottom edge (measured y=855 against left-column cards ending at y=425) instead
+     of continuing the left column. align-items:start keeps the chart its own height. */
+  #screen-home.active:has(#homeChartCard:not(.hide)) .home-side {
+    grid-row: 1 / span 2;
+  }
+  /* Narrow left column -> the naming table's centred 30rem block would sit off to one side;
+     let it use the column it has. */
+  #screen-home.active:has(#homeChartCard:not(.hide)) #namingCard .sample-cell {
+    max-width: none;
+  }
+
   /* Amplification: 4 temps in one row so it matches Lysis height (no gap) */
   #screen-home .temp-grid.four { grid-template-columns: repeat(4, 1fr); }
-  /* Wide cards (buttons, naming, live chart, compact temps) span both columns.
-     Full temp cards (Lysis / Amplification) stay in the 2-column grid. */
-  #screen-home .card.wide { grid-column: 1 / -1; }
 
-  /* bigger chart on desktop */
-  .chart-container { height: 460px; }
-  #screen-setting .card { max-width: 900px; } /* Home/Result fill the width */
+  /* The naming table spans the full width but has a single column, so its content sat
+     hard left with ~3/4 of every row empty. Centre the row content and let the disease
+     picker breathe - the table stays full width, what it holds is now balanced in it. */
+  #namingCard .sample-cell { max-width: 42rem; margin: 0 auto; }
+  #namingCard .disease-sel { max-width: 12rem; }
+  #namingCard .sample-name { max-width: 18rem; }
+  #namingCard .slot-table th.col-name { padding-left: 0; text-align: center; }
+  /* Chart visible -> the curve earns two thirds, the text column shrinks to one. */
+  #screen-home.active:has(#homeChartCard:not(.hide)) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  }
+
+  /* Setting AND Result cap their width. A 10-row table stretched across 1500px puts the
+     checkbox and its own result badge nearly a screen apart, so the eye has to travel the
+     full width to read one row. Home keeps the full width (it is a dashboard grid). */
+  #screen-setting .card { max-width: 900px; }
+  .set-grid { grid-template-columns: 1fr 1fr; max-width: 900px; }
+
+  /* Result on a wide screen: curve on the left taking two thirds, results table on the
+     right taking one third. Reading a run means looking at both at once, so stacking them
+     forced a scroll between the two halves of the same answer.
+     Scoped to .active so this display:grid doesn't beat .screen{display:none} on other tabs. */
+  #screen-result.active {
+    display: grid;
+    /* minmax(0,...) is load-bearing: a bare `2fr` means `minmax(auto, 2fr)`, and `auto`
+       refuses to shrink below the chart's min-content width. The chart then pushed the grid
+       wider than the viewport (measured: 1848px of layout inside a 1600px window) and
+       squeezed the table column until the disease field had no room left. */
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+  }
+  #screen-result .card { max-width: none; margin-bottom: 0; }
+  /* The chart card is .hide until "View chart" is pressed. With it gone the 2fr column
+     would sit empty and push the table off to the right, so collapse to a single
+     comfortable column until there is actually a chart to show. */
+  #screen-result.active:has(#resultChartCard.hide) {
+    grid-template-columns: minmax(0, 1fr); /* no chart yet -> table takes the whole width */
+  }
+  /* Table now lives in a ~1/3 column: give the numeric columns less so the sample column
+     keeps room for the disease field (same failure mode measured on mobile). */
+  .slot-table th:nth-child(2), .slot-table td:nth-child(2),
+  .slot-table th:nth-child(3), .slot-table td:nth-child(3) { width: 4.2rem; }
+
+  /* (The header no longer needs a negative margin to escape a sidebar column, and the nav
+     no longer needs a 100vh height - both went away with the sidebar. The logo sits at the
+     left edge simply because nothing is in front of it any more.) */
+
+  /* Stretched to ~600px each on a 1280 screen, which read as three banners rather than
+     three buttons. Cap them and keep them left-aligned with the rest of the content. */
+  .btn-row { max-width: 780px; }
+}
+
+/* ============================================================
+ * Accessibility baseline. Added after the component rules on purpose: several inputs
+ * set `outline: none` on :focus, so an equal-specificity :focus-visible rule only wins
+ * from here (later in source order).
+ * ============================================================ */
+
+/* Keyboard focus was invisible: outline removed, replaced only by a 1px border tint.
+   :focus-visible shows the ring for keyboard/AT users without drawing it on mouse taps. */
+:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+}
+.f-in:focus-visible, .f-sel:focus-visible, .slot-name:focus-visible,
+.sample-name:focus-visible,
+.disease-sel:focus-visible, .wifi-item:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 1px;
+  border-color: var(--blue);
+}
+/* Nav/chips are dark or coloured - offset the ring outward so it stays visible on them. */
+.nav-item:focus-visible, .btn-chip:focus-visible, .set-card:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: -3px;
+}
+
+/* Respect the OS "reduce motion" switch: the screen fade and every hover/press transition
+   collapse to instant. Vestibular triggers aside, on a lab bench an instant readout is
+   simply better. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* ============================================================
+ * Phone in landscape: wide but short. Stays on the mobile layout (bottom nav) because a
+ * 224px sidebar plus a 100vh-based column makes no sense at ~390px tall - see the desktop
+ * breakpoint above. What changes here is spending the extra WIDTH and reclaiming HEIGHT.
+ * ============================================================ */
+@media (min-width: 700px) and (max-height: 599px) {
+  /* --maxw: the column would otherwise sit at 480px with big empty margins.
+     --header-h: the header shrinks below, and the chart height subtracts this token. */
+  :root { --maxw: 700px; --header-h: 56px; }
+  .header { min-height: 56px; padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  .brand-mark img { height: 38px; }
+  .device-name { font-size: 1.2rem; }
+  .banner { min-height: 64px; padding: 0.6rem 0.9rem; }
+  .screens { padding: 0.7rem; }
+  .card { margin-bottom: 0.6rem; }
 }

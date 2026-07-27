@@ -741,9 +741,30 @@ void buttonManager::handleShortPress_White()
   {
     ESP.restart();
   }
+  if (_displayCLD.type_infor == eShowQR)
+  {
+    _displayCLD.type_infor = escreenStart; // WHITE again = leave the QR screen
+    _displayCLD.changeScreen = true;
+    return;
+  }
+  if (_displayCLD.type_infor == eUpLoadData)
+  {
+    // Leave the manual-upload screen. Without this branch WHITE fell through to
+    // ebuttonrestart below, i.e. it REBOOTED the machine - while the TFT and the web chip
+    // both label it "Return". eUpLoadData never clears itself (displayLCD.cpp), so this is
+    // also the only exit that puts the device back in a non-busy state.
+    _displayCLD.type_infor = escreenStart;
+    _displayCLD.changeScreen = true;
+    return;
+  }
   if (_displayCLD.type_infor == escreenStart)
   {
-    return; // Already at start screen
+    // WHITE used to do nothing here ("already at start screen"). Use that free button to
+    // show the QR that puts a phone on the web dashboard (URL on WiFi, WiFi-join code on
+    // the SoftAP fallback).
+    _displayCLD.type_infor = eShowQR;
+    _displayCLD.changeScreen = true;
+    return;
   }
 
   _displayCLD.type_infor = ebuttonrestart;

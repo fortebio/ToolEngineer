@@ -3,6 +3,8 @@
 int currentVersion = 18;
 int fwVersion = 0;
 volatile OtaState otaState = OTA_IDLE;
+volatile uint32_t otaLastCheck = 0;   // millis() of last completed check (0 = never)
+volatile bool otaCheckFailed = false; // last completed check errored (non-200)
 String fwUrl = "", fwName = "", fwVer = "", fwCont = "";
 String baseUrl = "https://raw.githubusercontent.com/wuanpham/FBTRapidplusOTA/" + FirmwareVer + "/";
 String checkFile = "updateOTA.json";
@@ -18,7 +20,7 @@ String checkFile = "updateOTA.json";
  * pramameter: none
  * return: none
  */
-void checkFirmware()
+void checkFirmware(bool promptOnDevice)
 {
     if (WiFi.status() != WL_CONNECTED)
     {
@@ -48,15 +50,30 @@ void checkFirmware()
             // draws the OTA prompt on its next iteration and user navigation
             // is free to move on/off the screen normally.
             otaState = OTA_AVAILABLE;
-            _displayCLD.type_infor = eUpdateOTA;
-            _displayCLD.changeScreen = true;
+            if (promptOnDevice)
+            {
+                _displayCLD.type_infor = eUpdateOTA;
+                _displayCLD.changeScreen = true;
+            }
         }
         else
         {
             info_displayln("You have the lasted version");
             otaState = OTA_IDLE;
         }
+        otaCheckFailed = false;
     }
+    else
+    {
+        // The GET completed but the server said no (rate limit, DNS/TLS trouble, 404).
+        // Mark it FAILED - without this, otaLastCheck stayed 0 and the web sat on
+        // "Not checked yet" forever with no hint the check had actually run and failed.
+        Serial.printf("[ota] check failed: HTTP %d\n", httpCode);
+        otaCheckFailed = true;
+    }
+    // Set on ANY completed GET (success or not) so the web can tell "checked, up to date"
+    // and "checked, failed" apart from "never checked".
+    otaLastCheck = millis() ? millis() : 1;
     http.end();
 }
 

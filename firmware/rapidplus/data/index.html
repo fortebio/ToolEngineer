@@ -18,7 +18,7 @@
           <div id="companyName" class="company-name">Fortebiotech</div>
         </div>
       </div>
-      <span id="status" class="status off">
+      <span id="status" class="status off" aria-live="polite">
         <span class="status-dot"></span><span id="statusText">Offline</span>
       </span>
     </header>
@@ -28,8 +28,11 @@
 
       <!-- ---- HOME ---- -->
       <section id="screen-home" class="screen active">
+        <!-- Left column on wide screens: what the machine is doing and what you can press.
+             On phones the wrappers are display:contents, so the layout is unchanged. -->
+        <div class="home-main">
         <!-- Notification -->
-        <div id="notify" class="banner notify hidden">
+        <div id="notify" class="banner notify hidden" role="status" aria-live="polite">
           <div class="banner-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
           </div>
@@ -39,9 +42,21 @@
           </div>
         </div>
 
+
+        <!-- Current status (icon swapped by JS: clock or thermometer) -->
+        <div class="banner state" role="status" aria-live="polite">
+          <div id="stateIcon" class="banner-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+          </div>
+          <div class="banner-body">
+            <div id="stateTitle" class="banner-title">Idle</div>
+            <div id="stateSub" class="banner-sub">Waiting for a run to start.</div>
+          </div>
+        </div>
+
         <!-- Button states -->
-        <div class="card wide">
-          <p class="card-title">Buttons</p>
+        <div class="card wide" id="buttonsCard">
+          <p class="card-title">Controls</p>
           <div class="btn-row">
             <button type="button" id="bGreen" class="btn-chip green off" data-btn="green">GREEN</button>
             <button type="button" id="bRed" class="btn-chip red off" data-btn="red">RED</button>
@@ -60,26 +75,16 @@
             <span class="ts"><span class="lbl">Top R</span><b id="cTopRight">-</b></span>
           </div>
         </div>
-
-        <!-- Current status (icon swapped by JS: clock or thermometer) -->
-        <div class="banner state">
-          <div id="stateIcon" class="banner-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
-          </div>
-          <div class="banner-body">
-            <div id="stateTitle" class="banner-title">Idle</div>
-            <div id="stateSub" class="banner-sub">Waiting for a run to start.</div>
-          </div>
-        </div>
+        </div><!-- /.home-main -->
 
         <!-- Slot naming (shown only when amplification is ready to start; naming
              gates the Start button and reveals the live chart) -->
         <div class="card wide hide" id="namingCard">
           <p class="card-title" id="namingTitle">Name the samples</p>
-          <p class="naming-hint">Pick a disease for each slot (tap the field). Blank slots keep their default #1-#10.</p>
+          <p class="naming-hint">Pick a disease and type a sample name for each slot. Blank slots keep their default #1-#10.</p>
           <table class="slot-table">
             <thead>
-              <tr><th>Show</th><th>Slot</th><th class="col-name">Disease</th></tr>
+              <tr><th class="col-name">Sample</th></tr>
             </thead>
             <tbody id="namingBody"></tbody>
           </table>
@@ -89,6 +94,8 @@
           </button>
         </div>
 
+        <!-- Right column on wide screens: the numbers, or the curve while running -->
+        <div class="home-side">
         <!-- Live amplification chart (shown after names confirmed / while running) -->
         <div class="card wide hide" id="homeChartCard">
           <div class="card-head">
@@ -115,6 +122,7 @@
             <div class="temp-box"><div id="tTopRight" class="temp-val">-</div><div class="temp-lbl">Top Right</div></div>
           </div>
         </div>
+        </div><!-- /.home-side -->
 
       </section>
 
@@ -130,10 +138,21 @@
           <p class="card-title">Results &amp; slots</p>
           <table class="slot-table">
             <thead>
-              <tr><th>Show</th><th>Slot</th><th class="col-name">Disease</th><th>CT</th><th>Result</th></tr>
+              <tr><th class="col-name">Sample</th><th>CT</th><th>Result</th></tr>
             </thead>
             <tbody id="slotBody"></tbody>
           </table>
+          <!-- The single letters are the firmware's own outcome initials (AlgoData.h:
+               Positive / Negative / Slight Positive / Error, plus "Break" written by
+               sensor6035 for an invalid curve). Nothing on the device or the web spelled
+               them out, so a first-time operator could not learn what S or B meant. -->
+          <p class="res-legend">
+            <span><span class="res-badge res-P">P</span>Positive</span>
+            <span><span class="res-badge res-N">N</span>Negative</span>
+            <span><span class="res-badge res-S">S</span>Slight positive</span>
+            <span><span class="res-badge res-E">E</span>Error</span>
+            <span><span class="res-badge res-B">B</span>Break (invalid curve)</span>
+          </p>
           <button type="button" id="viewChartBtn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 12 8 12 11 19 16 5 19 12 21 12"/></svg>
             View chart
@@ -144,7 +163,7 @@
       <!-- ---- SETTING ---- -->
       <section id="screen-setting" class="screen">
         <!-- Shown while the device is running/calibrating: every card is locked -->
-        <div id="setBusy" class="banner notify hidden">
+        <div id="setBusy" class="banner notify hidden" role="status" aria-live="polite">
           <div class="banner-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           </div>
@@ -166,13 +185,15 @@
             <p class="card-title" id="setPanelTitle">-</p>
           </div>
           <div id="setForm"></div>
-          <div id="setMsg" class="set-msg"></div>
+          <div id="setMsg" class="set-msg" role="status" aria-live="polite"></div>
         </div>
 
         <div class="card" id="setAbout">
           <p class="card-title">Device</p>
           <p class="setting-row">ID: <span id="setDevice">-</span></p>
           <p class="setting-row">Company: <span id="setCompany">-</span></p>
+          <p class="setting-row">Network: <span id="setNet">-</span></p>
+          <p class="setting-row">IP: <span id="setIp">-</span></p>
           <button type="button" id="reloadBtn" class="reload-btn">Reload</button>
         </div>
       </section>

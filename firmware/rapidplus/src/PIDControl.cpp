@@ -642,10 +642,12 @@ void PIDControl::sensorSeq()
         _ForteSetting.parameter.topTemperatureSensorSq[2] = sumSeq;
     }
     _ForteSetting.parameter.length = sizeof(_ForteSetting.parameter); // use this to indicate the EEPROM has valid parameter
+    eepromLock();
     EEPROM.begin(_EEPROM_SIZE);
     EEPROM.put(PARAMETERPOS, _ForteSetting.parameter);
     EEPROM.commit();
     EEPROM.end();
+    eepromUnlock();
 }
 
 /***********************************************************************

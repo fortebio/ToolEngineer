@@ -96,6 +96,7 @@ var confirmed = false; // user confirmed slot names -> Start unlocked, chart sho
 var namingBuilt = false; // naming table populated for the current waitamp session
 var homeChartOn = false; // home is currently in chart (running) mode
 var homeCurveOn = false; // ...and that chart may be filled from /curve (run has data)
+var prevBusy = false; // last SSE status.busy, to detect the busy->idle edge (Result re-arm)
 
 function renderHome(d) {
   if (d.device) {
@@ -105,6 +106,19 @@ function renderHome(d) {
   if (d.company) {
     txt("companyName", d.company);
     txt("setCompany", d.company);
+  }
+  // Live network state, so switching WiFi (or falling to SoftAP) is reflected on the web
+  // within a second - the machine and the dashboard stay in sync. Kept in a global so the
+  // WiFi panel can mark the active saved network too.
+  if (d.net) {
+    curNet = d.net;
+    txt(
+      "setNet",
+      d.net.ap
+        ? "SoftAP (" + (d.net.ssid || "hotspot") + ")"
+        : d.net.ssid || "(not connected)",
+    );
+    txt("setIp", d.net.ip || "0.0.0.0");
   }
 
   var t = d.temps || {};
@@ -140,6 +154,20 @@ function renderHome(d) {
   // `confirmed` must survive the heating in between, so it is reset only on a fresh
   // cycle (back to idle), not on every non-naming phase.
   curPhase = phase;
+  // reviewStoredRun() is one-shot on Result-tab entry and gives up (409) if the device was
+  // busy (heating/preheat/calib/OTA - these report phase "heater" etc., NOT "amplification",
+  // so the entry guard does not stop the doomed attempt). Re-arm on the busy->idle EDGE while
+  // the Result tab is open, so the stored run loads itself (table + chart) without needing the
+  // physical WHITE key. Edge-triggered, not level: no per-second /slots spam, and no loop on an
+  // empty-EEPROM machine that never goes ready. Never resurrects a new run: during amplification
+  // s.busy is true (blocks this), and loadResultSlots only reviews when /slots ready===false.
+  if (
+    prevBusy &&
+    !s.busy &&
+    document.getElementById("screen-result").classList.contains("active")
+  )
+    loadResultSlots();
+  prevBusy = !!s.busy;
   if (phase === "amplification") confirmed = true;
   else if (phase === "idle") confirmed = false; // new cycle -> require naming again
   var naming = (phase === "waitname" || phase === "waitamp") && !confirmed;
@@ -157,12 +185,14 @@ function renderHome(d) {
     phase === "amplification" ||
     phase === "finished";
 
-  // populate the naming table once per waitamp session (avoid clobbering typing)
-  if (naming && !namingBuilt) {
+  // populate the slot table once per session (avoid clobbering an open select).
+  // Built for BOTH stages: naming before the run, and as the run's legend while it plots -
+  // the table is what tells the operator which coloured curve is which sample.
+  if ((naming || chartMode) && !namingBuilt) {
     namingBuilt = true;
     loadNamingSlots();
   }
-  if (!naming) namingBuilt = false;
+  if (!naming && !chartMode) namingBuilt = false;
 
   // Does the device hold THIS run's curve yet? At "waitamp" the run has not started,
   // and the device buffer still holds the PREVIOUS run (it is overwritten round by
@@ -238,7 +268,16 @@ function applyRunNav(hide) {
 // curveReady = the device holds this run's curve (see renderHome); only then do we
 // pull /curve, otherwise a fresh run would inherit the previous run's points.
 function setHomeMode(naming, chartMode, curveReady) {
-  show("namingCard", naming);
+  /* The slot table serves two stages. Before the run it is the naming form (hint + Confirm
+     button). While the chart is up it stays as the run's legend - same coloured dots as the
+     curves, so the operator can read which sample is which and toggle series - but the
+     naming chrome goes away, since the run has already started. */
+  show("namingCard", naming || chartMode);
+  var title = document.getElementById("namingTitle");
+  if (title) title.textContent = naming ? "Name the samples" : "Samples";
+  var hint = document.querySelector("#namingCard .naming-hint");
+  if (hint) hint.classList.toggle("hide", !naming);
+  show("confirmNamesBtn", naming);
   show("homeChartCard", chartMode);
   show("tempFullLysis", !chartMode);
   show("tempFullAmp", !chartMode);
@@ -260,6 +299,9 @@ function chipLabel(id, label) {
   var el = document.getElementById(id);
   if (!el) return;
   var has = !!(label && label.length);
+  /* No action in this state -> "-". Which physical button it is stays readable from the
+     chip's own colour: .noact dims with grayscale(.35), light enough that green/red/white
+     are still told apart, so spelling the name out would only add noise. */
   el.textContent = has ? label : "-";
   el.classList.toggle("noact", !has);
 }
@@ -278,19 +320,24 @@ function dot(id, on) {
  * resultView -> stored-run chart on Result, drawn from /curve on demand.
  * Guarded: if Highcharts failed to load (offline with no bundle), chart is null
  * and everything else - SSE, Home, tables - still works. */
+/* Series colours, hoisted out of buildSeries() so the slot tables can paint each row's
+   toggle in the SAME colour as its line. Before this the table never told you which
+   colour a slot was on the chart - you had to match by reading the legend. */
+var SERIES_COLORS = [
+  "#00BFFF",
+  "#FF0000",
+  "#FFD400",
+  "#32CD32",
+  "#D2691E",
+  "#00CED1",
+  "#9400D3",
+  "#9ACD32",
+  "#0000FF",
+  "#FF69B4",
+];
+
 function buildSeries() {
-  var colors = [
-    "#00BFFF",
-    "#FF0000",
-    "#FFD400",
-    "#32CD32",
-    "#D2691E",
-    "#00CED1",
-    "#9400D3",
-    "#9ACD32",
-    "#0000FF",
-    "#FF69B4",
-  ];
+  var colors = SERIES_COLORS;
   return colors.map(function (c, i) {
     return {
       name: "#" + (i + 1),
@@ -310,10 +357,37 @@ function makeChart(divId) {
         xAxis: { title: { text: "Time (min)" }, labels: { enabled: true } },
         yAxis: {
           title: { text: null },
-          labels: { enabled: true },
-          tickInterval: 5,
           min: 0,
-        }, // ticks every 5, from 0
+          startOnTick: true,
+          endOnTick: true,
+          /* The scale starts at 0..50 and GROWS with the data - never clips, but never
+             collapses onto a tiny run either, so runs stay comparable at a glance.
+             Always exactly ten steps: the top is rounded up to a round number so every
+             gridline lands on a clean value instead of 57.3 / 68.76 / ...
+             (A plain tickInterval can't do this: it is a fixed step, so the number of
+             lines would change with the data.) */
+          tickPositioner: function () {
+            var top = Math.max(this.dataMax || 0, 200); // floor of 50, then follow the data
+            var mag = Math.pow(10, Math.floor(Math.log(top) / Math.LN10) - 1);
+            top = Math.ceil(top / (mag * 5)) * (mag * 5); // round up to a tidy /10 value
+            var step = top / 10;
+            var out = [];
+            for (var i = 0; i <= 10; i++)
+              out.push(Math.round(i * step * 1e6) / 1e6);
+            return out;
+          },
+          labels: {
+            enabled: true,
+            /* Ten lines, but a label on every SECOND one: four labelled majors between the
+               ends, the rest read as minor gridlines. Labelling all ten crowds the axis,
+               especially on the 210px landscape chart. */
+            formatter: function () {
+              var p = this.axis.tickPositions;
+              var step = p && p.length > 1 ? p[1] - p[0] : 1;
+              return Math.round(this.value / step) % 2 === 0 ? this.value : "";
+            },
+          },
+        },
         series: buildSeries(),
       })
     : null;
@@ -336,7 +410,7 @@ function makeView(divId, lastUpdateId) {
 }
 var homeView = makeView("homeChart", "lastUpdateHome");
 var resultView = makeView("resultChart", null);
-var BASELINE_N = 5;
+var BASELINE_N = 9; // first 9 points (0..8) -> baseline for the run
 
 /* ---------- Savitzky-Golay smoothing (quadratic, order 2) ----------
  * SG fits a low-degree polynomial to a sliding window and takes the fitted centre,
@@ -383,16 +457,18 @@ function sgSmooth(arr) {
 }
 
 // Redraw one channel from its retained raw (baseline-subtracted) values, SG-smoothed.
-// Noise floor is applied AFTER smoothing so it doesn't fabricate flat runs beforehand.
+// Noise floor is applied BEFORE smoothing: sub-2 samples become real 0 input to the SG
+// window, so the baseline sits flat at 0 instead of wobbling. Cost: the clamped zeros are
+// averaged into the first rising points, so the curve leaves 0 slightly later, and the
+// smoothed output is no longer clamped (yAxis min 0 hides any small negative dip).
 function drawSmoothed(v, ch) {
   if (!v.chart || !v.chart.series[ch]) return;
-  var sm = sgSmooth(v.rawY[ch]),
+  var raw = v.rawY[ch],
+    floored = new Array(raw.length);
+  for (var i = 0; i < raw.length; i++) floored[i] = raw[i] < 2 ? 0 : raw[i]; // noise floor: values below 2 -> 0
+  var sm = sgSmooth(floored),
     pts = [];
-  for (var j = 0; j < sm.length; j++) {
-    var val = sm[j];
-    if (val < 5) val = 0; // noise floor: values below 5 -> 0
-    pts.push([j * minPerRound, val]);
-  }
+  for (var j = 0; j < sm.length; j++) pts.push([j * minPerRound, sm[j]]);
   v.chart.series[ch].setData(pts, false);
 }
 
@@ -440,6 +516,12 @@ function loadCurve(v) {
       applyNamesTo(v);
       applyVisTo(v);
       v.chart.redraw();
+      // A review takes ~8 s on the device, and until it lands /curve returns 0 points. Show
+      // Highcharts' loading label instead of a blank chart so the user waits for the redraw
+      // (reviewStoredRun's poll calls loadCurve again when ready) instead of assuming it is
+      // broken and reloading the page.
+      if (!d.count && reviewing) v.chart.showLoading("Loading stored run…");
+      else v.chart.hideLoading();
     })
     .catch(function () {});
 }
@@ -475,7 +557,8 @@ function plotPoint(v, jsonValue) {
 /* ---------- Slots: naming (Home) + results (Result) ----------
  * Names persist on the device (POST /rename -> /slotnames.json). Visibility is a
  * per-browser view preference (localStorage), shared by both charts. */
-var slotNames = new Array(10).fill("");
+var slotNames = new Array(10).fill(""); // disease per slot (fixed list)
+var slotSamples = new Array(10).fill(""); // free-text sample label per slot
 
 function slotVis() {
   try {
@@ -499,6 +582,8 @@ function ingestSlots(data) {
   for (var i = 0; i < SLOTS; i++) {
     if (slots[i] && slots[i].name !== undefined)
       slotNames[i] = slots[i].name || "";
+    if (slots[i] && slots[i].sample !== undefined)
+      slotSamples[i] = slots[i].sample || "";
   }
   return slots;
 }
@@ -548,8 +633,14 @@ function reviewStoredRun() {
               buildTable("slotBody", ingestSlots(d), true);
               if (resultShown) loadCurve(resultView); // stored curve now available
               reviewing = false;
-            } else if (++tries < 15) {
-              setTimeout(poll, 200); // SettingTask drains in ~10ms; allow a slow flash read
+            } else if (++tries < 60) {
+              // MEASURED on the device: a review takes ~8.1 s (EEPROM record read +
+              // bResultGet re-running the detection over all 10 slots), NOT the "~10 ms"
+              // the old comment claimed. The old 15x200ms = 3 s budget expired long before
+              // the data landed, so the client gave up and the table/chart stayed empty -
+              // that is the "View Chart shows nothing until I reload the page" bug. 60x250ms
+              // = 15 s leaves headroom over the measured 8 s on a slower unit.
+              setTimeout(poll, 250);
             } else {
               reviewing = false; // gave up: EEPROM had no plausible stored run
             }
@@ -611,6 +702,22 @@ function makeDiseaseSelect(i, value) {
   return sel;
 }
 
+/* Free-text sample label, sits beside the disease picker. Its own class (NOT .slot-name)
+   so fitNameColumn keeps sizing the column to the disease text only; the sample field
+   takes the remaining flex room and wraps below on a narrow row. */
+function makeSampleInput(i, value) {
+  var inp = document.createElement("input");
+  inp.type = "text";
+  inp.className = "sample-name";
+  inp.setAttribute("data-slot", i);
+  inp.maxLength = 32;
+  inp.placeholder = "Sample";
+  inp.setAttribute("aria-label", "Sample name for #" + (i + 1));
+  inp.value = value || "";
+  inp.addEventListener("change", onRenameSample);
+  return inp;
+}
+
 function buildTable(tbodyId, slots, withResults) {
   var body = document.getElementById(tbodyId);
   if (!body) return;
@@ -619,24 +726,51 @@ function buildTable(tbodyId, slots, withResults) {
     var s = slots[i] || {};
     var tr = document.createElement("tr");
 
+    /* One "sample" cell instead of three columns (Show | Slot | Disease). The old layout
+       put a row's checkbox and its own result badge nearly a screen apart on desktop, so
+       reading one row meant crossing the whole table. Everything identifying the sample
+       now sits together, and CT / Result stay as their own columns. */
+    var sampleTd = document.createElement("td");
+    sampleTd.className = "sample";
+    // Flex lives on an inner div, NOT on the <td>: display:flex on a table cell drops its
+    // table-cell role, and the row borders stop lining up across the columns.
+    var sampleBox = document.createElement("div");
+    sampleBox.className = "sample-cell";
+
+    // Still a real <input type=checkbox>: keyboard, screen readers and the existing
+    // onToggle/sync logic all keep working. Only its appearance changes - into the dot
+    // carrying this slot's chart colour, which doubles as the show/hide control.
     var cb = document.createElement("input");
     cb.type = "checkbox";
+    cb.className = "vis-dot";
     cb.checked = isVisible(i);
     cb.setAttribute("data-slot", i);
+    cb.setAttribute("aria-label", "Show #" + (i + 1) + " on the chart");
+    cb.style.setProperty("--series", SERIES_COLORS[i]);
     cb.addEventListener("change", onToggle);
-    tr.appendChild(cell(cb));
+    sampleBox.appendChild(cb);
 
-    tr.appendChild(cell("#" + (i + 1)));
+    var no = document.createElement("span");
+    no.className = "slot-no";
+    no.textContent = "#" + (i + 1);
+    sampleBox.appendChild(no);
 
     var cur = s.name !== undefined ? s.name || "" : slotNames[i] || "";
-    tr.appendChild(cell(makeDiseaseSelect(i, cur)));
+    sampleBox.appendChild(makeDiseaseSelect(i, cur));
+    var curSample =
+      s.sample !== undefined ? s.sample || "" : slotSamples[i] || "";
+    sampleBox.appendChild(makeSampleInput(i, curSample));
+    sampleTd.appendChild(sampleBox);
+    tr.appendChild(sampleTd);
 
     if (withResults) {
-      tr.appendChild(
-        cell(
-          s.ct === null || s.ct === undefined ? "-" : Number(s.ct).toFixed(1),
-        ),
-      );
+      var ctTd = document.createElement("td");
+      ctTd.className = "ct";
+      if (s.ct === null || s.ct === undefined)
+        ctTd.innerHTML = '<span class="res-empty">-</span>'; // recede: most rows have no CT
+      else ctTd.textContent = Number(s.ct).toFixed(1);
+      tr.appendChild(ctTd);
+
       var td = document.createElement("td");
       var r = s.result || "";
       if (r && "PNSEB".indexOf(r) >= 0) {
@@ -644,6 +778,9 @@ function buildTable(tbodyId, slots, withResults) {
         badge.className = "res-badge res-" + r;
         badge.textContent = r;
         td.appendChild(badge);
+        // The rows that carry a detection are the ones the operator is looking for;
+        // give them a quiet tint so they read first instead of every row shouting equally.
+        if (r === "P" || r === "S") tr.classList.add("hit");
       } else {
         td.innerHTML = '<span class="res-empty">-</span>';
       }
@@ -684,7 +821,9 @@ function fitNameColumn(tbodyId) {
     meas.textContent = inp.value || inp.placeholder || "";
     if (meas.offsetWidth > w) w = meas.offsetWidth;
   });
-  th.style.width = Math.min(Math.max(w + 34, 90), 460) + "px"; // + padding, clamped
+  // + padding, + a fixed budget for the sample field sitting beside the disease, clamped.
+  // On a narrow row the column can't reach the max and the sample field wraps below.
+  th.style.width = Math.min(Math.max(w + 34 + 132, 210), 600) + "px";
 }
 
 function onToggle(e) {
@@ -723,6 +862,25 @@ function onRename(e) {
   applyNamesTo(resultView);
   fitNameColumn("namingBody");
   fitNameColumn("slotBody");
+}
+
+// Sample label is web-only, persisted next to the disease (POST /rename?...&sample=).
+// Chart series names stay tied to the disease (applyNamesTo) - the sample label is a
+// per-slot identifier, not a legend entry.
+function onRenameSample(e) {
+  var i = Number(e.target.getAttribute("data-slot"));
+  slotSamples[i] = e.target.value;
+  fetch("/rename?slot=" + i + "&sample=" + encodeURIComponent(e.target.value), {
+    method: "POST",
+  }).catch(function (err) {
+    console.error("sample rename failed", err);
+  });
+  // keep the sibling table's field (naming <-> result) in sync
+  document
+    .querySelectorAll('.sample-name[data-slot="' + i + '"]')
+    .forEach(function (inp) {
+      if (inp !== e.target) inp.value = e.target.value;
+    });
 }
 
 function applyNamesTo(v) {
@@ -871,189 +1029,198 @@ var CARDS = [
     ],
     hint: "Rounds x time per round = run length. 120 x 20000 ms = a 40 minute run.",
   },
+  // {
+  //   id: "led",
+  //   title: "LED",
+  //   desc: "Per-channel brightness",
+  //   icon: ico(
+  //     '<path d="M9 18h6M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>',
+  //   ),
+  //   fields: [
+  //     {
+  //       p: "LED power",
+  //       l: "LED power per slot",
+  //       arr: 10,
+  //       min: 0,
+  //       max: 255,
+  //       step: 1,
+  //       cols: 5,
+  //     },
+  //     {
+  //       p: "LED Duration",
+  //       l: "LED on time before reading",
+  //       u: "ms",
+  //       min: 0,
+  //       max: 10000,
+  //       step: 10,
+  //     },
+  //   ],
+  // },
+  // {
+  //   id: "calib",
+  //   title: "Calibration",
+  //   desc: "Run the on-device calibration",
+  //   custom: "calib",
+  //   icon: ico('<path d="M3 12h4l3 8 4-16 3 8h4"/>'),
+  // },
+  // {
+  //   id: "pid",
+  //   title: "PID / heater",
+  //   desc: "Gains, overheat limits, hotlid PWM",
+  //   icon: ico(
+  //     '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>',
+  //   ),
+  //   fields: [
+  //     {
+  //       p: "PID parameter",
+  //       l: "PID - lysis heater",
+  //       arr: 3,
+  //       names: ["Kp", "Ki", "Kd"],
+  //       min: 0,
+  //       max: 1000,
+  //       step: 0.01,
+  //       cols: 3,
+  //     },
+  //     {
+  //       p: "PID2 parameter",
+  //       l: "PID - amplification heaters",
+  //       arr: 3,
+  //       names: ["Kp", "Ki", "Kd"],
+  //       min: 0,
+  //       max: 1000,
+  //       step: 0.01,
+  //       cols: 3,
+  //     },
+  //     {
+  //       p: "PID3 parameter",
+  //       l: "PID - hotlid",
+  //       arr: 3,
+  //       names: ["Kp", "Ki", "Kd"],
+  //       min: 0,
+  //       max: 1000,
+  //       step: 0.01,
+  //       cols: 3,
+  //     },
+  //     {
+  //       p: "Bottom overheat value",
+  //       l: "Bottom overheat",
+  //       u: "C",
+  //       arr: 3,
+  //       min: 0,
+  //       max: 50,
+  //       step: 0.1,
+  //       cols: 3,
+  //     },
+  //     {
+  //       p: "Top overheat value",
+  //       l: "Top overheat",
+  //       u: "C",
+  //       arr: 2,
+  //       min: 0,
+  //       max: 50,
+  //       step: 0.1,
+  //     },
+  //     {
+  //       p: "top heater PWM",
+  //       l: "Hotlid PWM [low, high]",
+  //       mat: [2, 2],
+  //       min: 0,
+  //       max: 255,
+  //       step: 1,
+  //     },
+  //   ],
+  //   hint: "Wrong gains or setpoints drive the heaters directly. Change with care.",
+  // },
+  // {
+  //   id: "other",
+  //   title: "Other parameters",
+  //   desc: "Algorithm, sensors, buzzer",
+  //   icon: ico(
+  //     '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+  //   ),
+  //   fields: [
+  //     { p: "parameters.min increase", l: "Min increase", step: 0.1 },
+  //     { p: "parameters.min sharpness", l: "Min sharpness", step: 0.1 },
+  //     {
+  //       p: "parameters.min slight positive time",
+  //       l: "Min slight positive time",
+  //       step: 0.1,
+  //     },
+  //     {
+  //       p: "parameters.detect shape",
+  //       l: "Detect shape (lag phase)",
+  //       bool: true,
+  //     },
+  //     {
+  //       p: "parameters.detection margin time",
+  //       l: "Detection margin time",
+  //       step: 0.1,
+  //     },
+  //     { p: "parameters.arm percentile", l: "Arm percentile", step: 0.01 },
+  //     {
+  //       p: "parameters.transition percentile",
+  //       l: "Transition percentile",
+  //       step: 0.01,
+  //     },
+  //     { p: "parameters.sg order", l: "SG order", min: 0, max: 255, step: 1 },
+  //     { p: "parameters.sg window", l: "SG window", min: 0, max: 255, step: 1 },
+  //     {
+  //       p: "parameters.baseline start",
+  //       l: "Baseline start",
+  //       u: "min",
+  //       min: 0,
+  //       max: 255,
+  //       step: 1,
+  //     },
+  //     {
+  //       p: "parameters.baseline range",
+  //       l: "Baseline range",
+  //       u: "min",
+  //       min: 0,
+  //       max: 255,
+  //       step: 1,
+  //     },
+  //     {
+  //       p: "temperature value calibration",
+  //       l: "Temperature offset (bottom 1-3, top 1-2, ambient)",
+  //       u: "C",
+  //       arr: 6,
+  //       min: -20,
+  //       max: 20,
+  //       step: 0.1,
+  //       cols: 3,
+  //     },
+  //     {
+  //       p: "bottom temperature sensor seq",
+  //       l: "Bottom sensor order",
+  //       arr: 3,
+  //       min: 0,
+  //       max: 2,
+  //       step: 1,
+  //       cols: 3,
+  //     },
+  //     {
+  //       p: "top temperature sensor seq",
+  //       l: "Top sensor order",
+  //       arr: 3,
+  //       min: 0,
+  //       max: 2,
+  //       step: 1,
+  //       cols: 3,
+  //     },
+  //     { p: "units", l: "Units", text: true, maxlen: 9 },
+  //     { p: "buzzer", l: "Buzzer", sel: ["On", "Off"] },
+  //     { p: "kitId", l: "Kit id", min: 0, step: 1 },
+  //   ],
+  // },
   {
-    id: "led",
-    title: "LED",
-    desc: "Per-channel brightness",
+    id: "ota",
+    title: "Firmware",
+    desc: "Check for and install updates",
+    custom: "ota",
     icon: ico(
-      '<path d="M9 18h6M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>',
+      '<path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
     ),
-    fields: [
-      {
-        p: "LED power",
-        l: "LED power per slot",
-        arr: 10,
-        min: 0,
-        max: 255,
-        step: 1,
-        cols: 5,
-      },
-      {
-        p: "LED Duration",
-        l: "LED on time before reading",
-        u: "ms",
-        min: 0,
-        max: 10000,
-        step: 10,
-      },
-    ],
-  },
-  {
-    id: "calib",
-    title: "Calibration",
-    desc: "Run the on-device calibration",
-    custom: "calib",
-    icon: ico('<path d="M3 12h4l3 8 4-16 3 8h4"/>'),
-  },
-  {
-    id: "pid",
-    title: "PID / heater",
-    desc: "Gains, overheat limits, hotlid PWM",
-    icon: ico(
-      '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/>',
-    ),
-    fields: [
-      {
-        p: "PID parameter",
-        l: "PID - lysis heater",
-        arr: 3,
-        names: ["Kp", "Ki", "Kd"],
-        min: 0,
-        max: 1000,
-        step: 0.01,
-        cols: 3,
-      },
-      {
-        p: "PID2 parameter",
-        l: "PID - amplification heaters",
-        arr: 3,
-        names: ["Kp", "Ki", "Kd"],
-        min: 0,
-        max: 1000,
-        step: 0.01,
-        cols: 3,
-      },
-      {
-        p: "PID3 parameter",
-        l: "PID - hotlid",
-        arr: 3,
-        names: ["Kp", "Ki", "Kd"],
-        min: 0,
-        max: 1000,
-        step: 0.01,
-        cols: 3,
-      },
-      {
-        p: "Bottom overheat value",
-        l: "Bottom overheat",
-        u: "C",
-        arr: 3,
-        min: 0,
-        max: 50,
-        step: 0.1,
-        cols: 3,
-      },
-      {
-        p: "Top overheat value",
-        l: "Top overheat",
-        u: "C",
-        arr: 2,
-        min: 0,
-        max: 50,
-        step: 0.1,
-      },
-      {
-        p: "top heater PWM",
-        l: "Hotlid PWM [low, high]",
-        mat: [2, 2],
-        min: 0,
-        max: 255,
-        step: 1,
-      },
-    ],
-    hint: "Wrong gains or setpoints drive the heaters directly. Change with care.",
-  },
-  {
-    id: "other",
-    title: "Other parameters",
-    desc: "Algorithm, sensors, buzzer",
-    icon: ico(
-      '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
-    ),
-    fields: [
-      { p: "parameters.min increase", l: "Min increase", step: 0.1 },
-      { p: "parameters.min sharpness", l: "Min sharpness", step: 0.1 },
-      {
-        p: "parameters.min slight positive time",
-        l: "Min slight positive time",
-        step: 0.1,
-      },
-      {
-        p: "parameters.detect shape",
-        l: "Detect shape (lag phase)",
-        bool: true,
-      },
-      {
-        p: "parameters.detection margin time",
-        l: "Detection margin time",
-        step: 0.1,
-      },
-      { p: "parameters.arm percentile", l: "Arm percentile", step: 0.01 },
-      {
-        p: "parameters.transition percentile",
-        l: "Transition percentile",
-        step: 0.01,
-      },
-      { p: "parameters.sg order", l: "SG order", min: 0, max: 255, step: 1 },
-      { p: "parameters.sg window", l: "SG window", min: 0, max: 255, step: 1 },
-      {
-        p: "parameters.baseline start",
-        l: "Baseline start",
-        u: "min",
-        min: 0,
-        max: 255,
-        step: 1,
-      },
-      {
-        p: "parameters.baseline range",
-        l: "Baseline range",
-        u: "min",
-        min: 0,
-        max: 255,
-        step: 1,
-      },
-      {
-        p: "temperature value calibration",
-        l: "Temperature offset (bottom 1-3, top 1-2, ambient)",
-        u: "C",
-        arr: 6,
-        min: -20,
-        max: 20,
-        step: 0.1,
-        cols: 3,
-      },
-      {
-        p: "bottom temperature sensor seq",
-        l: "Bottom sensor order",
-        arr: 3,
-        min: 0,
-        max: 2,
-        step: 1,
-        cols: 3,
-      },
-      {
-        p: "top temperature sensor seq",
-        l: "Top sensor order",
-        arr: 3,
-        min: 0,
-        max: 2,
-        step: 1,
-        cols: 3,
-      },
-      { p: "units", l: "Units", text: true, maxlen: 9 },
-      { p: "buzzer", l: "Buzzer", sel: ["On", "Off"] },
-      { p: "kitId", l: "Kit id", min: 0, step: 1 },
-    ],
   },
 ];
 
@@ -1208,6 +1375,7 @@ function openPanel(id) {
   if (c.custom === "wifi") return renderWifi(form);
   if (c.custom === "id") return renderDeviceId(form);
   if (c.custom === "calib") return renderCalib(form);
+  if (c.custom === "ota") return renderOta(form);
   renderFields(form, c);
 }
 
@@ -1398,6 +1566,217 @@ function saveFields(c, btn) {
 }
 
 /* ---------- Device ID (two stores: global id_device + parameter.device_id) ---------- */
+/* ---------- Firmware / OTA panel ----------
+ * GET /ota reports what is installed vs what GitHub offers; POST /ota?action=check
+ * queues the (blocking) HTTPS check onto SettingTask, action=update hands the download
+ * to NetworkTask. The device reboots into the new build on success, so this panel never
+ * gets a "done" reply - the page simply loses the connection and reconnects.
+ */
+function renderOta(form) {
+  var info = el("div", "ota-info");
+  form.appendChild(info);
+  var actions = el("div", "wz-actions");
+  form.appendChild(actions);
+
+  var checkBtn = el("button", "save-btn", "Check for updates");
+  checkBtn.type = "button";
+  var updBtn = el("button", "save-btn", "Install update");
+  updBtn.type = "button";
+  updBtn.classList.add("hide");
+  actions.appendChild(checkBtn);
+  actions.appendChild(updBtn);
+
+  function paint(o) {
+    info.innerHTML = "";
+    var rows = [["Installed", o.version + " (build " + o.versionCode + ")"]];
+    if (o.newVersion && o.newVersionCode > o.versionCode)
+      rows.push([
+        "Available",
+        o.newVersion + " (build " + o.newVersionCode + ")",
+      ]);
+    rows.push([
+      "Status",
+      !o.online
+        ? "No internet - cannot check"
+        : o.state === "updating"
+          ? "Installing..."
+          : o.hasUpdate
+            ? "Update available"
+            : o.checkFailed
+              ? "Check failed - try again"
+              : o.checked
+                ? "Up to date"
+                : "Not checked yet",
+    ]);
+    rows.forEach(function (r) {
+      var p = el("p", "setting-row", r[0] + ": ");
+      p.appendChild(el("span", "", r[1]));
+      info.appendChild(p);
+    });
+    if (o.notes && o.hasUpdate) info.appendChild(el("p", "f-hint", o.notes));
+    updBtn.classList.toggle("hide", !o.hasUpdate);
+    checkBtn.disabled = !o.online || o.state === "updating";
+    updBtn.disabled = o.state === "updating";
+  }
+
+  function load() {
+    return fetch("/ota")
+      .then(function (r) {
+        return r.json();
+      })
+      .then(paint)
+      .catch(function () {
+        info.textContent = "Could not read firmware status.";
+      });
+  }
+
+  checkBtn.addEventListener("click", function () {
+    checkBtn.disabled = true;
+    setMsg("Checking...", true);
+    fetch("/ota?action=check", { method: "POST" })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          return { s: r.status, j: j };
+        });
+      })
+      .then(function (o) {
+        if (o.s !== 200) {
+          setMsg(o.j.error || "Check failed", false);
+          checkBtn.disabled = false;
+          return;
+        }
+        // SettingTask does the HTTPS GET; poll until the reported state settles.
+        var tries = 0;
+        (function poll() {
+          load().then(function () {
+            if (++tries < 20) setTimeout(poll, 500);
+            else setMsg("", true);
+          });
+        })();
+        setMsg("Checking with the update server...", true);
+      })
+      .catch(function () {
+        setMsg("Check failed", false);
+        checkBtn.disabled = false;
+      });
+  });
+
+  updBtn.addEventListener("click", function () {
+    if (
+      !confirm(
+        "Install the new firmware? The machine downloads it and RESTARTS. " +
+          "Do not power it off during the update.",
+      )
+    )
+      return;
+    updBtn.disabled = true;
+    setMsg("Downloading... the machine will restart by itself.", true);
+    fetch("/ota?action=update", { method: "POST" })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          return { s: r.status, j: j };
+        });
+      })
+      .then(function (o) {
+        if (o.s !== 200) {
+          setMsg(o.j.error || "Could not start the update", false);
+          updBtn.disabled = false;
+        }
+        // On success there is nothing more to report: the device reboots mid-flight.
+      })
+      .catch(function () {
+        setMsg("Could not start the update", false);
+        updBtn.disabled = false;
+      });
+  });
+
+  /* ---- Second way in: install a .bin from this computer ----
+     Needed when the machine has no internet at all (its own SoftAP), or for a build that
+     is not published to the update server yet. */
+  form.appendChild(el("hr", "ota-sep"));
+  form.appendChild(
+    el(
+      "p",
+      "f-hint",
+      "Or install a firmware file from this computer - works with no internet, " +
+        "e.g. while connected to the machine's own WiFi.",
+    ),
+  );
+  var fileRow = el("div", "f-row");
+  fileRow.appendChild(el("label", "f-lbl", "Firmware file (.bin)"));
+  var fin = el("input", "f-in");
+  fin.type = "file";
+  fin.accept = ".bin";
+  fileRow.appendChild(fin);
+  form.appendChild(fileRow);
+
+  var upBtn = el("button", "save-btn", "Upload & install");
+  upBtn.type = "button";
+  form.appendChild(upBtn);
+  var prog = el("p", "f-hint ota-prog", "");
+  form.appendChild(prog);
+
+  upBtn.addEventListener("click", function () {
+    var f = fin.files && fin.files[0];
+    if (!f) {
+      setMsg("Choose a .bin file first", false);
+      return;
+    }
+    if (
+      !confirm(
+        "Install " +
+          f.name +
+          "? The machine RESTARTS when it finishes. Do not power it off during the upload.",
+      )
+    )
+      return;
+
+    var fd = new FormData();
+    fd.append("firmware", f);
+    // XMLHttpRequest, not fetch: only XHR reports UPLOAD progress, and a ~2.3 MB image
+    // over WiFi takes long enough that a silent screen looks like a hang.
+    var xhr = new XMLHttpRequest();
+    upBtn.disabled = true;
+    setMsg("Uploading...", true);
+    xhr.upload.onprogress = function (e) {
+      if (e.lengthComputable)
+        prog.textContent =
+          "Uploading " +
+          Math.round((e.loaded / e.total) * 100) +
+          "% (" +
+          Math.round(e.loaded / 1024) +
+          " / " +
+          Math.round(e.total / 1024) +
+          " KB)";
+    };
+    xhr.onload = function () {
+      prog.textContent = "";
+      upBtn.disabled = false;
+      if (xhr.status === 200)
+        setMsg(
+          "Installed. The machine is restarting - reload in a moment.",
+          true,
+        );
+      else {
+        var msg = "Upload failed";
+        try {
+          msg = JSON.parse(xhr.responseText).error || msg;
+        } catch (e) {}
+        setMsg(msg, false);
+      }
+    };
+    xhr.onerror = function () {
+      prog.textContent = "";
+      upBtn.disabled = false;
+      setMsg("Upload failed", false);
+    };
+    xhr.open("POST", "/otaupload");
+    xhr.send(fd);
+  });
+
+  load();
+}
+
 function renderDeviceId(form) {
   form.appendChild(
     el(
@@ -1451,9 +1830,16 @@ function renderDeviceId(form) {
 }
 
 /* ---------- WiFi: async scan, then save + reboot ---------- */
-var wifiPick = null;
+var curNet = null; // latest {ssid, ip, ap} from the home SSE event (current connection)
+var wifiScanNets = []; // last scan result, so Save can warn on an SSID typo before rebooting
+// Was this SSID seen in the last scan? (Unknown scan -> treat as "yes" so we never block.)
+function wifiScanHas(ssid) {
+  if (!wifiScanNets.length) return true; // no scan data yet -> don't second-guess the user
+  return wifiScanNets.some(function (n) {
+    return n.ssid === ssid;
+  });
+}
 function renderWifi(form) {
-  wifiPick = null;
   form.appendChild(
     el(
       "p",
@@ -1461,10 +1847,32 @@ function renderWifi(form) {
       "The device reboots to join the network. If you are connected to its RAPID-... hotspot, this page will disconnect.",
     ),
   );
+  // Saved networks (stored in NVS): the machine tries these in order if the preferred
+  // one is out of range, so a lab can move it between rooms without reconfiguring.
+  form.appendChild(el("p", "f-lbl", "Saved networks"));
+  var saved = el("div", "wifi-list");
+  saved.id = "wifiSaved";
+  saved.appendChild(el("p", "f-hint", "Loading..."));
+  form.appendChild(saved);
+  loadSavedWifi();
+
+  form.appendChild(el("p", "f-lbl", "Nearby networks"));
   var list = el("div", "wifi-list");
   list.id = "wifiList";
   list.appendChild(el("p", "f-hint", "Scanning..."));
   form.appendChild(list);
+
+  /* A real text box, not just the scan list: picking from the list fills it in, but a
+     HIDDEN network never appears in a scan and could not be joined at all before. */
+  var srow = el("div", "f-row");
+  srow.appendChild(el("label", "f-lbl", "Network name (SSID)"));
+  var ss = el("input", "f-in");
+  ss.type = "text";
+  ss.id = "wifiSsid";
+  ss.maxLength = 32; // firmware rejects 0 or >32 (handleWifi)
+  ss.placeholder = "pick one above, or type a hidden network";
+  srow.appendChild(ss);
+  form.appendChild(srow);
 
   var row = el("div", "f-row");
   row.appendChild(el("label", "f-lbl", "Password"));
@@ -1479,12 +1887,36 @@ function renderWifi(form) {
   var b = el("button", "save-btn", "Save & reboot");
   b.type = "button";
   b.addEventListener("click", function () {
+    // Read the BOX, not the list selection: it is the one thing on screen the operator
+    // can see and correct, and it is also how a hidden network gets in. Keep it in a LOCAL:
+    // the device polls before it answers, so the callback below runs long after the panel
+    // may have re-rendered - a module-scope copy read "null" by then.
+    var wifiPick = ss.value.trim();
     if (!wifiPick) {
-      setMsg("Pick a network first", false);
+      setMsg("Enter or pick a network name", false);
+      ss.focus();
       return;
     }
+    if (wifiPick.length > 32) {
+      setMsg("Network name must be 1..32 characters", false);
+      ss.focus();
+      return;
+    }
+    // Catch an SSID typo BEFORE the reboot: if the name isn't in the scan and looks like a
+    // mistake, ask. A hidden network legitimately won't appear, so this is a confirm, not a
+    // hard block. (The password still can't be checked here - only a boot-test can.)
+    if (!wifiScanHas(wifiPick)) {
+      if (
+        !confirm(
+          '"' +
+            wifiPick +
+            '" was not seen in the scan. Save anyway? (OK for a hidden network.)',
+        )
+      )
+        return;
+    }
     b.disabled = true;
-    setMsg("Saving...", true);
+    setMsg("Testing " + wifiPick + "...", true);
     fetch("/wifi", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -1501,14 +1933,17 @@ function renderWifi(form) {
       })
       .then(function (o) {
         settleSave(o, b, function () {
+          // The device does NOT commit yet - it reboots and TESTS the password. If it is
+          // wrong, it comes back on the OLD network and the WiFi panel will show a "could
+          // not join" notice (from /wifilist trial result). So send them to Home to watch
+          // it reconnect, not a false "Saved".
           setMsg(
-            "Saved. The device is rebooting to join " + wifiPick + ".",
+            "Rebooting to test " +
+              wifiPick +
+              ". If the password is wrong it stays on the current network.",
             true,
           );
-          // Longer than the other cards: this message is the one worth reading, and
-          // the reboot drops the connection anyway - Home is where they watch it
-          // come back (Offline -> Online).
-          backToHomeAfterSave(2200);
+          backToHomeAfterSave(2600);
         });
       })
       .catch(function () {
@@ -1545,14 +1980,139 @@ function pollWifiScan(tries) {
     });
 }
 
+/* Saved-network list: GET /wifilist -> {max, nets:[{ssid}]}. Each row has a Forget
+   button (POST /wifilist?remove=ssid). SSIDs only - passwords never leave the device. */
+function loadSavedWifi() {
+  // no-store: after a remove/connect POST, a cached GET would redraw the OLD list and the
+  // network would look like it was never forgotten.
+  fetch("/wifilist", { cache: "no-store" })
+    .then(function (r) {
+      return r.json();
+    })
+    .then(function (d) {
+      var box = document.getElementById("wifiSaved");
+      if (!box) return;
+      box.innerHTML = "";
+      // The device rebooted to TEST new credentials and did not connect: it reverted to
+      // the old network. Message depends on WHY it failed, so a moved (out-of-range)
+      // network isn't blamed on a wrong password.
+      if (d && d.trial && d.trial.result === "failed") {
+        var why =
+          d.trial.reason === "range"
+            ? "it was not found (out of range?)"
+            : "wrong password?";
+        setMsg(
+          'Could not join "' +
+            d.trial.ssid +
+            '" - ' +
+            why +
+            " It stayed on the current network. Re-enter below.",
+          false,
+        );
+      }
+      var nets = (d && d.nets) || [];
+      if (!nets.length) {
+        box.appendChild(el("p", "f-hint", "None saved yet."));
+        return;
+      }
+      // ONE source of truth for this render: /wifilist "current" is what the device reports
+      // as it answers. curNet (SSE, up to 1 s old) is only the fallback. Deciding per row -
+      // "active OR curNet matches" - lets a stale SSE badge a SECOND row "connected" and,
+      // worse, hide that row's Connect button.
+      var live = (d && d.current) || (curNet && !curNet.ap ? curNet.ssid : "");
+      nets.forEach(function (n) {
+        // The ONLY badge. The old "preferred" one was list position, not the EEPROM pair, so
+        // after a boot fallback it sat on a row the machine was not on and just read as
+        // "wrong network". List order already says which one is tried first.
+        var onNow = !!live && n.ssid === live;
+        var row = el("div", "wifi-item saved-row");
+        var name = el("span", "wifi-name", n.ssid);
+        if (onNow)
+          name.appendChild(el("span", "wifi-badge wifi-badge-on", "connected"));
+        row.appendChild(name);
+
+        var acts = el("div", "saved-acts");
+        // Connect: switch the machine to this saved network. It already has the password
+        // (never sent to the browser), so we only send the SSID; the device promotes it to
+        // preferred and reboots to join it (a runtime switch would deadlock - see firmware).
+        // Offered on every row EXCEPT the connected one. Gating on index instead hid it from
+        // row 0 - exactly the row you need when boot fell back to a different saved network.
+        if (!onNow) {
+          var use = el("button", "wifi-use", "Connect");
+          use.type = "button";
+          use.addEventListener("click", function () {
+            if (
+              !confirm(
+                "Switch to " + n.ssid + "? The machine reboots to join it.",
+              )
+            )
+              return;
+            use.disabled = true;
+            setMsg("Switching to " + n.ssid + "...", true);
+            fetch("/wifilist", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: "connect=" + encodeURIComponent(n.ssid),
+            })
+              .then(function (r) {
+                return r.json().then(function (j) {
+                  return { s: r.status, j: j };
+                });
+              })
+              .then(function (o) {
+                if (o.s === 200)
+                  setMsg("Rebooting to join " + n.ssid + ".", true);
+                else {
+                  setMsg(o.j.error || "Could not switch", false);
+                  use.disabled = false;
+                }
+              })
+              .catch(function () {
+                setMsg("Could not switch", false);
+                use.disabled = false;
+              });
+          });
+          acts.appendChild(use);
+        }
+
+        var del = el("button", "wifi-forget", "Forget");
+        del.type = "button";
+        del.addEventListener("click", function () {
+          del.disabled = true;
+          fetch("/wifilist", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "remove=" + encodeURIComponent(n.ssid),
+          })
+            .then(function () {
+              loadSavedWifi();
+            })
+            .catch(function () {
+              del.disabled = false;
+            });
+        });
+        acts.appendChild(del);
+        row.appendChild(acts);
+        box.appendChild(row);
+      });
+    })
+    .catch(function () {
+      var box = document.getElementById("wifiSaved");
+      if (box)
+        box.innerHTML = "<p class='f-hint'>Could not load saved networks.</p>";
+    });
+}
+
 function renderWifiList(nets) {
   var list = document.getElementById("wifiList");
   if (!list) return;
   list.innerHTML = "";
   if (nets === null) {
+    wifiScanNets = [];
     list.appendChild(el("p", "f-hint", "Scan failed."));
     return;
   }
+  wifiScanNets = nets; // remember for the Save-time SSID typo check
   if (!nets.length) {
     list.appendChild(el("p", "f-hint", "No networks found."));
     return;
@@ -1568,11 +2128,24 @@ function renderWifiList(nets) {
       el("span", "wifi-meta", (n.open ? "open  " : "lock  ") + n.rssi + " dBm"),
     );
     b.addEventListener("click", function () {
-      wifiPick = n.ssid;
       list.querySelectorAll(".wifi-item").forEach(function (x) {
         x.classList.remove("sel");
       });
       b.classList.add("sel");
+      // Fill the name box and drop straight into the password field: picking a network
+      // is never the last step, so make the next one the obvious one.
+      var box = document.getElementById("wifiSsid");
+      if (box) box.value = n.ssid;
+      var pass = document.getElementById("wifiPass");
+      if (pass) {
+        pass.value = "";
+        // Open networks need no password - say so instead of waiting for input.
+        pass.placeholder = n.open
+          ? "open network - leave empty"
+          : "enter the password";
+        pass.scrollIntoView({ block: "center", behavior: "smooth" });
+        pass.focus();
+      }
       setMsg("Selected " + n.ssid, true);
     });
     list.appendChild(b);

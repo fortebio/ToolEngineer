@@ -11,6 +11,7 @@
 #include "Bluetooth.h"
 #include "PIDControl.h"
 #include "webDashboard.h"
+#include <qrcode.h> // ricmoo/QRCode: builds the module matrix for screen_QR()
 #include <string>
 // #include "sensor6035.h"
 
@@ -56,6 +57,7 @@ void displayCLD::begin()
   this->display->begin();
   this->display->fillScreen(BLACK);
   this->display->setRotation(1);
+  this->display->setTextWrap(false);
   this->display->setUTF8Print(true);
 }
 
@@ -160,6 +162,96 @@ void displayCLD::drawWarnFrame(uint16_t color)
   }
   this->display->drawCircle(55, 180, 22, color);
   this->display->fillCircle(55, 180, 17, color);
+}
+
+/***********************************************************************
+ * Function: screen_QR()
+ * Description: Full-screen QR that gets a phone onto the web dashboard. WHITE on the
+ *  idle start screen opens it (that button did nothing there before); WHITE again goes
+ *  back. The payload follows the CURRENT network mode:
+ *   - STA connected -> "http://<ip>/": scanning opens the dashboard directly (the phone
+ *     must be on the same WiFi). Built from WiFi.localIP() every entry, so a new DHCP
+ *     lease can never leave a stale address on screen.
+ *   - SoftAP fallback -> "WIFI:T:nopass;S:RAPID-<id>;;": the phone joins the open AP and
+ *     the captive portal (webDashboard) then opens the dashboard by itself.
+ *  Drawn DARK-ON-LIGHT with a 4-module quiet zone - scanners need that contrast and
+ *  margin, so the code sits on a white panel instead of the usual black screen.
+ * pramameter: none
+ *  return: none
+ */
+void displayCLD::screen_QR()
+{
+  changeScreen = false; // static screen: draw once per entry, like the other prompts
+
+  String payload, line1, line2;
+  if (dashboardIsAP())
+  {
+    String ap = "RAPID-" + id_device;
+    payload = "WIFI:T:nopass;S:" + ap + ";;"; // open AP -> no password field
+    line1 = "Scan to join";
+    line2 = ap;
+  }
+  else if (WiFi.status() == WL_CONNECTED)
+  {
+    payload = "http://" + WiFi.localIP().toString() + "/";
+    line1 = "Scan to open";
+    line2 = WiFi.localIP().toString();
+  }
+  else
+  {
+    line1 = "No network"; // neither STA nor AP up yet - nothing worth encoding
+    line2 = "yet";
+  }
+
+  this->display->fillScreen(BLACK);
+  this->display->setTextSize(1);
+  this->display->fillRect(108, 0, 108, 20, Forte_Green);
+  this->display->setCursor(110, 15);
+  this->display->setTextColor(BLACK);
+  this->display->println("FORTE BIOTECH");
+
+  if (payload.length())
+  {
+    // Caption column to the right of the code (x >= 205), small text so it fits 115 px.
+    this->display->setTextSize(1);
+    this->display->setTextColor(Forte_Green);
+    this->display->setCursor(20, 40);
+    this->display->print(line1 + ": ");
+    this->display->setTextColor(WHITE);
+    if (dashboardIsAP())
+    {
+      this->display->print("http://192.168.4.1");
+    }
+    else
+    {
+      this->display->print("http://" + id_device + ".local/");
+    }
+    // Version 3 (29x29 modules) at ECC_LOW holds both payload shapes with room to spare
+    // (URL ~21 chars, WiFi code ~32). Buffer is ~106 B on the stack.
+    QRCode qr;
+    uint8_t buf[qrcode_getBufferSize(3)];
+    qrcode_initText(&qr, buf, 3, ECC_LOW, payload.c_str());
+
+    const int scale = 5;                          // px per module -> 29*5 = 145 px of code
+    const int quiet = 4 * scale;                  // mandatory 4-module quiet zone
+    const int x0 = 0, y0 = 55;                    // top-left of the quiet zone, leaving 55 px for the caption columnj
+    const int side = qr.size * scale + 1 * quiet; // 185 px, fits 320x240 beside the text
+    this->display->fillRect(x0 + 10, y0 + 10, side, side, WHITE);
+    for (uint8_t y = 0; y < qr.size; y++)
+      for (uint8_t x = 0; x < qr.size; x++)
+        if (qrcode_getModule(&qr, x, y))
+          this->display->fillRect(x0 + quiet + x * scale, y0 + quiet + y * scale,
+                                  scale, scale, BLACK);
+  }
+  this->display->setTextColor(CYAN);
+  this->display->setCursor(20, 55);
+  this->display->print("Wifi Name: ");
+  this->display->setTextColor(WHITE);
+  this->display->print(WiFi.SSID());
+
+  this->display->setTextColor(WHITE);
+  this->display->setCursor(225, 230);
+  this->display->print("White: back");
 }
 
 /***********************************************************************
@@ -1133,34 +1225,20 @@ void displayCLD::screen_Result(char key)
       }
       info_displayln(_ForteSetting.parameter.amplifTemp);
     }
-    // Reconnect STA once if it dropped, then just WAIT for it.
-    //
-    // This used to call WiFi.begin() on EVERY one of 50 iterations. Each call re-enters
-    // esp_wifi_set_mode()/connect and thrashes the WiFi+lwIP stack, so the AsyncTCP task
-    // serving the dashboard blocks on the tcpip core lock and stops feeding the task
-    // watchdog -> "task_wdt: async_tcp (CPU 1)" -> abort() -> reboot, right at the end of
-    // every run. It only bit once a dashboard existed to be starved.
-    //
-    // Skipped entirely on the SoftAP fallback: STA has no working credentials there, so
-    // the loop would burn its full 5 s (>= the 5 s watchdog) on every run, and
-    // WiFi.begin() would tear down the AP the browser is sitting on.
-    if (!dashboardIsAP() && ssid.length() > 0 && WiFi.status() != WL_CONNECTED)
-    {
-      // Take the dashboard down BEFORE WiFi.begin(). The reassociation below thrashes
-      // the WiFi/lwIP stack; with the AsyncWebServer still up, async_tcp blocks on the
-      // tcpip core lock. postData_GoogleSheet() also suspends, but only AFTER this loop
-      // - too late, the starvation already happened here. Since CONFIG_ASYNC_TCP_USE_WDT=0
-      // (GOTCHA 11) that no longer aborts+reboots, so instead the dashboard just HANGS
-      // (server accepts TCP but never answers) until a power cycle. Manual "Up Data"
-      // pressed while STA had dropped hit exactly this. Resumed below on every path.
-      dashboardSuspend();
-      WiFi.begin(ssid.c_str(), password.c_str()); // once, not once per retry
-      for (int retries = 0; retries < 50 && WiFi.status() != WL_CONNECTED; retries++)
-      {
-        delay(100); // yields - other tasks (async_tcp included) keep running
-        Serial.print(".");
-      }
-    }
+    // STA reconnect is owned by the WiFi driver (WiFi.setAutoReconnect(true), set once in
+    // setup(), main.cpp): a dropped STA re-associates in the background on the WiFi task,
+    // NOT here. NEVER call WiFi.begin() from this (Display) task - it re-enters
+    // esp_wifi_set_mode()/connect and thrashes the shared WiFi/lwIP stack, starving
+    // async_tcp on the tcpip core lock; with CONFIG_ASYNC_TCP_USE_WDT=0 (GOTCHA 11) that
+    // HANGS the dashboard forever (server accepts TCP but never answers) instead of
+    // rebooting (GOTCHA 8) - the "machine on but web unreachable, only a reset fixes it"
+    // symptom. The old suspend-before-begin band-aid still left residual hangs, so the
+    // begin() is GONE. Just give the driver's own reconnect a bounded PASSIVE window to
+    // land before deciding whether to upload - no begin(), no thrash, no suspend; the
+    // dashboard keeps serving the whole time. ~5 s cap (50x100ms); raise if the site's
+    // router+DHCP is slower. Only while finishing a run (key=='f') and not on SoftAP.
+    for (int i = 0; i < 50 && key == 'f' && !dashboardIsAP() && WiFi.status() != WL_CONNECTED; i++)
+      delay(100); // yields to every task, touches nothing
 
     uint16_t httpCode = 0;
     /* Post data and errors to Google Sheet */
@@ -1171,7 +1249,6 @@ void displayCLD::screen_Result(char key)
     else
     {
       bool flag = _sensor6035.bResultGet(CT_value, result);
-      dashboardResume(); // may have suspended above for the reconnect but we're not uploading - bring it back
     }
 
     // Cache per-slot results for the web dashboard Process-tab table (GET /slots).
@@ -1531,11 +1608,15 @@ void displayCLD::loop()
     case eUpLoadData:
     {
       displayWaitingUpData();
-      // postData_GoogleSheet();
+      // screen_Result('f') is what actually uploads (it calls postData_GoogleSheet).
       this->screen_Result('f');
-      // settingSucces("Up Data Success!");
-      // this->type_infor = escreenStart;
-      // this->changeScreen = true;
+      // Deliberately NOT auto-returning: the operator has to be able to read the verdict.
+      // The way out is WHITE, which button.cpp now maps back to escreenStart - both the TFT
+      // and the web chip already advertise "Return". Without that branch this state was
+      // TERMINAL: screen_Result sets changeScreen = false, loop() only enters this switch
+      // when changeScreen is true, so type_infor stayed eUpLoadData forever - the machine
+      // sat on this screen, dashboardDeviceBusy() stayed true and 409'd every settings
+      // write and OTA check, and WHITE fell through to ebuttonrestart (a REBOOT).
       break;
     }
     case eSettingBluetooth:
@@ -1543,6 +1624,12 @@ void displayCLD::loop()
       connectBLE();
       // settingSucces("Settings Bluetoot Success!");
       ESP.restart();
+      break;
+    }
+    case eShowQR:
+    {
+      // WHITE from the idle screen; screen_QR() clears changeScreen so it draws once.
+      this->screen_QR();
       break;
     }
     case eSelectAmpli:
@@ -1628,6 +1715,71 @@ void displayCLD::loop()
       show_IconWifi();
     }
   }
+
+  // Live WiFi status line on the idle start screen. The block above only runs while
+  // changeScreen is true; the start screen sets it false after one draw, so without this
+  // the IP would freeze at whatever it was the instant the screen was drawn (usually
+  // 0.0.0.0, since STA connects a second or two later). This runs EVERY tick, outside the
+  // gate, and repaints just the small IP row - no full-screen flicker.
+  this->refreshStartWifiLine();
+}
+
+/***********************************************************************
+ * Function: refreshStartWifiLine()
+ * Description: Repaints only the WiFi status row of the idle start screen so it tracks
+ *  the live connection state: an animated "Scanning..." while STA is still associating,
+ *  "0.0.0.0" once it has fallen back to the SoftAP (no router WiFi), and the real IP once
+ *  connected. Same task as every other TFT draw (DisplayTask), so no extra SPI lock is
+ *  needed - it matches screen_Start()'s convention. Self-throttled to ~0.5 s.
+ * pramameter: none
+ *  return: none
+ */
+void displayCLD::refreshStartWifiLine()
+{
+  if (this->type_infor != escreenStart)
+    return;
+  static uint32_t last = 0;
+  uint32_t now = millis();
+  if (now - last < 500)
+    return;
+  last = now;
+
+  bool connected = (WiFi.status() == WL_CONNECTED);
+  bool ap = dashboardIsAP();
+  String line;
+  uint16_t color;
+  static uint8_t dots = 0;
+  if (connected)
+  {
+    line = WiFi.localIP().toString();
+    color = Forte_Green;
+  }
+  else if (ap)
+  {
+    line = "0.0.0.0"; // no router WiFi; reach the machine via its RAPID-... hotspot / QR
+    color = Forte_Green;
+  }
+  else
+  {
+    dots = (dots + 1) & 3;
+    line = "Scanning";
+    for (uint8_t i = 0; i < dots; i++)
+      line += ".";
+    color = YELLOW;
+  }
+
+  bool scanning = !connected && !ap;
+  static String prev = "";
+  if (line == prev && !scanning)
+    return; // unchanged and not animating -> skip the SPI writes
+  prev = line;
+
+  int y = (this->language == 0) ? 230 : 210; // ip row differs per layout
+  this->display->fillRect(18, y - 6, 200, 15, BLACK);
+  this->display->setTextSize(1);
+  this->display->setTextColor(color);
+  this->display->setCursor(20, y);
+  this->display->print(line);
 }
 
 /***********************************************************************
@@ -2109,10 +2261,12 @@ void displayCLD::calculate(void)
   _ForteSetting.parameter.led_power[this->slot] = tmp;
   // Mark the block valid (length == sizeof) so begin() loads it on the next boot.
   _ForteSetting.parameter.length = sizeof(_ForteSetting.parameter);
+  eepromLock();
   EEPROM.begin(_EEPROM_SIZE);
   EEPROM.put(PARAMETERPOS, _ForteSetting.parameter);
   EEPROM.commit();
   EEPROM.end();
+  eepromUnlock();
 
   this->display->setTextSize(1);
   this->display->setTextColor(GREEN);
@@ -2141,10 +2295,12 @@ void displayCLD::saving_calib(void)
   _ForteSetting.parameter.slopes[this->slot] = _sensor6035.cal_calib[0];
   // Mark the block valid (length == sizeof) so begin() loads it on the next boot.
   _ForteSetting.parameter.length = sizeof(_ForteSetting.parameter);
+  eepromLock();
   EEPROM.begin(_EEPROM_SIZE);
   EEPROM.put(PARAMETERPOS, _ForteSetting.parameter);
   EEPROM.commit();
   EEPROM.end();
+  eepromUnlock();
 
   this->display->setTextSize(1);
   this->display->setTextColor(GREEN);

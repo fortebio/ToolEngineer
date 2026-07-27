@@ -75,6 +75,9 @@ typedef enum
     ecalibSelect,       // calib flow p1: choose Calib (blue) or Amplification (red)
     ewaitname,          // amp flow: name the slots on the web BEFORE heating starts;
                         // RED here confirms + begins the 67C preheat, WHITE cancels
+    eShowQR,            // QR to reach the web dashboard: WHITE on the idle start screen
+                        // opens it, WHITE again goes back. Content depends on the network
+                        // mode (STA -> dashboard URL, SoftAP -> WiFi join code).
 } e_statuslcd;
 
 class displayCLD
@@ -102,6 +105,13 @@ public:
 
     void logoFortebiotech();
     void screen_Start();
+    // Live WiFi status row on the start screen: "Scanning..." while associating,
+    // "0.0.0.0" on SoftAP fallback, the IP once connected. Called every DisplayTask tick.
+    void refreshStartWifiLine();
+    // Full-screen QR that points a phone at the web dashboard. STA: encodes the dashboard
+    // URL (phone must be on the same WiFi). SoftAP: encodes a WIFI: join code for the open
+    // "RAPID-<id>" AP - the captive portal then opens the dashboard by itself.
+    void screen_QR();
     // void screen_Complete();
     void screen_Result(char key);
     void screen_errorResult(void);

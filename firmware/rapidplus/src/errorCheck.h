@@ -157,6 +157,9 @@ public:
     }
     void saveErrorToEEPROM()
     {
+        // This runs from ~17 PID safety paths on ControlTask at any time - it is the
+        // concurrent "attacker" that corrupts a /reviewlast EEPROM read. Serialize it.
+        eepromLock();
         EEPROM.begin(_EEPROM_SIZE);
         EEPROM.put(ADDR_ERROR_NUMBER_UNIT, numUnit); // save the quantity of the unit that has error to EEPROM, used for error process)
         EEPROM.put(ADDR_ERROR_FLAG, 1);              // set the error flag to 1, which means there is error in the device, used for error process
@@ -166,9 +169,11 @@ public:
         }
         EEPROM.commit();
         EEPROM.end();
+        eepromUnlock();
     }
     void readErrorFromEEPROM()
     {
+        eepromLock();
         EEPROM.begin(_EEPROM_SIZE);
         EEPROM.get(ADDR_ERROR_NUMBER_UNIT, numUnit); // read the quantity of the unit that has error from EEPROM, used for error process)
         uint8_t errorFlag;
@@ -189,6 +194,7 @@ public:
             clear();
         }
         EEPROM.end();
+        eepromUnlock();
     }
     String decodeError(ErrorRecord_t _errorRecord)
     {
@@ -214,12 +220,14 @@ public:
 
     void clearEEPROM()
     {
+        eepromLock();
         EEPROM.begin(_EEPROM_SIZE);
         uint8_t clearFlag = 0;
         EEPROM.put(ADDR_ERROR_FLAG, clearFlag); // clear the error flag to 0, which means there is no error in the device, used for error process
         EEPROM.put(ADDR_ERROR_NUMBER_UNIT, 0);  // clear the quantity of the unit that has error to 0, which means there is no error in the device, used for error process
         EEPROM.commit();
         EEPROM.end();
+        eepromUnlock();
     }
     uint8_t searchError(uint8_t errorModule, uint8_t errorType, uint8_t errorProcessStep, uint8_t errorSlot)
     {

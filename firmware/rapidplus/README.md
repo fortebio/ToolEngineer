@@ -34,7 +34,8 @@ Dashboard phục vụ ngay từ thiết bị, đẩy dữ liệu realtime qua Se
   điện thoại vào, mở `http://192.168.4.1/`. Highcharts nhúng nội bộ nên chart chạy
   cả khi không có internet.
 
-Truy cập: `http://<IP-thiết-bị>/` (IP in ra Serial: `[dash] dashboard on http://...`).
+Truy cập: `http://<id>.local/` (mDNS, VD `http://rpl.local/` — IP đổi cũng vào được, chỉ
+trong cùng LAN) hoặc `http://<IP-thiết-bị>/` (IP in ra Serial: `[dash] dashboard on http://...`).
 
 ### Test không cần phần cứng
 

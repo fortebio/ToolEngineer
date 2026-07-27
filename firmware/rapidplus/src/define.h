@@ -381,4 +381,15 @@ static String FirmwareVer = "v2.4.3"; // add function calib
 
 extern SemaphoreHandle_t gI2CMutex;
 extern SemaphoreHandle_t gSPIMutex;
+extern SemaphoreHandle_t gEepromMutex;
+
+// Serialize every EEPROM.begin..end section (see gEepromMutex in main.cpp). The Arduino
+// EEPROM object holds ONE 4096B heap buffer; begin() reallocs it and end() frees it, so
+// two tasks overlapping their begin..end (e.g. a PID safety error-save on ControlTask vs a
+// /reviewlast read on SettingTask) double-free that buffer -> the reader gets garbage. Take
+// before begin(), give after end(). Null-guarded so it is safe before the mutex is created
+// (early boot reads). Sections MUST NOT nest - plain (non-recursive) mutex, portMAX_DELAY is
+// fine because every section is a few EEPROM ops (the longest holds it ~200ms across delays).
+static inline void eepromLock() { if (gEepromMutex) xSemaphoreTake(gEepromMutex, portMAX_DELAY); }
+static inline void eepromUnlock() { if (gEepromMutex) xSemaphoreGive(gEepromMutex); }
 #endif

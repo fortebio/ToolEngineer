@@ -9,6 +9,7 @@
 #include "errorCheck.h"
 #include "webDashboard.h"
 #include "esp_heap_caps.h" // heap_caps_get_largest_free_block: gate TLS on a big internal block
+#include "secrets.h"       // upload endpoints + tokens (GITIGNORED; copy from secrets.example.h)
 
 BluetoothSerial SerialBT;
 volatile bool gBtReleased = false; // see releaseBluetoothStack() / define.h
@@ -230,6 +231,7 @@ void loadParaFromEEPROM()
  */
 void saveSettingDevice()
 {
+  eepromLock();
   EEPROM.begin(_EEPROM_SIZE);
   EEPROM.writeString(ADDR_SSID, ssid);
   EEPROM.writeString(ADDR_PASSWORD, password);
@@ -237,6 +239,7 @@ void saveSettingDevice()
   EEPROM.writeBool(ADDR_CHECK_ID_DEVICE, false);
   EEPROM.commit();
   EEPROM.end();
+  eepromUnlock();
 }
 
 /***********************************************************************
@@ -353,6 +356,7 @@ void Wifi_Connect()
   String apName = "";
   char *tmp = "";
 
+  eepromLock();
   EEPROM.begin(_EEPROM_SIZE);
   if (!EEPROM.readBool(ADDR_CHECK_ID_DEVICE) ||
       (strncmp(id_device.c_str(), "RPL", 3) == 0))
@@ -364,6 +368,7 @@ void Wifi_Connect()
     apName = "FBT RAPIDPlus";
   }
   EEPROM.end();
+  eepromUnlock();
 
   if (!wifiManager.autoConnect(apName.c_str()))
   {
@@ -386,12 +391,15 @@ void Wifi_Connect()
  */
 void getDataAmplificationEEPROM(void)
 {
-
+  // Serialize vs a concurrent error-save (ControlTask) that would double-free the shared
+  // 4KB EEPROM buffer mid-read and hand back garbage -> /reviewlast probe fails (GOTCHA 2).
+  eepromLock();
   EEPROM.begin(_EEPROM_SIZE);
   Word tmp[10 * 130] = {0};
   EEPROM.get(RECORDPOS, tmp);
   memcpy(_sensor6035.sensor67Value, tmp, sizeof(tmp));
   EEPROM.end();
+  eepromUnlock();
 }
 
 /***********************************************************************
@@ -682,7 +690,7 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
   // Serial.printf("Engineer server request: %s\n", jsonPost.c_str());
   String server_feedback;
   postJsonRetry(serverName2, jsonPost, "ingest", server_engineerToken, nullptr, server_feedback);
-  // Serial.printf("Engineer server feedback: %s\n", server_feedback.c_str());
+  Serial.printf("Engineer server feedback: %s\n", server_feedback.c_str());
 
   delay(100);
 
@@ -690,11 +698,10 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
   // Serial.printf("ERP server request: %s\n", jsonPost.c_str());
   String erp_feedback;
   postJsonRetry(serverERP, jsonPost, "ERP", nullptr, server_erpToken, erp_feedback);
-  // Serial.printf("ERP server feedback: %s\n", erp_feedback.c_str());
+  Serial.printf("ERP server feedback: %s\n", erp_feedback.c_str());
 
   dashboardResume(); // bring the dashboard back now that TLS is done
-  (void)tmpHttpCode; // GAS code kept for logging; caller treats any return as "attempted"
-  return 200;
+  return tmpHttpCode;
 }
 
 // postData_Chart() / getData_toChart() were removed: the old sync WebServer chart is

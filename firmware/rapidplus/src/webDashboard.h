@@ -1,5 +1,6 @@
 #ifndef _WEBDASHBOARD_H
 #define _WEBDASHBOARD_H
+#include <Arduino.h> // for String (dashboardHostname)
 
 // Live web dashboard: an AsyncWebServer that serves the LittleFS UI (uploaded
 // from data/) and pushes device state to the browser over Server-Sent Events.
@@ -24,6 +25,11 @@
 void dashboardBegin();
 void dashboardLoop();
 void dashboardEnd();
+
+// Stable DNS label built from id_device (sanitised, lowercased) -> the dashboard is reachable
+// at http://<hostname>.local/ (mDNS) and, on routers that resolve DHCP hostnames, http://<hostname>/
+// regardless of which IP DHCP hands out. Used by WiFi.setHostname() (main.cpp) and MDNS.begin().
+String dashboardHostname();
 
 // Fallback when WiFi (STA) won't connect: bring up a SoftAP ("RAPID-<id>") so the
 // dashboard is still reachable at http://192.168.4.1/. Call from setup() if STA
@@ -61,5 +67,9 @@ bool dashboardDeviceBusy();
 // Callers must not touch the STA side then: WiFi.begin() re-enters esp_wifi_set_mode()
 // and tears at the AP the browser is on, and STA cannot succeed anyway.
 bool dashboardIsAP();
+
+// TEMPORARY (2026-07-27): log free heap + largest contiguous INTERNAL block at a named
+// point. Used to find which boot step splits the big region that mbedTLS needs (GOTCHA 2).
+void dashHeapProbe(const char *where);
 
 #endif

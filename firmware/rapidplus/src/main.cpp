@@ -15,6 +15,7 @@ Version 1.4 note: add function sellect language
 #include "Fan.h"
 #include "errorCheck.h"
 #include "webDashboard.h"
+#include "wifiStore.h" // saved networks (NVS) tried at boot by connectSavedNetworks()
 
 buttonManager _buttonManager;
 
@@ -29,6 +30,10 @@ TaskHandle_t settingTaskHandle = NULL;
 /***** Global Mutex ******/
 SemaphoreHandle_t gI2CMutex = NULL;
 SemaphoreHandle_t gSPIMutex = NULL;
+// Serializes every EEPROM.begin..end section. The single global Arduino EEPROM object
+// shares ONE 4096B heap buffer that begin() reallocs and end() frees, so two tasks
+// overlapping their begin..end double-free it (GOTCHA 2). Take/give via eepromLock/Unlock.
+SemaphoreHandle_t gEepromMutex = NULL;
 
 /***** DisplayTask ******/
 /***********************************************************************
@@ -177,6 +182,88 @@ void SettingTask(void *pvParameters)
  * pramameter: none
  *  return: none
  */
+// Boot-time WiFi bring-up across the preferred + saved networks. Blocks, but early-exits
+// the moment a network connects, so a present network is joined in 1-3 s and only a real
+// outage waits out the timeouts. This is the ONLY place WiFi.begin() may be called -
+// runtime begin() deadlocks async_tcp (test_no_runtime_wifi_begin.py).
+static bool wifiTryOne(const String &s, const String &p, uint32_t timeoutMs)
+{
+  if (!s.length())
+    return false;
+  Serial.printf("[wifi] trying '%s'\n", s.c_str());
+  WiFi.begin(s.c_str(), p.c_str());
+  uint32_t t0 = millis();
+  while (millis() - t0 < timeoutMs)
+  {
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      Serial.printf("[wifi] connected to '%s' -> %s\n", s.c_str(),
+                    WiFi.localIP().toString().c_str());
+      return true;
+    }
+    delay(100); // yields; feeds the idle-task watchdog during the wait
+  }
+  return false;
+}
+
+static void connectSavedNetworks()
+{
+  // A save/connect from the web parks its credentials as a TRIAL (never commits in place).
+  // Test it FIRST here. On success COMMIT it (becomes the preferred network + list front);
+  // on failure DISCARD it, leave the previous network untouched, and record the failure so
+  // the web can say "wrong password - re-enter". This is what stops a typo from wiping the
+  // working network. Password verification requires a real association, hence a reboot.
+  String tSsid, tPass;
+  if (wifiStoreGetTrial(tSsid, tPass))
+  {
+    Serial.printf("[wifi] testing new credentials for '%s'\n", tSsid.c_str());
+    if (wifiTryOne(tSsid, tPass, 8000)) // longer window: auth + DHCP for a brand-new net
+    {
+      ssid = tSsid;
+      password = tPass;
+      saveSettingDevice();          // commit as the preferred pair (EEPROM)
+      wifiStoreAdd(tSsid, tPass);   // and to the front of the saved list
+      wifiStoreClearTrial();
+      wifiStoreSetTrialResult(WIFI_TRIAL_OK, tSsid);
+      Serial.printf("[wifi] '%s' verified and committed\n", tSsid.c_str());
+      return; // already connected
+    }
+    // Distinguish "not found" (moved out of range) from an auth failure (wrong password),
+    // so the web can say the right thing - Connect on a known-good network that is briefly
+    // out of range must NOT be reported as a wrong password.
+    const char *reason =
+        (WiFi.status() == WL_NO_SSID_AVAIL) ? "range" : "auth";
+    Serial.printf("[wifi] '%s' FAILED (%s) -> keeping old network\n", tSsid.c_str(), reason);
+    wifiStoreClearTrial();
+    wifiStoreSetTrialResult(WIFI_TRIAL_FAILED, tSsid, reason);
+    // fall through: connect the previous network (EEPROM globals unchanged)
+  }
+
+  // Preferred first (the EEPROM pair): give it the longer window since a fresh DHCP
+  // lease routinely needs 1-3 s (GOTCHA 5). Common case: connects in 1-3 s and returns
+  // here, so boot is NOT held up - only a real outage waits out the timeouts.
+  if (wifiTryOne(ssid, password, 4000))
+    return;
+
+  // Fallback across the saved list, tightly time-boxed: this only matters when the
+  // preferred network is absent, and every second here is a second of dark boot screen.
+  // Cap the whole loop at 5 s (was 9 s) so worst-case boot with NO network in range is
+  // ~9 s (4 s preferred + 5 s here) before dashboardLoop raises the SoftAP.
+  WifiNet nets[WIFI_STORE_MAX];
+  uint8_t n = wifiStoreLoad(nets, WIFI_STORE_MAX);
+  uint32_t budget0 = millis();
+  for (uint8_t i = 0; i < n; i++)
+  {
+    if (nets[i].ssid == ssid)
+      continue; // already tried as the preferred one
+    if (millis() - budget0 > 5000)
+      break;
+    if (wifiTryOne(nets[i].ssid, nets[i].pass, 2500))
+      return;
+  }
+  Serial.println("[wifi] no saved network joined at boot -> grace, then SoftAP");
+}
+
 void setup()
 {
   Serial.setRxBufferSize(3 * 1024);
@@ -186,8 +273,11 @@ void setup()
 
   /***** Create Mutex *****/
   gI2CMutex = xSemaphoreCreateMutex();
+  // Created HERE, before any xTaskCreate below, so the first EEPROM section on any task
+  // already sees a valid handle (eepromLock null-guards the pre-creation boot reads too).
+  gEepromMutex = xSemaphoreCreateMutex();
 
-  if (gI2CMutex == NULL)
+  if (gI2CMutex == NULL || gEepromMutex == NULL)
   {
     Serial.println("Create I2C Mutex Failed");
 
@@ -221,24 +311,31 @@ void setup()
   // it FIRST lets the allocator place WiFi/AsyncWebServer/TLS around the full region, aiming
   // for a larger contiguous internal block (intLargest) so the mbedTLS handshake (~42KB) fits
   // on heap-tight boards -> fewer -32512 at upload. Idempotent (gBtReleased guard).
+  dashHeapProbe("before BT release");
   releaseBluetoothStack();
+  dashHeapProbe("after BT release");
 
   WiFi.mode(WIFI_STA);
+  // Register a stable hostname with DHCP (must be after mode, before begin). Routers that
+  // resolve DHCP hostnames then reach the device at http://<hostname>/, and it matches the
+  // mDNS name (http://<hostname>.local/) - so the dashboard has a fixed name when the IP moves.
+  WiFi.setHostname(dashboardHostname().c_str());
   // Power save OFF. The ESP32 defaults to WIFI_PS_MIN_MODEM, which parks the radio
   // between DTIM beacons: 100-300 ms latency spikes and dropped packets. That is
   // invisible for a one-shot request but wrecks a 1 s SSE stream + AsyncWebServer -
   // the dashboard stutters and requests time out. Costs a few mA on a mains device.
   WiFi.setSleep(false);
   WiFi.setAutoReconnect(true);
-  WiFi.begin(ssid.c_str(), password.c_str());
+  // Try the preferred network (EEPROM) then each SAVED network (/wifi.json), so the
+  // machine can be moved between rooms without reconfiguring. ALL WiFi.begin() lives in
+  // setup() on purpose: a runtime begin() from a task deadlocks async_tcp forever
+  // (test_no_runtime_wifi_begin.py). Bounded early-exit blocking: returns the instant one
+  // network connects, so a present network is NOT delayed; only a full outage waits.
+  connectSavedNetworks();
+  dashHeapProbe("after WiFi connect");
 
-  // Do NOT block here waiting for STA, and do NOT decide the SoftAP fallback yet.
-  // This used to wait 20*50ms+100ms = 1.1 s and then give up - but a router + DHCP
-  // routinely needs 1-3 s (see CLAUDE.md GOTCHA 5), so a perfectly good network was
-  // abandoned on most boots. And dashboardStartAP() does WiFi.mode(WIFI_AP), which
-  // kills STA for good: no retry until the next reboot.
-  // dashboardLoop() (NetworkTask) now gives STA a fair grace period and only then
-  // falls back, without blocking setup().
+  // If none connected, WiFi is left in STA-disconnected: dashboardLoop() (NetworkTask)
+  // gives it a grace window and then raises the SoftAP fallback, without blocking setup().
 
   _displayCLD.begin();
   _ForteSetting.begin();
@@ -313,6 +410,7 @@ void setup()
       1,
       &settingTaskHandle,
       0);
+  dashHeapProbe("end of setup (tasks up)");
 }
 
 /***********************************************************************

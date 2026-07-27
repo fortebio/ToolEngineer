@@ -29,13 +29,16 @@ số cũng không trễ. Điểm cũ **tự mịn dần** khi có điểm mới 
 
 - Thêm `v.rawY[10][]` vào view: giá trị đã-trừ-baseline **giữ lại** (series chỉ chứa bản
   đã mịn). Reset trong `resetView`.
-- `drawSmoothed(v, ch)` = `sgSmooth(rawY[ch])` → noise floor (`<5 → 0`) **sau** khi mịn →
-  `setData`.
+- `drawSmoothed(v, ch)` = noise floor (`<2 → 0`) → `sgSmooth` → `setData`.
 - `loadCurve`: nạp rawY từ `/curve` rồi `drawSmoothed` từng kênh.
 - `plotPoint`: `rawY[ch][idx] = y - baseline` (index theo vòng → re-send ghi đè, không
   nhân đôi) rồi `drawSmoothed` — cả kênh re-smooth, ≤130 điểm/kênh nên rẻ.
 
-Noise floor chuyển ra **sau** SG: kẹp trước sẽ tạo đoạn phẳng giả trước khi mịn.
+**Cập nhật 2026-07-27**: noise floor hạ `5 → 2` và chuyển ra **TRƯỚC** SG (theo yêu cầu).
+Ban đầu kẹp **sau** SG với lý do "kẹp trước tạo đoạn phẳng giả"; nay đó chính là ý muốn —
+nền dưới 2 thành 0 **thật** nên baseline nằm phẳng thay vì lăn tăn. Đánh đổi: các số 0 đó
+được trung bình vào những điểm đang lên đầu tiên → đường cong **rời 0 muộn hơn** một chút,
+và đầu ra SG **không còn bị kẹp** (giá trị âm nhỏ có thể xuất hiện, `yAxis.min = 0` che đi).
 
 ## Kiểm chứng
 

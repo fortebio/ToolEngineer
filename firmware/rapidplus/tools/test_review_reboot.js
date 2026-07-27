@@ -165,6 +165,12 @@ async function main() {
   await poll("resultView.chart&&resultView.chart.series[0].data.length>0", "stored curve drawn", 8000);
   const p = await pts("resultView");
   ok(p > 0, "stored curve rendered on the Result chart", `${p} points`);
+  // Data alone is not enough: a chart created while its container was display:none has a
+  // 0-size plot, so setData succeeds but nothing is visible (the "View Chart first time
+  // shows nothing, reload fixes it" bug). Assert the plot actually has a real width.
+  await sleep(400); // let the reflow settle
+  const pw = await ev("resultView.chart?Math.round(resultView.chart.plotWidth):-1");
+  ok(pw > 50, "chart plot has a real width (not init-in-hidden 0-size)", `plotWidth=${pw}`);
 
   ws.close();
   edge.kill();

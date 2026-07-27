@@ -82,8 +82,10 @@ APPLY_DELAY = 0.15
 _calib_step = ""          # "" | preheatStart | preheating | ... (mock wizard)
 _calib_slot = 0
 
-# Result table (fake). Names persist in memory like the device's /slotnames.json.
+# Result table (fake). Names persist in memory like the device's /slotnames.json,
+# sample labels like /slotsamples.json.
 SLOT_NAMES = [""] * 10
+SLOT_SAMPLES = [""] * 10
 FAKE_CT = [22.3, None, None, 28.9, None, 19.5, None, None, None, None]
 FAKE_RESULT = ["P", "N", "N", "S", "N", "P", "E", "N", "B", "N"]
 
@@ -100,6 +102,26 @@ _ran_before = False            # a run has completed since boot -> device holds 
 # result cache is empty (/slots ready=false), but /reviewlast reloads the stored run.
 # Lets the Result-tab "review after reboot" path be tested without power-cycling hardware.
 _stored = "--reboot" in sys.argv
+# Mock OTA state. "idle" until the web asks for a check, then pretends a newer build exists.
+_ota = {"state": "idle", "checked": False}
+# Mock saved-WiFi list (device: /wifi.json on LittleFS). Front entry = preferred.
+_saved_wifi = ["FBT-Office", "Lab-2G"]
+_wifi_trial = None  # {"result":"failed","ssid":..} after a wrong-password save
+# Which network the machine is actually joined to. Normally the front of the list, but the
+# device CAN sit on another one: if the preferred network is absent at boot, main.cpp falls
+# back to a saved net WITHOUT rewriting EEPROM or the list order. Settable (POST
+# /wifilist?current=) so a test can reproduce that state - it is where the "no way back to
+# row 0" UI bug lived. None = the normal "connected == front" case.
+_wifi_current = None
+
+
+def _wifi_live():
+    """The SSID the machine is joined to. ONE source for both /home net.ssid and /wifilist
+    current+active - on the device both read WiFi.SSID(), so letting them drift here would
+    make the mock show two 'connected' rows that hardware never produces."""
+    if _wifi_current in _saved_wifi:
+        return _wifi_current
+    return _saved_wifi[0] if _saved_wifi else ""
 _reviewed = False              # /reviewlast reloaded the stored EEPROM run
 
 
@@ -302,6 +324,7 @@ def home_payload(phase, rounds):
     return {
         "device": CONFIG.get("device ID", "RAPIDPlus"),
         "company": "Fortebiotech",
+        "net": {"ap": False, "ssid": _wifi_live(), "ip": "192.168.1.25"},
         "temps": {
             "lysis": round(lysis + wig, 1),
             "ampLeft": round(amp + wig, 1),
@@ -350,6 +373,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self._wifiscan()
         if self.path.startswith("/calib"):
             return self._calib()
+        if self.path.startswith("/ota"):
+            return self._ota_get()
+        if self.path.startswith("/wifilist"):
+            return self._wifilist_get()
         return super().do_GET()  # static files from data/
 
     def _wifiscan(self):
@@ -425,7 +452,101 @@ class Handler(SimpleHTTPRequestHandler):
             return self._reviewlast()
         if self.path.startswith("/calib"):
             return self._calib()
+        if self.path.startswith("/wifilist"):
+            return self._wifilist_post()
+        if self.path.startswith("/otaupload"):
+            return self._otaupload()
+        if self.path.startswith("/ota"):
+            return self._ota_post()
         self.send_error(404)
+
+    def _otaupload(self):
+        """Mirror POST /otaupload: swallow the multipart body, then report success.
+        The device flashes it and reboots; here we only exercise the UI path."""
+        if self._busy():
+            return self._json({"ok": False, "error": "device busy"})
+        n = int(self.headers.get("Content-Length") or 0)
+        remaining = n
+        while remaining > 0:                     # drain, else the browser sees a reset
+            remaining -= len(self.rfile.read(min(65536, remaining)) or b"")
+        _ota["state"] = "updating"
+        return self._json({"ok": True, "restarting": True})
+
+    def _wifilist_get(self):
+        live = _wifi_live()
+        nets = []
+        for s in _saved_wifi:
+            e = {"ssid": s, "saved": True}
+            if s == live:
+                e["active"] = True
+            nets.append(e)
+        out = {"max": 5, "current": live, "nets": nets}
+        if _wifi_trial:
+            out["trial"] = _wifi_trial
+        return self._json(out)
+
+    def _wifilist_post(self):
+        global _wifi_current
+        body = self._body()
+        # keep_blank_values: "current=" (empty) is the UNPIN command, and the default
+        # parse_qs drops empty values entirely, so the reset silently did nothing.
+        q = parse_qs(body, keep_blank_values=True)
+        remove = q.get("remove", [""])[0]
+        connect = q.get("connect", [""])[0]
+        if "current" in q:  # test hook: pin/unpin which net the machine is joined to
+            _wifi_current = q["current"][0] or None
+            return self._json({"ok": True, "current": _wifi_current or ""})
+        if remove:
+            if remove in _saved_wifi:
+                _saved_wifi.remove(remove)
+                return self._json({"ok": True})
+            return self._json({"ok": False, "error": "not saved"})
+        if connect:
+            if self._busy():
+                return self._json({"ok": False, "error": "device busy"})
+            if connect not in _saved_wifi:
+                return self._json({"ok": False, "error": "not saved"})
+            # promote to preferred (front), like the device does before rebooting
+            _saved_wifi.remove(connect)
+            _saved_wifi.insert(0, connect)
+            _wifi_current = None  # rebooted onto it: connected == front again
+            return self._json({"ok": True, "restarting": True, "seq": 1})
+        return self._json({"ok": False, "error": "missing remove|connect"})
+
+    def _ota_get(self):
+        """Mirror GET /ota (webDashboard.cpp handleOtaStatus)."""
+        out = {
+            "version": "v2.4.3",
+            "versionCode": 18,
+            "state": _ota["state"],
+            "hasUpdate": _ota["state"] == "available",
+            "busy": _ota["state"] == "updating",
+            "checked": _ota["checked"],
+            "checkFailed": _ota.get("failed", False),
+            "online": True,
+        }
+        if _ota["checked"]:
+            out["newVersion"] = "v2.4.4"
+            out["newVersionCode"] = 19
+            out["notes"] = "Mock release notes: QR screen, viewer cap, UI contrast pass."
+        return self._json(out)
+
+    def _ota_post(self):
+        """Mirror POST /ota?action=check|update. The check is instant here; on the device
+        it is a blocking HTTPS GET queued onto SettingTask (PEND_OTACHECK)."""
+        action = (parse_qs(urlparse(self.path).query).get("action") or [""])[0]
+        if self._busy():
+            return self._json({"ok": False, "error": "device busy"})
+        if action == "check":
+            _ota["checked"] = True
+            _ota["state"] = "available"   # pretend GitHub offers a newer build
+            return self._json({"ok": True, "queued": True})
+        if action == "update":
+            if _ota["state"] != "available":
+                return self._json({"ok": False, "error": "no update available"})
+            _ota["state"] = "updating"
+            return self._json({"ok": True, "started": True})
+        return self._json({"ok": False, "error": "unknown action"})
 
     def _reviewlast(self):
         # Reload the last completed run from EEPROM for the Result tab (device: PEND_REVIEW
@@ -469,6 +590,14 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json({"ok": False, "error": "ssid must be 1..32 chars"})
         if len(p) > 54:  # EEPROM slot limit, not WPA2's 63
             return self._json({"ok": False, "error": "password max 54 chars (EEPROM slot limit)"})
+        # Mirror the device's trial-then-commit: a save does NOT commit here. "wrongpass"
+        # stands in for a password that fails the boot-test -> trial:failed, list unchanged.
+        global _wifi_trial
+        if p == "wrongpass":
+            _wifi_trial = {"result": "failed", "ssid": s, "reason": "auth"}
+        else:
+            _wifi_trial = None
+            _saved_wifi[:] = [s] + [x for x in _saved_wifi if x != s]  # commit to front
         seq = queue_cfg("wifi", s)
         if seq is None:
             return self._json({"ok": False, "error": "busy, retry"})
@@ -496,6 +625,7 @@ class Handler(SimpleHTTPRequestHandler):
         available = _ran_before or _reviewed or not _stored
         ready = phase != "amplification" and available
         slots = [{"name": SLOT_NAMES[i],
+                  "sample": SLOT_SAMPLES[i],
                   "ct": FAKE_CT[i] if ready else None,
                   "result": FAKE_RESULT[i] if ready else ""}
                  for i in range(10)]
@@ -507,12 +637,17 @@ class Handler(SimpleHTTPRequestHandler):
             slot = int((q.get("slot") or ["-1"])[0])
         except ValueError:
             slot = -1
-        name = (q.get("name") or [""])[0]
-        if 0 <= slot < 10:
-            SLOT_NAMES[slot] = name
-            print(f"[rename] slot {slot} -> {name!r}")
-            return self._json({"ok": True, "slot": slot, "name": name})
-        return self._json({"ok": False, "error": "bad slot"})
+        if not (0 <= slot < 10):
+            return self._json({"ok": False, "error": "bad slot"})
+        # name (disease) and sample are independent, like the firmware /rename.
+        if "name" in q:
+            SLOT_NAMES[slot] = q["name"][0]
+            print(f"[rename] slot {slot} name -> {SLOT_NAMES[slot]!r}")
+        if "sample" in q:
+            SLOT_SAMPLES[slot] = q["sample"][0]
+            print(f"[rename] slot {slot} sample -> {SLOT_SAMPLES[slot]!r}")
+        return self._json({"ok": True, "slot": slot,
+                           "name": SLOT_NAMES[slot], "sample": SLOT_SAMPLES[slot]})
 
     def _control(self):
         # Web button press -> light the chip AND drive the run, like the device.
@@ -626,8 +761,11 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "selftest":
         selftest()
         sys.exit()
-    srv = ThreadingHTTPServer(("0.0.0.0", 8000), Handler)
-    print("Mock ESP32 SSE server on http://localhost:8000  (Ctrl+C to stop)")
+    # Port: first bare number on the command line, else 8000. Lets a second instance run
+    # alongside the first (e.g. compare two UI revisions side by side).
+    port = next((int(a) for a in sys.argv[1:] if a.isdigit()), 8000)
+    srv = ThreadingHTTPServer(("0.0.0.0", port), Handler)
+    print(f"Mock ESP32 SSE server on http://localhost:{port}  (Ctrl+C to stop)")
     print(f"  scale: {AMP_ROUNDS} rounds x {REPORT_INTERVAL_MS} ms "
           f"= {AMP_ROUNDS * REPORT_INTERVAL_MS / 60000:.0f} min run"
           f"{'  [--full]' if FULL else ''}")

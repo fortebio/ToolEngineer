@@ -6,6 +6,8 @@ To receive the full command, here will wait 10ms after receiving, if there is no
 #include "ForteSetting.h"
 #include "Bluetooth.h"
 #include "webDashboard.h" // dashboardDeviceBusy(): re-checked before applying web settings
+#include "updateOTA.h"    // checkFirmware(): run off AsyncTCP via PEND_OTACHECK
+#include "wifiStore.h"    // wifiStoreAdd(): remember each saved WiFi in /wifi.json
 
 /// @brief Buzzer control
 /// "Buzzer", beep one time for 1 seond
@@ -490,10 +492,12 @@ bool ForteSetting::JsonDataConfig()
             }
 
             parameter.length = sizeof(parameter); // use this to indicate the EEPROM has valid parameter
+            eepromLock();
             EEPROM.begin(_EEPROM_SIZE);
             EEPROM.put(PARAMETERPOS, parameter);
             EEPROM.commit();
             EEPROM.end();
+            eepromUnlock();
             return true;
         }
         else if (json_document.containsKey("raw_data")) // include raw data which means for the testing purpose
@@ -571,6 +575,7 @@ bool ForteSetting::resultOutput()
     {
         return false;
     }
+    eepromLock();
     EEPROM.begin(_EEPROM_SIZE);
     Word tmp[10 * 130] = {0};
     EEPROM.get(RECORDPOS, tmp);
@@ -578,6 +583,7 @@ bool ForteSetting::resultOutput()
     memcpy(_sensor6035.sensor67Value, tmp, sizeof(tmp));
 
     EEPROM.end();
+    eepromUnlock();
     _displayCLD.changeScreen = true;
     _displayCLD.type_infor = escreenReview;
     return true;
@@ -662,6 +668,7 @@ bool ForteSetting::start_amplification_simulation()
             }
         }
     }
+    eepromLock();
     EEPROM.begin(_EEPROM_SIZE);
     Word tmp[10 * 130] = {0};
     memcpy(tmp, _sensor6035.sensor67Value, sizeof(tmp));
@@ -669,6 +676,7 @@ bool ForteSetting::start_amplification_simulation()
     delay(100);
     EEPROM.commit();
     EEPROM.end();
+    eepromUnlock();
 
     return true;
 }
@@ -744,7 +752,7 @@ void ForteSetting::begin()
         // One-time migration: configs saved before kpid3 existed have kpid3 == {0,0,0}.
         // Seed the defaults and persist so it sticks. Done ONLY inside the valid-config
         // branch so we never write back garbage (e.g. on a fresh/erased EEPROM).
-        if (FirmwareVer == "v2.4.2" &&
+        if (FirmwareVer == "v2.4.3" &&
             parameter.kpid3[0] == 0 && parameter.kpid3[1] == 0 && parameter.kpid3[2] == 0)
         {
             parameter.kpid3[0] = 60;
@@ -871,6 +879,15 @@ bool ForteSetting::postReviewLast()
     return true;
 }
 
+bool ForteSetting::postOtaCheck()
+{
+    if (pendingKind != PEND_NONE)
+        return false;
+    __sync_synchronize(); // no payload; publish the flag last
+    pendingKind = PEND_OTACHECK;
+    return true;
+}
+
 /***********************************************************************
  * Function: drainPending()
  * Description: Apply a web-queued settings change. Runs on SettingTask, so it
@@ -926,13 +943,14 @@ void ForteSetting::drainPending()
     }
     else if (kind == PEND_WIFI)
     {
-        ssid = pendingA;
-        password = pendingB;
-        saveSettingDevice();
-        info_displayln("[cfg] WiFi saved: " + ssid);
-        // Cannot connect in place: the radio is shared, so associating to a router on
-        // another channel drops every SoftAP client (including the browser that just
-        // posted this). Reboot instead and let setup()'s WiFi.begin + AP fallback run.
+        // Do NOT commit here - a wrong password would overwrite the working network and
+        // strand the machine. Park the new credentials as a TRIAL and reboot; setup()
+        // tests them and only commits (EEPROM preferred + list front) if they actually
+        // connect, otherwise it reverts to the previous network and reports the failure.
+        // (Verifying a password needs a real association, which needs a reboot - runtime
+        // WiFi.begin deadlocks async_tcp.)
+        wifiStoreSetTrial(pendingA, pendingB);
+        info_displayln("[cfg] WiFi trial queued: " + pendingA);
         restartAt = millis() + 1500;
     }
     else if (kind == PEND_ID)
@@ -944,10 +962,12 @@ void ForteSetting::drainPending()
         saveSettingDevice();
         strlcpy(parameter.device_id, pendingA.c_str(), sizeof(parameter.device_id));
         parameter.length = sizeof(parameter);
+        eepromLock();
         EEPROM.begin(_EEPROM_SIZE);
         EEPROM.put(PARAMETERPOS, parameter);
         EEPROM.commit();
         EEPROM.end();
+        eepromUnlock();
         info_displayln("[cfg] device id: " + id_device);
     }
     else if (kind == PEND_REVIEW)
@@ -966,12 +986,41 @@ void ForteSetting::drainPending()
         {
             float ct[10] = {0};
             char res[10] = {0};
-            _sensor6035.bResultGet(ct, res);                           // recompute CT / P-N-S
-            dashboardSetResults(ct, res);                              // cache for GET /slots
-            _sensor6035.setLastRunLoops(parameter.amplification_time); // GET /curve length
-            info_displayln("[review] reloaded last run from EEPROM");
+            _sensor6035.bResultGet(ct, res); // recompute CT / P-N-S
+            dashboardSetResults(ct, res);    // cache for GET /slots
+            // /curve length: the record carries no length of its own, so DON'T trust the
+            // CURRENT amplification_time (it may have changed since the run -> /curve would
+            // read past the real data into garbage, or truncate it). Scan for the real length
+            // instead: the last round whose slot-0 raw is plausible (10..60000). Rounds past
+            // the run read 0 (run-end zero-inits the staging buffer) or 0xFFFF (virgin EEPROM).
+            uint8_t len = 0;
+            for (uint8_t j = 0; j < 130; j++)
+            {
+                uint16_t v = _sensor6035.sensor67Value[0][j];
+                if (v > 10 && v < 60000)
+                    len = j + 1;
+            }
+            _sensor6035.setLastRunLoops(len);
+            info_displayf("[review] reloaded last run from EEPROM (%u rounds)\n", len);
         }
-        // else: no plausible stored run -> leave the cache empty (Result tab shows nothing).
+        else
+        {
+            // No plausible stored run -> leave the cache empty (Result tab shows nothing).
+            // Log probe (used to be silent) so a fail is observable: 0xFFFF=virgin flash,
+            // 0=erased/EEPROM.begin alloc-failed, small-nonzero/garbage=a torn read from an
+            // EEPROM 4KB-buffer double-free (a concurrent error-save on ControlTask).
+            info_displayf("[review] no stored run: probe=%u\n", probe);
+        }
+    }
+    else if (kind == PEND_OTACHECK)
+    {
+        // Blocking HTTPS GET against GitHub - must not run on AsyncTCP, hence the queue.
+        // promptOnDevice=false: the request came from a browser, so leave the machine's
+        // TFT alone (otherwise a remote click would hijack the screen of whoever is
+        // standing at the device). otaState / fwVer / fwVersion carry the answer back
+        // to GET /ota.
+        info_displayln("[ota] web-requested check");
+        checkFirmware(false);
     }
 
     cfgState = CFG_APPLIED; // written to EEPROM; the web can now trust a read-back
@@ -996,7 +1045,7 @@ bool ForteSetting::readCommand(Stream &port, unsigned long window)
             // below only fires AFTER the write - too late to prevent the overflow.
             uint16_t len = port.readBytes(recvData + recvLen, sizeof(recvData) - recvLen);
             if (len == 0)
-                break; // nothing actually read -> avoid recvData[-1] when len+recvLen==0
+                break;           // nothing actually read -> avoid recvData[-1] when len+recvLen==0
             recvTime = millis(); // set receive time first
             char last = recvData[len + recvLen - 1];
             if (!moreMsg)

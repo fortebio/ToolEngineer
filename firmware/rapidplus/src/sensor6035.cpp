@@ -1717,6 +1717,9 @@ void sensor6035::eSensor1stReadingFunc()
                             // first caused a read-before-write race (screen/upload saw the previous run's
                             // data) plus concurrent access to the shared, unguarded EEPROM object, so the
                             // freshly measured record was effectively never saved.
+                            // Serialize the run-end record write vs a concurrent error-save
+                            // on ControlTask (shared 4KB EEPROM buffer double-free, GOTCHA 2).
+                            eepromLock();
                             EEPROM.begin(_EEPROM_SIZE);
                             Word tmp[10 * 130] = {0};
 
@@ -1727,6 +1730,7 @@ void sensor6035::eSensor1stReadingFunc()
                             EEPROM.commit();
                             delay(100);
                             EEPROM.end();
+                            eepromUnlock();
                             delay(100);
 
                             _buzzer.BuzzerAlert();

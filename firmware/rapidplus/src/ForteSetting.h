@@ -64,7 +64,8 @@ public:
         PEND_CONFIG, // full/partial parameter JSON -> JsonDataConfig()
         PEND_WIFI,   // ssid + password -> saveSettingDevice() + restart
         PEND_ID,     // device id -> saveSettingDevice() (+ parameter.device_id)
-        PEND_REVIEW, // reload the last run from EEPROM -> recompute -> cache for the web
+        PEND_REVIEW,   // reload the last run from EEPROM -> recompute -> cache for the web
+        PEND_OTACHECK, // ask GitHub whether a newer firmware exists (blocking HTTPS)
     };
 
     // Return false if a request is already queued (caller should answer 429/503).
@@ -74,6 +75,9 @@ public:
     // Re-load the last completed run from EEPROM and recompute its results, so the web
     // Result tab can review it even after a reboot (the RAM cache is gone by then).
     bool postReviewLast();
+    // Run checkFirmware() off the web task: it does a blocking HTTPS GET, which must never
+    // happen on AsyncTCP. Result lands in otaState / fwVer / fwVersion for GET /ota.
+    bool postOtaCheck();
 
     // ---- Outcome of the last web-queued request --------------------------------
     // The POST can only ACK that it QUEUED: the handler must not block waiting for
