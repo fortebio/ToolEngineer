@@ -179,7 +179,13 @@ static void fillStatus(JsonObject status, e_statuslcd s)
     sub = "~" + String(_displayCLD.ampRemainSec() / 60.0, 1) + " min remaining";
     break;
   case ewaitLysisTube:
-    phase = "idle";
+    // NOT "idle". It shares a screen family with escreenStart but RED means something else
+    // here ("Start lysis" vs "Amplification"), and the web client keys off phase: at idle it
+    // rewrites a red press into the naming gate (script.js: btn = "ampname"). Sharing "idle"
+    // therefore made the web red chip light up and send a request that had nothing to do with
+    // lysis - the machine never left this screen, which is the "red lights up but lysis never
+    // starts" report. One phase per meaning; anything else that reads phase inherits the fix.
+    phase = "waitlysis";
     title = "Insert lysis tube";
     sub = "Waiting for user";
     break;
