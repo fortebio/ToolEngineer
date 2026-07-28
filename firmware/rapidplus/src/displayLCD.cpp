@@ -1259,6 +1259,8 @@ void displayCLD::screen_Result(char key)
     // from EEPROM when /slots says ready=false. That is exactly the "View Chart draws
     // nothing" report. Measured on the device before this line existed: /slots ready=true,
     // /curve count=0.
+    // A zero scan is ignored by setLastRunLoops() itself - see sensor6035.h - so this cannot
+    // wipe the length postData_GoogleSheet already published while the buffer still held it.
     _sensor6035.setLastRunLoops(_sensor6035.scanRunLength());
 
     this->display->fillScreen(BLACK);

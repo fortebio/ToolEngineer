@@ -144,7 +144,15 @@ void sensor6035::rerun()
     {
         // info_displayln("sensor only need to maintain status");
         _LED.LED_OFF_ALL_unguarded();
-        clear();
+        // Reset the acquisition COUNTERS only - do NOT call clear() here. rerun() runs right
+        // after a run finishes, and clear() also zeroes sensor67Value, i.e. the curve the
+        // Result tab is about to draw. That is why /curve served 12 rounds of 0.00 and the
+        // chart was a flat line on the axis. The previous run must stay in RAM until the NEXT
+        // run starts - button.cpp calls clear() there, paired with dashboardClearResults() so
+        // both web caches empty together.
+        START_INTERVAL_TIME = 0;
+        COUNTER = 0;
+        iChannel = 0;
         sensorStep = eSensormaintain;
     }
 }
@@ -1745,7 +1753,7 @@ void sensor6035::eSensor1stReadingFunc()
                             // Keep the run length before clearing COUNTER: sensor67Value still
                             // holds the curve, and the web /curve needs its length to draw the
                             // finished run on the Result tab.
-                            lastRunLoops = COUNTER;
+                            setLastRunLoops(COUNTER); // guarded + logged; see sensor6035.h
                             COUNTER = 0;
                             _displayCLD.type_infor = escreenFinished;
                             _displayCLD.bheadershow = true;
@@ -1798,7 +1806,16 @@ void sensor6035::clear()
     // why handleCurve carries two guards (COUNTER==0 && !eoptoreading) instead of
     // trusting a per-run reset. Don't read this line as a real run-lifecycle hook -
     // wiring clear() into the run start is the deeper fix if the guards ever fall short.
-    lastRunLoops = 0;
+    // lastRunLoops is deliberately NOT reset here. clear() wipes the ACQUISITION state
+    // (buffer, COUNTER, channel); the published run length is not part of that, and clearing
+    // it here is what broke the Result chart: rerun() calls clear() right AFTER a run ends to
+    // drop the sensor back to maintain, so the length published seconds earlier was wiped -
+    // while gResultsReady stayed true, because only button.cpp's run-start call is paired
+    // with dashboardClearResults(). /slots ready=true + /curve count=0 is a dead end for the
+    // browser (it only reloads from EEPROM when ready==false), which is why the chart came
+    // back only after a power cycle. Caught in the log as "[len] clear() zeroing, was=12".
+    // A new run needs no reset here either: while amplifying /curve reads COUNTER, and the
+    // run's real length is published at the end via setLastRunLoops(COUNTER).
     iChannel = 0;
 
     uint8_t loops = _ForteSetting.parameter.amplification_time;

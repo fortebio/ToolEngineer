@@ -119,7 +119,25 @@ public:
     uint8_t getLastRunLoops() { return lastRunLoops; }
     // Set when re-loading a stored run from EEPROM for review (the record has no length
     // of its own, so the caller passes amplification_time). Lets /curve serve it.
-    void setLastRunLoops(uint8_t n) { lastRunLoops = n; }
+    // Ignores 0 ON PURPOSE. Every publisher derives n from scanRunLength(), and a caller that
+    // happens to scan an empty buffer must not erase a length another path published correctly
+    // moments earlier. Measured twice on RPL03018: /curve went 12 -> 0 about 15 s after a
+    // correct publish, because a /reviewlast queued while the run was still going only drained
+    // once the device went idle and by then scanned nothing. The result - /slots ready=true
+    // with /curve count=0 - is unrecoverable from the browser (the client only reloads from
+    // EEPROM when ready==false), which is why the chart came back only after a power cycle.
+    // clear() still resets the field DIRECTLY at run start, so a real new run zeroes it.
+    void setLastRunLoops(uint8_t n)
+    {
+        // TEMPORARY (2026-07-28): /curve keeps going back to 0 while /slots stays ready=true,
+        // which the browser cannot recover from. Four attempts at inferring the writer were
+        // wrong, so every write announces itself now - the next occurrence names its caller
+        // instead of costing another guess. Remove once the culprit is fixed.
+        Serial.printf("[len] set(%u) was=%u %s\n", n, lastRunLoops,
+                      n ? "APPLIED" : "IGNORED(zero)");
+        if (n)
+            lastRunLoops = n;
+    }
 
     // Real length of the run currently in sensor67Value. The record carries no length of its
     // own, and amplification_time must NOT be trusted (config can change between the run and

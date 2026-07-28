@@ -396,7 +396,7 @@ void setup()
   xTaskCreatePinnedToCore(
       InputTask,
       "InputTask",
-      3072,
+      6144,
       NULL,
       3,
       &inputTaskHandle,
@@ -453,7 +453,7 @@ void loop()
         {"Sensor", sensorTaskHandle, 10240},
         {"Display", displayTaskHandle, 10240},
         {"Network", networkTaskHandle, 6144},
-        {"Input", inputTaskHandle, 3072},
+        {"Input", inputTaskHandle, 6144},
         {"Setting", settingTaskHandle, 8192},
     };
     uint32_t waste = 0;

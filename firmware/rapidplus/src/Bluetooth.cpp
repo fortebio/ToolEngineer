@@ -568,6 +568,25 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
   bool flag = _sensor6035.bResultPutToGoogleSheet(CT_value, result, outcome, peak_features);
   Serial.println("[up] result computed"); // marker: past the detection algorithm
 
+  /* PUBLISH TO THE WEB HERE - the instant the numbers exist, not after the upload.
+   *
+   * screen_Result() used to call dashboardSetResults() only AFTER this function returned, and
+   * this function blocks for up to ~90 s (three TLS endpoints, GAS alone answers in 6-40 s).
+   * For that whole window at the end of a 40-minute run the dashboard reported
+   * /slots ready=false and /curve count=0, so a Result tab opened right then drew an empty
+   * chart. Worse, the client reacts to ready=false by POSTing /reviewlast, which SettingTask
+   * refuses to drain while the device is busy uploading - so its 15 s poll expired and the
+   * tab stayed blank until a manual reload. Publishing first closes that window entirely.
+   *
+   * Safe to do while "suspended": dashboardSuspend() no longer stops the server (see
+   * webDashboard.cpp), it only pauses SSE pushes, so /slots and /curve keep answering.
+   *
+   * Both caches together, never one alone: /slots reads gResultsReady and /curve reads
+   * lastRunLoops, and publishing one without the other is what produces a filled table above
+   * an empty chart. Length comes from scanning the record, never from amplification_time. */
+  dashboardSetResults(CT_value, result);
+  _sensor6035.setLastRunLoops(_sensor6035.scanRunLength());
+
   // Build JSON inside a nested scope so the JsonDocument is destructed
   // (and its ~25-40KB internal pool freed) BEFORE we open the TLS socket.
   // mbedTLS needs a big contiguous free block; building the doc and the
