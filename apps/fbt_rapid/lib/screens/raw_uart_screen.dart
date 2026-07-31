@@ -35,9 +35,10 @@ class RawUartScreen extends StatelessWidget {
       body: Container(
         color: const Color(0xFF1E1E1E),
         child: lines.isEmpty
-            ? const Center(
+            ? Center(
                 child: Text('Không có dữ liệu UART.',
-                    style: TextStyle(color: Colors.grey)))
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant)))
             : Scrollbar(
                 thumbVisibility: true,
                 child: ListView.builder(

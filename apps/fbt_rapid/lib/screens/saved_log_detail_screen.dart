@@ -42,7 +42,7 @@ class _SavedLogDetailScreenState extends State<SavedLogDetailScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(m),
-      backgroundColor: error ? Colors.red.shade700 : null,
+      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
       duration: Duration(seconds: error ? 4 : 1),
     ));
   }

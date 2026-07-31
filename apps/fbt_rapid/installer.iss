@@ -1,13 +1,14 @@
 ﻿; Inno Setup script — trình cài đặt FBT_RAPID App (Windows)
 ; Biên dịch: "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer.iss
-; Kết quả:   C:\Users\nvdat\Downloads\FBT_RAPID-Setup-v1.0.6.exe
+; Kết quả:   C:\Users\nvdat\Downloads\FBT_RAPID-Setup-v<version>.exe
 
 #define MyAppName "FBT_RAPID"
-#define MyAppVersion "1.0.6"
+#define MyAppVersion "1.0.7"
 #define MyAppPublisher "Fortebiotech"
 #define MyAppExeName "fbt_dxd_app.exe"
-#define MySource "C:\Users\nvdat\Downloads\app\build\windows\x64\runner\Release"
-#define MyIcon "c:\Users\nvdat\Downloads\app\windows\runner\resources\app_icon.ico"
+; Path tương đối theo vị trí file .iss (gốc repo app) — không phụ thuộc máy/thư mục.
+#define MySource AddBackslash(SourcePath) + "build\windows\x64\runner\Release"
+#define MyIcon AddBackslash(SourcePath) + "windows\runner\resources\app_icon.ico"
 
 [Setup]
 AppId={{B7E9F3A2-5C41-4D8E-9A6B-2F1C8D4E7A90}
@@ -32,7 +33,7 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 Source: "{#MySource}\*"; DestDir: "{app}"; Excludes: "HUONG-DAN.txt"; Flags: recursesubdirs ignoreversion
 ; esptool đi kèm (tab Kỹ Thuật → Nạp code) — ép gói từ windows\vendor\ kể cả khi CMake chưa copy.
 ; skipifsourcedoesntexist: chưa đặt esptool.exe thì vẫn đóng gói được (không lỗi compile).
-Source: "C:\Users\nvdat\Downloads\app\windows\vendor\esptool.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "{#AddBackslash(SourcePath)}windows\vendor\esptool.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

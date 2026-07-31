@@ -66,9 +66,10 @@ class _SavedLogsScreenState extends State<SavedLogsScreen> {
         ],
       ),
       body: _items.isEmpty
-          ? const Center(
+          ? Center(
               child: Text('Chưa có log nào được lưu.',
-                  style: TextStyle(color: Colors.grey)))
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant)))
           : ListView.separated(
               padding: const EdgeInsets.all(12),
               itemCount: _items.length,

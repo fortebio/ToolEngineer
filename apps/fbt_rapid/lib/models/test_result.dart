@@ -73,6 +73,17 @@ enum Classification {
     }
   }
 
+  /// Map "lỏng" cho file JSON người dùng mở tay: chấp nhận tên enum, nhãn
+  /// tiếng Việt (data.json app xuất), chuỗi firmware ("Positive"…) hoặc chữ cái.
+  static Classification fromLoose(String s) {
+    final t = s.trim();
+    for (final e in Classification.values) {
+      if (e.name == t || e.label == t) return e;
+    }
+    final d = fromDevice(t);
+    return d != Classification.unknown ? d : fromLetter(t);
+  }
+
   /// Tên enum để lưu/đọc JSON cục bộ.
   String get storageKey => name;
 
@@ -259,6 +270,49 @@ class TestResult {
       version: (j['version'] ?? '').toString().trim(),
       curvesAreRaw: curvesList.isNotEmpty, // curves cloud = raw draw
     );
+  }
+
+  /// Parse "lỏng" từ file JSON người dùng mở tay (nút "Mở file JSON" tab Lịch
+  /// sử) — tự đoán 1 trong 3 shape:
+  /// 1. `data.json` app xuất (ResultExport: `slots[{index,result,ct,slope,data}]`)
+  ///    hoặc [toJson] của chính app (`slots[{classification,curve}]`);
+  /// 2. payload firmware /getdata (`CT_value`/`result`/`amplification`);
+  /// 3. run cloud (`ct`/`curves`).
+  factory TestResult.fromLooseJson(Map<String, dynamic> j) {
+    final slotsJ = j['slots'];
+    if (slotsJ is List) {
+      final slots = <SlotResult>[];
+      var anyCurve = false;
+      var i = 0;
+      for (final e in slotsJ.whereType<Map>()) {
+        final s = e.cast<String, dynamic>();
+        final curve = _parseRawCurve(s['data'] ?? s['curve']);
+        if (curve.isNotEmpty) anyCurve = true;
+        slots.add(SlotResult(
+          index: (s['index'] as num?)?.toInt() ?? ++i,
+          classification: Classification.fromLoose(
+              (s['result'] ?? s['classification'] ?? '').toString()),
+          ct: (s['ct'] as num?)?.toDouble(),
+          curve: curve,
+          slope: (s['slope'] as num?)?.toDouble(),
+        ));
+      }
+      final ts = _parseRunTime((j['time'] ?? j['timestamp'] ?? '').toString());
+      return TestResult(
+        id: 'file_${ts?.millisecondsSinceEpoch ?? 0}',
+        deviceId: (j['deviceId'] ?? j['id_device'] ?? '').toString().trim(),
+        timestamp: ts ?? DateTime.fromMillisecondsSinceEpoch(0),
+        slots: slots,
+        version: (j['version'] ?? '').toString().trim(),
+        curvesAreRaw: anyCurve, // data.json lưu raw draw
+      );
+    }
+    if (j.containsKey('CT_value')) {
+      return TestResult.fromDeviceJson(j,
+          fetchedAt: _parseRunTime((j['time'] ?? '').toString()) ??
+              DateTime.fromMillisecondsSinceEpoch(0));
+    }
+    return TestResult.fromCloudRun(j);
   }
 
   Map<String, dynamic> toJson() => {

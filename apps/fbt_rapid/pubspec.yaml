@@ -22,3 +22,16 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # Bộ font design system (Homies): DM Sans (body/UI), JetBrains Mono (số/log),
+  # Source Serif 4 (tiêu đề display). Variable font — 1 TTF/họ, Flutter tự map
+  # weight qua trục `wght`.
+  fonts:
+    - family: DM Sans
+      fonts:
+        - asset: assets/fonts/DMSans.ttf
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono.ttf
+    - family: Source Serif 4
+      fonts:
+        - asset: assets/fonts/SourceSerif4.ttf

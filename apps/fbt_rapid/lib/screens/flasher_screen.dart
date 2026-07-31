@@ -7,6 +7,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_libserialport/flutter_libserialport.dart';
 
+import '../theme/app_theme.dart';
 import '../util/i18n.dart';
 import '../util/serial_ports.dart';
 
@@ -398,7 +399,7 @@ class _FlasherScreenState extends State<FlasherScreen> {
                   _esptoolBundled ? Icons.check_circle_outline
                       : Icons.info_outline,
                   size: 16,
-                  color: _esptoolBundled ? Colors.green : c.onSurfaceVariant,
+                  color: _esptoolBundled ? AppSemantic.of(context).success : c.onSurfaceVariant,
                 ),
                 const SizedBox(width: 6),
                 Expanded(

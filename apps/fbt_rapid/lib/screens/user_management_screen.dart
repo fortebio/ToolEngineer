@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../services/app_settings.dart';
 import '../services/auth_api.dart';
 import '../services/session_store.dart';
 import '../util/i18n.dart';
 
 /// Màn **Quản lý User** (chỉ admin): tạo user, cấp/đổi mã máy được cấp,
-/// tắt/bật tài khoản, xóa. Mọi thao tác gọi Apps Script accounts với
+/// tắt/bật tài khoản, xóa. Mọi thao tác gọi Engineer Server (POST /auth) với
 /// adminUser + adminPassword (hỏi 1 lần khi vào màn, giữ trong bộ nhớ).
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -16,7 +15,9 @@ class UserManagementScreen extends StatefulWidget {
 }
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
-  final _api = AuthApi(kDefaultAuthApiUrl);
+  // Tài khoản trên Engineer Server (POST /auth) — nạp URL/token từ Cài đặt 1 lần.
+  AuthApi? _apiCache;
+  Future<AuthApi> get _api async => _apiCache ??= await AuthApi.engineer();
   final _passCtrl = TextEditingController();
 
   String get _adminUser => SessionStore.current?.username ?? '';
@@ -35,7 +36,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(m),
-      backgroundColor: error ? Colors.red.shade700 : null,
+      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
       duration: Duration(seconds: error ? 4 : 2),
     ));
   }
@@ -49,7 +50,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       _error = null;
     });
     try {
-      final users = await _api.listUsers(_adminUser, pass);
+      final users = await (await _api).listUsers(_adminUser, pass);
       setState(() {
         _adminPass = pass;
         _users = users;
@@ -66,7 +67,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (pass == null) return;
     setState(() => _busy = true);
     try {
-      final users = await _api.listUsers(_adminUser, pass);
+      final users = await (await _api).listUsers(_adminUser, pass);
       setState(() => _users = users);
     } catch (e) {
       _snack('$e', error: true);
@@ -80,7 +81,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (pass == null) return;
     setState(() => _busy = true);
     try {
-      await _api.saveUser(
+      await (await _api).saveUser(
         _adminUser,
         pass,
         username: u.username,
@@ -107,7 +108,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (pass == null) return;
     setState(() => _busy = true);
     try {
-      await _api.saveUser(
+      await (await _api).saveUser(
         _adminUser,
         pass,
         username: result.username,
@@ -139,7 +140,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               onPressed: () => Navigator.pop(c, false),
               child: Text(tr('common.cancel'))),
           FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error),
               onPressed: () => Navigator.pop(c, true),
               child: Text(tr('common.delete'))),
         ],
@@ -148,7 +150,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     if (ok != true) return;
     setState(() => _busy = true);
     try {
-      await _api.deleteUser(_adminUser, pass, u.username);
+      await (await _api).deleteUser(_adminUser, pass, u.username);
       await _reload();
     } catch (e) {
       _snack('$e', error: true);
@@ -251,7 +253,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 leading: CircleAvatar(
                   backgroundColor: u.active
                       ? Theme.of(context).colorScheme.primaryContainer
-                      : Colors.grey.shade300,
+                      : Theme.of(context).colorScheme.outlineVariant,
                   child: Icon(u.isRoot
                       ? Icons.security
                       : u.isStaff

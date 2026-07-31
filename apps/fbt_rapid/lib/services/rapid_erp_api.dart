@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../models/test_result.dart';
 import 'app_settings.dart';
 import 'cloud_history_api.dart';
+import 'fbt_api.dart';
 import 'session_store.dart';
 
 /// Client đọc lịch sử từ **API RAPID ERP** (server NGOÀI, REST) — nguồn cloud
@@ -416,6 +417,8 @@ CloudHistoryClient buildCloudClient(AppSettings settings, CloudSource source) {
     case CloudSource.rapidErp:
       return RapidErpApi(url,
           headers: headers, deviceIds: settings.rapidErpDeviceIdList);
+    case CloudSource.engineer:
+      return FbtApi(url, headers: headers);
     case CloudSource.google:
       return CloudHistoryApi(url, headers: headers);
   }

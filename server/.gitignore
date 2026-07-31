@@ -1,2 +1,23 @@
-.env
-node_modules/
+# Bí mật — KHÔNG bao giờ commit
+.ssh/
+note.md
+*.env
+/etc/
+
+# Dữ liệu thiết bị (nằm ở Drive + server, không đưa vào repo)
+data/
+data_plus/
+backups/
+*.tgz
+*.tar.gz
+*.zip
+
+# Python
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db

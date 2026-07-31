@@ -12,7 +12,12 @@ android/
 ios/
 macos/
 linux/
-web/
+# web/: ignore bằng `web/*` (KHÔNG `web/`) để trừ được 2 file tự quản lý —
+# index.html (title/manifest + thẻ script esptool đã sửa tay, sinh lại là mất)
+# và esptool.js (bundle vendor cho mục Nạp code bản web).
+web/*
+!web/index.html
+!web/esptool.js
 
 # IDE
 .idea/

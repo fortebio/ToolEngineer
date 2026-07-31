@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/com_names.dart';
 import '../services/temperature_serial.dart';
+import '../theme/app_theme.dart';
 import '../widgets/temp_chart.dart';
 
 /// Xem ĐỒNG THỜI đồ thị realtime của tất cả các cổng COM đang hoạt động.
@@ -24,14 +25,15 @@ class AllTempChartsScreen extends StatelessWidget {
         builder: (context, _) {
           final readers = controller.readers.values.toList();
           if (readers.isEmpty) {
-            return const Center(
+            return Center(
               child: Padding(
-                padding: EdgeInsets.all(24),
+                padding: const EdgeInsets.all(24),
                 child: Text(
                   'Chưa có cổng COM nào đang hoạt động.\n'
                   'Bật cổng ở tab Nhiệt độ rồi quay lại đây.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               ),
             );
@@ -81,10 +83,12 @@ class _ChartCard extends StatelessWidget {
                     Icon(Icons.thermostat,
                         size: 20,
                         color: reader.isOpen
-                            ? Colors.green
+                            ? AppSemantic.of(context).success
                             : (reader.isReconnecting
-                                ? Colors.orange
-                                : Colors.grey)),
+                                ? AppSemantic.of(context).warning
+                                : Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(label,

@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../services/app_prefs.dart';
@@ -11,6 +11,7 @@ import '../services/backup_service.dart';
 import '../services/session_store.dart';
 import '../services/storage_paths.dart';
 import '../util/i18n.dart';
+import '../util/platform_files.dart' as pf;
 
 /// Màn **Thiết lập** dùng CHUNG cho cả admin lẫn user (đồng bộ giống nhau):
 /// tài khoản (email, mã máy được cấp, đổi mật khẩu/email), nhà cung cấp, giao
@@ -36,8 +37,16 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
       TextEditingController(text: widget.settings.rapidErpKey);
   late final TextEditingController _rapidIds =
       TextEditingController(text: widget.settings.rapidErpDeviceIds);
+  late final TextEditingController _engUrl =
+      TextEditingController(text: widget.settings.engineerUrl);
+  late final TextEditingController _engToken =
+      TextEditingController(text: widget.settings.engineerToken);
 
-  AuthApi get _auth => AuthApi(kDefaultAuthApiUrl);
+  // Tài khoản giờ nằm trên Engineer Server (POST /auth) — không còn Apps Script.
+  AuthApi get _auth => AuthApi(
+        '${widget.settings.cloudUrlFor(CloudSource.engineer).replaceAll(RegExp(r'/+$'), '')}/auth',
+        headers: widget.settings.cloudHeadersFor(CloudSource.engineer),
+      );
 
   @override
   void dispose() {
@@ -47,6 +56,8 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     _rapidUrl.dispose();
     _rapidKey.dispose();
     _rapidIds.dispose();
+    _engUrl.dispose();
+    _engToken.dispose();
     super.dispose();
   }
 
@@ -67,7 +78,9 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
       ..userOrg = _org.text.trim()
       ..rapidErpUrl = _rapidUrl.text.trim()
       ..rapidErpKey = _rapidKey.text.trim()
-      ..rapidErpDeviceIds = _rapidIds.text.trim();
+      ..rapidErpDeviceIds = _rapidIds.text.trim()
+      ..engineerUrl = _engUrl.text.trim()
+      ..engineerToken = _engToken.text.trim();
     await widget.settings.save();
     _snack(tr('common.saved'));
   }
@@ -82,6 +95,8 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     _snack('${tr('us.saveLocation')}: $dir');
   }
 
+  // Nút "Về mặc định" đang comment trong UI — giữ hàm để bật lại.
+  // ignore: unused_element
   Future<void> _resetSaveDir() async {
     setState(() => widget.settings.saveDir = '');
     StoragePaths.setParent('');
@@ -89,15 +104,10 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     _snack(tr('common.saved'));
   }
 
-  void _openSaveDir() {
-    try {
-      final d = Directory(StoragePaths.parent);
-      if (!d.existsSync()) d.createSync(recursive: true);
-      Process.run('explorer.exe', [d.path]);
-    } catch (_) {}
-  }
+  void _openSaveDir() => pf.openFolder(StoragePaths.parent);
 
-  // ---- Sao lưu & Khôi phục ----
+  // ---- Sao lưu & Khôi phục (UI đang comment — giữ hàm để bật lại) ----
+  // ignore: unused_element
   Future<void> _backup() async {
     try {
       final json = await BackupService.buildJson();
@@ -105,20 +115,16 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
       final n = DateTime.now();
       final name = 'FBT_RAPID_backup_${n.year}${p2(n.month)}${p2(n.day)}_'
           '${p2(n.hour)}${p2(n.minute)}.json';
-      final loc = await getSaveLocation(
-        suggestedName: name,
-        acceptedTypeGroups: const [
-          XTypeGroup(label: 'JSON', extensions: ['json'])
-        ],
-      );
-      if (loc == null) return;
-      await File(loc.path).writeAsString(json);
-      _snack('${tr('common.saved')} ${loc.path}');
+      // Desktop: hộp thoại "Save as"; web: tải thẳng xuống Downloads.
+      final saved = await pf.saveTextFileDialog(name, json);
+      if (saved == null) return;
+      _snack('${tr('common.saved')} $saved');
     } catch (e) {
       _snack('$e', error: true);
     }
   }
 
+  // ignore: unused_element
   Future<void> _restore() async {
     try {
       final file = await openFile(acceptedTypeGroups: const [
@@ -388,41 +394,43 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
           //   ),
           // ),
 
-          // --- Nơi lưu file ---
-          const SizedBox(height: 24),
-          _section(tr('us.saveLocation')),
-          Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(children: [
-                const Icon(Icons.folder_outlined, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(StoragePaths.parent,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                ),
-              ]),
+          // --- Nơi lưu file (chỉ desktop — web tải xuống Downloads) ---
+          if (!kIsWeb) ...[
+            const SizedBox(height: 24),
+            _section(tr('us.saveLocation')),
+            Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(children: [
+                  const Icon(Icons.folder_outlined, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(StoragePaths.parent,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                ]),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            OutlinedButton.icon(
-              onPressed: _pickSaveDir,
-              icon: const Icon(Icons.drive_folder_upload_outlined),
-              label: Text(tr('us.chooseFolder')),
-            ),
-            // OutlinedButton.icon(
-            //   onPressed: widget.settings.saveDir.isEmpty ? null : _resetSaveDir,
-            //   icon: const Icon(Icons.restart_alt),
-            //   label: Text(tr('us.defaultFolder')),
-            // ),
-            OutlinedButton.icon(
-              onPressed: _openSaveDir,
-              icon: const Icon(Icons.folder_open),
-              label: Text(tr('us.openFolder')),
-            ),
-          ]),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              OutlinedButton.icon(
+                onPressed: _pickSaveDir,
+                icon: const Icon(Icons.drive_folder_upload_outlined),
+                label: Text(tr('us.chooseFolder')),
+              ),
+              // OutlinedButton.icon(
+              //   onPressed: widget.settings.saveDir.isEmpty ? null : _resetSaveDir,
+              //   icon: const Icon(Icons.restart_alt),
+              //   label: Text(tr('us.defaultFolder')),
+              // ),
+              OutlinedButton.icon(
+                onPressed: _openSaveDir,
+                icon: const Icon(Icons.folder_open),
+                label: Text(tr('us.openFolder')),
+              ),
+            ]),
+          ],
           // --- Nhà cung cấp ---
           const SizedBox(height: 24),
           _section(tr('us.provider')),
@@ -477,6 +485,32 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
             ),
             const SizedBox(height: 6),
             Text(tr('us.rapidErpIdsHint'),
+                style: Theme.of(context).textTheme.bodySmall),
+
+            // --- Engineer Server (server tự host server/) — CHỈ admin nhập ---
+            const SizedBox(height: 24),
+            _section(tr('us.engineer')),
+            TextField(
+              controller: _engUrl,
+              decoration: InputDecoration(
+                labelText: tr('us.engineerUrl'),
+                hintText: kDefaultEngineerUrl,
+                prefixIcon: const Icon(Icons.dns_outlined),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _engToken,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: tr('us.engineerToken'),
+                prefixIcon: const Icon(Icons.vpn_key_outlined),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(tr('us.engineerHint'),
                 style: Theme.of(context).textTheme.bodySmall),
           ],
 

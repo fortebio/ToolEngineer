@@ -1,119 +1,83 @@
-# FBT_RAPID — Server tự host (Docker + Postgres + API)
+# FBT Home Server
 
-Backend **miễn phí, tự host** cho app FBT_RAPID, chạy **song song** với Google Apps Script (nguồn
-cloud thứ 4 chọn được trong app). Thiết bị POST kết quả → lưu Postgres → **admin** đọc từ app, public
-ra ngoài qua **DuckDNS (DNS động miễn phí) + Caddy (HTTPS tự động)**.
+MiniPC cũ dựng thành server chạy 24/7: **Debian + PostgreSQL**, truy cập/code từ xa qua **Tailscale + VS Code Remote-SSH**.
 
-```
-[Thiết bị] --POST /ingest (X-Device-Key)--> ┐  Router (port-forward 80,443)
-[App admin] --GET /api?action=… (Bearer)--> ┤        │
-                                            ▼        ▼
-            https://ten.duckdns.org → [caddy: TLS] → [api:3000] → [postgres]
-                                       [duckdns: cập nhật IP nhà]
-```
+📖 Kế hoạch phát triển (3 giai đoạn + thứ tự làm): [docs/plan/KE_HOACH_PHAT_TRIEN.md](docs/plan/KE_HOACH_PHAT_TRIEN.md)
 
-## 0. Yêu cầu
-- **Docker Desktop** (Windows/macOS) hoặc Docker Engine (Linux) trên **một máy luôn bật** (PC, laptop
-  cũ, hoặc Raspberry Pi). *Máy phải bật để nhận dữ liệu — cái giá của "free, không thẻ".*
-- Để có URL công khai (§3): quyền **mở port 80 + 443 trên router** và **IP công khai thật** (không
-  CGNAT, ISP không chặn 80/443). Cách kiểm tra ở cuối §3.
+> ⚠️ File hướng dẫn dựng cũ `KE_HOACH_DUNG_SERVER.md` đã thất lạc (thử khôi phục từ OneDrive version history). Lệnh tra cứu chính vẫn ở mục dưới.
 
-## 1. Cấu hình
+## Cấu trúc repo
+
+| | |
+|---|---|
+| [app/](app/) | Package service FastAPI (`config`/`logic`/`db`/`auth`/`main`) — chạy `uvicorn app.main:app` |
+| [scripts/](scripts/) | CLI: `reconcile.py` (nạp bù file `data_plus/` khi DB down) · `import_accounts.py` (di cư tài khoản từ Sheet CSV) |
+| [tests/](tests/) | `test_logic.py` + `test_api.py` — chạy `python tests/test_logic.py` hoặc `pytest` |
+| [deploy/](deploy/) | `schema.sql` + `fbt-receiver.service` + migration |
+| 📖 **Dựng lại từ đầu** | [docs/plan/HUONG_DAN_DUNG_SERVER.md](docs/plan/HUONG_DAN_DUNG_SERVER.md) |
+| [legacy/](legacy/) | `receiver.py` (stdlib cũ), `import_drive_logs.py` (Drive — đã bỏ) — tham khảo |
+| [docs/plan/](docs/plan/) | Kế hoạch phát triển dự án |
+| [docs/history/](docs/history/) | Lịch sử chỉnh sửa (theo ngày) |
+| [CLAUDE.md](CLAUDE.md) | Quy ước làm việc cho Claude |
+
+## Thông số
+
+| | |
+|---|---|
+| OS | Debian (headless, không GUI) |
+| Database | PostgreSQL 17 |
+| RAM / CPU / Ổ | 3.7 GB / 4 nhân / 113 GB (trống ~104 GB) |
+| Hostname | `fbt-server` |
+| User | `engineer` |
+| IP LAN | `192.168.0.103` |
+| Truy cập từ xa | Tailscale (SSH key, không mở port ra Internet) |
+| Domain public | `https://fbt.basa-luma.ts.net` (Tailscale Funnel → cổng 8080) |
+
+## Tra cứu nhanh
+
 ```bash
-cd server                 # thư mục server/ nằm trong dự án app
-cp .env.example .env      # rồi mở .env điền: POSTGRES_PASSWORD, ADMIN_TOKEN, DEVICE_KEY
-```
-- `ADMIN_TOKEN` — admin nhập trong app (Cài đặt → Server riêng → Token).
-- `DEVICE_KEY` — firmware gửi khi POST.
+# Kết nối (đã cấu hình ~/.ssh/config)
+ssh fbt-server
 
-## 2. Chạy cục bộ & kiểm thử (chưa cần public)
-```bash
-docker compose up -d --build      # chỉ db + api
-curl localhost:3000/health
-# → {"ok":true}
+# Database
+sudo -u postgres psql -l                 # liệt kê DB
+sudo -u postgres psql mydb               # vào mydb
 
-# Bơm 1 run mẫu (giả lập thiết bị POST):
-curl -X POST localhost:3000/ingest \
-  -H "X-Device-Key: <DEVICE_KEY>" -H "Content-Type: application/json" \
-  --data @sample_run.json
-# → {"ok":true,"id":"1"}
+# Trạng thái dịch vụ
+systemctl status postgresql tailscaled ssh fbt-receiver
 
-# Đọc như app (cần Bearer):
-curl -H "Authorization: Bearer <ADMIN_TOKEN>" "localhost:3000/api?action=ids"
-curl -H "Authorization: Bearer <ADMIN_TOKEN>" "localhost:3000/api?action=runs&id=RPLTest&limit=10&offset=0"
-curl -H "Authorization: Bearer <ADMIN_TOKEN>" "localhost:3000/api?action=run&fileId=1"
-```
-Kỳ vọng `action=run`: `result` là chữ `N/P/S/E`, `ct` là số, `curves` là 10 chuỗi `"a,b,c,…"`.
-Sai token → `401`. Sai device key → `401`.
+# Data nhận từ thiết bị
+ls -l ~/fbt_server/data_plus/            # file đã lưu
+journalctl -u fbt-receiver -f            # xem log nhận realtime
 
-> PowerShell: `curl` là alias của `Invoke-WebRequest`. Dùng `curl.exe` (kèm `.exe`) để có cú pháp
-> giống trên, hoặc `Invoke-RestMethod`.
+# Tài nguyên
+free -h ; df -h / ; htop
 
-## 3. URL công khai miễn phí bằng DuckDNS + mở port
-
-> **Vì sao không dùng Cloudflare Tunnel "miễn phí"?** Domain free duy nhất còn sống (`.eu.org`) **không
-> add được vào Cloudflare gói Free** (Error 1049 — `.eu.org` không nằm trong ICANN Public Suffix List),
-> mà Cloudflare Tunnel named hostname BẮT BUỘC domain là zone trên Cloudflare. Freenom (.tk/.ml/…) đã
-> chết từ 2023. Quick Tunnel thì URL đổi mỗi lần chạy (chỉ test). → Muốn free + cố định thì dùng DuckDNS
-> + mở port (dưới đây); muốn dùng Cloudflare Tunnel thì phải **mua** domain (~$10/năm) rồi `--profile tunnel`.
-
-**Tạo domain DuckDNS (miễn phí, không cần thẻ):**
-1. Vào **https://www.duckdns.org** → **đăng nhập** bằng Google/GitHub/Reddit/Twitter.
-2. Ô **"sub domain"** gõ tên muốn (vd `fbtrapid`) → bấm **add domain** → có `fbtrapid.duckdns.org`.
-3. Copy **token** (chuỗi hiện ở đầu trang).
-
-**Điền `.env`:**
-```
-DUCKDNS_SUBDOMAIN=fbtrapid
-DUCKDNS_TOKEN=<token vừa copy>
-PUBLIC_HOST=fbtrapid.duckdns.org
+# Tailscale
+tailscale status ; tailscale ip -4
 ```
 
-**Mở port-forward trên router**: TCP **80** và **443** → **IP LAN của máy chạy Docker** (vd 192.168.1.x).
-(Đặt IP tĩnh/đặt trước cho máy đó trong router để khỏi lệch.)
+- **Database:** `mydb` (owner `myuser`) — dữ liệu ở `/var/lib/postgresql/17/main/`, cấu hình ở `/etc/postgresql/17/main/`.
+- **Nhận data từ thiết bị:** [receiver.py](receiver.py) lắng nghe POST ở cổng **8080**, lưu mỗi request thành file JSON trong `~/fbt_server/data_plus/`. Chạy nền bằng systemd `fbt-receiver`. Đặt `RECEIVER_TOKEN` → yêu cầu header `Authorization: Bearer <token>`. Mở ra Internet qua **Tailscale Funnel** — domain chính thức: **`https://fbt.basa-luma.ts.net`** (bật 2026-07-11, đã xoay token trước khi mở). Thiết bị POST và app Flutter đều dùng URL này + header `Authorization: Bearer <token>`. Lệnh quản lý Funnel ở [kế hoạch phát triển](docs/plan/KE_HOACH_PHAT_TRIEN.md) mục 2e.
+- **Code từ xa:** VS Code → `Remote-SSH: Connect to Host` → `fbt-server` (Tailscale bật trên laptop).
+- **Backup:** dùng `pg_dump`, KHÔNG copy file DB trực tiếp (xem [kế hoạch phát triển](docs/plan/KE_HOACH_PHAT_TRIEN.md) mục 2b).
 
-**Chạy kèm DuckDNS + Caddy:**
-```bash
-docker compose --profile duckdns up -d --build
-```
-- `duckdns` tự cập nhật `fbtrapid.duckdns.org` = IP công khai hiện tại (kể cả khi IP nhà đổi).
-- `caddy` tự xin + gia hạn chứng chỉ **Let's Encrypt** cho host đó, proxy mọi path vào `api:3000`.
-  (Lần đầu cần ~10–30s để có cert; xem `docker compose logs -f caddy`.)
+## Tiến độ dựng server
 
-**Kiểm tra public** (từ mạng KHÁC, vd 4G điện thoại — không qua wifi nhà):
-```bash
-curl https://fbtrapid.duckdns.org/health      # → {"ok":true}, TLS hợp lệ
-```
-- Nếu treo/không tới: thường do **CGNAT** (ISP không cho IP công khai) hoặc **chặn cổng 80/443**. Khi đó
-  port-forward vô hiệu → phải đổi sang **ngrok free static domain** hoặc **mua domain + Cloudflare Tunnel**.
+- [x] Cài Debian headless
+- [x] Cấp quyền sudo cho `engineer`
+- [x] SSH key từ laptop → server
+- [x] Cài PostgreSQL 17 + tạo `mydb`/`myuser`
+- [x] Deploy `receiver.py` (nhận POST → lưu JSON) + service `fbt-receiver` — xác nhận đang chạy 2026-07-11
+- [x] `fbt-receiver` **enabled** (xác nhận 2026-07-13: `postgresql tailscaled ssh fbt-receiver` đều `enabled` → tự bật lại sau reboot) · timezone VN đã đặt cho role engineer
+- [ ] An toàn mất nguồn: BIOS `Restore on AC Power Loss = Power On` + rút điện test 1 lần (mắt xích cuối cho tình huống cúp điện thật)
+- [x] Cố định IP (DHCP Reservation trên router)
+- [x] Cài Tailscale (server + laptop) để truy cập từ xa
+- [ ] Xoay secret bị lộ (note.md + khóa SSH trong OneDrive) — hoãn khi chạy thử, bắt buộc trước khi chạy thật
+- [ ] Backup tự động hằng ngày + test restore
+- [ ] Bảo mật SSH: tắt password sau khi key chạy ổn
+- [x] Nạp dữ liệu vào PostgreSQL (bảng `sessions`) + API đọc cho Flutter — deploy + chạy 2026-07-11: **3.372 phiên / 88 thiết bị** từ Drive, thiết bị vẫn POST realtime, API chạy qua `https://fbt.basa-luma.ts.net`
+- [x] Tài khoản đăng nhập app chuyển từ Google Sheet về bảng `users` — deploy 2026-07-14 (`POST /auth` hợp đồng userAuth.js, 3 tài khoản đã import; còn thiếu GRANT DELETE — xem [docs/history/2026-07-14.md](docs/history/2026-07-14.md))
+- [ ] Host app WEB tại **`https://fbt.basa-luma.ts.net/app/`** — code + file đã lên box 2026-07-14 (mount `/app` ← `~/fbt_server/web`, cùng origin hết CORS; login trả `apiToken`); CHỜ restart `fbt-receiver` để nạp
 
-## 4. Cấu hình trong app (admin)
-Đăng nhập **admin/root** → **Cài đặt → Server riêng**:
-- **URL**: `https://fbtrapid.duckdns.org/api` (hoặc `http://localhost:3000/api` khi test cùng máy).
-- **Token**: đúng `ADMIN_TOKEN`.
-Sang tab **Lịch sử (Cloud)** → gạt **"Server riêng"** → xem dữ liệu; nút **Đồng bộ về máy** chỉ admin thấy.
-
-## 5. Firmware đẩy dữ liệu (riêng)
-Để có dữ liệu thật, firmware (PlatformIO — repo **FBT-DXD** riêng) POST **thêm** lên server này — song song POST
-Apps Script cũ:
-- `POST https://fbtrapid.duckdns.org/ingest`, header `X-Device-Key: <DEVICE_KEY>` (hoặc `?key=<DEVICE_KEY>`),
-  body = đúng JSON kết quả hiện tại (`sample_run.json`). Trùng `id_device`+`time` sẽ cập nhật, không nhân bản.
-
-## API tóm tắt
-| Method | Path | Auth | Mô tả |
-|---|---|---|---|
-| GET | `/health` | — | `{ok:true}` |
-| POST | `/ingest` | `X-Device-Key` | Nhận 1 run (raw JSON firmware) |
-| GET | `/api?action=ids` | `Bearer` | Danh sách máy `{id,runCount,latest,version}` |
-| GET | `/api?action=runs&id=&limit=&offset=` | `Bearer` | Trang run (summary, không curves) |
-| GET | `/api?action=run&fileId=` | `Bearer` | 1 run đầy đủ (kèm curves) |
-
-## Vận hành
-- Xem log: `docker compose logs -f api` · `docker compose logs -f caddy duckdns`
-- Dừng: `docker compose --profile duckdns down` (giữ dữ liệu) · Xóa sạch: thêm `-v`.
-- Volume: `pgdata` (DB), `caddy_data` (chứng chỉ HTTPS — đừng xóa kẻo phải xin lại cert). RAW JSON
-  firmware giữ nguyên trong cột `raw` (JSONB), kể cả `outcome`/`peak_features`/`origins`/`LED_power`.
-- **Phương án public KHÁC** (nếu DuckDNS+port không chạy được): `--profile tunnel` (Cloudflare Tunnel,
-  **cần domain trả phí** làm zone trên Cloudflare) — token ở `.env` (`TUNNEL_TOKEN`).
-- **Nâng cấp 24/7 thật**: bê nguyên stack lên VPS (vd Oracle Cloud Always Free) nếu sau này chịu xác
-  minh thẻ — không đổi code, chỉ đổi nơi chạy.
+> Xem chi tiết + thứ tự làm trong [docs/plan/KE_HOACH_PHAT_TRIEN.md](docs/plan/KE_HOACH_PHAT_TRIEN.md).

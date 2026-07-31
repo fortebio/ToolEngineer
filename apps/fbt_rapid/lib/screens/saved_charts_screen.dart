@@ -65,9 +65,10 @@ class _SavedChartsScreenState extends State<SavedChartsScreen> {
         ],
       ),
       body: _items.isEmpty
-          ? const Center(
+          ? Center(
               child: Text('Chưa có ảnh đồ thị nào.',
-                  style: TextStyle(color: Colors.grey)))
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant)))
           : ListView.separated(
               padding: const EdgeInsets.all(12),
               itemCount: _items.length,

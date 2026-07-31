@@ -5,6 +5,7 @@ import '../services/cloud_cache.dart';
 import '../services/cloud_history_api.dart';
 import '../services/rapid_erp_api.dart';
 import '../services/session_store.dart';
+import '../theme/app_theme.dart';
 import '../util/format.dart';
 import 'cloud_runs_screen.dart';
 
@@ -80,7 +81,7 @@ class _CloudDevicesScreenState extends State<CloudDevicesScreen> {
     if (session == null || !session.canSee(id)) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Tài khoản không được cấp mã máy "$id".'),
-        backgroundColor: Colors.orange.shade800,
+        backgroundColor: AppSemantic.of(context).warning,
       ));
       return;
     }
@@ -168,7 +169,7 @@ class _CloudDevicesScreenState extends State<CloudDevicesScreen> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: const Text('Không cập nhật được, đang xem dữ liệu đã lưu.'),
-          backgroundColor: Colors.orange.shade800,
+          backgroundColor: AppSemantic.of(context).warning,
         ));
       }
     } finally {
@@ -260,6 +261,10 @@ class _CloudDevicesScreenState extends State<CloudDevicesScreen> {
         case CloudSource.rapidErp:
           hint = 'Chưa cấu hình RAPID ERP.\n\n'
               'Vào Cài đặt → "RAPID ERP" để nhập URL + API key.';
+          break;
+        case CloudSource.engineer:
+          hint = 'Chưa cấu hình Engineer Server.\n\n'
+              'Vào Cài đặt → "Engineer Server" để nhập URL + token.';
           break;
         case CloudSource.google:
           hint = 'Chưa cấu hình URL cloud.\n\n'

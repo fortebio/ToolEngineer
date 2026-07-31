@@ -91,7 +91,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: error ? Colors.red.shade700 : null,
+      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
       duration: Duration(seconds: error ? 4 : 1),
     ));
   }
@@ -224,7 +224,9 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.history, size: 64, color: Colors.grey),
+            Icon(Icons.history,
+                size: 64,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
             const SizedBox(height: 16),
             const Text(
               'Chưa có lịch sử.',

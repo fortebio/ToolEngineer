@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/com_names.dart';
 import '../services/temperature_serial.dart';
 import '../services/temperature_store.dart';
+import '../theme/app_theme.dart';
 import '../util/chart_capture.dart';
 import '../widgets/temp_chart.dart';
 import 'all_temp_charts_screen.dart';
@@ -47,7 +48,7 @@ class _TemperatureLogScreenState extends State<TemperatureLogScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(m),
-      backgroundColor: error ? Colors.red.shade700 : null,
+      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
       duration: Duration(seconds: error ? 4 : 1),
     ));
   }
@@ -180,9 +181,12 @@ class _TemperatureLogScreenState extends State<TemperatureLogScreen> {
                             fontSize: 15, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     if (_ctrl.available.isEmpty)
-                      const Text(
+                      Text(
                           'Không thấy cổng COM nào. Cắm máy rồi bấm Làm mới.',
-                          style: TextStyle(color: Colors.grey))
+                          style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant))
                     else
                       Wrap(
                         spacing: 8,
@@ -221,14 +225,16 @@ class _TemperatureLogScreenState extends State<TemperatureLogScreen> {
               const Divider(height: 1),
               Expanded(
                 child: active == null
-                    ? const Center(
+                    ? Center(
                         child: Padding(
-                          padding: EdgeInsets.all(24),
+                          padding: const EdgeInsets.all(24),
                           child: Text(
                             'Bấm một cổng COM ở trên để xem đồ thị nhiệt realtime.\n'
                             'Có thể bật nhiều cổng cùng lúc (đọc ngầm) và bấm để chuyển xem.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey),
+                            style: TextStyle(
+                                color:
+                                    Theme.of(context).colorScheme.onSurfaceVariant),
                           ),
                         ),
                       )
@@ -299,10 +305,10 @@ class _ActiveChartState extends State<_ActiveChart> {
                 children: [
                   Icon(Icons.thermostat,
                       color: reader.isOpen
-                          ? Colors.green
+                          ? AppSemantic.of(context).success
                           : (reader.isReconnecting
-                              ? Colors.orange
-                              : Colors.grey)),
+                              ? AppSemantic.of(context).warning
+                              : Theme.of(context).colorScheme.onSurfaceVariant)),
                   const SizedBox(width: 8),
                   Flexible(
                     child: Text(label,
@@ -334,8 +340,8 @@ class _ActiveChartState extends State<_ActiveChart> {
                           textAlign: TextAlign.end,
                           style: TextStyle(
                               color: reader.isReconnecting
-                                  ? Colors.orange.shade800
-                                  : Colors.red,
+                                  ? AppSemantic.of(context).warning
+                                  : Theme.of(context).colorScheme.error,
                               fontSize: 12)),
                     ),
                 ],
@@ -500,9 +506,12 @@ class _RawUartPanelState extends State<_RawUartPanel> {
                   });
                 }
                 if (lines.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Text('Chưa có dữ liệu UART.',
-                        style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        style: TextStyle(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontSize: 12)),
                   );
                 }
                 return Scrollbar(

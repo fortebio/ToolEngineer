@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/user_session.dart';
+import 'app_settings.dart';
 
 class AuthException implements Exception {
   final String message;
@@ -45,19 +46,31 @@ class AccountInfo {
       );
 }
 
-/// Client đăng nhập qua Apps Script **accounts** (web app riêng, tách khỏi
-/// lịch sử cloud). Gửi POST JSON tới `/exec` để khỏi lộ mật khẩu trên URL.
-///
-/// Backend: [sheet/userAuth.js]. Hợp đồng:
+/// Client tài khoản/đăng nhập. Backend là **Engineer Server** `POST /auth`
+/// (Postgres, `../Server/app/auth.py`) — đã CHUYỂN từ Apps Script userAuth.js
+/// (2026-07) nhưng nói CÙNG hợp đồng JSON nên client dùng được cho cả hai:
 ///   POST {action:"login", username, password}
 ///     → {ok:true, username, name, role, ids:[...], allowAll}  (thành công)
 ///     → {ok:false, error}                                     (sai/khoá)
+/// Khác biệt duy nhất: Engineer Server cần header Bearer (cửa chung) → [headers].
 class AuthApi {
   final String baseUrl;
   final Duration timeout;
+  final Map<String, String> headers;
 
-  AuthApi(String url, {this.timeout = const Duration(seconds: 20)})
+  AuthApi(String url,
+      {this.timeout = const Duration(seconds: 20), this.headers = const {}})
       : baseUrl = url.trim();
+
+  /// AuthApi trỏ Engineer Server (URL + token lấy từ Cài đặt, mặc định
+  /// kDefaultEngineerUrl / FBT_TOKEN nạp lúc build).
+  static Future<AuthApi> engineer() async {
+    final s = await AppSettings.load();
+    return AuthApi(
+      '${s.cloudUrlFor(CloudSource.engineer).replaceAll(RegExp(r'/+$'), '')}/auth',
+      headers: s.cloudHeadersFor(CloudSource.engineer),
+    );
+  }
 
   Future<UserSession> login(String username, String password) async {
     final decoded = await _post({
@@ -68,6 +81,17 @@ class AuthApi {
     if (decoded['ok'] != true) {
       throw AuthException(
           (decoded['error'] ?? 'Đăng nhập thất bại').toString());
+    }
+    // Server cấp token API sau đăng nhập thành công (bản WEB không nhúng token
+    // vào JS được) → Cài đặt chưa có token thì lưu để các call Bearer
+    // (/sessions, /devices...) dùng ngay trong phiên này.
+    final tok = (decoded['apiToken'] ?? '').toString().trim();
+    if (tok.isNotEmpty) {
+      final s = await AppSettings.load();
+      if (s.engineerToken.trim().isEmpty) {
+        s.engineerToken = tok;
+        await s.save();
+      }
     }
     return UserSession.fromJson(decoded);
   }
@@ -183,6 +207,8 @@ class AuthApi {
           ..followRedirects = false
           // text/plain → Apps Script vẫn đọc e.postData.contents; tránh preflight.
           ..headers['Content-Type'] = 'text/plain;charset=utf-8'
+          // Bearer cho Engineer Server; KHÔNG gửi theo hop redirect (tránh rò token).
+          ..headers.addAll(headers)
           ..body = jsonEncode(payload);
         streamed = await client.send(req).timeout(timeout);
         var hops = 0;

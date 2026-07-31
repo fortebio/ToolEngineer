@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_libserialport/flutter_libserialport.dart';
 
 import '../services/storage_paths.dart';
+import '../theme/app_theme.dart';
 import '../util/i18n.dart';
 import '../util/serial_ports.dart';
 
@@ -430,7 +431,7 @@ class _SerialConsoleScreenState extends State<SerialConsoleScreen> {
                           avatar: Icon(
                             s.isOpen ? Icons.usb : Icons.usb_off,
                             size: 16,
-                            color: s.isOpen ? Colors.green : cs.error,
+                            color: s.isOpen ? AppSemantic.of(context).success : cs.error,
                           ),
                           label: Text('${s.name} @ ${s.baud}'),
                         ),
@@ -476,7 +477,7 @@ class _SerialConsoleScreenState extends State<SerialConsoleScreen> {
               Icon(
                 s.isOpen ? Icons.usb : Icons.usb_off,
                 size: 18,
-                color: s.isOpen ? Colors.green : cs.error,
+                color: s.isOpen ? AppSemantic.of(context).success : cs.error,
               ),
               const SizedBox(width: 6),
               Text('${s.name} @ ${s.baud}',

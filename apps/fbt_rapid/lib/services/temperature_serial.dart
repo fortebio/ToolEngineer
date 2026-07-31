@@ -1,34 +1,14 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_libserialport/flutter_libserialport.dart';
 
 import '../util/serial_ports.dart';
+// Kiểu thuần (TempSample, kTempChannels) tách ra temp_types.dart cho web dùng
+// chung; export lại để mọi import cũ của file này không phải đổi.
+import 'temp_types.dart';
 
-/// 6 kênh nhiệt theo thứ tự cố định (khớp dòng TimeRB + TimeRT của firmware).
-const List<String> kTempChannels = [
-  'Lysis', // BottomHeater[0]
-  'Amp1', // BottomHeater[1]
-  'Amp2', // BottomHeater[2]
-  'Hotlid1', // TopHeater[0]
-  'Hotlid2', // TopHeater[1]
-  'Ambient', // TopHeater[2]
-];
-
-/// 1 mẫu nhiệt (1 chu kỳ) = thời gian (giây, theo đồng hồ máy) + 6 kênh.
-class TempSample {
-  final double t;
-  final List<double?> v; // 6 giá trị; null nếu thiếu
-  const TempSample(this.t, this.v);
-
-  List<dynamic> toJson() => [t, ...v];
-
-  factory TempSample.fromJson(List<dynamic> j) => TempSample(
-        (j.isNotEmpty && j[0] is num) ? (j[0] as num).toDouble() : 0.0,
-        [for (var i = 1; i < j.length; i++) (j[i] as num?)?.toDouble()],
-      );
-}
+export 'temp_types.dart';
 
 /// Đọc nhiệt từ MỘT cổng COM của máy RPL (@115200), parse dòng TimeRB/TimeRT,
 /// **tự kết nối lại** khi tạm mất kết nối (rút cáp / lỗi stream).
@@ -96,7 +76,12 @@ class TempPortReader extends ChangeNotifier {
         ..bits = 8
         ..parity = SerialPortParity.none
         ..stopBits = 1
-        ..setFlowControl(SerialPortFlowControl.none);
+        ..setFlowControl(SerialPortFlowControl.none)
+        // GHIM DTR/RTS off: DTR→EN, RTS→GPIO0 là mạch auto-reset ESP32/Forte.
+        // Không set → driver Windows tự bật 2 chân khi mở cổng → máy tự reset
+        // ngay khi bắt đầu log nhiệt (giống serial_console_screen).
+        ..dtr = SerialPortDtr.off
+        ..rts = SerialPortRts.off;
       p.config = cfg;
       _port = p;
       _buf = '';

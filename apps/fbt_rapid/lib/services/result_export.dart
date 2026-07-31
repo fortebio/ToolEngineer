@@ -1,13 +1,17 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../models/test_result.dart';
 import '../util/curve_processing.dart';
+import '../util/platform_files.dart' as pf;
 import 'storage_paths.dart';
 
 /// Xuất kết quả 1 lần chạy: 4 ảnh đồ thị PNG + data.json, lưu **gom theo mã máy**:
 /// `Documents\FBT_RAPID_ketqua\<MãMáy>\<Ngày_Giờ_Firmware>\`.
+/// Trên WEB: không có filesystem → tải từng file xuống Downloads (tên file
+/// ghép `<MãMáy>_<Ngày_Giờ>_...`), [saveRun] trả '' (caller ẩn nút "Mở").
 class ResultExport {
   // Thư mục gốc đặt trong Cài đặt (mặc định Documents) + tên cố định.
   static String get baseDir => '${StoragePaths.parent}\\FBT_RAPID_ketqua';
@@ -37,7 +41,8 @@ class ResultExport {
     CurveView.baselineSmoothed: 'baseline_sg.png',
   };
 
-  /// Lưu các ảnh đồ thị (theo CurveView) + data.json. Trả về đường dẫn folder.
+  /// Lưu các ảnh đồ thị (theo CurveView) + data.json. Trả về đường dẫn folder
+  /// (web: tải xuống Downloads và trả '').
   static Future<String> saveRun(
     TestResult run,
     Map<CurveView, Uint8List> pngs,
@@ -46,15 +51,6 @@ class ResultExport {
     final device = _safe(run.deviceId.isEmpty ? 'May' : run.deviceId);
     final sub = '${_date(run.timestamp)}_${_time(run.timestamp)}'
         '_${_safe(run.version.isEmpty ? "NA" : run.version)}';
-    final dir = Directory('$baseDir\\$device\\$sub');
-    dir.createSync(recursive: true);
-
-    for (final e in pngs.entries) {
-      final name = _pngName[e.key];
-      if (name != null) {
-        await File('${dir.path}\\$name').writeAsBytes(e.value);
-      }
-    }
 
     final data = {
       'deviceId': run.deviceId,
@@ -72,13 +68,27 @@ class ResultExport {
           },
       ],
     };
-    await File('${dir.path}\\data.json').writeAsString(jsonEncode(data));
-    return dir.path;
+
+    if (kIsWeb) {
+      // Không có thư mục trên web → mã máy + thời gian vào TÊN từng file.
+      for (final e in pngs.entries) {
+        final name = _pngName[e.key];
+        if (name != null) pf.downloadBytes('${device}_${sub}_$name', e.value);
+      }
+      pf.downloadBytes(
+          '${device}_${sub}_data.json', utf8.encode(jsonEncode(data)));
+      return '';
+    }
+
+    final dir = '$baseDir\\$device\\$sub';
+    pf.ensureDir(dir);
+    for (final e in pngs.entries) {
+      final name = _pngName[e.key];
+      if (name != null) await pf.writeFileBytes('$dir\\$name', e.value);
+    }
+    await pf.writeFileText('$dir\\data.json', jsonEncode(data));
+    return dir;
   }
 
-  static void revealInExplorer(String path) {
-    try {
-      Process.run('explorer.exe', [path]);
-    } catch (_) {}
-  }
+  static void revealInExplorer(String path) => pf.openFolder(path);
 }

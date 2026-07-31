@@ -10,7 +10,10 @@ Drive), **theo dõi nhiệt độ realtime qua UART/COM**, lưu kết quả/đ�
 
 - Tên hiển thị: **FBT_RAPID** · tên gói (`pubspec name`): `RapidPlusApp` · **tên exe**: `fbt_dxd_app.exe`
   (đặt trong `windows/CMakeLists.txt` → `BINARY_NAME`). Ba tên này KHÁC nhau — dễ nhầm.
-- Chỉ build/chạy **Windows desktop** (chưa làm android/ios/web).
+- Build/chạy **Windows desktop** (đầy đủ) và **WEB** (thêm 2026-07, host tại
+  `https://fbt.basa-luma.ts.net/app/`: đăng nhập, Lịch sử cloud + đồ thị, tab Thư Mục/JSON data,
+  cả tab Kỹ Thuật qua Web Serial + esptool-js trên Chrome/Edge desktop — mục Web dưới).
+  Chưa làm android/ios.
 
 ## Lệnh hay dùng (PowerShell)
 ```powershell
@@ -19,16 +22,25 @@ flutter run -d windows                 # chạy có hot reload
 flutter build windows --debug          # build nhanh để test  → build\windows\x64\runner\Debug\fbt_dxd_app.exe
 flutter build windows --release        # build phát hành      → ...\Release\
 flutter analyze lib/<file>...          # lint nhanh vài file (đừng analyze cả repo nếu không cần)
+flutter build web --release            # build WEB → build\web (host tĩnh ở đâu cũng được)
 ```
-Đóng gói installer (Inno Setup) — **phải `--release` TRƯỚC** vì script trỏ vào thư mục Release:
+Đóng gói installer (Inno Setup) — **phải `--release` TRƯỚC** vì script trỏ vào thư mục Release.
+`installer.iss` nằm ở **gốc repo app** (source/icon/vendor dùng path tương đối `AddBackslash(SourcePath)`
+— đừng hardcode đường dẫn tuyệt đối); mỗi lần phát hành nhớ nâng `MyAppVersion` trong file.
+Version phát hành = `MyAppVersion` (khớp tag commit `vX.Y.Z`); `pubspec.yaml` KHÔNG đồng bộ (vẫn 1.0.2) — đừng lấy đó làm chuẩn:
 ```powershell
-& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" "C:\Users\nvdat\Downloads\app\installer.iss"
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer.iss
 # → C:\Users\nvdat\Downloads\FBT_RAPID-Setup-vX.Y.Z.exe
 ```
 **Chạy + chụp màn hình tự động** (cho AI/agent — GUI không có curl/Playwright): skill
 `.claude/skills/run-fbt-rapid/` (`driver.ps1`) build/launch `fbt_dxd_app.exe` rồi chụp ĐÚNG cửa
 sổ ra PNG. Vd `& .claude\skills\run-fbt-rapid\driver.ps1` (launch Debug → chụp `_smoke.png` →
-đóng; cờ `-KeepOpen`/`-Attach`/`-Release`).
+đóng; cờ `-KeepOpen`/`-Attach`/`-Release`). Muốn **bấm nút** trong app (driver chỉ chụp): script
+PS `SetForegroundWindow` → `GetWindowRect` → `SetCursorPos(rect + offset-theo-ảnh-PNG)` →
+`mouse_event` down/up — offset lấy thẳng từ toạ độ pixel trên PNG vừa chụp (PrintWindow 1:1 với
+GetWindowRect). Click có thể TRƯỢT im lặng (không lỗi) → sau mỗi click phải chụp lại xác nhận;
+kết quả bấm-mở-màn có khi tới CHẬM (fetch mạng) — chụp thấy chưa đổi thì chờ rồi chụp lại
+trước khi kết luận hỏng.
 
 ## Kiến trúc
 - **Entry**: `lib/main.dart` → `_AuthGate` khôi phục phiên đã lưu → `LoginScreen` (chưa đăng nhập)
@@ -38,8 +50,17 @@ sổ ra PNG. Vd `& .claude\skills\run-fbt-rapid\driver.ps1` (launch Debug → ch
   User**. Tab **Kỹ Thuật** (`tech_screen.dart`, mẫu segmented giống Lịch sử) GỘP 3 công cụ: **Log nhiệt**
   (`temperature_log_screen.dart`) | **Đọc serial** (`serial_console_screen.dart`) | **Nạp code**
   (`flasher_screen.dart`). **Thiết lập + Đăng xuất** KHÔNG còn là tab mà nằm trong **menu của icon tài khoản**
-  (shield = nhân sự root/admin · person = khách hàng) ở `trailing`. Tab **Lịch sử** là màn
-  GỘP `history_combined_screen.dart` (nút gạt **Cục bộ | Cloud**). Thiết lập đẩy như route (admin
+  (shield = nhân sự root/admin · person = khách hàng) ở `trailing`. Tab **Lịch sử**
+  (`history_combined_screen.dart`) chỉ còn Cloud (admin có segmented chọn nguồn). Tab **Thư Mục**
+  (`folder_screen.dart`, mọi vai trò, có cả trên web) — mục lớn duyệt dữ liệu dạng file, mẫu segmented
+  giống Kỹ Thuật, hiện có 1 mục con **JSON data** (`json_files_screen.dart`): liệt kê mọi file JSON
+  thiết bị đã đẩy lên **Engineer Server** — dùng `GET /sessions` KHÔNG lọc máy (`FbtApi.listRuns('')`
+  phải **BỎ hẳn param `device`**; gửi `device=''` server lọc theo chuỗi rỗng → trả RỖNG); phân trang
+  "Tải thêm", lọc `canSee`, bấm từng file → xem **JSON THÔ** pretty-print (`FbtApi.fetchSessionJson`
+  = `GET /sessions/{id}`, KHÔNG parse thành đồ thị), có nút copy. Kèm nút mở file JSON lẻ trên máy
+  (cũng xem thô). Màn chỉ dùng HTTP, KHÔNG `dart:io` → chạy được cả web. (`TestResult.fromLooseJson`
+  đoán 3 shape data.json/payload/run cloud vẫn còn cho nơi khác dùng, test `test/loose_json_test.dart`.)
+  Thiết lập đẩy như route (admin
   **1 màn DÙNG CHUNG** `user_settings_screen.dart` cho cả admin lẫn user (đồng bộ giống nhau;
   `settings_screen.dart` cũ KHÔNG còn dùng). **Thanh nav ẩn hẳn** — hover mép trái (vùng 14px +
   "tay nắm" gợi ý) mới hiện như **overlay trong `Stack`** (KHÔNG dùng `Row`): bung/thu thanh nav KHÔNG
@@ -56,12 +77,27 @@ sổ ra PNG. Vd `& .claude\skills\run-fbt-rapid\driver.ps1` (launch Debug → ch
   `allowAll` backend cũ). Màn con đọc `SessionStore.current`/`canWrite` để lọc + ẩn nút.
 - **Nguồn dữ liệu** (mỗi nguồn 1 service):
   - `device_api.dart` — HTTP `GET /getdata` tới IP máy trong LAN (tab Lịch sử).
-  - **2 nguồn cloud, 1 giao diện chung** `CloudHistoryClient` (trong `cloud_history_api.dart`):
+  - **3 nguồn cloud, 1 giao diện chung** `CloudHistoryClient` (trong `cloud_history_api.dart`):
     màn `cloud_devices`/`cloud_runs` chỉ phụ thuộc interface; chọn lớp triển khai qua factory
     **`buildCloudClient(settings, source)`** (trong `rapid_erp_api.dart`) theo `enum CloudSource
-    {google, rapidErp}` (`app_settings.dart`, helper `cloudUrlFor/cloudHeadersFor`).
-    Thêm nguồn = thêm 1 lớp `implements CloudHistoryClient` + 1 nhánh factory, KHÔNG sửa UI.
-    (Nguồn **server tự host (self-hosted)** ĐÃ BỎ khỏi app — `server/` còn nhưng app không gọi.)
+    {google, rapidErp, engineer}` (`app_settings.dart`, helper `cloudUrlFor/cloudHeadersFor`).
+    Thêm nguồn (checklist THỰC TẾ, đã làm với `engineer` 2026-07): enum + nhánh
+    `cloudUrlFor`/`cloudHeadersFor` (`app_settings.dart`) + nhánh factory + `ButtonSegment`
+    (`history_combined_screen.dart`) + case hint chưa-cấu-hình (switch trong `_buildBody`
+    `cloud_devices_screen.dart` — switch enum Dart bắt exhaustive, thiếu case là lỗi
+    compile) + field/persist + ô nhập Cài đặt + key i18n. Logic màn cloud KHÔNG phải sửa.
+  - `fbt_api.dart` — nguồn **`engineer` = Engineer Server** (thêm 2026-07): **FBT Home Server** của
+    kỹ sư (FastAPI, source ở `../Server/app.py` — project RIÊNG cạnh `app/`, expose qua Tailscale
+    Funnel, mặc định `kDefaultEngineerUrl = https://fbt.basa-luma.ts.net`). REST: `GET /devices`
+    (id_device/sessions/last_seen) · `/sessions?device&page&limit` (phân trang **page 1-based**,
+    app quy đổi từ offset) · `/sessions/{id}` (payload firmware gốc, KHÔNG amplification) ·
+    `/sessions/{id}/amplification` (`slots[].points` = mảng số server đã parse → `curvesAreRaw`).
+    Auth `Authorization: Bearer <RECEIVER_TOKEN>`: admin nhập ở Cài đặt, HOẶC nạp lúc build
+    `--dart-define=FBT_TOKEN=…` (`kDefaultEngineerToken`); token thật chỉ nằm trong
+    `/etc/fbt-receiver.env` trên server box (token trong `Server/note.md` đã LỘ và bị xoay).
+    GOTCHA: item `/sessions` cần cả `payload->'result'` (chữ P/N/S/E) — đã thêm vào `app.py`
+    2026-07-11, server phải **redeploy** mới có; app parse phòng thủ (thiếu `result` → phân loại
+    "?" ở danh sách, mở chi tiết vẫn đủ).
   - `cloud_history_api.dart` — `GET` (ids/runs/run) đọc lịch sử cloud Google Apps Script `doGet`
     (Drive). Khác nguồn RAPID ERP chỉ ở **baseUrl + field `headers`**.
     Tab Cloud có **segmented chọn nguồn** (`history_combined_screen.dart`) **chỉ hiện cho admin**
@@ -86,12 +122,72 @@ sổ ra PNG. Vd `& .claude\skills\run-fbt-rapid\driver.ps1` (launch Debug → ch
     `X-API-Key`** (gọi không key vẫn 200) — vẫn nên nhập key khi server bật xác thực.
     Test nhanh ngoài app: `curl ".../external/device/<id>/results?limit=5"`.
   - `temperature_serial.dart` — UART/COM qua `flutter_libserialport`, đa cổng (tab Nhiệt độ).
-  - `auth_api.dart` — `POST` Apps Script accounts (đăng nhập — **vẫn trên Apps Script**).
+  - `auth_api.dart` — tài khoản/đăng nhập. **ĐÃ CHUYỂN về Engineer Server** (2026-07-14):
+    `AuthApi.engineer()` → `POST {engineerUrl}/auth` kèm Bearer (bảng `users` Postgres,
+    `../Server/app/auth.py`) — server nói ĐÚNG hợp đồng JSON userAuth.js nên client giữ nguyên;
+    3 call site (login/thiết lập/quản lý user) đều qua factory này. Apps Script `userAuth.js` +
+    `kDefaultAuthApiUrl` chỉ còn là đường lùi khẩn cấp (đổi lại trong `AuthApi.engineer`).
+    LƯU Ý: login CẦN token Engineer Server → build phát hành phải nạp
+    `--dart-define=FBT_TOKEN=…` (hoặc user nhập ở Cài đặt); server phải deploy `/auth` và
+    import tài khoản (xem `Server/docs/history/2026-07-14.md`) TRƯỚC khi phát hành app.
 - **Lưu file**: gốc = `StoragePaths.parent` (static, set từ Cài đặt, mặc định `Documents`).
   Kết quả CT → `FBT_RAPID_ketqua\`; log nhiệt → `FBT_RAPID_templog\`; log đọc serial → `FBT_RAPID_seriallog\`
   (`<COM>_<thời gian>.txt`). Mở thư mục/chọn file = `Process.run('explorer.exe', ['/select,', path])`.
 - **Đồ thị** (`fl_chart`): `widgets/ct_chart.dart` (CT), `widgets/temp_chart.dart` (nhiệt). Lưu ảnh =
   bọc `RepaintBoundary` rồi `util/chart_capture.dart::captureBoundaryPng` (chụp off-screen qua Overlay).
+
+## Web (build trình duyệt — thêm 2026-07)
+
+- **Phạm vi**: đăng nhập + Lịch sử cloud + đồ thị CT + tab Thư Mục (JSON data) + **tab Kỹ Thuật
+  đầy đủ 3 công cụ qua Web Serial** (mục dưới). Ẩn trên web: mục "Nơi lưu file" trong Cài đặt.
+- **Tab Kỹ Thuật TRÊN WEB (2026-07-14)** — `tech_screen_web.dart` không còn là stub: đủ **Log nhiệt
+  | Đọc serial | Nạp code** bằng **Web Serial API** (binding tự viết `util/web_serial.dart`,
+  dart:js_interop) + **esptool-js** (bundle chính thức Espressif, binding `util/esptool_js.dart`).
+  CHỈ chạy Chrome/Edge DESKTOP (Firefox/Safari/mobile → màn cảnh báo `webSerialSupported`); mỗi lần
+  kết nối user tự chọn cổng trong hộp thoại browser (không liệt kê cổng tự động được). 3 màn web
+  (`web_temp_log_screen` / `web_serial_console_screen` / `web_flasher_screen`) VIẾT TÁCH RIÊNG bám
+  spec desktop (KHÔNG đụng code serial desktop): parse TimeRT/TimeRB + TemperatureOutput y hệt,
+  console đa cổng + HEX + cap buffer y hệt, flasher offsets/flash mode/size + monitor-sau-nạp y hệt
+  (khác: "Dừng" = ngắt cổng vì không có process để kill; "Lưu" = tải Downloads). GOTCHA giữ nguyên
+  từ desktop: sau `port.open()` PHẢI `setSignals({dataTerminalReady:false, requestToSend:false})`
+  — không set là Chrome bật DTR/RTS → ESP32 auto-reset (đã ghim trong `WebSerialPort.open`).
+  **esptool-js vendor**: bundle 1 file IIFE bằng esbuild (`npm i esptool-js esbuild` →
+  `npx esbuild entry.mjs --bundle --format=iife --global-name=esptoolJS --minify`) → `web/esptool.js`
+  kèm thẻ `<script src="esptool.js" defer>` trong `web/index.html`; nâng version esptool-js thì làm
+  lại bundle. `TempSample`/`kTempChannels` đã TÁCH ra `services/temp_types.dart` thuần để
+  `temp_chart.dart` (tái dùng nguyên trên web) không kéo dart:ffi.
+- **Cơ chế cắt native** (build web KHÔNG được kéo dart:io/dart:ffi vào import graph):
+  (1) facade **`util/platform_files.dart`** `export ..._io.dart if (dart.library.html) ..._web.dart`
+  — mọi thao tác file/thư mục đi qua đây (`storage_paths`/`result_export`/`user_settings` đã dùng,
+  KHÔNG import dart:io trực tiếp trong file dùng chung nữa); bản web "lưu" = **tải xuống Downloads**
+  (`ResultExport.saveRun` trả `''` → caller ẩn nút "Mở" snackbar). (2) conditional import màn hình:
+  `tech_screen.dart if (dart.library.html) tech_screen_web.dart` (home_shell) — bản web cùng tên
+  class + constructor. Màn nào chỉ HTTP thì KHÔNG cần bản `_web`. File web-only (`web_*.dart`,
+  `util/web_serial.dart`, `util/esptool_js.dart`) import trực tiếp `platform_files_web.dart` được.
+- **HOST bản web trên chính Engineer Server (2026-07-14)**: build
+  `flutter build web --release --base-href /app/` (KHÔNG `--dart-define=FBT_TOKEN` — token nhúng
+  vào JS public là LỘ) rồi scp nguyên `build\web\*` vào `~/fbt_server/web/` trên box → server mount
+  tĩnh tại **`https://fbt.basa-luma.ts.net/app/`**. GOTCHA redeploy (OpenSSH 9+ trên Windows dùng SFTP):
+  `scp -r build\web\*` vào thư mục ĐÃ CÓ dễ **"stat remote/Permission denied"** + lồng `assets/assets`;
+  cách chắc: `scp -O` (cờ legacy protocol) + scp **NỘI DUNG** (`build\web\assets\*` vào `web/assets/`)
+  thay vì cả thư mục. Nếu lần scp lỗi để thư mục `web/assets`/`canvaskit` mode `dr-x` (mất quyền ghi) →
+  `ssh … "chmod -R u+rwX ~/fbt_server/web"` (đừng `rm -rf` production — classifier chặn, đúng). Font
+  Flutter web nằm ở `web/assets/assets/fonts/` (double — pubspec path `assets/fonts/` bị prefix `assets/`).
+  **Cùng origin với API → hết CORS** cho
+  /auth + /sessions + /devices (nguồn Engineer + mục JSON data chạy được trên web). Token cho web:
+  `/auth` KHÔNG cần Bearer; **login thành công server trả `apiToken`** → `AuthApi.login` tự lưu vào
+  `engineerToken` (Cài đặt) nếu đang trống.
+- **CORS (ĐÃ XÁC MINH 2026-07-13)**: Apps Script trả `Access-Control-Allow-Origin: *` cho cả POST
+  login lẫn GET ids → nguồn **Google chạy nguyên bản trên web**. `auth_api` sẵn POST `text/plain`
+  (không preflight); vòng redirect thủ công KHÔNG chạy trên web (browser tự follow 302) — đừng "sửa".
+  **RAPID ERP vẫn bị browser chặn** tới khi server đó bật CORS (Engineer Server thì đã hết vấn đề
+  nhờ cùng origin — bullet trên).
+- **Wasm KHÔNG build được** (flutter_libserialport kéo dart:ffi vào dependency) — chỉ build JS mặc
+  định; `platform_files_web` dùng `dart:html` (deprecated — đổi `package:web` khi nào cần wasm).
+- `.gitignore` dùng **`web/*` + trừ `!web/index.html` `!web/esptool.js`** (pattern `web/` cả thư mục
+  thì KHÔNG trừ con được — quirk của git): 2 file sửa tay/vendor này giờ ĐƯỢC version, các file
+  `flutter create` sinh khác vẫn ignore. Sinh lại `web/` thì title/manifest + thẻ script esptool
+  trong index.html sẽ bị ghi đè — lấy lại từ git.
 
 ## Backend (2 Apps Script RIÊNG, file trong `sheet/`)
 - `getData.js` — `doPost` (firmware đẩy kết quả) + `doGet` (app đọc lịch sử: ids/runs/run/peek).
@@ -104,10 +200,11 @@ sổ ra PNG. Vd `& .claude\skills\run-fbt-rapid\driver.ps1` (launch Debug → ch
   Đổi deploy → sửa hằng → build lại.
 - **Sửa script → phải Deploy lại** (Manage deployments → Edit → New version) thì `/exec` mới cập nhật.
 
-### Server tự host (Docker, `server/`) — backend ĐỘC LẬP (app KHÔNG còn gọi)
+### Server tự host (Docker, `server/`) — backend ĐỘC LẬP (app KHÔNG gọi)
 
-> **App đã BỎ nguồn self-hosted** (chỉ còn Google + RAPID ERP). `server/` vẫn giữ làm backend
-> đứng riêng (firmware vẫn POST `/ingest` được); muốn app đọc lại thì khôi phục `CloudSource.selfHosted`.
+> App KHÔNG đọc `server/` (nguồn **Engineer Server** trong app trỏ **FBT Home Server**
+> `../Server/app.py` — project khác, xem bullet `fbt_api.dart` ở trên). `server/` vẫn là backend
+> đứng riêng (firmware POST `/ingest` được); muốn app đọc thì viết client theo hợp đồng `/api`.
 - Stack: **Postgres 16 + Node/Express** (`api/`). Public ra ngoài (miễn phí, không thẻ) bằng **DuckDNS
   (DNS động) + Caddy (HTTPS Let's Encrypt tự động)** dưới profile `duckdns` → cần **mở port 80/443** ở
   router (`https://<tên>.duckdns.org`). Chạy trên máy luôn-bật ở nhà. Lệnh: `cp .env.example .env` → điền
@@ -164,16 +261,31 @@ sổ ra PNG. Vd `& .claude\skills\run-fbt-rapid\driver.ps1` (launch Debug → ch
 - **Theme + ngôn ngữ**: `AppPrefs.instance` (ChangeNotifier toàn cục, lưu `shared_preferences`); chuỗi UI
   mới dùng `tr('key')` (`util/i18n.dart`, fallback tiếng Việt). `MaterialApp` bọc trong
   `AnimatedBuilder(animation: AppPrefs.instance)`.
-- **Giao diện CHUNG nằm ở `lib/main.dart::_theme(Brightness)`** — theme **token-driven** (M3, seed
-  `0xFF1565C0`; nền `#F5F7FA`, thẻ phẳng viền mảnh, input/nút bo góc filled, density `standard` cho
-  desktop). Đổi "look" toàn app → sửa ở đây (mọi màn thừa hưởng, cả dark mode). Trong màn con **luôn
-  dùng `Theme.of(context).colorScheme.*`** (vd `onSurfaceVariant`, `primaryContainer`), KHÔNG hardcode
-  `Colors.grey/black` (sai tương phản dark mode + lệch theme). Số liệu/ngày trong list dùng
-  `FontFeature.tabularFigures()` để canh cột.
+- **Design system (2026-07, port từ `UI_UX_FLUTTER.md` web → Flutter Material 3)**: TẤT CẢ ở
+  **`lib/theme/app_theme.dart`** — top-level const `kNavy #0A1F47` (primary) / `kAccent #E0A63A`
+  (amber, = tertiary) / `kBg #F1F2F5` / `kCard #FFFFFF` / `kBorder #E7E8EB` / `kMutedFg #7C8088` /
+  `kError #D6483B` / `kSuccess #2E9E6B` / `kInfo #3E7BC7`; `AppRadius` base 12 / card 16;
+  `kCardShadow` (bóng xếp lớp); **`AppCard`** (recipe nền surface + bo 16 + viền + `kCardShadow`, có
+  hover nhấc 2px); **`AppSemantic`** = `ThemeExtension` cho `success/warning/info/surfaceSunken`
+  (đăng ký trong `appTheme()` qua `extensions:`, đọc bằng `AppSemantic.of(context).success`); và
+  **`appTheme(Brightness)`** — theme builder DUY NHẤT (ColorScheme.fromSeed(navy)+copyWith, font
+  `DM Sans`). `main.dart` chỉ gọi `appTheme(...)` (KHÔNG còn `_theme` cục bộ). Font nhúng
+  `assets/fonts` (variable TTF, pubspec): **`JetBrains Mono`** cho số/log/JSON (`fontFamily:
+  'JetBrains Mono'`, KHÔNG 'Consolas'), **`Source Serif 4`** tiêu đề display. Đổi "look" → sửa
+  `app_theme.dart`. Màn con **luôn `Theme.of(context).colorScheme.*`** / `AppSemantic.of(context)`,
+  KHÔNG hardcode `Colors.red/green/orange/grey` (GIỮ ngoại lệ: `Colors.white` trên nút màu, palette
+  đồ thị `kSlotColors`/`kTempColors`, nền ảnh chart đen). Thẻ "hero" dùng `AppCard`; số/ngày dùng
+  `FontFeature.tabularFigures()`.
 - **Tự cập nhật doc**: `.claude/settings.json` có **Stop hook** nhắc bổ sung bài học mới vào CLAUDE.md sau
   mỗi lượt (chống lặp bằng cờ `stop_hook_active`). Vì vậy hãy giữ file này luôn cập nhật.
 
 ## Gotchas (đã gặp thật — đừng dẫm lại)
+- **Phân trang + lọc quyền `canSee` ở CLIENT → user hạn chế kẹt ở trang rỗng**: màn tải theo trang
+  rồi lọc `canSee` (vd `json_files_screen`) — 1 trang có thể TOÀN máy không-được-xem → lọc ra RỖNG.
+  Nếu coi `_items.isEmpty` là "hết" (nút Tải thêm nằm trong ListView, không hiện) thì user chỉ được
+  cấp vài mã máy sẽ thấy "rỗng" và KẸT dù máy họ nằm ở trang sau (root/`*` không dính vì canSee luôn
+  true). Fix: `_load` tự tải tiếp khi trang lọc ra rỗng mà còn trang (cap vòng lặp), tới khi có item
+  xem được hoặc hết.
 - **Apps Script POST trả 302**: `http.post` của Dart **không** tự đi theo redirect tới URL "echo"
   (`script.googleusercontent.com`) → nhận 302. Phải: gửi `Request` với `followRedirects=false`, đọc
   header `Location`, **`await streamed.stream.drain()`** (KHÔNG drain → hop GET sau bị **401** do kết nối
@@ -208,12 +320,31 @@ sổ ra PNG. Vd `& .claude\skills\run-fbt-rapid\driver.ps1` (launch Debug → ch
   `...\runner\Release` (KHÔNG trỏ thư mục dự án — sẽ gói cả mã nguồn, chậm + bộ cài hỏng).
 - **Shell môi trường KHÔNG có `jq`** — viết hook/script xử lý JSON bằng **bash thuần** (`case`/`grep`)
   hoặc node/python, đừng phụ thuộc `jq`. (Windows `python` cũng không hiểu path `/tmp` của Git Bash.)
+- **Engineer Server trả 405 = URL trong Cài đặt THỪA path** (vd `.../api`): `app.py` có route
+  `POST` catch-all `/{_path}` nên GET vào path lạ ra **405 thay vì 404** (`GET /devices` đúng → 401
+  khi thiếu token). Lưu ý gốc rễ: **URL đã lưu trong `shared_preferences` KHÔNG tự đổi khi đổi hằng
+  default** (`_orDefaultUrl` chỉ áp khi ô TRỐNG) — đổi hợp đồng/URL mặc định thì user phải xóa trống
+  ô URL cũ (áp cho cả `cloudApiUrl`/`rapidErpUrl`).
+- **Engineer Server trả 500 = tầng Postgres trên box chưa sẵn sàng** (đúng token vẫn 500): bảng
+  `sessions`/role chưa tạo (chưa chạy `deploy/schema.sql`) hoặc Postgres/psycopg thiếu — KHÔNG phải
+  lỗi app. `/ingest` vẫn 200 (file-first, catch lỗi DB) nên thiết bị đẩy được mà app không đọc được.
+  Chẩn đoán trên box: `journalctl -u fbt-receiver -n 30`; sau khi tạo schema phải chạy
+  `reconcile.py` nạp file JSON cũ vào DB, không thì `/devices` trả danh sách RỖNG.
+- **KHÔNG dán token/API key trần vào lệnh inline** (vd `curl -H "Authorization: Bearer <token>"`):
+  classifier permission của box sẽ CHẶN vì lộ credential trong transcript. Cách qua: đọc từ file vào
+  biến trong CÙNG lệnh — `TOK=$(grep -oP 'RECEIVER_TOKEN=\K\S+' note.md) && curl -H "Authorization:
+  Bearer $TOK" …`. Áp dụng khi test RAPID ERP key / RECEIVER_TOKEN Engineer Server.
 - **Inline `sed`/`node -e` NUỐT dấu `\` trong box này** — chuỗi `\\n` trong lệnh 1 dòng bị gom còn
   newline thật: `sed 's|\\n|…|'` KHÔNG khớp (không thay gì), còn `node -e '…split("\\n")…'` lại cắt
   theo **newline** → đã biến cả file `.md` thành 1 dòng (HỎNG). Cần xử lý text chứa `\` (vd đổi `\n`
   literal → `<br/>`) thì dùng **Write/Edit tool** hoặc ghi script ra FILE rồi chạy, ĐỪNG nhúng
   backslash vào lệnh inline. (`grep '\\n'` ở đây cũng cho kết quả sai — kiểm bằng `grep -F '\n'`.)
 - **Node.js + Docker GIỜ ĐÃ CÓ trên máy dev** (Node v24, Docker v29 — kiểm `node --version`/`docker --version`).
+  Docker **daemon KHÔNG tự chạy** (lỗi `npipe:... dockerDesktopLinuxEngine` = chưa bật): khởi động bằng
+  `Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"` rồi poll `docker info` tới khi exit 0
+  (thường vài giây). Python cũng có (3.12) nhưng KHÔNG có fastapi/pytest global — test project `Server/`
+  thì tạo venv trong scratchpad (`python -m venv` + pip fastapi/httpx/psycopg[binary]/uvicorn); in tiếng Việt
+  từ python ra console Windows dính `UnicodeEncodeError` cp1252 (chỉ lỗi ở print — assert trước đó vẫn tính).
   (Trước đây box chỉ có Flutter; nếu gặp box thiếu Node thì `winget install -e --id OpenJS.NodeJS.LTS`
   rồi nạp lại PATH tại chỗ: `$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' +
   [Environment]::GetEnvironmentVariable('Path','User')`.)
@@ -274,11 +405,23 @@ sổ ra PNG. Vd `& .claude\skills\run-fbt-rapid\driver.ps1` (launch Debug → ch
 - **Thiết bị ESP32/Forte TỰ RESET khi mở cổng / gửi UART**: DTR/RTS là **mạch auto-reset** (DTR→EN,
   RTS→GPIO0). `SerialPortConfig` KHÔNG set `dtr`/`rts` → để `invalid` → driver Windows tự BẬT 2 chân khi
   mở/ghi → máy reset. Fix: cấu hình **`..dtr = SerialPortDtr.off ..rts = SerialPortRts.off`** (sau
-  `setFlowControl(none)`) để ghim trạng thái KHÔNG-reset (đã áp `serial_console_screen.dart`; `temperature_serial.dart`
-  còn latent — thêm khi log nhiệt cũng reset máy). Config chỉ áp lúc **mở cổng** → phải đóng/mở lại mới ăn.
+  `setFlowControl(none)`) để ghim trạng thái KHÔNG-reset (đã áp CẢ `serial_console_screen.dart` LẪN
+  `temperature_serial.dart` — 2026-07; web `web_serial.dart` dùng `setSignals(dtr:false,rts:false)`).
+  Config chỉ áp lúc **mở cổng** → phải đóng/mở lại mới ăn.
   Nếu reset **CHỈ khi gửi** (không reset lúc mở) thì là **firmware tự reboot theo lệnh nhận được** (crash/
   watchdog/lệnh reset), sửa ở firmware FBT-DXD — không phải app; xem RX có banner boot để phân biệt.
 - **Backend nằm TRONG repo app**: Apps Script ở `app/sheet/` (getData/userAuth/accounts) **và** server
   tự host (Docker) ở `app/server/` — đã GOM từ `FBT-DXD/` về `app/` (doc tham chiếu `sheet/`, `server/`,
   KHÔNG còn `../FBT-DXD/`). **`FBT-DXD/` chỉ còn là repo FIRMWARE RIÊNG** (PlatformIO/ESP —
   `src/ lib/ platformio.ini`), KHÔNG trộn vào app; firmware POST kết quả lên cả Apps Script lẫn `server/`.
+- **`flutter create --platforms web .` từ chối tên pubspec `RapidPlusApp`** (không phải tên package
+  Dart hợp lệ): đổi TẠM `name: rapidplusapp` → chạy create → đổi lại. Create cũng đụng
+  `.plugin_symlinks` (lỗi OneDrive như trên — kệ, build windows sau đó vẫn chạy) và sinh
+  `web/index.html`/`manifest.json` mang tên `rapidplusapp` → nhớ sửa lại title/manifest `FBT_RAPID`.
+- **Chụp màn hình app WEB trong Chromium bằng PrintWindow ra ảnh XÁM** (dù flag `2`): nội dung
+  Chrome/Edge composite bằng GPU nên PrintWindow không thấy. Fix: launch trình duyệt với
+  **`--disable-gpu`** (+ `--app=<url>` để có cửa sổ riêng title = `<title>` trang, chờ title
+  `FBT_RAPID*`) rồi chụp như driver.ps1. Đã đóng gói sẵn:
+  `& .claude\skills\run-fbt-rapid\webshot.ps1 -Out web.png` (tự serve `build\web` bằng
+  `web-server.js` node tĩnh cùng thư mục — không cần `flutter run -d web-server`; build web trước).
+  Chụp bản web đang HOST THẬT: thêm `-Url https://fbt.basa-luma.ts.net/app/` (bỏ bước serve cục bộ).

@@ -36,7 +36,7 @@ class _ResultDetailScreenState extends State<ResultDetailScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(m),
-      backgroundColor: error ? Colors.red.shade700 : null,
+      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
       duration: Duration(seconds: error ? 4 : 1),
     ));
   }
@@ -99,10 +99,13 @@ class _ResultDetailScreenState extends State<ResultDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Đã lưu ${pngs.length} đồ thị + data.json'),
         duration: const Duration(seconds: 1),
-        action: SnackBarAction(
-          label: 'Mở',
-          onPressed: () => ResultExport.revealInExplorer(dir),
-        ),
+        // Web: saveRun trả '' (tải xuống Downloads) → không có thư mục để mở.
+        action: dir.isEmpty
+            ? null
+            : SnackBarAction(
+                label: 'Mở',
+                onPressed: () => ResultExport.revealInExplorer(dir),
+              ),
       ));
     } catch (e) {
       _snack('Lỗi lưu: $e', error: true);
@@ -477,7 +480,8 @@ class _SlotGrid extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.bold)),
                     const Spacer(),
                     Icon(on ? Icons.visibility : Icons.visibility_off,
-                        size: 15, color: Colors.grey),
+                        size: 15,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ],
                 ),
                 const SizedBox(height: 4),

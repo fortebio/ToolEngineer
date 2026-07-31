@@ -35,11 +35,48 @@ const Map<String, Map<String, String>> _t = {
   'tech.serial': {'vi': 'Đọc serial', 'en': 'Serial monitor', 'zh': '串口监视', 'th': 'มอนิเตอร์ซีเรียล'},
   'tech.flash': {'vi': 'Nạp code', 'en': 'Flash firmware', 'zh': '烧录固件', 'th': 'แฟลชเฟิร์มแวร์'},
 
+  // --- Kỹ Thuật bản WEB (Web Serial API) ---
+  'techweb.unsupported': {
+    'vi': 'Trình duyệt này không hỗ trợ Web Serial.\nDùng Chrome hoặc Edge trên máy tính để truy cập cổng COM.',
+    'en': 'This browser does not support Web Serial.\nUse Chrome or Edge on desktop to access COM ports.',
+    'zh': '此浏览器不支持 Web Serial。\n请在电脑上使用 Chrome 或 Edge 访问串口。',
+    'th': 'เบราว์เซอร์นี้ไม่รองรับ Web Serial\nใช้ Chrome หรือ Edge บนคอมพิวเตอร์'
+  },
+  'techweb.openPort': {'vi': 'Mở cổng', 'en': 'Open port', 'zh': '打开串口', 'th': 'เปิดพอร์ต'},
+  'techweb.pickPort': {'vi': 'Chọn cổng', 'en': 'Pick port', 'zh': '选择串口', 'th': 'เลือกพอร์ต'},
+  'techweb.saveLog': {'vi': 'Lưu log', 'en': 'Save log', 'zh': '保存日志', 'th': 'บันทึกล็อก'},
+  'techweb.downloaded': {'vi': 'Đã tải xuống Downloads.', 'en': 'Downloaded.', 'zh': '已下载。', 'th': 'ดาวน์โหลดแล้ว'},
+  'techweb.noData': {'vi': 'Chưa có dữ liệu để lưu.', 'en': 'No data to save yet.', 'zh': '还没有可保存的数据。', 'th': 'ยังไม่มีข้อมูลให้บันทึก'},
+  'techweb.serialHint': {
+    'vi': 'Chọn baud rồi bấm "Mở cổng" — trình duyệt sẽ hỏi bạn chọn cổng COM.\nMở được nhiều cổng, mỗi cổng một tab.',
+    'en': 'Pick a baud rate then press "Open port" — the browser will ask you to select a COM port.\nMultiple ports supported, one tab each.',
+    'zh': '选择波特率后点击"打开串口"——浏览器会让你选择串口。\n支持多个串口，每个一个标签页。',
+    'th': 'เลือก baud แล้วกด "เปิดพอร์ต" — เบราว์เซอร์จะให้เลือกพอร์ต COM'
+  },
+  'techweb.tempHint': {
+    'vi': 'Bấm "Mở cổng" và chọn cổng COM của máy — bắt đầu ghi nhiệt ngay khi mở.\n(App tự gửi lệnh TemperatureOutput @115200.)',
+    'en': 'Press "Open port" and select the device COM port — logging starts immediately.\n(The TemperatureOutput command is sent automatically @115200.)',
+    'zh': '点击"打开串口"并选择设备串口——打开后立即开始记录。',
+    'th': 'กด "เปิดพอร์ต" แล้วเลือกพอร์ต COM ของเครื่อง — เริ่มบันทึกทันที'
+  },
+
   // --- Gộp Lịch sử (Cục bộ | Cloud) ---
   'history.local': {'vi': 'Cục bộ', 'en': 'Local', 'zh': '本地', 'th': 'ในเครื่อง'},
   'history.cloud': {'vi': 'Cloud', 'en': 'Cloud', 'zh': '云端', 'th': 'คลาวด์'},
   'history.cloudGoogle': {'vi': 'Cloud Google', 'en': 'Google Cloud', 'zh': '谷歌云', 'th': 'กูเกิลคลาวด์'},
   'history.cloudRapid': {'vi': 'RAPID ERP', 'en': 'RAPID ERP', 'zh': 'RAPID ERP', 'th': 'RAPID ERP'},
+  'history.cloudEngineer': {'vi': 'Engineer Server', 'en': 'Engineer Server', 'zh': 'Engineer 服务器', 'th': 'Engineer Server'},
+  'history.openJson': {'vi': 'Mở file JSON', 'en': 'Open JSON file', 'zh': '打开 JSON 文件', 'th': 'เปิดไฟล์ JSON'},
+  'history.openJsonError': {'vi': 'File JSON không đúng định dạng dữ liệu kết quả.', 'en': 'JSON file is not a valid result data file.', 'zh': 'JSON 文件不是有效的结果数据。', 'th': 'ไฟล์ JSON ไม่ใช่ข้อมูลผลลัพธ์ที่ถูกต้อง'},
+  'history.jsonRefresh': {'vi': 'Tải lại', 'en': 'Reload', 'zh': '重新加载', 'th': 'โหลดใหม่'},
+  'history.jsonEmpty': {'vi': 'Chưa có file JSON nào trên server.', 'en': 'No JSON files on the server yet.', 'zh': '服务器上还没有 JSON 文件。', 'th': 'ยังไม่มีไฟล์ JSON บนเซิร์ฟเวอร์'},
+  'history.jsonLoadMore': {'vi': 'Tải thêm', 'en': 'Load more', 'zh': '加载更多', 'th': 'โหลดเพิ่ม'},
+
+  // --- Tab Thư Mục (duyệt dữ liệu dạng file) ---
+  'nav.folder': {'vi': 'Thư Mục', 'en': 'Files', 'zh': '文件夹', 'th': 'โฟลเดอร์'},
+  'folder.jsonData': {'vi': 'JSON data', 'en': 'JSON data', 'zh': 'JSON 数据', 'th': 'ข้อมูล JSON'},
+  'common.copy': {'vi': 'Sao chép', 'en': 'Copy', 'zh': '复制', 'th': 'คัดลอก'},
+  'common.copied': {'vi': 'Đã sao chép.', 'en': 'Copied.', 'zh': '已复制。', 'th': 'คัดลอกแล้ว'},
 
   // --- Đăng nhập ---
   'login.subtitle': {
@@ -119,6 +156,32 @@ const Map<String, Map<String, String>> _t = {
         'App hiển thị thành danh sách; bấm để xem xét nghiệm. Để trống = dùng "Mã máy được cấp".',
     'en': 'Paste device IDs (e.g. RPL03010), separated by comma or newline. The app shows them '
         'as a list; tap to view tests. Empty = use "Assigned machines".'
+  },
+  'us.engineer': {
+    'vi': 'Engineer Server (admin)',
+    'en': 'Engineer Server (admin)',
+    'zh': 'Engineer 服务器（管理员）',
+    'th': 'Engineer Server (แอดมิน)'
+  },
+  'us.engineerUrl': {
+    'vi': 'URL Engineer Server',
+    'en': 'Engineer Server URL',
+    'zh': 'Engineer 服务器地址',
+    'th': 'URL Engineer Server'
+  },
+  'us.engineerToken': {
+    'vi': 'Admin token',
+    'en': 'Admin token',
+    'zh': '管理员令牌',
+    'th': 'Admin token'
+  },
+  'us.engineerHint': {
+    'vi': 'URL gốc FBT Home Server qua Tailscale (mặc định '
+        'https://fbt.basa-luma.ts.net) + token (RECEIVER_TOKEN trên server; '
+        'trống nếu server không đặt). Chỉ admin nhập.',
+    'en': 'FBT Home Server base URL over Tailscale (default '
+        'https://fbt.basa-luma.ts.net) + token (the server\'s RECEIVER_TOKEN; '
+        'leave empty if the server has none). Admin only.'
   },
   'us.appearance': {'vi': 'Giao diện', 'en': 'Appearance'},
   'us.darkMode': {'vi': 'Chế độ tối', 'en': 'Dark mode'},

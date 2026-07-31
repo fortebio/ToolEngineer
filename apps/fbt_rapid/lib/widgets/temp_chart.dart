@@ -3,7 +3,9 @@ import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
-import '../services/temperature_serial.dart';
+// Chỉ cần kiểu thuần (TempSample/kTempChannels) — KHÔNG import
+// temperature_serial.dart (kéo dart:ffi) để file này tái dùng được trên WEB.
+import '../services/temp_types.dart';
 
 /// Màu cho 6 kênh nhiệt (Lysis, Amp1, Amp2, Hotlid1, Hotlid2, Ambient).
 const List<Color> kTempColors = [

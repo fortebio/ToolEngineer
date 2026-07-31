@@ -111,7 +111,7 @@ class _CloudRunsScreenState extends State<CloudRunsScreen> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('$e'),
-        backgroundColor: Colors.red.shade700,
+        backgroundColor: Theme.of(context).colorScheme.error,
       ));
     }
   }
@@ -222,7 +222,9 @@ class _CloudRunsScreenState extends State<CloudRunsScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.grey),
+              Icon(Icons.error_outline,
+                  size: 64,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
               const SizedBox(height: 16),
               Text('Lỗi tải lịch sử:\n\n$_error', textAlign: TextAlign.center),
               const SizedBox(height: 16),

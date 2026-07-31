@@ -3,15 +3,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Nguồn dữ liệu cloud trong app:
 /// - [google]   : Google Apps Script (mặc định, hợp đồng `action=ids|runs|run`).
 /// - [rapidErp] : API RAPID ERP ngoài (REST `/external/...`, header `X-API-Key`).
-enum CloudSource { google, rapidErp }
+/// - [engineer] : Engineer Server — FBT Home Server của kỹ sư (FastAPI, source
+///   `../Server/app.py`, REST `/devices` `/sessions`, `Authorization: Bearer`).
+enum CloudSource { google, rapidErp, engineer }
 
 /// URL Apps Script (/exec) **gắn sẵn** để khỏi phải nhập. Nếu deploy URL mới
 /// thì đổi đúng 1 dòng này (rồi build lại). Vẫn có thể ghi đè trong Cài đặt.
 const String kDefaultCloudApiUrl =
     'https://script.google.com/macros/s/AKfycbw2VXXLX6fUMgmyRrSgNgEi3b4gSyE2bdctQe_DNOnlZ58EfPclQrXrlMenH0y7SH5X/exec';
 
-/// URL Apps Script **accounts/auth** (web app RIÊNG — sheet/userAuth.js) dùng
-/// để đăng nhập + phân quyền. Đổi deploy mới thì sửa đúng 1 dòng này.
+/// URL Apps Script **accounts/auth** CŨ (sheet/userAuth.js). Đăng nhập đã
+/// CHUYỂN về Engineer Server (`AuthApi.engineer()` → POST {engineerUrl}/auth,
+/// 2026-07) — giữ hằng này làm đường lùi khẩn cấp (đổi lại ở AuthApi.engineer).
+// ignore: unused_element
 const String kDefaultAuthApiUrl =
     // 'https://script.google.com/macros/s/AKfycbyW1BHL3-zBAoFjMJRMFLCRkwbDFWoGnneMwA_8XDzKWysucfmGX0dNAVSOraagyCEY/exec';
     'https://script.google.com/macros/s/AKfycbwuO8JSHFqZzhetYDv8Fd01iwlkb9SWEzXTTHqhGDNh5-jaes-xFc2xaXI3UBuzqetQ/exec';
@@ -20,6 +24,15 @@ const String kDefaultAuthApiUrl =
 /// Hợp đồng: `GET /external/device/{id}/results`, `/external/results/{id}/detail`.
 /// Đổi deploy mới thì sửa đúng 1 dòng này (vẫn ghi đè được trong Cài đặt).
 const String kDefaultRapidErpUrl = 'https://api.fortebio.tech/api/v1/results';
+
+/// URL gốc **FBT Home Server** (nguồn Engineer Server) — server FastAPI của kỹ
+/// sư expose qua Tailscale. Đổi host thì sửa 1 dòng này (ghi đè được ở Cài đặt).
+const String kDefaultEngineerUrl = 'https://fbt.basa-luma.ts.net';
+
+/// Token mặc định cho Engineer Server — KHÔNG hardcode vào source, truyền lúc
+/// build: `flutter build windows --release --dart-define=FBT_TOKEN=<token>`.
+/// Trống thì admin nhập tay ở Cài đặt (ưu tiên giá trị nhập tay).
+const String kDefaultEngineerToken = String.fromEnvironment('FBT_TOKEN');
 
 /// Cấu hình app lưu cục bộ: địa chỉ máy, khoảng đọc, thông tin người dùng.
 class AppSettings {
@@ -32,6 +45,8 @@ class AppSettings {
   String rapidErpUrl; // URL gốc REST API RAPID ERP (server ngoài)
   String rapidErpKey; // X-API-Key (đọc nguồn RAPID ERP); dùng chung key /ingest
   String rapidErpDeviceIds; // danh sách mã máy admin nhập tay (API ko liệt kê)
+  String engineerUrl; // URL gốc FBT Home Server (nguồn Engineer Server)
+  String engineerToken; // RECEIVER_TOKEN (Bearer); trống → kDefaultEngineerToken
 
   AppSettings({
     this.deviceIp = '',
@@ -43,6 +58,8 @@ class AppSettings {
     this.rapidErpUrl = kDefaultRapidErpUrl,
     this.rapidErpKey = '',
     this.rapidErpDeviceIds = '',
+    this.engineerUrl = kDefaultEngineerUrl,
+    this.engineerToken = '',
   });
 
   static const _kIp = 'device_ip';
@@ -54,6 +71,8 @@ class AppSettings {
   static const _kRapidErpUrl = 'rapid_erp_url';
   static const _kRapidErpKey = 'rapid_erp_key';
   static const _kRapidErpDeviceIds = 'rapid_erp_device_ids';
+  static const _kEngineerUrl = 'engineer_url';
+  static const _kEngineerToken = 'engineer_token';
 
   static Future<AppSettings> load() async {
     final p = await SharedPreferences.getInstance();
@@ -69,6 +88,10 @@ class AppSettings {
       rapidErpUrl: _orDefaultUrl(p.getString(_kRapidErpUrl), kDefaultRapidErpUrl),
       rapidErpKey: p.getString(_kRapidErpKey) ?? '',
       rapidErpDeviceIds: p.getString(_kRapidErpDeviceIds) ?? '',
+      // Trống/chưa có → dùng URL gắn sẵn (khỏi nhập).
+      engineerUrl:
+          _orDefaultUrl(p.getString(_kEngineerUrl), kDefaultEngineerUrl),
+      engineerToken: p.getString(_kEngineerToken) ?? '',
     );
   }
 
@@ -90,6 +113,8 @@ class AppSettings {
     await p.setString(_kRapidErpUrl, rapidErpUrl);
     await p.setString(_kRapidErpKey, rapidErpKey);
     await p.setString(_kRapidErpDeviceIds, rapidErpDeviceIds);
+    await p.setString(_kEngineerUrl, engineerUrl);
+    await p.setString(_kEngineerToken, engineerToken);
   }
 
   /// URL cloud theo nguồn đang chọn.
@@ -97,19 +122,27 @@ class AppSettings {
     switch (s) {
       case CloudSource.rapidErp:
         return rapidErpUrl;
+      case CloudSource.engineer:
+        return engineerUrl;
       case CloudSource.google:
         return cloudApiUrl;
     }
   }
 
-  /// Header theo nguồn: RAPID ERP kèm `X-API-Key`; Google rỗng. (Header rỗng nếu
-  /// chưa nhập key.)
+  /// Header theo nguồn: RAPID ERP kèm `X-API-Key`; Engineer Server kèm
+  /// `Authorization: Bearer`; Google rỗng. (Header rỗng nếu chưa nhập key.)
   Map<String, String> cloudHeadersFor(CloudSource s) {
     switch (s) {
       case CloudSource.rapidErp:
         return rapidErpKey.trim().isNotEmpty
             ? {'X-API-Key': rapidErpKey.trim()}
             : const {};
+      case CloudSource.engineer:
+        // Ưu tiên token nhập tay; trống → token nạp lúc build (--dart-define).
+        final tok = engineerToken.trim().isNotEmpty
+            ? engineerToken.trim()
+            : kDefaultEngineerToken;
+        return tok.isNotEmpty ? {'Authorization': 'Bearer $tok'} : const {};
       case CloudSource.google:
         return const {};
     }

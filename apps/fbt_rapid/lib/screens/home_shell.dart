@@ -4,9 +4,12 @@ import '../services/app_settings.dart';
 import '../services/session_store.dart';
 import '../services/storage_paths.dart';
 import '../util/i18n.dart';
+import 'folder_screen.dart';
 import 'history_combined_screen.dart';
 import 'login_screen.dart';
-import 'tech_screen.dart';
+// Tab Kỹ Thuật: desktop dùng COM/esptool (dart:ffi/dart:io); web import bản
+// Web Serial + esptool-js (tech_screen_web.dart) — không kéo native vào web.
+import 'tech_screen.dart' if (dart.library.html) 'tech_screen_web.dart';
 import 'user_management_screen.dart';
 import 'user_settings_screen.dart';
 
@@ -97,7 +100,20 @@ class _HomeShellState extends State<HomeShell> {
           settings: settings,
         ),
       ),
-      // Nhân sự (root + nhân viên): tab Kỹ Thuật (Log nhiệt | Đọc serial | Nạp code).
+      // Mọi vai trò: tab Thư Mục (JSON data — file trên Engineer Server, xem
+      // thô). HTTP thuần nên có cả trên web.
+      _Tab(
+        icon: Icons.folder_outlined,
+        selectedIcon: Icons.folder,
+        label: tr('nav.folder'),
+        page: FolderScreen(
+          key: ValueKey('folder_${settings.engineerUrl}'),
+          settings: settings,
+        ),
+      ),
+      // Nhân sự (root + nhân viên): tab Kỹ Thuật (Log nhiệt | Đọc serial | Nạp
+      // code). Trên web = bản Web Serial + esptool-js (tech_screen_web.dart,
+      // chỉ Chrome/Edge desktop) — conditional import ở đầu file chọn bản đúng.
       if (isStaff)
         _Tab(
           icon: Icons.build_outlined,

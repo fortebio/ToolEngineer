@@ -38,7 +38,7 @@ class _CurveCompareScreenState extends State<CurveCompareScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(m),
-      backgroundColor: error ? Colors.red.shade700 : null,
+      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
       duration: Duration(seconds: error ? 4 : 1),
     ));
   }
@@ -60,10 +60,13 @@ class _CurveCompareScreenState extends State<CurveCompareScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Đã lưu ${pngs.length} đồ thị + data.json'),
         duration: const Duration(seconds: 1),
-        action: SnackBarAction(
-          label: 'Mở',
-          onPressed: () => ResultExport.revealInExplorer(dir),
-        ),
+        // Web: saveRun trả '' (tải xuống Downloads) → không có thư mục để mở.
+        action: dir.isEmpty
+            ? null
+            : SnackBarAction(
+                label: 'Mở',
+                onPressed: () => ResultExport.revealInExplorer(dir),
+              ),
       ));
     } catch (e) {
       _snack('Lỗi lưu: $e', error: true);

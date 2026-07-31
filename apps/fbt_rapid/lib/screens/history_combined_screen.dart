@@ -5,9 +5,9 @@ import '../services/session_store.dart';
 import '../util/i18n.dart';
 import 'cloud_devices_screen.dart';
 import 'history_screen.dart';
-
-/// Tab "Lịch sử" GỘP: nút gạt **Cục bộ | Cloud** ở trên, bên dưới là màn tương
-/// ứng (mỗi màn giữ nguyên AppBar/hành động riêng). Mặc định xem Cloud.
+/// Tab "Lịch sử": xem Cloud (admin có segmented chọn nguồn Google | RAPID ERP |
+/// Engineer Server). Mục File JSON đã CHUYỂN sang tab **Thư Mục**
+/// (`folder_screen.dart` → `json_files_screen.dart`).
 class HistoryCombinedScreen extends StatefulWidget {
   final AppSettings settings;
   const HistoryCombinedScreen({super.key, required this.settings});
@@ -42,23 +42,33 @@ class _HistoryCombinedScreenState extends State<HistoryCombinedScreen> {
               if (showSourcePicker)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-                  child: SegmentedButton<CloudSource>(
-                    showSelectedIcon: false,
-                    segments: [
-                      ButtonSegment(
-                        value: CloudSource.google,
-                        icon: const Icon(Icons.cloud_outlined),
-                        label: Text(tr('history.cloudGoogle')),
+                  child: Row(
+                    children: [
+                      SegmentedButton<CloudSource>(
+                        showSelectedIcon: false,
+                        segments: [
+                          ButtonSegment(
+                            value: CloudSource.google,
+                            icon: const Icon(Icons.cloud_outlined),
+                            label: Text(tr('history.cloudGoogle')),
+                          ),
+                          ButtonSegment(
+                            value: CloudSource.rapidErp,
+                            icon: const Icon(Icons.api_outlined),
+                            label: Text(tr('history.cloudRapid')),
+                          ),
+                          ButtonSegment(
+                            value: CloudSource.engineer,
+                            icon: const Icon(Icons.dns_outlined),
+                            label: Text(tr('history.cloudEngineer')),
+                          ),
+                        ],
+                        selected: {_cloudSource},
+                        onSelectionChanged: (sel) =>
+                            setState(() => _cloudSource = sel.first),
                       ),
-                      ButtonSegment(
-                        value: CloudSource.rapidErp,
-                        icon: const Icon(Icons.api_outlined),
-                        label: Text(tr('history.cloudRapid')),
-                      ),
+                      const Spacer(),
                     ],
-                    selected: {_cloudSource},
-                    onSelectionChanged: (sel) =>
-                        setState(() => _cloudSource = sel.first),
                   ),
                 ),
               Expanded(

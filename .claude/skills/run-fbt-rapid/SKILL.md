@@ -1,14 +1,15 @@
 ---
 name: run-fbt-rapid
-description: Build, launch, run, screenshot, and test the FBT_RAPID Flutter Windows desktop app. Use when asked to run/start/build/test/screenshot the app, verify a UI change, or see a screen render on Windows.
+description: Build, launch, run, screenshot, and test the FBT_RAPID Flutter app — Windows desktop AND the web build. Use when asked to run/start/build/test/screenshot the app, verify a UI change, or see a screen render.
 ---
 
-# Run FBT_RAPID (Flutter Windows desktop)
+# Run FBT_RAPID (Flutter Windows desktop + web)
 
 FBT_RAPID is a **Flutter Windows desktop GUI** companion app for the FBT_RAPID / Forte
-Rapid+ test device (login → test history + CT charts, realtime temperature over COM). It is
-**Windows-only** (no android/ios/web target) and was verified here on the native platform —
-Flutter 3.44.2 stable, Windows 11.
+Rapid+ test device (login → test history + CT charts, realtime temperature over COM). Verified
+here on the native platform — Flutter 3.44.2 stable, Windows 11. Since 2026-07 it also builds
+for **web** (feature subset: login + cloud history + charts + JSON files; no COM/flash) — see
+"Web build" below.
 
 A GUI has no `curl`/Playwright handle, so the harness is
 [driver.ps1](driver.ps1): it launches the built `.exe`, polls for the `FBT_RAPID` window,
@@ -79,6 +80,21 @@ Builds and opens the window (~12s here), then attaches with hot reload (`r` = re
 restart, `q` = quit). It **blocks the terminal** and waits for keypresses, so it is awkward
 to drive headlessly — prefer the driver above for one-shot screenshots. To screenshot a
 `flutter run` session, leave it running and call the driver with `-Attach` from another shell.
+
+## Web build (screenshot qua trình duyệt)
+
+```powershell
+flutter build web --release                                  # → build\web
+& .claude\skills\run-fbt-rapid\webshot.ps1 -Out web.png      # serve + mở + chụp + dọn
+```
+
+[webshot.ps1](webshot.ps1) serves `build\web` with [web-server.js](web-server.js) (plain node,
+no deps), opens Chrome/Edge in `--app` mode (own window, title = `FBT_RAPID`), captures via
+PrintWindow, then kills both. **GOTCHA: it passes `--disable-gpu`** — without it Chromium's
+GPU compositing makes PrintWindow return a solid gray image (Flutter still renders via
+SwiftShader). Params: `-WebRoot` (default `build\web`), `-Port` (8177), `-Settle` (12s boot
+wait). Fresh browser profile lives in `%TEMP%\fbtrapid_webshot_profile` — sessions do NOT
+carry over from the desktop app, so you land on the login screen.
 
 ## Test
 
