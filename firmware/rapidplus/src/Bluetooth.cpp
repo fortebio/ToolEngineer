@@ -5,7 +5,6 @@
 #include <esp_bt.h>
 #include <esp_bt_main.h>
 #include <esp32-hal.h>
-#include "index.h"
 #include "errorCheck.h"
 #include "webDashboard.h"
 #include "esp_heap_caps.h" // heap_caps_get_largest_free_block: gate TLS on a big internal block
@@ -17,14 +16,15 @@ String ssid = "";
 String password = "";
 uint64_t epsid = ESP.getEfuseMac();
 String id(String(epsid).c_str());
-String id_device = "RAPIDPlus";
+// id_device (the second device-ID store) was DELETED on 2026-07-30. parameter.device_id, via
+// the protoID macro, is the only one. See loadSettingDevice().
 
-const char *serverName = "https://script.google.com/macros/s/AKfycbw2VXXLX6fUMgmyRrSgNgEi3b4gSyE2bdctQe_DNOnlZ58EfPclQrXrlMenH0y7SH5X/exec";
-const char *serverName2 = "https://fbt.basa-luma.ts.net/ingest";
-const char *server_engineerToken = "***REMOVED***";
+const char *serverName = SECRET_GAS_URL;
+const char *serverName2 = SECRET_INGEST_URL;
+const char *server_engineerToken = SECRET_INGEST_TOKEN;
 
-const char *serverERP = "https://api.fortebio.tech/api/v1/results/ingest";
-const char *server_erpToken = "***REMOVED***";
+const char *serverERP = SECRET_ERP_URL;
+const char *server_erpToken = SECRET_ERP_TOKEN;
 
 /***********************************************************************
  * Function: connectBLE()
@@ -99,6 +99,7 @@ String paraToJson(parastructure para)
 {
   DynamicJsonDocument paradata(3000); // support maximum 3K
 
+  paradata["device ID"] = para.device_id;
   paradata["para version"] = para.para_version;
   paradata["PCB version"] = para.PCB_version;
   JsonObject calibration = paradata.createNestedObject("opto calibration");
@@ -126,7 +127,6 @@ String paraToJson(parastructure para)
   opto_parameter["baseline range"] = para.baseline_range;
 
   paradata["units"] = para.units;
-  paradata["device ID"] = para.device_id;
   paradata["lysis duration"] = para.lysisDuration;
   paradata["opto preheat time"] = para.optopreheatduration;
   paradata["LED Duration"] = para.LEDDuration;
@@ -224,8 +224,11 @@ void loadParaFromEEPROM()
 
 /***********************************************************************
  * Function: saveSettingDevice()
- * Description: Persists the WiFi SSID, password and device ID to EEPROM and
- *  clears the ADDR_CHECK_ID_DEVICE flag, then commits and ends EEPROM.
+ * Description: Persists the WiFi SSID and password to EEPROM.
+ *
+ *  It no longer writes the device ID (ADDR_ID_DEVICE_BASE) - that second store is gone, see
+ *  loadSettingDevice(). The ADDR_CHECK_ID_DEVICE flag went with it: its only reader was the
+ *  WiFiManager captive portal, deleted 2026-07-29.
  * pramameter: none
  *  return: none
  */
@@ -235,8 +238,6 @@ void saveSettingDevice()
   EEPROM.begin(_EEPROM_SIZE);
   EEPROM.writeString(ADDR_SSID, ssid);
   EEPROM.writeString(ADDR_PASSWORD, password);
-  EEPROM.writeString(ADDR_ID_DEVICE_BASE, id_device);
-  EEPROM.writeBool(ADDR_CHECK_ID_DEVICE, false);
   EEPROM.commit();
   EEPROM.end();
   eepromUnlock();
@@ -244,8 +245,15 @@ void saveSettingDevice()
 
 /***********************************************************************
  * Function: loadSettingDevice()
- * Description: Loads the WiFi SSID, password and device ID from EEPROM into
- *  the global ssid, password and id_device variables.
+ * Description: Loads the WiFi SSID and password from EEPROM into the globals.
+ *
+ *  NO LONGER LOADS THE DEVICE ID (2026-07-30). The ID used to live here too, in a second
+ *  store at ADDR_ID_DEVICE_BASE mirrored into a global `id_device` - and the two stores drifted
+ *  in every direction: the web header read one while the Setting card read the other, and
+ *  Serial/BT could change one without the other. There is now exactly ONE store,
+ *  parameter.device_id, read through the protoID macro, validated once in
+ *  ForteSetting::sanitiseDeviceId(). Slot 170..210 in the EEPROM layout is dead - do NOT start
+ *  writing it again "for compatibility": a second copy is what caused the bug.
  * pramameter: none
  *  return: none
  */
@@ -254,7 +262,6 @@ void loadSettingDevice()
   EEPROM.begin(_EEPROM_SIZE);
   ssid = EEPROM.readString(ADDR_SSID);
   password = EEPROM.readString(ADDR_PASSWORD);
-  id_device = EEPROM.readString(ADDR_ID_DEVICE_BASE);
   EEPROM.end();
 }
 
@@ -267,8 +274,8 @@ void loadSettingDevice()
  * SerialBT call after deinit posts to a freed bluedroid thread and trips
  * `assert failed: osi_thread_post (thread != NULL)` -> reboot.
  *
- * Three flows tear BT down (auto upload in screen_Result, manual upload, and
- * WiFi setup in Wifi_Connect) and none is guaranteed to end in a restart, so
+ * Three flows tear BT down (main.cpp at boot, auto upload in screen_Result, and
+ * manual upload) and none is guaranteed to end in a restart, so
  * they can run one after another within a single power cycle. The gBtReleased
  * guard makes this safe to call from any of them in any order, and lets the
  * info_display* macros + SettingTask stop touching SerialBT afterwards.
@@ -305,82 +312,14 @@ void releaseBluetoothStack()
   gBtReleased = true;
 }
 
-/**
- * @brief Connect to WiFi using WiFiManager
- *
- */
-/***********************************************************************
- * Function: Wifi_Connect()
- * Description: Releases the Bluetooth stack, disables the Core 0 watchdog,
- *  then launches WiFiManager's captive-portal AP (named from id_device) to
- *  let the user enter WiFi credentials and a device ID. On connect, saves
- *  SSID/password/id_device to EEPROM; on failure, restarts the device.
- * pramameter: none
- *  return: none
- */
-void Wifi_Connect()
-{
-  // Hard-release Bluetooth Classic stack BEFORE WiFiManager starts. SerialBT.end()
-  // alone leaves controller + bluedroid (~60KB) resident; WiFiManager's AP + DNS +
-  // captive-portal HTTP server can OOM during the phone's first request and reset
-  // the device. Idempotent: a prior auto/manual upload may already have released
-  // BT this power cycle, so this must not double-free or re-touch SerialBT.
-  releaseBluetoothStack();
-  Serial.printf("Before WiFiManager: free=%u, largest=%u\n",
-                ESP.getFreeHeap(), ESP.getMaxAllocHeap());
-
-  // WiFiManager.autoConnect() blocks DisplayTask (Core 0) inside an internal
-  // loop that doesn't yield enough to IDLE-0 → Task Watchdog fires (~5s default)
-  // while user is on the captive portal. setting_Wifi() always ends with
-  // esp_restart(), so we don't need to re-enable.
-  disableCore0WDT();
-
-  WiFiManager wifiManager;
-  WiFiManagerParameter custom_id_device("id_device", "Enter ID Device", "RPL", 40);
-
-  const char *menu[] = {"wifi", "update", "sep", "exit"};
-
-  if (WiFi.status() == WL_CONNECTED)
-  {
-    WiFi.disconnect(true);
-    delay(500);
-  }
-  dashboardEnd(); // stop the AsyncWebServer dashboard before the WiFiManager portal
-
-  wifiManager.resetSettings(); // Xóa thông tin kết nối cũ
-  wifiManager.setDebugOutput(true);
-  wifiManager.setMenu(menu, 4);
-  wifiManager.addParameter(&custom_id_device);
-  wifiManager.setTitle("Fortebiotech RAPID Setup");
-
-  String apName = "";
-  char *tmp = "";
-
-  eepromLock();
-  EEPROM.begin(_EEPROM_SIZE);
-  if (!EEPROM.readBool(ADDR_CHECK_ID_DEVICE) ||
-      (strncmp(id_device.c_str(), "RPL", 3) == 0))
-  {
-    apName = "FBT " + id_device;
-  }
-  else
-  {
-    apName = "FBT RAPIDPlus";
-  }
-  EEPROM.end();
-  eepromUnlock();
-
-  if (!wifiManager.autoConnect(apName.c_str()))
-  {
-    delay(3000);
-    ESP.restart();
-  }
-
-  ssid = WiFi.SSID();
-  password = WiFi.psk();
-  id_device = custom_id_device.getValue();
-  saveSettingDevice();
-}
+// Wifi_Connect() (tzapu/WiFiManager captive portal) was DELETED on 2026-07-29. Everything it
+// did now lives in the web dashboard, which is reachable without it: STA fail -> SoftAP
+// (dashboardApName()) + captive portal -> Setting tab. Credentials: POST /wifi + /wifilist
+// (wifiStore.cpp, trial-then-commit). Device ID: POST /deviceid. Firmware: /ota + /otaupload.
+// Dropping the library saved 93 952 B of flash (73.6% -> 70.8%) and removed three hazards it
+// carried: a disableCore0WDT() that was never re-enabled while ControlTask drives heater duty,
+// a resetSettings() that wiped the core's stored credentials on every visit, and its own SoftAP
+// which tore down dashboardEnd() + the AP fallback the operator's phone was already on.
 
 /***********************************************************************
  * Function: getDataAmplificationEEPROM()
@@ -597,7 +536,7 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
     JsonDocument dataPostGoogleSheet;
 
     dataPostGoogleSheet["method"] = "append";
-    dataPostGoogleSheet["id_device"] = id_device;
+    dataPostGoogleSheet["id_device"] = String(_ForteSetting.parameter.device_id);
     dataPostGoogleSheet["version"] = FirmwareVer;
     dataPostGoogleSheet["kitId"] = String(_ForteSetting.parameter.kitId);
     if (_displayCLD.type_infor == eUpLoadData)
@@ -617,6 +556,7 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
     JsonArray slopes_array = dataPostGoogleSheet.createNestedArray("slopes");
     JsonArray origins_array = dataPostGoogleSheet.createNestedArray("origins");
     JsonArray ledPower_array = dataPostGoogleSheet.createNestedArray("LED_power");
+    // JsonArray nameSlot_array = dataPostGoogleSheet.createNestedArray("nameSlot");
     JsonArray CT_value_array = dataPostGoogleSheet.createNestedArray("CT_value");
     JsonArray result_array = dataPostGoogleSheet.createNestedArray("result");
 
@@ -652,29 +592,35 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
 
     for (int i = 0; i < OPTOCHANNELS; i++)
     {
-      char resultConfig[15] = {0};
+      char resultConfig[20] = {0};
       /* Check Sensor Errors */
+      // Serial.printf("[up] slot %d name=%s result=%c CT=%.1f\n", i + 1, (slotNames[i].length() == 0) ? "N/A" : slotNames[i].c_str(), result[i], CT_value[i]);
+      // Serial.printf("[up] length of slot name=%d\n", slotNames[i].length());
+      // Serial.printf("[up] the first char of slot name=%c\n", slotNames[i].charAt(0));
       if (error.searchError(errorLightSensor, errorNoData, eSensor1stReading, i) != 255 ||
           error.searchError(errorLightSensor, errorWrongData, eSensor1stReading, i) != 255 ||
           error.searchError(errorLightSensor, errorTooDark, eSensor1stReading, i) != 255 ||
           error.searchError(errorLightSensor, errorTooBright, eSensor1stReading, i) != 255)
       {
+        // snprintf, not sprintf: resultConfig is 20 bytes and "%04.01f" of a large or garbage
+        // CT_value (a slot with no usable curve) prints far more than that - straight over the
+        // rest of this stack frame. The bound truncates instead of corrupting.
         if (result[i] == 'P' || result[i] == 'S')
         {
-          sprintf(resultConfig, "%2.0f | /E", CT_value[i], result[i]);
+          snprintf(resultConfig, sizeof(resultConfig), "%s | %2.0f | /E", (slotNames[i].length() == 0) ? "N/A" : slotNames[i].c_str(), CT_value[i]);
         }
         else
         {
-          sprintf(resultConfig, "- | /E");
+          snprintf(resultConfig, sizeof(resultConfig), "%s | - | /E", (slotNames[i].length() == 0) ? "N/A" : slotNames[i].c_str());
         }
       }
       else if (result[i] == 'E')
       {
-        sprintf(resultConfig, "!  | %c", result[i]);
+        snprintf(resultConfig, sizeof(resultConfig), "%s | !  | %c", (slotNames[i].length() == 0) ? "N/A" : slotNames[i].c_str(), result[i]);
       }
       else
       {
-        sprintf(resultConfig, "%04.01f | %c", CT_value[i], result[i]);
+        snprintf(resultConfig, sizeof(resultConfig), "%s | %04.01f | %c", (slotNames[i].length() == 0) ? "N/A" : slotNames[i].c_str(), CT_value[i], result[i]);
       }
 
       slopes_array.add(_ForteSetting.parameter.slopes[i]);
@@ -721,6 +667,7 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
 
   dashboardResume(); // bring the dashboard back now that TLS is done
   return tmpHttpCode;
+  // return 200;
 }
 
 // postData_Chart() / getData_toChart() were removed: the old sync WebServer chart is

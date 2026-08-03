@@ -148,16 +148,19 @@ async function main() {
   ok((await ev("document.querySelectorAll('#namingBody tr').length")) === 10, "10 slot rows to name");
   ok((await pts("homeView")) === 0, "chart EMPTY for a run that has not started");
 
-  // name a slot; it must persist to the device and reach the Result table
+  // Name a slot; it must persist to the device and reach the Result table.
+  // The disease field is a <select> over a FIXED list (PC/EHP/EMS/WSSV/TPD), not free text:
+  // assigning a value that is not an option leaves the select on "" and the whole naming
+  // chain then silently tests nothing. Use a real code.
   await ev(
     "(function(){var i=document.querySelectorAll('#namingBody .slot-name')[2];" +
-      "i.value='SampleC';i.dispatchEvent(new Event('change'));})()",
+      "i.value='EHP';i.dispatchEvent(new Event('change'));})()",
   );
   await sleep(400);
   const saved = await ev(
     "fetch('/slots').then(r=>r.json()).then(d=>d.slots[2].name)",
   );
-  ok(saved === "SampleC", "typed name persisted to the device", `/slots -> ${saved}`);
+  ok(saved === "EHP", "typed name persisted to the device", `/slots -> ${saved}`);
 
   // --------------------------------------------------------------- 3. confirm
   console.log("\n3) CONFIRM - unlock Start, reveal chart, collapse temps");
@@ -169,7 +172,7 @@ async function main() {
   ok(!(await ev(shown("tempFullLysis"))), "full temperature cards hidden");
   ok((await pts("homeView")) === 0, "chart still EMPTY before the run starts");
   ok(
-    (await ev("homeView.chart.series[2].name")) === "SampleC",
+    (await ev("homeView.chart.series[2].name")) === "EHP",
     "confirmed name applied to the chart series",
   );
 
@@ -237,9 +240,19 @@ async function main() {
   await poll(`resultView.chart.series[0].data.length>=${EXPECT_ROUNDS}`, "stored curve", 15000);
   const rp = await pts("resultView");
   ok(rp === EXPECT_ROUNDS, "Result chart redraws the whole stored run", `${rp} pts`);
+  // Poll: the Result table is (re)built only after /slots answers, so reading it the
+  // instant the chart appears is a race, not a product bug.
+  await poll(
+    "document.querySelectorAll('#slotBody .slot-name')[2] && " +
+      "document.querySelectorAll('#slotBody .slot-name')[2].value==='EHP'",
+    "name reaches the Result table",
+    5000,
+  ).catch(function () {});
   const name = await ev("document.querySelectorAll('#slotBody .slot-name')[2].value");
-  ok(name === "SampleC", "Result table shows the name set on Home");
-  const ct = await ev("document.querySelectorAll('#slotBody tr')[0].children[3].textContent");
+  ok(name === "EHP", "Result table shows the name set on Home", `got ${JSON.stringify(name)}`);
+  // The row is 3 cells now (Sample | CT | Result), not the old 5 (Show|Slot|Disease|CT|Result):
+  // children[3] was undefined and threw a TypeError that read like a page crash.
+  const ct = await ev("document.querySelectorAll('#slotBody tr')[0].children[1].textContent");
   ok(ct !== "-" && ct !== "", "Result table shows CT for the finished run", `CT=${ct}`);
 
   // ------------------------------------------------- 7. white clears the chart

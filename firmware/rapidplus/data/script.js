@@ -97,9 +97,17 @@ var namingBuilt = false; // naming table populated for the current waitamp sessi
 var homeChartOn = false; // home is currently in chart (running) mode
 var homeCurveOn = false; // ...and that chart may be filled from /curve (run has data)
 var prevBusy = false; // last SSE status.busy, to detect the busy->idle edge (Result re-arm)
+/* The device ID as the MACHINE reports it (SSE home.device = the global id_device). The ID is
+ * stored TWICE on the device - id_device (EEPROM 170) and parameter.device_id (EEPROM 512, the
+ * "device ID" key in /config) - with different defaults ("RAPIDPlus" vs "RPL"), so on a unit
+ * that never had this card saved they hold DIFFERENT strings. id_device is the operational one:
+ * it is what the header shows, what the Google Sheet / ERP upload sends, and what /deviceid
+ * writes. Keep it here so the Setting card can DISPLAY the same store it WRITES. */
+var deviceIdNow = "";
 
 function renderHome(d) {
   if (d.device) {
+    deviceIdNow = d.device;
     txt("deviceName", d.device);
     txt("setDevice", d.device);
   }
@@ -343,7 +351,8 @@ function buildSeries() {
       name: "#" + (i + 1),
       type: "line",
       color: c,
-      marker: { symbol: "circle", radius: 2, fillColor: c },
+      // ponytail: line only. hover marker stays - it is what anchors the tooltip.
+      marker: { enabled: false },
     };
   });
 }
@@ -360,14 +369,14 @@ function makeChart(divId) {
           min: 0,
           startOnTick: true,
           endOnTick: true,
-          /* The scale starts at 0..50 and GROWS with the data - never clips, but never
+          /* The scale starts at 0..200 and GROWS with the data - never clips, but never
              collapses onto a tiny run either, so runs stay comparable at a glance.
              Always exactly ten steps: the top is rounded up to a round number so every
              gridline lands on a clean value instead of 57.3 / 68.76 / ...
              (A plain tickInterval can't do this: it is a fixed step, so the number of
              lines would change with the data.) */
           tickPositioner: function () {
-            var top = Math.max(this.dataMax || 0, 200); // floor of 50, then follow the data
+            var top = Math.max(this.dataMax || 0, 200); // floor of 200, then follow the data
             var mag = Math.pow(10, Math.floor(Math.log(top) / Math.LN10) - 1);
             top = Math.ceil(top / (mag * 5)) * (mag * 5); // round up to a tidy /10 value
             var step = top / 10;
@@ -410,7 +419,7 @@ function makeView(divId, lastUpdateId) {
 }
 var homeView = makeView("homeChart", "lastUpdateHome");
 var resultView = makeView("resultChart", null);
-var BASELINE_N = 9; // first 9 points (0..8) -> baseline for the run
+var BASELINE_N = 20; // first 20 rounds (0..19) -> baseline for the run
 
 /* ---------- Savitzky-Golay smoothing (quadratic, order 2) ----------
  * SG fits a low-degree polynomial to a sliding window and takes the fitted centre,
@@ -619,7 +628,10 @@ var reviewing = false;
 function reviewStoredRun() {
   if (reviewing) return;
   reviewing = true;
-  fetch("/reviewlast", { method: "POST" })
+  // ?go=1 is required by the device: the route is POST-registered but AsyncWebServer's
+  // bitwise method match lets a bare GET (a link prefetch, a scanner) land in the same
+  // handler, and an ~8 s EEPROM reload is not something a stray GET should trigger.
+  fetch("/reviewlast?go=1", { method: "POST" })
     .then(function (r) {
       if (!r.ok) throw 0; // busy, or nothing to review -> stop
       var tries = 0;
@@ -1029,6 +1041,15 @@ var CARDS = [
     ],
     hint: "Rounds x time per round = run length. 120 x 20000 ms = a 40 minute run.",
   },
+  // ---- HIDDEN ON PURPOSE, to be switched back on later (decided 2026-08-02) -------------
+  // LED, Calibration, PID/heater and Other parameters are commented out, not deleted. Their
+  // renderers and routes are all still live, so re-enabling a card is just uncommenting its
+  // entry - do NOT "clean up" renderCalib() or the /calib firmware routes as dead code.
+  //
+  // Known gap while Calibration is hidden: BLUE long-press on the machine still starts the
+  // wizard, and /calib?action=cancel is the only clean way out (WHITE calls ESP.restart(),
+  // and the flags stay latched, which wedges the NEXT calibration). With no card there is no
+  // web escape - a calibration begun at the machine has to be finished at the machine.
   // {
   //   id: "led",
   //   title: "LED",
@@ -1370,6 +1391,9 @@ function openPanel(id) {
   document.getElementById("setAbout").classList.add("hide");
   document.getElementById("setDetail").classList.remove("hide");
   setMsg("");
+  // Before the per-panel renderers, which return early: the menu holding the focused card
+  // is display:none by now, so focus has to land somewhere inside the panel or it is lost.
+  document.getElementById("setBack").focus();
   var form = document.getElementById("setForm");
   form.innerHTML = "";
   if (c.custom === "wifi") return renderWifi(form);
@@ -1379,7 +1403,20 @@ function openPanel(id) {
   renderFields(form, c);
 }
 
-document.getElementById("setBack").addEventListener("click", showMenu);
+// Hand focus back to the card that opened the panel - a keyboard user is otherwise dropped
+// on <body> and has to tab from the top of the page to get back where they were standing.
+// Wired to THIS listener, not to showMenu(): showMenu also runs from the bottom nav on
+// re-entry (script.js:46) and from backToHomeAfterSave(), and openCard survives leaving the
+// tab with a panel open. Doing it inside showMenu() stole focus off the nav button the user
+// had just pressed, and loadConfig().then(renderSetMenu) then emptied #setMenu and destroyed
+// the very node now holding it - focus landed on <body>, the exact failure this prevents.
+// Back is the only path where the thing being hidden IS the thing holding focus.
+document.getElementById("setBack").addEventListener("click", function () {
+  var was = openCard;
+  showMenu();
+  var card = was && document.querySelector('.set-card[data-card="' + was + '"]');
+  if (card) card.focus();
+});
 
 /* ---------- generic value form ---------- */
 function numInput(f, val, ph) {
@@ -1425,6 +1462,8 @@ function renderFields(form, c) {
           );
           var inp = numInput(f, cur && cur[r] ? cur[r][k] : "");
           inp.setAttribute("data-mat", r + "," + k);
+          // One label cannot name four boxes: each cell carries its own name instead.
+          inp.setAttribute("aria-label", f.l + " " + idx.textContent);
           cell.appendChild(idx);
           cell.appendChild(inp);
           wrap.appendChild(cell);
@@ -1438,6 +1477,7 @@ function renderFields(form, c) {
         var ix = el("span", "f-idx", f.names ? f.names[j] : "#" + (j + 1));
         var ip = numInput(f, cur ? cur[j] : "");
         ip.setAttribute("data-i", j);
+        ip.setAttribute("aria-label", f.l + " " + ix.textContent);
         ce.appendChild(ix);
         ce.appendChild(ip);
         w.appendChild(ce);
@@ -1481,6 +1521,15 @@ function renderFields(form, c) {
       n.setAttribute("data-min", f.min === undefined ? "" : f.min);
       n.setAttribute("data-max", f.max === undefined ? "" : f.max);
       row.appendChild(n);
+    }
+    // A <label> that is neither for= nor an ancestor names NOTHING: the reader announces
+    // "edit, blank" and clicking the text does not focus the box. Wired here, once, so
+    // every branch above inherits it; the array/matrix rows hold several controls and
+    // carry their own aria-label instead, so they fall out of the count on purpose.
+    var ctrls = row.querySelectorAll(".f-in, .f-sel");
+    if (ctrls.length === 1) {
+      ctrls[0].id = "f-" + f.p.replace(/[^a-z0-9]+/gi, "-");
+      lbl.htmlFor = ctrls[0].id;
     }
     form.appendChild(row);
   });
@@ -1703,10 +1752,13 @@ function renderOta(form) {
     ),
   );
   var fileRow = el("div", "f-row");
-  fileRow.appendChild(el("label", "f-lbl", "Firmware file (.bin)"));
+  var fileLbl = el("label", "f-lbl", "Firmware file (.bin)");
   var fin = el("input", "f-in");
   fin.type = "file";
   fin.accept = ".bin";
+  fin.id = "otaFile";
+  fileLbl.htmlFor = fin.id;
+  fileRow.appendChild(fileLbl);
   fileRow.appendChild(fin);
   form.appendChild(fileRow);
 
@@ -1791,11 +1843,26 @@ function renderDeviceId(form) {
   i.type = "text";
   i.maxLength = 9;
   i.id = "idInput";
-  i.value = (cfgCache && cfgCache["device ID"]) || "";
+  lbl.htmlFor = i.id;
+  // deviceIdNow = SSE home.device, i.e. the ID the machine itself reports. Never cfgCache:
+  // the card must display the same value POST /deviceid writes, or the operator "corrects" an
+  // ID that was never the one in use.
+  i.value = deviceIdNow;
   row.appendChild(lbl);
   row.appendChild(i);
   form.appendChild(row);
-  var b = el("button", "save-btn", "Save");
+  // Below the input, not above it: test_device_id.py slices this function to a fixed length and
+  // needs deviceIdNow inside the slice, and a warning reads better right above the button it
+  // applies to. Deliberately does not name the hotspot prefix - the device builds that
+  // (dashboardApName) and a hardcoded copy here would go stale, which is the bug this warns about.
+  form.appendChild(
+    el(
+      "p",
+      "f-hint",
+      "Saving reboots the device so it can re-announce the new name: the hotspot SSID, the .local address and the QR code all change. If you are connected to the machine's own hotspot you will have to re-join it under the new name.",
+    ),
+  );
+  var b = el("button", "save-btn", "Save & reboot");
   b.type = "button";
   b.addEventListener("click", function () {
     var v = i.value.trim();
@@ -1817,7 +1884,7 @@ function renderDeviceId(form) {
       })
       .then(function (o) {
         settleSave(o, b, function () {
-          setMsg("Saved.", true);
+          setMsg("Saved - restarting to apply the new name.", true);
           backToHomeAfterSave();
         });
       })
@@ -1832,6 +1899,7 @@ function renderDeviceId(form) {
 /* ---------- WiFi: async scan, then save + reboot ---------- */
 var curNet = null; // latest {ssid, ip, ap} from the home SSE event (current connection)
 var wifiScanNets = []; // last scan result, so Save can warn on an SSID typo before rebooting
+var wifiSavedSsids = []; // what the Saved list above is already showing (Nearby hides these)
 // Was this SSID seen in the last scan? (Unknown scan -> treat as "yes" so we never block.)
 function wifiScanHas(ssid) {
   if (!wifiScanNets.length) return true; // no scan data yet -> don't second-guess the user
@@ -1844,7 +1912,10 @@ function renderWifi(form) {
     el(
       "p",
       "f-hint",
-      "The device reboots to join the network. If you are connected to its RAPID-... hotspot, this page will disconnect.",
+      // Don't name the hotspot prefix here: it is built by dashboardApName() on the device
+      // (currently "FBT-<id>") and a hardcoded copy went stale the moment that changed.
+      // net.ssid on the home event carries the live name when we are actually on the AP.
+      "The device reboots to join the network. If you are connected to its own hotspot, this page will disconnect.",
     ),
   );
   // Saved networks (stored in NVS): the machine tries these in order if the preferred
@@ -1865,20 +1936,24 @@ function renderWifi(form) {
   /* A real text box, not just the scan list: picking from the list fills it in, but a
      HIDDEN network never appears in a scan and could not be joined at all before. */
   var srow = el("div", "f-row");
-  srow.appendChild(el("label", "f-lbl", "Network name (SSID)"));
+  var slbl = el("label", "f-lbl", "Network name (SSID)");
+  srow.appendChild(slbl);
   var ss = el("input", "f-in");
   ss.type = "text";
   ss.id = "wifiSsid";
+  slbl.htmlFor = ss.id;
   ss.maxLength = 32; // firmware rejects 0 or >32 (handleWifi)
   ss.placeholder = "pick one above, or type a hidden network";
   srow.appendChild(ss);
   form.appendChild(srow);
 
   var row = el("div", "f-row");
-  row.appendChild(el("label", "f-lbl", "Password"));
+  var plbl = el("label", "f-lbl", "Password");
+  row.appendChild(plbl);
   var pw = el("input", "f-in");
   pw.type = "password";
   pw.id = "wifiPass";
+  plbl.htmlFor = pw.id;
   pw.maxLength = 54; // EEPROM slot is 54 chars, not WPA2's 63
   pw.placeholder = "leave empty for an open network";
   row.appendChild(pw);
@@ -2011,6 +2086,13 @@ function loadSavedWifi() {
         );
       }
       var nets = (d && d.nets) || [];
+      // Nearby hides whatever is saved, so it has to be re-rendered from here: the two
+      // lists are separate fetches in either order, and a Forget must put the network
+      // back into Nearby without waiting for the next scan.
+      wifiSavedSsids = nets.map(function (n) {
+        return n.ssid;
+      });
+      if (wifiScanNets.length) renderWifiList(wifiScanNets);
       if (!nets.length) {
         box.appendChild(el("p", "f-hint", "None saved yet."));
         return;
@@ -2117,10 +2199,25 @@ function renderWifiList(nets) {
     list.appendChild(el("p", "f-hint", "No networks found."));
     return;
   }
-  nets.sort(function (a, b) {
+  // Drop what the Saved list directly above already shows. The connected network appeared
+  // in both, and tapping the Nearby copy cleared the password box and asked the operator to
+  // re-type a password that already works. Nothing is hidden - the row is one section up,
+  // with a Connect button that uses the stored password.
+  // DISPLAY only: wifiScanNets keeps the full scan, or typing a saved SSID by hand would
+  // be rejected as a typo before the reboot.
+  var shown = nets.filter(function (n) {
+    return wifiSavedSsids.indexOf(n.ssid) < 0;
+  });
+  if (!shown.length) {
+    list.appendChild(
+      el("p", "f-hint", "Every network in range is already saved above."),
+    );
+    return;
+  }
+  shown.sort(function (a, b) {
     return b.rssi - a.rssi;
   });
-  nets.forEach(function (n) {
+  shown.forEach(function (n) {
     var b = el("button", "wifi-item");
     b.type = "button";
     b.appendChild(el("span", "wifi-name", n.ssid || "(hidden)"));
@@ -2153,6 +2250,9 @@ function renderWifiList(nets) {
 }
 
 /* ---------- Calib wizard: mirrors the device's own flow ----------
+ * UNREACHABLE RIGHT NOW and that is deliberate: the "calib" entry in CARDS is commented out
+ * (see the note there). Everything below, the openPanel dispatch and the applySettingLock
+ * step hook are kept working so the card can be switched back on in one line. Not dead code.
  * It is a human-in-the-loop procedure, not a routine we can just run: preheat to 55 C
  * (a 5 minute hold), pick a slot, then FOUR measurements, each needing the matching
  * tube physically placed in the slot. We only drive the device's buttons. */
@@ -2249,8 +2349,11 @@ function renderCalib(form) {
   } else {
     if (cur === "slot") {
       var row = el("div", "f-row");
-      row.appendChild(el("label", "f-lbl", "Slot"));
+      var slotLbl = el("label", "f-lbl", "Slot");
+      row.appendChild(slotLbl);
       var sel = el("select", "f-sel");
+      sel.id = "calibSlot";
+      slotLbl.htmlFor = sel.id;
       for (var i = 0; i < 10; i++) {
         var o = el("option", null, "#" + (i + 1));
         o.value = i;

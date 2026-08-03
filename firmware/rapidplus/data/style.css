@@ -395,8 +395,22 @@ body {
 }
 .set-card:hover { border-color: #a9ccd0; box-shadow: 0 4px 16px rgba(16, 24, 40, .1); }
 .set-card:active { transform: scale(.99); }
-.set-card[disabled] { opacity: .6; cursor: not-allowed; } /* .45 measured 1.83 on the description */
-.set-card[disabled]:hover { border-color: var(--hairline); box-shadow: var(--shadow); }
+/* Disabled = colour drained, NOT faded. opacity dims the text AND the surface behind it,
+   so the ratio collapses from both sides: .45 measured 1.83 on the description, .6 was no
+   better at 2.26 (title 3.92). grayscale() maps through the luminance matrix, so contrast
+   cannot regress - measured 14.63 title / 4.84 description, i.e. the enabled values. */
+.set-card[disabled] {
+  filter: grayscale(1); cursor: not-allowed;
+  /* grayscale alone is nearly invisible here - the card is white with dark text, so only
+     the 40px icon tile loses its tint, and cursor: not-allowed does not exist on the phone
+     this page is meant to be opened from. Drop the card onto the page colour and take the
+     shadow away instead: it stops floating, which reads as "not a control" at a glance and
+     costs nothing (title 13.63:1, description 4.51:1 - both still AA). */
+  background: var(--bg); box-shadow: none;
+}
+/* box-shadow: none, NOT var(--shadow): the base rule above takes the shadow away to make a
+   locked card stop floating, and re-adding it on hover made it look alive again. */
+.set-card[disabled]:hover { border-color: var(--hairline); box-shadow: none; }
 .set-ico {
   flex: none; display: grid; place-items: center; width: 40px; height: 40px;
   border-radius: 11px; background: #e2f5f7; color: var(--blue);
@@ -454,7 +468,9 @@ body {
 }
 .save-btn:hover { background: var(--blue-600); }
 .save-btn:active { transform: scale(.97); }
-.save-btn[disabled] { opacity: .6; cursor: not-allowed; } /* .5 measured 1.49 */
+/* Same reason as .set-card[disabled]: .5 measured 1.49, .6 measured 2.55 for the white
+   label. grayscale keeps it at 6.24 - a disabled primary button still has to be readable. */
+.save-btn[disabled] { filter: grayscale(1); cursor: not-allowed; }
 .set-msg { font-size: 0.83rem; font-weight: 600; margin-top: 0.6rem; min-height: 1.1rem; }
 .set-msg.ok { color: var(--green); }
 .set-msg.err { color: var(--red); }
@@ -493,7 +509,7 @@ body {
   padding: 0.3rem 0.7rem;
 }
 .wifi-forget:hover { background: #fff5f5; }
-.wifi-forget:disabled { opacity: .5; cursor: default; }
+.wifi-forget:disabled { filter: grayscale(1); cursor: default; } /* opacity .5 measured 1.49 */
 .saved-acts { flex: none; display: flex; gap: 0.4rem; }
 .wifi-use {
   font-family: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer;
@@ -501,7 +517,8 @@ body {
   border-radius: 8px; padding: 0.3rem 0.7rem;
 }
 .wifi-use:hover { background: #d3eef1; }
-.wifi-use:disabled { opacity: .5; cursor: default; }
+.wifi-use:disabled { filter: grayscale(1); cursor: default; } /* Connect ends in a reboot - it
+  sits disabled until the page loses the connection, so it cannot be an unreadable button */
 .wifi-item.sel { border-color: var(--blue); background: #e2f5f7; }
 .wifi-name { flex: 1; font-size: 0.9rem; font-weight: 600; min-width: 0;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -684,6 +701,10 @@ body.nonav .bottom-nav { display: none; }
      full width to read one row. Home keeps the full width (it is a dashboard grid). */
   #screen-setting .card { max-width: 900px; }
   .set-grid { grid-template-columns: 1fr 1fr; max-width: 900px; }
+  /* A 2-character setpoint stretched across the full 845px panel reads as a text area and
+     puts the caret a screen away from its label. Numbers only - SSIDs, IDs and file paths
+     are long and keep the full width. */
+  #screen-setting .f-in[type="number"] { max-width: 14rem; }
 
   /* Result on a wide screen: curve on the left taking two thirds, results table on the
      right taking one third. Reading a run means looking at both at once, so stacking them
@@ -718,6 +739,31 @@ body.nonav .bottom-nav { display: none; }
   /* Stretched to ~600px each on a 1280 screen, which read as three banners rather than
      three buttons. Cap them and keep them left-aligned with the rest of the content. */
   .btn-row { max-width: 780px; }
+}
+
+/* ============================================================
+ * Touch devices: 16px on every form control, or the page jumps when you tap one.
+ *
+ * iOS Safari zooms the whole viewport whenever a focused text input has a computed
+ * font-size BELOW 16px - and every control here was under it (.sample-name and
+ * .slot-name at 0.85rem = 13.6px, .f-in/.f-sel at 0.9rem = 14.4px). Tapping the sample
+ * field on a phone therefore scaled the layout and scrolled the field off-centre, which
+ * reads as "the page jumps around while I type". It affected ALL of them; the sample
+ * field is just the one you touch on every run.
+ *
+ * ONE rule for all controls rather than a patch on .sample-name: they share the cause,
+ * so a per-field fix would leave the WiFi password, the config forms and the disease
+ * picker still jumping.
+ *
+ * `maximum-scale=1` in the viewport meta is the other way this gets "fixed" - DON'T.
+ * It stops the zoom by disabling pinch-zoom for everyone, including low-vision users, on
+ * a medical device. 16px removes the reason for the zoom instead of removing the ability.
+ * Scoped to coarse pointers so the desktop keeps its compact 13.6px table.
+ * ============================================================ */
+@media (hover: none) and (pointer: coarse) {
+  .sample-name, .slot-name, .disease-sel, .f-in, .f-sel {
+    font-size: 16px;
+  }
 }
 
 /* ============================================================

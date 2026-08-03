@@ -301,9 +301,20 @@ void setup()
   // configure the button
   _buttonManager.buttonStart();
 
-  // load ssid, password, id_device id from EEPROM
+  // load ssid + password from EEPROM (the device ID comes from _ForteSetting.begin() below)
   loadSettingDevice();
   error.readErrorFromEEPROM(); // read error record from EEPROM, used for error process
+
+  // MUST run before WiFi.setHostname() below, and that is why they sit here rather than after
+  // the WiFi block: the hostname is derived from the device ID, and since the id_device global
+  // was deleted (2026-07-30) the ID lives ONLY in _ForteSetting.parameter, which is what
+  // begin() loads from EEPROM. Called any later and setHostname() would register the compiled
+  // default, so DHCP would advertise a different name than mDNS does.
+  // _displayCLD.begin() comes first because ForteSetting::begin() paints ErrorDisplay() on a
+  // fresh/erased EEPROM. Both are pure TFT/EEPROM work with no WiFi dependency, so moving them
+  // ahead of the radio is safe - and the splash now appears sooner.
+  _displayCLD.begin();
+  _ForteSetting.begin();
 
   // Release the Bluetooth (BTDM) memory HERE, before WiFi/lwIP allocate, instead of later
   // in dashboardBegin(). BT is never used in this build (no SerialBT.begin at boot; the web
@@ -337,8 +348,8 @@ void setup()
   // If none connected, WiFi is left in STA-disconnected: dashboardLoop() (NetworkTask)
   // gives it a grace window and then raises the SoftAP fallback, without blocking setup().
 
-  _displayCLD.begin();
-  _ForteSetting.begin();
+  // _displayCLD.begin() / _ForteSetting.begin() already ran, before the WiFi block - the
+  // hostname needs the device ID they load. Do NOT move them back down here.
   _PIDControl.begin();
   _displayCLD.logoFortebiotech();
 

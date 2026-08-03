@@ -169,7 +169,10 @@
           </div>
           <div class="banner-body">
             <div class="banner-title">Settings locked</div>
-            <div class="banner-sub">The device is busy - settings cannot change during a run.</div>
+            <!-- Not "during a run": a run hides the nav entirely (applyRunNav), so this tab
+                 is only reachable while busy when the machine is calibrating. Say the part
+                 that is always true rather than name the wrong cause. -->
+            <div class="banner-sub">The machine is busy - settings cannot change until it finishes.</div>
           </div>
         </div>
 

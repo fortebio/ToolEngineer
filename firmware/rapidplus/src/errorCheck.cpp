@@ -1,6 +1,7 @@
 #include "errorCheck.h"
 #include "Bluetooth.h"
 #include <ArduinoJson.h>
+#include "ForteSetting.h"
 
 ErrorCheck error; // global variable to record the error type and times, used for opto sensor reading error process
 
@@ -33,7 +34,7 @@ void postError_Googlesheet(uint8_t errorModule, uint8_t errorType, uint8_t error
         http.addHeader("Content-Type", "application/json");
 
         dataPostGoogleSheet["method"] = "error";
-        dataPostGoogleSheet["id_device"] = id_device;
+        dataPostGoogleSheet["id_device"] = _ForteSetting.parameter.device_id;
         dataPostGoogleSheet["version"] = FirmwareVer;
 
         JsonArray error_array = dataPostGoogleSheet.createNestedArray("error");
@@ -77,7 +78,7 @@ void postError_fullGoogleSheet(void)
         http.addHeader("Content-Type", "application/json");
 
         dataPostGoogleSheet["method"] = "error";
-        dataPostGoogleSheet["id_device"] = id_device;
+        dataPostGoogleSheet["id_device"] = _ForteSetting.parameter.device_id;
         dataPostGoogleSheet["version"] = FirmwareVer;
 
         JsonArray error_array = dataPostGoogleSheet.createNestedArray("error");

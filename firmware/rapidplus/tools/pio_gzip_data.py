@@ -1,48 +1,126 @@
-"""Regenerate data/*.gz right before the LittleFS image is built.
+"""Regenerate data/*.gz and bake the whole UI into the firmware as src/webAssets.h.
 
-AsyncWebServer's serveStatic prefers `<file>.gz` when it exists and serves it with
-Content-Encoding: gzip, so shipping both means the browser only ever downloads the
-small one (index.html 10K->2.5K, script.js 48K->14K, style.css 21K->6K). That matters
-here: the ESP32's largest contiguous heap block is what limits how big a response
-AsyncTCP can push, and it is measured in tens of KB.
+WHY THE UI LIVES IN THE FIRMWARE NOW
+Serving the UI from LittleFS means every unit needs a SECOND artifact (littlefs.bin)
+flashed in sync with firmware.bin, and there is no safe way to push that over the air:
+the U_SPIFFS update path has no integrity check at all (Updater.cpp:243-245 returns true
+unconditionally, no x-MD5 from raw.githubusercontent.com, no A/B partition, no rollback),
+so any HTTP 200 - including a GitHub rate-limit HTML page - would be written onto the
+filesystem and then mounted and served. Baking the assets into .rodata leaves exactly one
+artifact, updated through the same httpUpdate path every old firmware already knows.
+See docs/plan/2026-07-28-ota-fleet-upgrade-243.md.
 
-Why this runs automatically instead of a manual `gzip` step: a hand-made .gz goes stale
-the moment someone edits the source, and the device then silently serves the OLD UI
-while the file on disk looks right. That is a miserable bug to chase. Generating on
-every FS build makes staleness impossible.
+RAM cost is zero: the arrays stay in flash and AsyncWebServer streams straight out of
+them (beginResponse(code, mime, const uint8_t*, len)).
 
-Hooked from platformio.ini via tools/pio_upload_all.py.
+The .gz files are still generated (data/ + `uploadfs` keep working, and the .gz bytes are
+what gets embedded). Why generate instead of committing hand-made .gz: a stale .gz silently
+serves the OLD UI while the source file looks right, which is a miserable bug to chase.
+mtime=0 keeps the output byte-identical for identical input, so an unchanged file does not
+churn the image - or the generated header.
+
+Runs at MODULE SCOPE, not as a pre-action on $BUILD_DIR/littlefs.bin: the firmware build
+must regenerate the header even when no filesystem image is ever built.
+
+Hooked from platformio.ini (extra_scripts).
 """
 import gzip
+import hashlib
 import os
 
 Import("env")  # noqa: F821 - injected by PlatformIO/SCons
 
-# Text assets only. Do not touch highcharts.js.gz - it ships pre-made, and re-zipping
-# a 634KB file on every build would just burn time.
-GZIP_ME = ("index.html", "script.js", "style.css")
+# Text assets we compress ourselves. highcharts.js.gz ships pre-made - re-zipping 634 KB
+# on every build would just burn time.
+GZIP_ME = ("index.html", "script.js", "style.css", "highcharts.js")
+
+# (source file in data/, C identifier). Order fixes the ETag, so keep it stable.
+EMBED = (
+    ("index.html.gz", "WEB_ASSET_INDEX_HTML_GZ"),
+    ("style.css.gz", "WEB_ASSET_STYLE_CSS_GZ"),
+    ("script.js.gz", "WEB_ASSET_SCRIPT_JS_GZ"),
+    ("highcharts.js.gz", "WEB_ASSET_HIGHCHARTS_JS_GZ"),
+    ("logo.png", "WEB_ASSET_LOGO_PNG"),
+)
 
 
-def gzip_data_dir(source, target, env):  # noqa: ARG001 - SCons action signature
-    data_dir = env.subst("$PROJECT_DATA_DIR")
-    if not os.path.isdir(data_dir):
-        return
+def gzip_data_dir(data_dir):
     for name in GZIP_ME:
         src = os.path.join(data_dir, name)
         if not os.path.isfile(src):
             continue
         dst = src + ".gz"
-        # Skip if the .gz is already newer than its source.
         if os.path.isfile(dst) and os.path.getmtime(dst) >= os.path.getmtime(src):
-            continue
+            continue  # .gz already newer than its source
         with open(src, "rb") as f:
             raw = f.read()
-        # mtime=0 -> byte-identical output for identical input, so an unchanged file
-        # does not churn the FS image.
         with gzip.GzipFile(dst, "wb", compresslevel=9, mtime=0) as f:
             f.write(raw)
         print("gzip: %s  %d -> %d bytes" % (name, len(raw), os.path.getsize(dst)))
 
 
-# Runs before the littlefs image is assembled from data/.
-env.AddPreAction("$BUILD_DIR/littlefs.bin", gzip_data_dir)  # noqa: F821
+def c_array(name, blob):
+    out = ["static const uint8_t %s[%d] = {" % (name, len(blob))]
+    for i in range(0, len(blob), 16):
+        out.append("    " + "".join("0x%02x," % b for b in blob[i:i + 16]))
+    out.append("};")
+    return "\n".join(out)
+
+
+def gen_web_assets(data_dir, header_path):
+    blobs, missing = [], []
+    for fname, ident in EMBED:
+        path = os.path.join(data_dir, fname)
+        if not os.path.isfile(path):
+            missing.append(fname)
+            continue
+        with open(path, "rb") as f:
+            blobs.append((ident, fname, f.read()))
+    if missing:
+        # Fail loudly: a firmware that silently ships without its UI looks fine until a
+        # unit in the field answers 404 on '/'.
+        raise Exception("pio_gzip_data: missing UI asset(s) in data/: " + ", ".join(missing))
+
+    h = hashlib.sha1()
+    for ident, fname, blob in blobs:
+        h.update(fname.encode())
+        h.update(blob)
+    etag = h.hexdigest()[:16]
+
+    parts = [
+        "// AUTO-GENERATED by tools/pio_gzip_data.py from data/ - DO NOT EDIT.",
+        "// Include from exactly ONE translation unit (webDashboard.cpp): these are static",
+        "// arrays, so a second includer would duplicate ~%d bytes of flash." % sum(len(b) for _, _, b in blobs),
+        "#ifndef WEB_ASSETS_H",
+        "#define WEB_ASSETS_H",
+        "",
+        "#include <stddef.h>",
+        "#include <stdint.h>",
+        "",
+        "// Content hash of every embedded asset -> ETag. Changes iff the UI changes, which",
+        "// is what lets a browser revalidate with a conditional GET and get a 304.",
+        '#define WEB_ASSETS_ETAG "%s"' % etag,
+        "",
+    ]
+    for ident, fname, blob in blobs:
+        parts.append("// data/%s (%d bytes)" % (fname, len(blob)))
+        parts.append(c_array(ident, blob))
+        parts.append("")
+    parts.append("#endif // WEB_ASSETS_H")
+    new = "\n".join(parts) + "\n"
+
+    old = None
+    if os.path.isfile(header_path):
+        with open(header_path, "r", encoding="utf-8", errors="replace") as f:
+            old = f.read()
+    if old == new:
+        return  # do not touch mtime - that would recompile webDashboard.cpp every build
+    with open(header_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(new)
+    print("webAssets.h: %d bytes embedded, etag=%s" % (sum(len(b) for _, _, b in blobs), etag))
+
+
+_data_dir = env.subst("$PROJECT_DATA_DIR")  # noqa: F821
+if os.path.isdir(_data_dir):
+    gzip_data_dir(_data_dir)
+    gen_web_assets(_data_dir, os.path.join(env.subst("$PROJECT_DIR"), "src", "webAssets.h"))  # noqa: F821

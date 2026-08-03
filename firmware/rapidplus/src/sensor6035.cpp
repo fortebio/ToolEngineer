@@ -867,7 +867,7 @@ void sensor6035::ALS_IT_Process(String command)
             return;
         }
         /* read para and response, add later */
-        info_displayf("Read ALS integration time(ALS_IT): %s\n", strParaList[readValue - 1]); // 25, 50, 100, 200, 400, 800
+        info_displayf("Read ALS integration time(ALS_IT): %s\n", strParaList[readValue - 1].c_str()); // 25, 50, 100, 200, 400, 800
         return;
     }
     else if (command.substring(0, 7) == "ALS_IT ")
@@ -875,6 +875,16 @@ void sensor6035::ALS_IT_Process(String command)
         const Word paraList[6] = {VEML6035_ALS_IT_25ms, VEML6035_ALS_IT_50ms, VEML6035_ALS_IT_100ms, VEML6035_ALS_IT_200ms, VEML6035_ALS_IT_400ms, VEML6035_ALS_IT_800ms};
         String strPara = command.substring(7);
         int index = strPara.toInt();
+        // toInt() takes arbitrary Serial/BT text, and this parser is reachable with NOTHING
+        // validating it (CLAUDE.md Setting #4). Unbounded, "ALS_IT 99" reads ~200 bytes past a
+        // stack array and writes whatever it finds into the VEML6035 ALS_IT register - silently
+        // mis-configuring the sensor that measures amplification. toInt() also returns 0 for
+        // non-numeric text, so a typo would have quietly selected 25 ms; say so instead.
+        if (index < 0 || index >= (int)(sizeof(paraList) / sizeof(paraList[0])))
+        {
+            info_displayf("ALS_IT index %d out of range (0..5)\n", index);
+            return;
+        }
         VEML6035_SET_ALS_IT(paraList[index]); // set the para here
         Byte readValue = VEML6035_GET_ALS_IT_Bits();
         if (readValue < 1 || readValue > 6)
@@ -883,7 +893,7 @@ void sensor6035::ALS_IT_Process(String command)
             return;
         }
         /* read para and response, add later */
-        info_displayf("Set ALS integration time(ALS_IT) to %s\n", strParaList[readValue - 1]); // 25, 50, 100, 200, 400, 800
+        info_displayf("Set ALS integration time(ALS_IT) to %s\n", strParaList[readValue - 1].c_str()); // 25, 50, 100, 200, 400, 800
     }
     else
     {

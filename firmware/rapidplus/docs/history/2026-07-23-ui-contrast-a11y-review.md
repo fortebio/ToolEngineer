@@ -182,6 +182,9 @@ Highcharts tự chọn bước tròn vừa với chiều cao đang có — cũng
 
 ## Trục tung: sàn 50, giãn theo dữ liệu, LUÔN đúng 10 nấc
 
+> ⚠ **Cập nhật 2026-07-29**: sàn đổi **50 → 200**. Phần dưới giữ nguyên làm bản ghi lịch sử;
+> xem [2026-07-29-slot-labels-nvs-no-filesystem.md](2026-07-29-slot-labels-nvs-no-filesystem.md).
+
 **Yêu cầu**: trục tung tối thiểu tới 50, tăng theo giá trị đường, và **luôn có 10 nấc**
 (4 nấc có nhãn ở giữa, còn lại là vạch phụ).
 

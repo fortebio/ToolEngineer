@@ -371,6 +371,12 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(CONFIG)
         if self.path.startswith("/wifiscan"):
             return self._wifiscan()
+        # The device cannot tell GET from POST here: the route is registered with
+        # WebServer.h's HTTP_POST (== 3) while AsyncWebServer matches bitwise against its own
+        # flags (GET == 1), so 3 & 1 lets a bare GET into the POST handler. Mirror that, or
+        # the mock hides the very hole ?go=1 exists to close.
+        if self.path.startswith("/reviewlast"):
+            return self._reviewlast()
         if self.path.startswith("/calib"):
             return self._calib()
         if self.path.startswith("/ota"):
@@ -551,7 +557,11 @@ class Handler(SimpleHTTPRequestHandler):
     def _reviewlast(self):
         # Reload the last completed run from EEPROM for the Result tab (device: PEND_REVIEW
         # on SettingTask). Refuse while busy - it would overwrite the live sensor buffer.
+        # Mirror the device's ?go=1 requirement: without it a bare GET would trigger the
+        # reload (AsyncWebServer matches methods bitwise, so GET reaches a POST route).
         global _reviewed
+        if "go=" not in urlparse(self.path).query:
+            return self._json({"ok": False, "error": "use POST /reviewlast?go=1"})
         if self._busy():
             return self._json({"ok": False, "error": "device busy"})
         if _stored:

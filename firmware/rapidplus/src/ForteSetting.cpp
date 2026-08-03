@@ -235,16 +235,23 @@ bool ForteSetting::JsonDataConfig()
             // if (json_document.containsKey("para version"))
             {
                 String paraVersion = json_document["para version"].as<String>();
-                strcpy(parameter.para_version, paraVersion.c_str());
+                // strlcpy, not strcpy: this also runs from Serial/BT where nothing
+                // validated the length, and both fields are char[10] near the top of
+                // parastructure - an overrun lands on slopes/origins/kpid, then commits.
+                strlcpy(parameter.para_version, paraVersion.c_str(), sizeof(parameter.para_version));
                 info_displayln("Para Version: " + paraVersion);
             }
 
             if (json_document.containsKey("PCB version"))
             {
                 String PCBVersion = json_document["PCB version"].as<String>();
-                strcpy(parameter.PCB_version, PCBVersion.c_str());
+                strlcpy(parameter.PCB_version, PCBVersion.c_str(), sizeof(parameter.PCB_version));
                 info_displayln("PCB Version: " + PCBVersion);
             }
+
+            // Captured BEFORE any overwrite below: the reboot at the end of this function must
+            // fire only if the ID really changed. Serial/BT re-push identical configs routinely.
+            String idBefore(parameter.device_id);
 
             // Print the extracted data
             if (json_document.containsKey("opto calibration"))
@@ -342,14 +349,14 @@ bool ForteSetting::JsonDataConfig()
             if (json_document.containsKey("units"))
             {
                 String units = json_document["units"].as<String>();
-                strcpy(parameter.units, units.c_str());
+                strlcpy(parameter.units, units.c_str(), sizeof(parameter.units));
                 info_displayln("Units: " + units);
             }
 
             if (json_document.containsKey("device ID"))
             {
                 String deviceId = json_document["device ID"].as<String>();
-                strcpy(parameter.device_id, deviceId.c_str());
+                strlcpy(parameter.device_id, deviceId.c_str(), sizeof(parameter.device_id));
                 info_displayln("Device ID: " + deviceId);
             }
 
@@ -498,6 +505,26 @@ bool ForteSetting::JsonDataConfig()
             EEPROM.commit();
             EEPROM.end();
             eepromUnlock();
+
+            // Serial/BT reach this parser with NOTHING validating them (CLAUDE.md Setting #4) -
+            // the web is the only caller that goes through handleConfigPost. strlcpy above bounds
+            // the LENGTH, but a control character or an empty string still gets through, and this
+            // one field now feeds the SoftAP SSID, the mDNS label and the QR payload. Re-run the
+            // same check begin() applies, so every way into the store lands on a usable value.
+            if (json_document.containsKey("device ID"))
+            {
+                sanitiseDeviceId();
+                // Same reason as PEND_ID: the ID is latched into the radio at boot (softAP SSID,
+                // DHCP hostname, mDNS) and cannot be changed in place. THIS path matters more,
+                // not less: unlike POST /deviceid it has no busy gate, so Serial/BT can rename
+                // mid-run - and dashboardRequestRestart() is what holds the reboot until the run
+                // is over instead of cutting it.
+                if (idBefore != parameter.device_id)
+                {
+                    info_displayln("[cfg] device id changed - reboot queued to re-announce it");
+                    dashboardRequestRestart(1500);
+                }
+            }
             return true;
         }
         else if (json_document.containsKey("raw_data")) // include raw data which means for the testing purpose
@@ -728,6 +755,67 @@ ForteSetting::~ForteSetting()
 {
 }
 
+// ADDR_CHECK_ID_DEVICE stamped with this = "the slot-170 migration below already ran". The byte
+// carries NO identity; v2.4.2 used the same address as a bool flag. Read it with EEPROM.read(),
+// never readBool(): a virgin 0xFF reads as TRUE and would skip the migration on every fresh unit.
+static const uint8_t kIdMigrated = 0xA5;
+
+// Strings no operator ever typed. Two are compiled defaults (this build's, and v2.4.2's
+// "proto 0"); the third is the one that makes this list load-bearing:
+//
+//   v2.4.2:src/Bluetooth.cpp - WiFiManagerParameter custom_id_device(..., "RPL", 40)
+//
+// the portal PRE-FILLED its ID box with "RPL" and saved whatever was in it, so every operator who
+// opened the portal just to enter WiFi wrote "RPL" into slot 170. Adopting that as a real serial
+// would give a large slice of the fleet ONE shared identity - all uploading under it, all
+// answering at one .local name - and it would pass sanitiseDeviceId(), permanently hiding the
+// UNSET prompt. v2.4.2 itself treated it as "unconfigured" (strncmp(id,"RPL",3) picked the AP name).
+//
+// EXACT compare, never a prefix: real serials look like "RPL03010" and must survive.
+static bool idIsPlaceholder(const char *id)
+{
+    static const char *const kNeverTyped[] = {"RPL", "proto 0", "UNSET"};
+    for (const char *p : kNeverTyped)
+        if (strcmp(id, p) == 0)
+            return true;
+    return false;
+}
+
+// parameter.device_id is THE device ID - the only store since the id_device global went away
+// (2026-07-30). Everything reads it through the protoID macro: the web header, the SoftAP SSID,
+// the mDNS label, the QR payload and every Google Sheet / ERP upload. So it gets sanitised in
+// exactly one place - here, right after the struct is loaded - and no consumer has to.
+//
+// Two things can be wrong with it:
+//  - NOT NUL-TERMINATED. begin() fills the struct with a raw EEPROM.get(); a block written by an
+//    older layout can leave all 10 bytes non-zero, and then every strlen/String read walks off
+//    the end of the field into slopes[].
+//  - NOISE. Every writer produces 1..9 printable characters (POST /deviceid validates 1..9,
+//    handleConfigPost rejects > 9, the field is char[10]), so anything else is provably not a
+//    real write. Passing noise on is worse than admitting the ID is unset: an over-long value
+//    stops WiFi.softAP() (802.11 caps an SSID at 32 B) and used to reboot the machine through
+//    the QR encoder (docs/history/2026-07-29-qr-reset-ssid-drift.md).
+//
+// "UNSET" shows on the TFT start screen AND the web header, so the operator sees the machine
+// needs configuring instead of trusting a plausible-looking accident. Not persisted: the next
+// real save is what writes it, and until then the prompt should keep coming back.
+void ForteSetting::sanitiseDeviceId()
+{
+    parameter.device_id[sizeof(parameter.device_id) - 1] = '\0'; // terminate BEFORE reading it
+    // A compiled default / pre-filled portal value is "no ID", not an ID - see idIsPlaceholder().
+    // Checked HERE so every write path inherits it: JsonDataConfig() (Serial/BT + POST /config)
+    // and drainPending() PEND_ID (POST /deviceid) both call this before they persist.
+    bool ok = parameter.device_id[0] != '\0' && !idIsPlaceholder(parameter.device_id);
+    for (size_t i = 0; ok && parameter.device_id[i]; i++)
+        if (parameter.device_id[i] < 0x20 || parameter.device_id[i] > 0x7E)
+            ok = false;
+    if (!ok)
+    {
+        Serial.println("[id] no usable device ID in EEPROM -> \"UNSET\"");
+        strlcpy(parameter.device_id, "UNSET", sizeof(parameter.device_id));
+    }
+}
+
 /***********************************************************************
  * Function: begin()
  * Description: Initialization routine. Reads the parameter struct from EEPROM
@@ -752,8 +840,10 @@ void ForteSetting::begin()
         // One-time migration: configs saved before kpid3 existed have kpid3 == {0,0,0}.
         // Seed the defaults and persist so it sticks. Done ONLY inside the valid-config
         // branch so we never write back garbage (e.g. on a fresh/erased EEPROM).
-        if (FirmwareVer == "v2.4.3" &&
-            parameter.kpid3[0] == 0 && parameter.kpid3[1] == 0 && parameter.kpid3[2] == 0)
+        //
+        // Gated on the DATA, never on FirmwareVer: that global changes every release, so a unit
+        // jumping 2.4.2 -> 2.4.4 would skip this and run the hotlid PID with kpid3 == {0,0,0}.
+        if (parameter.kpid3[0] == 0 && parameter.kpid3[1] == 0 && parameter.kpid3[2] == 0)
         {
             parameter.kpid3[0] = 60;
             parameter.kpid3[1] = 0.1;
@@ -774,7 +864,68 @@ void ForteSetting::begin()
         _displayCLD.ErrorDisplay("No prarmeter in the EEPROM, please initialize it, default parameter is used now");
         delay(3000);
     }
-    // protoID = parameter.device_id;//"proto1";
+    sanitiseDeviceId(); // the ONE place the ID store is populated - see the function comment
+
+    // ---- one-time migration: the pre-2.4.3 device ID lived at EEPROM slot 170 ----------------
+    // v2.4.2 kept the OPERATIONAL id there (a 40-byte Arduino String written by the WiFiManager
+    // portal) and THAT is the value it sent as "id_device" to the Google Sheet, the ERP and the
+    // error uploads; parameter.device_id was a rarely-written annotation defaulting to "proto 0".
+    // So on the first 2.4.3 boot slot 170 WINS - it is the identity the cloud already knows.
+    // Afterwards parameter.device_id is the only store (CLAUDE.md Setting #6) and nothing here
+    // may ever revert an ID the operator sets later - hence a one-shot STAMP, not a value compare
+    // (comparing values would fight every later rename, forever).
+    //
+    // Slot 170 is never written or cleared: a downgrade to v2.4.2 must still find its ID there.
+    // Gated on the DATA, never on FirmwareVer - a unit jumping 2.4.2 -> 2.4.4 must migrate too.
+    if (EEPROM.read(ADDR_CHECK_ID_DEVICE) != kIdMigrated)
+    {
+        // BOUNDED read. EEPROM.readString() scans for a NUL to the end of the 4096-byte buffer,
+        // NOT to this slot's 40-byte boundary (170..209) - that is how a neighbouring field's
+        // bytes turn into a several-hundred-character "ID".
+        char legacy[41];
+        for (int i = 0; i < 40; i++)
+            legacy[i] = (char)EEPROM.read(ADDR_ID_DEVICE_BASE + i);
+        legacy[40] = '\0';
+
+        size_t n = strlen(legacy);
+        bool usable = n >= 1 && n <= sizeof(parameter.device_id) - 1 && !idIsPlaceholder(legacy);
+        // (unsigned char): char is signed on xtensa, so a virgin 0xFF byte would compare < 0x20.
+        for (size_t i = 0; usable && i < n; i++)
+            if ((unsigned char)legacy[i] < 0x20 || (unsigned char)legacy[i] > 0x7E)
+                usable = false;
+
+        if (usable)
+        {
+            // strcmp is safe on parameter.device_id: sanitiseDeviceId() ran above, so it is
+            // terminated, and legacy is <= 9 chars so the compare stops inside the char[10].
+            if (strcmp(legacy, parameter.device_id) != 0)
+            {
+                strlcpy(parameter.device_id, legacy, sizeof(parameter.device_id));
+                Serial.printf("[id] migrated device ID from EEPROM slot %d -> '%s'\n",
+                              ADDR_ID_DEVICE_BASE, parameter.device_id);
+            }
+        }
+        else if (n)
+        {
+            // Covers 10..40-char legacy IDs: the portal field accepted 40 and nothing clamped it.
+            // Truncating would upload an ID matching no record - worse than admitting none. The
+            // machine keeps sanitiseDeviceId()'s "UNSET" and asks for it, loudly.
+            Serial.printf("[id] legacy slot %d holds %u bytes, not a usable device ID"
+                          " - re-enter it in Setting\n",
+                          ADDR_ID_DEVICE_BASE, (unsigned)n);
+        }
+
+        // Persist + stamp ONLY with a valid parameter block. On a fresh/erased EEPROM the else
+        // branch above deliberately writes nothing, so the "please initialize" prompt keeps
+        // coming and the stamp stays unwritten - the migration retries until it can stick.
+        if (paraEEPROM.length == sizeof(parameter))
+        {
+            parameter.length = sizeof(parameter);
+            EEPROM.put(PARAMETERPOS, parameter);
+            EEPROM.write(ADDR_CHECK_ID_DEVICE, kIdMigrated);
+            EEPROM.commit();
+        }
+    }
     // OpticalUnits = parameter.units;//"counts";
     EEPROM.end();
 }
@@ -955,12 +1106,12 @@ void ForteSetting::drainPending()
     }
     else if (kind == PEND_ID)
     {
-        // Two separate stores: the global id_device (EEPROM ADDR_ID_DEVICE_BASE, what
-        // the dashboard and the Google Sheet upload use) and parameter.device_id
-        // (PARAMETERPOS). Keep them in sync or the web would show one and upload another.
-        id_device = pendingA;
-        saveSettingDevice();
+        String before(parameter.device_id);
         strlcpy(parameter.device_id, pendingA.c_str(), sizeof(parameter.device_id));
+        // POST /deviceid bounds the LENGTH (1..9) but not the BYTES, and this field feeds the
+        // SoftAP SSID, the mDNS label and the QR payload. Run the same trust boundary begin()
+        // uses, BEFORE the write, so a hostile POST persists "UNSET" rather than control bytes.
+        sanitiseDeviceId();
         parameter.length = sizeof(parameter);
         eepromLock();
         EEPROM.begin(_EEPROM_SIZE);
@@ -968,7 +1119,26 @@ void ForteSetting::drainPending()
         EEPROM.commit();
         EEPROM.end();
         eepromUnlock();
-        info_displayln("[cfg] device id: " + id_device);
+        info_displayln("[cfg] device id: " + String(parameter.device_id));
+
+        // The ID is LATCHED into the radio at boot in three places - WiFi.softAP() (the SoftAP
+        // SSID), WiFi.setHostname() (the DHCP name) and MDNS.begin() (<id>.local) - and this
+        // core has no API to change any of them in place. Writing EEPROM alone left the machine
+        // announcing the OLD name while the QR screen and the web reported the NEW one: the
+        // operator could not rejoin the hotspot until a manual power cycle.
+        //
+        // Only when the value actually CHANGED: the Setting card pre-fills the current ID, so
+        // pressing Save without editing must not reboot the instrument.
+        //
+        // dashboardRequestRestart(), not ESP.restart(): it defers until
+        // !dashboardDeviceBusy() && !suspended && type_infor != escreenFinished, so a run in
+        // progress is never cut. Until it lands, screen_QR() and buildHomeJson() report
+        // WiFi.softAPSSID() - the name really on the air - so the machine stays joinable.
+        if (before != parameter.device_id)
+        {
+            info_displayln("[cfg] device id changed - reboot queued to re-announce it");
+            dashboardRequestRestart(1500); // matches the PEND_WIFI delay; lets the 200 render
+        }
     }
     else if (kind == PEND_REVIEW)
     {

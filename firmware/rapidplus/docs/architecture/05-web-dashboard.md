@@ -9,10 +9,10 @@ Dashboard web phục vụ ngay từ thiết bị để **giám sát + điều kh
 |---|---|
 | `AsyncWebServer dashServer(80)` | HTTP server bất đồng bộ (chạy trên task AsyncTCP riêng) |
 | `AsyncEventSource dashEvents("/events")` | Kênh SSE server→client |
-| `LittleFS` | Chứa file UI (`data/` nạp qua `uploadfs`) |
+| `webAssets.h` | File UI **nhúng trong firmware** (`.rodata`, sinh từ `data/` lúc build). Không mount filesystem nào |
 | `dashboardLoop()` | Gọi từ NetworkTask mỗi 10ms; đẩy SSE (throttle 1s) |
 
-Routes: `/` (static, `serveStatic`), `/events` (SSE), `/control?btn=` (bấm nút),
+Routes: `/` (asset nhúng, bảng `kWebAssets[]`), `/events` (SSE), `/control?btn=` (bấm nút),
 `/home` (snapshot JSON — chỉ để debug bằng curl), `/slots` + `/rename` (bảng kết quả),
 `/curve` (toàn bộ đường cong để backfill chart).
 
@@ -31,7 +31,7 @@ flowchart TD
   D -- chưa --> Z2[return, chờ]
   D -- rồi --> E[dashboardBegin]
   E --> F{handlersReady?}
-  F -- chưa --> G[LittleFS.begin + serveStatic<br/>+ addHandler events + /control + /home]
+  F -- chưa --> G[đăng ký route API + asset nhúng<br/>+ addHandler events + /control + /home]
   F -- rồi --> H[bỏ qua đăng ký]
   G --> I[dashServer.begin, started=true]
   H --> I
@@ -214,14 +214,14 @@ flowchart TD
   A[Mở tab Result] --> B[GET /slots → tên + CT + kết quả]
   B --> C[Dựng bảng 10 slot]
   C --> D{User thao tác}
-  D -->|Sửa tên| E[POST /rename → lưu /slotnames.json<br/>đồng bộ ô tên bảng Home]
+  D -->|Sửa tên| E[POST /rename → lưu NVS slotlabels<br/>đồng bộ ô tên bảng Home]
   D -->|Ẩn/hiện| F[cả 2 chart series.setVisible + localStorage]
   D -->|View chart| G[GET /curve → vẽ resultView]
 ```
 
-- **`GET /slots`** → `{ready, slots:[{name, ct, result} ×10]}`. `name` từ `/slotnames.json`
-  (LittleFS); `ct`/`result` từ cache `gResultsReady`/`gCT`/`gResult`. `ct` chỉ có với P/S.
-- **`POST /rename?slot=N&name=X`** → cập nhật `slotNames[N]`, ghi `/slotnames.json`. Client
+- **`GET /slots`** → `{ready, slots:[{name, ct, result} ×10]}`. `name` từ **NVS** (namespace
+  `slotlabels`); `ct`/`result` từ cache `gResultsReady`/`gCT`/`gResult`. `ct` chỉ có với P/S.
+- **`POST /rename?slot=N&name=X`** → cập nhật `slotNames[N]`, ghi **NVS**. Client
   đồng bộ ô tên giữa **2 bảng** (naming trên Home + result) qua `data-slot`.
 - **Cache kết quả**: `dashboardSetResults(CT_value, result)` gọi trong `screen_Result()`
   (displayLCD.cpp) sau khi tính kết quả → dashboard đọc được.
@@ -231,8 +231,9 @@ flowchart TD
 và `resultView` (snapshot trên Result, vẽ từ `/curve` khi bấm View chart / mở lại tab).
 Cùng công thức baseline + trục X, nên nhìn giống nhau; Result không cần live vì là xem lại.
 
-Lưu ý: tên lưu LittleFS (không EEPROM, do vùng EEPROM chật/reserved) → sống qua reboot
-nhưng `uploadfs` (cập nhật UI) sẽ xoá; firmware tự tạo lại rỗng.
+Lưu ý: tên lưu **NVS** (không EEPROM, do vùng EEPROM chật/reserved; không LittleFS, do
+`uploadfs` reflash cả partition `spiffs` và xoá mất) → sống qua reboot **và** qua mọi lần nạp
+firmware/UI. Xem [2026-07-29](../history/2026-07-29-slot-labels-nvs-no-filesystem.md).
 
 ## Công cụ test không cần phần cứng
 

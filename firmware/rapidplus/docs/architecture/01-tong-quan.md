@@ -7,7 +7,8 @@ ly giải mẫu (lysis) → khuếch đại (amplification) → đọc huỳnh q
 quang → tính kết quả từng slot (Positive/Negative/...) → upload lên cloud.
 
 Nền tảng: **ESP32** (dual-core), firmware **Arduino/PlatformIO** (`env:esp32dev`,
-filesystem LittleFS, flash 8MB).
+filesystem LittleFS **chỉ còn trên giấy** — firmware không mount nó nữa, UI nằm trong flash và
+nhãn slot nằm NVS; flash 8MB).
 
 ## Phần cứng chính
 
@@ -42,7 +43,7 @@ flowchart LR
 | `sensor6035` | Đọc opto VEML6035, đường cong khuếch đại, tính CT_value/kết quả |
 | `acquisition` / `Alg/` | Lấy mẫu ALS + thuật toán phân tích đỉnh/kết quả |
 | `button` | 3 nút (`B_RED/B_BLUE/B_WHITE`), short/long press → business logic |
-| `Bluetooth.cpp` | BLE config, EEPROM settings, WiFiManager, **upload TLS** Google Sheet |
+| `Bluetooth.cpp` | BLE config, EEPROM settings, **upload TLS** Google Sheet |
 | `webDashboard` | Web dashboard (AsyncWebServer + SSE + `/control`) |
 | `updateOTA` | Cập nhật firmware OTA |
 | `ForteSetting` | Tham số hiệu chuẩn (slopes/origins/led_power/kitId...) |

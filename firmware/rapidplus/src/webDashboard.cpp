@@ -8,17 +8,20 @@
 #include "PIDControl.h"
 #include "displayCLD.h"
 #include "button.h"
-#include "updateOTA.h" // otaState / checkFirmware(): the web Setting tab drives OTA
-#include "wifiStore.h" // saved networks (NVS): multi-network join fallback
-#include <LittleFS.h>
+#include "updateOTA.h"   // otaState / checkFirmware(): the web Setting tab drives OTA
+#include "wifiStore.h"   // saved networks (NVS): multi-network join fallback
+#include <Preferences.h> // slot labels in NVS (see loadSlotLabels): survives `uploadfs`
 #include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
 #include <DNSServer.h>     // captive portal on the SoftAP fallback (see dashboardStartAP)
 #include <memory>          // shared_ptr: keeps the /curve stream state alive across chunk calls
 #include "esp_heap_caps.h" // heap_caps_get_largest_free_block: internal-RAM diag for TLS -32512
 #include <ESPmDNS.h>       // http://<id>.local/ : a stable name when DHCP moves the STA IP
+#include "webAssets.h"     // GENERATED from data/ by tools/pio_gzip_data.py - the UI itself.
+                           // Include from THIS translation unit only (static arrays).
 
-extern String id_device;          // defined in Bluetooth.cpp
+// The device ID is protoID (= _ForteSetting.parameter.device_id, ForteSetting.h). There is no
+// id_device global any more - it was a second store of the same value and the two drifted.
 extern String ssid;               // defined in Bluetooth.cpp - the preferred network
 void releaseBluetoothStack(void); // defined in Bluetooth.cpp - frees ~60KB BT memory
 
@@ -89,9 +92,16 @@ static double r1(double v) { return round(v * 10.0) / 10.0; }
 //
 // Written as an ALLOWLIST on purpose: type_infor has ~37 values and the busy set is
 // almost all of them, so a denylist silently leaves holes. In particular fillStatus()
-// collapses everything unknown to phase "idle", so the calib menus, the OTA screen and
+// collapses everything unknown to phase "idle", so the calib menus, the OTA prompt and
 // the tube waits all LOOK idle to the client - locking on `phase` would let a POST land
 // mid-calibration (which drives heaters and writes EEPROM from DisplayTask) or mid-run.
+//
+// eUpdateOTA is NOT busy, and that is load-bearing, not cosmetic: updateFirmware() now
+// re-checks this before downloading, and dashboardLoop() gates the deferred reboot on it.
+// The prompt is only ever reached from the boot-time checkFirmware() (the web check passes
+// promptOnDevice=false), so nothing is running behind it - but counting it as busy made
+// pressing RED on the prompt abort its own download, and left a downloaded image parked
+// forever because the screen it sits on never becomes "idle".
 static bool isBusy(e_statuslcd s)
 {
   switch (s)
@@ -102,13 +112,23 @@ static bool isBusy(e_statuslcd s)
   case eSettingMenu:    // in the on-device setting menu
   case eShowQR:         // just showing the dashboard QR; nothing is running
   case errprocess:      // error screen; nothing is running
+  case eUpdateOTA:      // "update available" prompt; nothing is running either
     return false;
   default:
     return true; // running, heating, calibrating, uploading, OTA, tube waits...
   }
 }
 
-bool dashboardDeviceBusy() { return isBusy(_displayCLD.type_infor); }
+// An OTA download is busy no matter what the screen says. type_infor does NOT change while
+// httpUpdate.update() streams for ~2 minutes (waittingUpdate() only paints), so screen state
+// alone reports "idle" for the whole window - on the web-initiated path that was already true
+// before eUpdateOTA joined the allowlist. Anything that reboots or writes flash in that window
+// is destructive: POST /wifi reboots mid-download, and POST /otaupload would drive the SAME
+// global Update singleton from AsyncTCP while NetworkTask is writing the partition.
+bool dashboardDeviceBusy()
+{
+  return otaState == OTA_UPDATING || isBusy(_displayCLD.type_infor);
+}
 
 bool dashboardIsAP() { return apActive; }
 
@@ -295,7 +315,7 @@ static void fillActions(JsonObject a, e_statuslcd s)
 static String buildHomeJson()
 {
   JsonDocument doc;
-  doc["device"] = id_device;
+  doc["device"] = protoID;
   doc["company"] = "Fortebiotech";
 
   // Which network the machine is ACTUALLY on, pushed live on the 1 s home event. Without
@@ -306,7 +326,11 @@ static String buildHomeJson()
   JsonObject net = doc["net"].to<JsonObject>();
   bool ap = dashboardIsAP();
   net["ap"] = ap;
-  net["ssid"] = ap ? ("RAPID-" + id_device)
+  // Ask the RADIO what it is broadcasting; do not rebuild the name from the device ID.
+  // dashboardApName() is what the SSID SHOULD be, softAPSSID() is what is on the air, and those
+  // two answers differ from the moment the ID changes until the deferred reboot re-announces it.
+  // Reporting the first one told the operator to look for a network that was not there.
+  net["ssid"] = ap ? WiFi.softAPSSID()
                    : (WiFi.status() == WL_CONNECTED ? WiFi.SSID() : String(""));
   net["ip"] = (ap ? WiFi.softAPIP() : WiFi.localIP()).toString();
   // TEMPORARY (2026-07-27): the L3 config DHCP actually handed us. Serving HTTP on the LAN
@@ -451,64 +475,68 @@ static void controlHandler(AsyncWebServerRequest *req)
   req->send(200, "application/json", String("{\"ok\":true,\"btn\":\"") + b + "\"}");
 }
 
-// ---- Process tab: slot names (persisted to /slotnames.json) + cached results ----
-static String slotNames[10];   // disease per slot (fixed shrimp-disease list)
-static String slotSamples[10]; // free-text sample label per slot (own file: keeps the
-                               // slotnames.json string-array format intact for old units)
+// ---- Process tab: slot labels (persisted to NVS) + cached results ----
+//
+// These used to be /slotnames.json + /slotsamples.json on LittleFS. They live in NVS now,
+// for the same reason the saved WiFi list does (wifiStore.cpp): `uploadfs`/`uploadall`
+// reflash the WHOLE spiffs partition from data/, so anything written there at runtime is
+// WIPED by every UI update - the operator's labels included. NVS is a separate partition
+// (0x9000) that uploadfs never touches. With this moved, nothing in the firmware needs
+// LittleFS at all, so an empty/corrupt/never-formatted spiffs has no consequence.
+//
+// One JSON string per set (2 NVS entries, not 20): the whole set is rewritten on every
+// change anyway, and 10 short strings cost less as one blob than as ten keys.
+// NVS is thread-safe internally and has no shared RAM buffer to double-free the way the
+// EEPROM library does (CLAUDE.md Setting #2), so /rename may write straight from AsyncTCP.
+// NOT static: postData_GoogleSheet() reads these for the "nameSlot" array in the upload
+// payload (declared in webDashboard.h). slotSamples stays file-local on purpose - the sample
+// label is web-only by design, it does not go to the cloud or the TFT.
+//
+// ponytail: read cross-task without a lock. /rename writes slotNames[slot] from AsyncTCP while
+// the upload reads it from DisplayTask, and String assignment is not atomic - a rename landing
+// in that exact window can hand the reader a freed buffer. Left as-is because the window is one
+// run-end upload vs a manual label edit, and the payload field is a label, not a measurement.
+// If it ever needs to be tight: snapshot all 10 into a local array behind gI2CMutex-style
+// guard at the top of postData_GoogleSheet, or move the labels behind an accessor that copies.
+String slotNames[10];          // disease per slot (fixed shrimp-disease list)
+static String slotSamples[10]; // free-text sample label per slot
 static float gCT[10] = {0};
 static char gResult[10] = {0};
 static bool gResultsReady = false;
 
-static void loadSlotNames()
+static const char *SLOT_NS = "slotlabels";
+
+static void loadSlotLabels(const char *key, String *dst)
 {
-  File f = LittleFS.open("/slotnames.json", "r");
-  if (!f)
-    return; // no file yet -> names stay empty
+  Preferences p;
+  if (!p.begin(SLOT_NS, /*readOnly=*/true))
+    return; // namespace never created -> labels stay empty
+  String json = p.getString(key, "");
+  p.end();
+  if (!json.length())
+    return;
   JsonDocument doc;
-  if (!deserializeJson(doc, f))
+  if (!deserializeJson(doc, json))
     for (int i = 0; i < 10; i++)
-      slotNames[i] = doc[i] | "";
-  f.close();
+      dst[i] = doc[i] | "";
 }
 
-static void saveSlotNames()
+static void saveSlotLabels(const char *key, const String *src)
 {
   JsonDocument doc;
   JsonArray arr = doc.to<JsonArray>();
   for (int i = 0; i < 10; i++)
-    arr.add(slotNames[i]);
-  File f = LittleFS.open("/slotnames.json", "w");
-  if (!f)
+    arr.add(src[i]);
+  String json;
+  serializeJson(doc, json);
+  Preferences p;
+  if (!p.begin(SLOT_NS, /*readOnly=*/false))
+  {
+    Serial.println("[dash] NVS open failed for slot labels");
     return;
-  serializeJson(doc, f);
-  f.close();
-}
-
-// Sample labels live in their own file so the disease file's format never changes
-// (an older firmware still reads /slotnames.json as before; the sample file is just absent).
-static void loadSlotSamples()
-{
-  File f = LittleFS.open("/slotsamples.json", "r");
-  if (!f)
-    return; // no file yet -> samples stay empty
-  JsonDocument doc;
-  if (!deserializeJson(doc, f))
-    for (int i = 0; i < 10; i++)
-      slotSamples[i] = doc[i] | "";
-  f.close();
-}
-
-static void saveSlotSamples()
-{
-  JsonDocument doc;
-  JsonArray arr = doc.to<JsonArray>();
-  for (int i = 0; i < 10; i++)
-    arr.add(slotSamples[i]);
-  File f = LittleFS.open("/slotsamples.json", "w");
-  if (!f)
-    return;
-  serializeJson(doc, f);
-  f.close();
+  }
+  p.putString(key, json);
+  p.end();
 }
 
 // Called from screen_Result() when a run's results are computed.
@@ -677,9 +705,11 @@ static bool validateConfig(JsonObjectConst o, String &err)
     String k = kv.key().c_str();
     JsonVariantConst v = kv.value();
 
-    if (k == "para version" || k == "PCB version")
-      continue; // injected/echoed, char[10] - checked below
-    else if (k == "device ID" || k == "units")
+    // "PCB version" reaches strlcpy(parameter.PCB_version, ...) in JsonDataConfig(),
+    // a char[10] at offset 14 of parastructure: unbounded it walks over slopes/origins/
+    // kpid and past the struct before EEPROM.commit(). "para version" is injected below
+    // (overwriting whatever came in), but it lands in the same kind of slot - check both.
+    if (k == "para version" || k == "PCB version" || k == "device ID" || k == "units")
     {
       if (!v.is<const char *>() || strlen(v.as<const char *>()) > 9)
         return err = k + " must be <= 9 chars (fixed char[10] in EEPROM)", false;
@@ -839,6 +869,19 @@ static void handleConfigGet(AsyncWebServerRequest *req)
 // /slots until ready.
 static void handleReviewLast(AsyncWebServerRequest *req)
 {
+  // Require ?go=1. The route is registered with WebServer.h's HTTP_POST (== 3) while
+  // AsyncWebServer matches bitwise against its own flags (GET == 1), so `3 & 1` lets a bare
+  // GET land here (GOTCHA 3) - and this handler, unlike /wifi or /deviceid, has no parameter
+  // to reject on. A browser link prefetch or a scanner would then queue the review: an ~8 s
+  // EEPROM read on SettingTask that overwrites the live sensor67Value buffer. Checking a
+  // query param keeps req->method() out of the code (see test_no_method_branch.py).
+  // Safe to tighten: the UI is embedded in this same firmware, so client and route ship
+  // together - there is no older page left anywhere that could still call the old form.
+  if (!req->hasParam("go"))
+  {
+    req->send(400, "application/json", "{\"ok\":false,\"error\":\"use POST /reviewlast?go=1\"}");
+    return;
+  }
   if (dashboardDeviceBusy())
   {
     req->send(409, "application/json", "{\"ok\":false,\"error\":\"device busy\"}");
@@ -862,18 +905,18 @@ static void handleOtaStatus(AsyncWebServerRequest *req)
   OtaState st = otaState;
 
   JsonDocument doc;
-  doc["version"] = FirmwareVer;         // human-readable build, e.g. "v2.4.3"
-  doc["versionCode"] = currentVersion;  // the integer checkFirmware() compares
+  doc["version"] = FirmwareVer;        // human-readable build, e.g. "v2.4.3"
+  doc["versionCode"] = currentVersion; // the integer checkFirmware() compares
   doc["state"] = NAMES[st <= OTA_DISMISSED ? st : 0];
   doc["hasUpdate"] = (st == OTA_AVAILABLE);
   doc["busy"] = (st == OTA_UPDATING);
-  doc["checked"] = otaLastCheck != 0;   // false = not checked since boot
-  doc["checkFailed"] = otaCheckFailed;  // checked, but the server GET errored
+  doc["checked"] = otaLastCheck != 0;  // false = not checked since boot
+  doc["checkFailed"] = otaCheckFailed; // checked, but the server GET errored
   if (fwVersion > 0)
   {
-    doc["newVersion"] = fwVer;          // version string from updateOTA.json
+    doc["newVersion"] = fwVer; // version string from updateOTA.json
     doc["newVersionCode"] = fwVersion;
-    doc["notes"] = fwCont;              // release notes field of updateOTA.json
+    doc["notes"] = fwCont; // release notes field of updateOTA.json
   }
   // Without WiFi neither the check nor the download can work; let the UI say so
   // instead of offering a button that silently does nothing.
@@ -952,8 +995,11 @@ static void handleOtaAction(AsyncWebServerRequest *req)
 // GitHub yet: the browser POSTs the firmware image and we stream it straight into the
 // OTA partition. AsyncWebServer hands us the body in ~1-4 KB chunks, which is what makes
 // this safe to do from the web task - we never hold the whole 2.3 MB anywhere.
-static bool otaUpFail = false;      // refused/aborted: swallow the remaining chunks
-static uint32_t otaRestartAt = 0;   // reboot after the reply has been flushed
+static bool otaUpFail = false; // refused/aborted: swallow the remaining chunks
+// Why the refusal, in the reply and not only on a serial cable nobody has plugged in. Same
+// lifecycle as otaUpFail (both reset at index 0), so it cannot leak into another request.
+static const char *otaUpErr = "upload failed";
+static uint32_t otaRestartAt = 0; // reboot after the reply has been flushed
 
 static void handleOtaUpload(AsyncWebServerRequest *req, const String &filename,
                             size_t index, uint8_t *data, size_t len, bool final)
@@ -961,15 +1007,29 @@ static void handleOtaUpload(AsyncWebServerRequest *req, const String &filename,
   if (index == 0) // first chunk: decide whether to accept this upload at all
   {
     otaUpFail = false;
+    otaUpErr = "upload failed";
     if (dashboardDeviceBusy())
     {
       otaUpFail = true;
+      otaUpErr = "device busy - finish or leave the current screen first";
       Serial.println("[ota] upload refused: device busy");
+      return;
+    }
+    // An image is already staged and we are only waiting for an idle moment to boot it.
+    // Update.begin() here would ERASE the partition esp_ota_set_boot_partition() is already
+    // pointing at, and if this second upload then fails, the pending restart boots a
+    // half-written image. One image in flight at a time.
+    if (otaRestartAt)
+    {
+      otaUpFail = true;
+      otaUpErr = "a firmware is already staged - reboot into it first";
+      Serial.println("[ota] upload refused: a staged image is waiting to boot");
       return;
     }
     if (!filename.endsWith(".bin"))
     {
       otaUpFail = true;
+      otaUpErr = "not a .bin file";
       Serial.println("[ota] upload refused: not a .bin");
       return;
     }
@@ -980,6 +1040,32 @@ static void handleOtaUpload(AsyncWebServerRequest *req, const String &filename,
       otaUpFail = true;
       Update.printError(Serial);
       return;
+    }
+    // Optional ?md5=<32 hex>. Without it a TRUNCATED image still boots: Update.end(true)
+    // sets _size = progress(), so "however many bytes arrived" counts as the whole image
+    // and the half-written app is marked bootable. That is the one real brick path here.
+    // With it, Update.end() compares the digest and refuses. Reject a malformed value
+    // rather than ignoring it - a caller that asked for verification must not silently
+    // get none.
+    if (req->hasParam("md5"))
+    {
+      String md5 = req->getParam("md5")->value();
+      // Update.end() compares the target against MD5Builder's output, which is always
+      // lowercase, with a case-SENSITIVE String compare. PowerShell's Get-FileHash prints
+      // uppercase - accepting it and then failing after the whole 2.3 MB had been uploaded
+      // would be the least helpful possible way to reject a perfectly good image.
+      md5.toLowerCase();
+      bool hex = md5.length() == 32;
+      for (size_t i = 0; hex && i < md5.length(); i++)
+        hex = isxdigit((unsigned char)md5[i]);
+      if (!hex || !Update.setMD5(md5.c_str()))
+      {
+        otaUpFail = true;
+        otaUpErr = "md5 must be 32 hex characters";
+        Update.abort();
+        Serial.println("[ota] upload refused: bad md5 parameter");
+        return;
+      }
     }
     Serial.printf("[ota] upload begin: %s\n", filename.c_str());
   }
@@ -1007,19 +1093,56 @@ static void handleOtaUpload(AsyncWebServerRequest *req, const String &filename,
   }
 }
 
+// Also called from updateFirmware() (NetworkTask) after a successful GitHub OTA: same
+// rule, one implementation.
+void dashboardRequestRestart(uint32_t delayMs)
+{
+  otaRestartAt = millis() + delayMs;
+  if (!otaRestartAt)
+    otaRestartAt = 1; // 0 means "no restart pending"; millis() wraps every ~49 days
+}
+
 // Runs after the whole body has been consumed by handleOtaUpload().
 static void handleOtaUploadDone(AsyncWebServerRequest *req)
 {
+  // A request that carried no upload at all must NOT be reported as a successful flash - it
+  // would arm the reboot. This is reachable without any body: the route is registered with
+  // WebServer.h's HTTP_POST (== 3), while AsyncWebServer matches with a BITWISE and against
+  // its own flags, and GET is 1 - so `3 & 1` is non-zero and a plain `GET /otaupload` lands
+  // here (GOTCHA 3, same arithmetic as the /wifilist bug).
+  //
+  // The check is PER-REQUEST on purpose. A static "an upload started" flag looks equivalent
+  // and is not: an upload aborted mid-body (tab closed, WiFi blip during 2.3 MB) never
+  // reaches this handler, so the flag would still be set when the next bare GET arrives -
+  // which would then get 200 {"ok":true,"restarting":true} and an armed reboot having
+  // flashed nothing. The multipart parser records the file field on the request itself
+  // (WebRequest.cpp:540 emplaces it with isPost=true, isFile=true), so ask the request.
+  //
+  // ANY file part, not the name "firmware": onUpload fires for whichever file field arrives,
+  // so a curl using -F "file=@fw.bin" really did get flashed (Update.end() already moved the
+  // boot partition). Answering "no firmware in request" there would be a lie the next reboot
+  // contradicts.
+  bool gotFile = false;
+  for (size_t i = 0; i < req->params() && !gotFile; i++)
+  {
+    const AsyncWebParameter *p = req->getParam(i);
+    gotFile = p && p->isFile();
+  }
+  if (!gotFile)
+  {
+    req->send(400, "application/json", "{\"ok\":false,\"error\":\"no firmware in request\"}");
+    return;
+  }
   bool ok = !otaUpFail && !Update.hasError();
   AsyncWebServerResponse *res = req->beginResponse(
       ok ? 200 : 500, "application/json",
-      ok ? "{\"ok\":true,\"restarting\":true}"
-         : "{\"ok\":false,\"error\":\"upload failed\"}");
+      ok ? String("{\"ok\":true,\"restarting\":true}")
+         : String("{\"ok\":false,\"error\":\"") + otaUpErr + "\"}");
   // The reply must reach the browser BEFORE we reboot, hence the deferred restart below.
   res->addHeader("Connection", "close");
   req->send(res);
   if (ok)
-    otaRestartAt = millis() + 800; // dashboardLoop() reboots us once this passes
+    dashboardRequestRestart(); // dashboardLoop() reboots us once this passes, if idle
 }
 
 // recvData in ForteSetting is char[2048] and drainPending strlcpy()s into it; leave
@@ -1232,7 +1355,7 @@ static void handleWifiList(AsyncWebServerRequest *req)
   req->send(200, "application/json", wifiStoreListJson());
 }
 
-// POST /deviceid?id=.. -> global id_device + parameter.device_id (two stores).
+// POST /deviceid?id=.. -> parameter.device_id, the one and only store (PEND_ID).
 static void handleDeviceId(AsyncWebServerRequest *req)
 {
   if (guardBusy(req))
@@ -1373,7 +1496,7 @@ static void handleCurve(AsyncWebServerRequest *req)
 // GET/POST /rename?slot=<0-9>&name=<disease>&sample=<label> -> persist.
 // name and sample are independent: send either or both. name -> /slotnames.json,
 // sample -> /slotsamples.json (two files, two arrays). Cap length so an unauthenticated
-// LAN caller can't bloat LittleFS with a giant label.
+// LAN caller can't bloat NVS with a giant label.
 static void handleRename(AsyncWebServerRequest *req)
 {
   if (!req->hasParam("slot"))
@@ -1400,7 +1523,7 @@ static void handleRename(AsyncWebServerRequest *req)
     if (v.length() > 32)
       v = v.substring(0, 32);
     slotNames[slot] = v;
-    saveSlotNames();
+    saveSlotLabels("names", slotNames);
   }
   if (hasSample)
   {
@@ -1408,13 +1531,38 @@ static void handleRename(AsyncWebServerRequest *req)
     if (v.length() > 32)
       v = v.substring(0, 32);
     slotSamples[slot] = v;
-    saveSlotSamples();
+    saveSlotLabels("samples", slotSamples);
   }
   req->send(200, "application/json", "{\"ok\":true}");
 }
 
 // STA joined OR the SoftAP fallback is up -> a browser can reach us.
 static bool networkUp() { return WiFi.status() == WL_CONNECTED || apActive; }
+
+// THE SoftAP SSID, and it has exactly ONE consumer: dashboardStartAP(), which hands it to
+// WiFi.softAP(). Anything that REPORTS the name (screen_QR, buildHomeJson) reads
+// WiFi.softAPSSID() instead - see those call sites.
+//
+// That split is the fix for two different bugs, in order:
+//  - 2026-07-29: three places built the string by hand and drifted ("RAPID-" vs "FBT-"), so the
+//    QR named a network the machine never raised. Fixed by making this the only builder.
+//  - 2026-07-30: making them share a builder was still not enough, because WiFi.softAP() LATCHES
+//    the name into the radio and this core has no API to change it in place. "What the SSID
+//    should be" and "what is on the air" are different questions, and every consumer that
+//    recomputed the first one was answering the wrong one after a device-ID change.
+// So: build here, latch once, and never recompute for display.
+//
+// The clamp stays even though ForteSetting::sanitiseDeviceId() already guarantees 1..9 printable
+// characters: 802.11 caps an SSID at 32 bytes (softAP() just refuses to start above that) and
+// the QR encoder overflows a stack buffer rather than failing (see screen_QR). Both are one
+// edit away from mattering again, and neither failure is visible in a build.
+String dashboardApName()
+{
+  String id(protoID);
+  if (id.length() == 0 || id.length() > 24 || id[0] != 'R')
+    id = "RPL"; // never set ("UNSET"), or an ID that is not a RAPID serial
+  return "FBT-" + id;
+}
 
 void dashboardStartAP()
 {
@@ -1423,7 +1571,7 @@ void dashboardStartAP()
   // associate but never get an IP ("can't connect"). One-way; reboot restores BT/STA.
   releaseBluetoothStack();
 
-  String ap = "RAPID-" + id_device;
+  String ap = dashboardApName();
   WiFi.mode(WIFI_AP);
   // Open AP (no internet -> chart uses the bundled highcharts.js), capped at MAX_VIEWERS
   // devices: the extra one is refused while associating, so it never even gets an IP.
@@ -1440,15 +1588,16 @@ void dashboardStartAP()
                 ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 }
 
-// Build a stable, DNS-safe hostname from id_device (e.g. "RPL03010" -> "rpl03010"). Keeps
-// only [a-z0-9-], lowercased; falls back to "rapid" if id_device has no usable chars. The
+// Build a stable, DNS-safe hostname from the device ID (e.g. "RPL03010" -> "rpl03010"). Keeps
+// only [a-z0-9-], lowercased; falls back to "rapid" if the ID has no usable chars. The
 // dashboard is then reachable at http://<hostname>.local/ (mDNS) no matter the DHCP IP.
 String dashboardHostname()
 {
   String out;
-  for (size_t i = 0; i < id_device.length() && out.length() < 24; i++)
+  const char *id = protoID;
+  for (size_t i = 0; id[i] && out.length() < 24; i++)
   {
-    char c = id_device[i];
+    char c = id[i];
     if (c >= 'A' && c <= 'Z')
       out += (char)(c - 'A' + 'a');
     else if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
@@ -1461,6 +1610,56 @@ String dashboardHostname()
   if (out.length() == 0)
     out = "rapid";
   return out;
+}
+
+// ---- UI assets, baked into the firmware ------------------------------------------
+// src/webAssets.h is generated from data/ by tools/pio_gzip_data.py. Serving from flash
+// instead of LittleFS means firmware.bin is the ONLY artifact a unit needs, so the UI can
+// ship over the same OTA path as the code (the U_SPIFFS path has no integrity check at
+// all - see docs/plan/2026-07-28-ota-fleet-upgrade-243.md). RAM cost is zero: the response
+// streams straight out of .rodata.
+struct WebAsset
+{
+  const char *path;
+  const uint8_t *data;
+  size_t len;
+  const char *mime;
+  bool gz;
+};
+
+static const WebAsset kWebAssets[] = {
+    // "/" and "/index.html" are the same page; serveStatic's setDefaultFile("index.html")
+    // used to cover the first one.
+    {"/", WEB_ASSET_INDEX_HTML_GZ, sizeof(WEB_ASSET_INDEX_HTML_GZ), "text/html", true},
+    {"/index.html", WEB_ASSET_INDEX_HTML_GZ, sizeof(WEB_ASSET_INDEX_HTML_GZ), "text/html", true},
+    {"/style.css", WEB_ASSET_STYLE_CSS_GZ, sizeof(WEB_ASSET_STYLE_CSS_GZ), "text/css", true},
+    {"/script.js", WEB_ASSET_SCRIPT_JS_GZ, sizeof(WEB_ASSET_SCRIPT_JS_GZ), "application/javascript", true},
+    {"/highcharts.js", WEB_ASSET_HIGHCHARTS_JS_GZ, sizeof(WEB_ASSET_HIGHCHARTS_JS_GZ), "application/javascript", true},
+    {"/logo.png", WEB_ASSET_LOGO_PNG, sizeof(WEB_ASSET_LOGO_PNG), "image/png", false},
+};
+
+// NEVER pass a template processor to beginResponse(): _fillBufferAndProcessTemplates()
+// scans the body for '%' and would rewrite gzip bytes in place.
+static void sendAsset(AsyncWebServerRequest *req, const WebAsset &a)
+{
+  // Conditional GET. Dropping serveStatic drops the library's ETag/304 handling with it,
+  // and without it every page load re-sends all 147 KB - on a device whose contiguous heap
+  // is the scarce resource. One ETag for the whole set: they are versioned together.
+  if (req->hasHeader("If-None-Match") && req->header("If-None-Match") == WEB_ASSETS_ETAG)
+  {
+    AsyncWebServerResponse *res = req->beginResponse(304);
+    res->addHeader("ETag", WEB_ASSETS_ETAG);
+    req->send(res);
+    return;
+  }
+  AsyncWebServerResponse *res = req->beginResponse(200, a.mime, a.data, a.len);
+  if (a.gz)
+    res->addHeader("Content-Encoding", "gzip");
+  // "no-cache" = may cache, MUST revalidate. Without it browsers apply heuristic freshness
+  // and keep serving the OLD script.js after an update until a hard refresh.
+  res->addHeader("Cache-Control", "no-cache");
+  res->addHeader("ETag", WEB_ASSETS_ETAG);
+  req->send(res);
 }
 
 // TEMPORARY (2026-07-27): print the largest CONTIGUOUS internal block at each boot step.
@@ -1496,11 +1695,14 @@ void dashboardBegin()
 
   if (!handlersReady) // register routes once; they persist across end()/begin()
   {
-    if (!LittleFS.begin())
-      Serial.println("[dash] LittleFS mount failed - UI files unavailable");
-    dashHeapProbe("after LittleFS.begin");
-    loadSlotNames();
-    loadSlotSamples();
+    // No LittleFS.begin() any more: the UI is in flash (kWebAssets) and the slot labels are
+    // in NVS, so nothing here needs a filesystem. An empty, corrupt or never-formatted
+    // spiffs partition - the most likely state of a unit coming from 2.4.2, which never
+    // mounted LittleFS at all - now has no consequence whatsoever.
+    // NEVER "fix" this with LittleFS.begin(true): that formats 1 572 864 B and calls
+    // disableCore0WDT() (LittleFS.cpp:114-124) while ControlTask is driving heater duty.
+    loadSlotLabels("names", slotNames);
+    loadSlotLabels("samples", slotSamples);
     dashServer.addHandler(&viewerCap); // MUST precede dashEvents - see ViewerCapHandler
     dashServer.addHandler(&dashEvents);
     dashServer.on("/control", HTTP_ANY, controlHandler);
@@ -1527,19 +1729,12 @@ void dashboardBegin()
     // onUpload receives it in chunks (see handleOtaUpload).
     dashServer.on("/otaupload", HTTP_POST, handleOtaUploadDone, handleOtaUpload);
 
-    // serveStatic LAST. Handlers are tried in registration order, so with it first
-    // every API call first cost four failed LittleFS opens looking for /curve,
-    // /curve.gz, /curve/index.html, /curve/index.html.gz (visible as the vfs_api
-    // "does not exist" spam in the serial log) before falling through. Worse, a file
-    // in data/ that happened to share an API name would shadow the route entirely.
-    // "no-cache" = the browser MAY cache but MUST revalidate every load (a tiny
-    // conditional GET -> 304 when unchanged, 200 with the new file after a uploadfs).
-    // Without it, serveStatic sends an ETag but no Cache-Control, so browsers apply
-    // heuristic freshness and keep serving the OLD script.js after an update until the
-    // user does a hard refresh - which is exactly the "my change isn't showing" trap.
-    dashServer.serveStatic("/", LittleFS, "/")
-        .setDefaultFile("index.html")
-        .setCacheControl("no-cache");
+    // UI assets LAST, same slot serveStatic used to hold. Handlers are tried in
+    // registration order, so anything matching "/" must come after the API routes or a
+    // file could shadow a route (GOTCHA 12).
+    for (const WebAsset &a : kWebAssets)
+      dashServer.on(a.path, HTTP_GET, [&a](AsyncWebServerRequest *req)
+                    { sendAsset(req, a); });
 
     // Captive-portal catch-all (SoftAP only). Phones probe a known URL right after
     // joining (Android /generate_204, iOS /hotspot-detect.html, Windows /connecttest.txt);
@@ -1589,9 +1784,21 @@ void dashboardLoop()
   // reboot just means it activates at the next idle reboot instead of destroying the
   // sample now. (The upload handler only accepted the .bin while idle, but a physical
   // run could have started in the ~800 ms since.)
-  if (otaRestartAt && millis() > otaRestartAt && !dashboardDeviceBusy())
+  //
+  // "Not busy" is NOT enough on its own. escreenFinished is on the idle allowlist ("run done,
+  // results on screen"), but it is also the state the WHOLE end-of-run pipeline runs under:
+  // screen_Result('f') reads the run back from EEPROM, computes CT/outcome and then blocks
+  // ~30-90 s in mbedTLS uploading to GAS + ingest + ERP. A reboot deferred through a 40 minute
+  // run would otherwise fire within ~10 ms of the run ending - i.e. exactly onto the upload,
+  // losing the results it was deferred to protect. `suspended` covers the upload window
+  // itself; excluding escreenFinished covers the compute + CSV dump before it. The reboot
+  // then lands when the operator dismisses the results (WHITE -> escreenStart).
+  if (otaRestartAt && millis() > otaRestartAt && !dashboardDeviceBusy() && !suspended &&
+      _displayCLD.type_infor != escreenFinished)
   {
-    Serial.println("[ota] restarting into the uploaded firmware");
+    // Not only OTA any more: a device-ID change also queues this (ForteSetting PEND_ID /
+    // JsonDataConfig) so the radio re-announces the new SSID / hostname / mDNS name.
+    Serial.println("[dash] deferred restart");
     ESP.restart();
   }
   if (suspended)
@@ -1678,18 +1885,9 @@ void dashboardLoop()
   }
 }
 
-void dashboardEnd()
-{
-  if (!started)
-    return;
-  dashServer.end();
-  if (apActive)
-  {
-    WiFi.softAPdisconnect(true);
-    apActive = false;
-  }
-  started = false;
-}
+// dashboardEnd() was DELETED on 2026-07-29: Wifi_Connect() was its only caller and went with
+// WiFiManager. Nothing else ever wants the dashboard permanently down - dashboardSuspend() /
+// dashboardResume() is the reversible pair the upload path uses.
 
 // Temporarily free the dashboard's network heap (close SSE clients + stop the
 // server) so a TLS upload gets its ~32KB contiguous block. Without this, an open

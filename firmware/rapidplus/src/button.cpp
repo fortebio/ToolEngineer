@@ -567,7 +567,7 @@ void buttonManager::handleShortPress_Red()
  * an error screen. Depending on the current screen it: starts preheat to 80C
  * (escreenStart -> epreheating80), starts preheat to 67C from phase-2 wait
  * (ewaitphase2 -> epreheating67), skips the opto preheat to maintain
- * (epreheating67), enters WiFi settings (eSettingMenu -> eSettingWifi),
+ * (epreheating67), shows the dashboard QR (eSettingMenu -> eShowQR),
  * navigates the ampli/slot/mode menus (eSelectAmpli -> eSelectSlot ->
  * eSelectMode -> eCalibrating), starts sensor calibration (eCalibrating),
  * advances the edited LED-power index 0..2 (eSetPowerLed), re-enters
@@ -626,7 +626,10 @@ void buttonManager::handleShortPress_Blue()
   }
   else if (_displayCLD.type_infor == eSettingMenu)
   {
-    _displayCLD.type_infor = eSettingWifi;
+    // Used to open the WiFiManager captive portal (deleted 2026-07-29). The QR is the same
+    // "get a phone onto the config UI" gesture minus a library, a reboot and a disabled WDT:
+    // the dashboard's Setting tab owns WiFi, device ID and firmware now. WHITE exits.
+    _displayCLD.type_infor = eShowQR;
     _displayCLD.changeScreen = true;
   }
   else if (_displayCLD.type_infor == eSelectAmpli)

@@ -5,10 +5,10 @@
 #ifndef _SECRETS_H
 #define _SECRETS_H
 
-#define SECRET_GAS_URL "https://script.google.com/macros/s/AKfycbw2VXXLX6fUMgmyRrSgNgEi3b4gSyE2bdctQe_DNOnlZ58EfPclQrXrlMenH0y7SH5X/exec"
+#define SECRET_GAS_URL "https://script.google.com/macros/s/PASTE_DEPLOYMENT_ID/exec"
 #define SECRET_INGEST_URL "https://your-ingest-host/ingest"
-#define SECRET_INGEST_TOKEN "***REMOVED***"
+#define SECRET_INGEST_TOKEN "PASTE_INGEST_BEARER_TOKEN"
 #define SECRET_ERP_URL "https://your-erp-host/api/v1/results/ingest"
-#define SECRET_ERP_TOKEN "***REMOVED***"
+#define SECRET_ERP_TOKEN "PASTE_ERP_X_API_KEY"
 
 #endif

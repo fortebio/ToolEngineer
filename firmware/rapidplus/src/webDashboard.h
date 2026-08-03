@@ -2,17 +2,22 @@
 #define _WEBDASHBOARD_H
 #include <Arduino.h> // for String (dashboardHostname)
 
-// Live web dashboard: an AsyncWebServer that serves the LittleFS UI (uploaded
-// from data/) and pushes device state to the browser over Server-Sent Events.
-// This replaces the old, never-started sync WebServer chart path.
+// Live web dashboard: an AsyncWebServer that serves the UI baked into the firmware
+// (src/webAssets.h, generated from data/) and pushes device state to the browser over
+// Server-Sent Events. This replaces the old, never-started sync WebServer chart path.
+//
+// Nothing here touches a filesystem any more: the UI is in flash and the slot labels are
+// in NVS, so firmware.bin is the only artifact a unit needs.
 //
 // Usage:
-//   dashboardBegin()  - call once after WiFi has joined (STA). Mounts LittleFS,
-//                       registers routes (/, /events, /control, /home) and starts
-//                       listening on port 80. Idempotent.
+//   dashboardBegin()  - call once after WiFi has joined (STA). Registers routes
+//                       (/, /events, /control, /home) and starts listening on port 80.
+//                       Idempotent.
 //   dashboardLoop()   - call frequently from a task; it self-throttles to push
 //                       one "home" SSE event per second.
-//   dashboardEnd()    - stop the server (e.g. before the WiFiManager portal).
+//   dashboardSuspend()/dashboardResume() - the only way the server goes down, and it is
+//                       reversible (TLS upload window). There is deliberately no permanent
+//                       "end": dashboardEnd() died with the WiFiManager portal, its one caller.
 //
 // The "home" event payload matches the client contract in data/script.js:
 //   { device, company, temps{lysis,ampLeft,ampRight,topLeft,topRight},
@@ -24,14 +29,18 @@
 // completed acquisition round, for the Process chart.
 void dashboardBegin();
 void dashboardLoop();
-void dashboardEnd();
 
 // Stable DNS label built from id_device (sanitised, lowercased) -> the dashboard is reachable
 // at http://<hostname>.local/ (mDNS) and, on routers that resolve DHCP hostnames, http://<hostname>/
 // regardless of which IP DHCP hands out. Used by WiFi.setHostname() (main.cpp) and MDNS.begin().
 String dashboardHostname();
 
-// Fallback when WiFi (STA) won't connect: bring up a SoftAP ("RAPID-<id>") so the
+// THE SoftAP SSID ("FBT-<id>"), clamped to something 802.11 and the QR encoder can carry.
+// dashboardStartAP() raises this name and screen_QR() encodes it - both MUST call this rather
+// than rebuild the string, or the QR advertises an AP the machine never brought up.
+String dashboardApName();
+
+// Fallback when WiFi (STA) won't connect: bring up a SoftAP ("FBT-<id>") so the
 // dashboard is still reachable at http://192.168.4.1/. Call from setup() if STA
 // failed; dashboardLoop() then starts the server on the AP. Logs free heap.
 void dashboardStartAP();
@@ -63,6 +72,12 @@ void dashboardResume();
 // before applying (closes the TOCTOU between the POST and the apply).
 bool dashboardDeviceBusy();
 
+// Reboot once the device is idle, instead of right now. The new image is already staged
+// in the OTA partition, so waiting costs nothing - restarting mid-run destroys a sample.
+// dashboardLoop() performs the restart as soon as the delay has passed AND the device is
+// not busy; if a run is in progress it simply keeps waiting.
+void dashboardRequestRestart(uint32_t delayMs = 800);
+
 // True when the dashboard is being served from the SoftAP fallback (STA never joined).
 // Callers must not touch the STA side then: WiFi.begin() re-enters esp_wifi_set_mode()
 // and tears at the AP the browser is on, and STA cannot succeed anyway.
@@ -71,5 +86,11 @@ bool dashboardIsAP();
 // TEMPORARY (2026-07-27): log free heap + largest contiguous INTERNAL block at a named
 // point. Used to find which boot step splits the big region that mbedTLS needs (GOTCHA 2).
 void dashHeapProbe(const char *where);
+
+// The 10 per-slot DISEASE labels, loaded from NVS in dashboardBegin() (loadSlotLabels("names"))
+// and rewritten by POST /rename. Exposed because postData_GoogleSheet() sends them as the upload's
+// "nameSlot" array. The sample labels are deliberately NOT here: they are web-only.
+// Read-only for callers outside webDashboard.cpp - /rename owns the writes.
+extern String slotNames[10];
 
 #endif

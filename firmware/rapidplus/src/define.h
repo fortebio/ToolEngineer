@@ -54,10 +54,12 @@
 #define ADDR_CHECK_ID_DEVICE 210
 #define ADDR_CHECK_LANGUAGE 220
 #define ADDR_CHECK_BT 224
+#define ADDR_CHECK_UPDATE 228
 
 #define ADDR_ERROR_NUMBER_UNIT 244 // the size of the error record, used to check if the error record is valid or not. If the value read from EEPROM is not equal to it, then it's not valid, and need to be cleared.
 #define ADDR_ERROR_FLAG 250
 #define ADDR_ERROR_RECORD (ADDR_ERROR_FLAG + 1) // record the error type and times, used for error process
+
 typedef enum
 {
   /*************************************
@@ -160,8 +162,11 @@ struct parastructure
   uint8_t baseline_range = 4;             // range of baselining (minutes)
 
   // Device info
-  char units[10] = "nM FAM";      // Units, "units"
-  char device_id[10] = "proto 0"; // device id, "device_id"
+  char units[10] = "nM FAM";  // Units, "units"
+  // EMPTY, not "RPL": a compiled default that looks like a serial is one a machine will happily
+  // upload under. Empty -> sanitiseDeviceId() reports "UNSET" and the operator is prompted.
+  // ("RPL" is also what the v2.4.2 portal pre-filled - see idIsPlaceholder in ForteSetting.cpp.)
+  char device_id[10] = ""; // device id, "device_id"
 
   // Opto measurement configuration
   uint16_t lysisDuration = 600;           // duration of lysis, "lysis duration"
@@ -238,11 +243,11 @@ extern volatile bool gBtReleased;
 // is freed, so touching SerialBT is use-after-free (GOTCHA 1). The dashboard now
 // releases BT at startup on every WiFi boot, so this guard matters device-wide - USB
 // serial (DEBUG_COM) stays on regardless.
-#define info_displayf(...)           \
-  {                                  \
-    DEBUG_COM.printf(__VA_ARGS__);   \
-    if (!gBtReleased)                \
-      SerialBT.printf(__VA_ARGS__);  \
+#define info_displayf(...)          \
+  {                                 \
+    DEBUG_COM.printf(__VA_ARGS__);  \
+    if (!gBtReleased)               \
+      SerialBT.printf(__VA_ARGS__); \
   }
 #define info_displayln(...)          \
   {                                  \
@@ -250,11 +255,11 @@ extern volatile bool gBtReleased;
     if (!gBtReleased)                \
       SerialBT.println(__VA_ARGS__); \
   }
-#define info_display(...)            \
-  {                                  \
-    DEBUG_COM.print(__VA_ARGS__);    \
-    if (!gBtReleased)                \
-      SerialBT.print(__VA_ARGS__);   \
+#define info_display(...)          \
+  {                                \
+    DEBUG_COM.print(__VA_ARGS__);  \
+    if (!gBtReleased)              \
+      SerialBT.print(__VA_ARGS__); \
   }
 
 // GPIO used for LCD
@@ -390,6 +395,14 @@ extern SemaphoreHandle_t gEepromMutex;
 // before begin(), give after end(). Null-guarded so it is safe before the mutex is created
 // (early boot reads). Sections MUST NOT nest - plain (non-recursive) mutex, portMAX_DELAY is
 // fine because every section is a few EEPROM ops (the longest holds it ~200ms across delays).
-static inline void eepromLock() { if (gEepromMutex) xSemaphoreTake(gEepromMutex, portMAX_DELAY); }
-static inline void eepromUnlock() { if (gEepromMutex) xSemaphoreGive(gEepromMutex); }
+static inline void eepromLock()
+{
+  if (gEepromMutex)
+    xSemaphoreTake(gEepromMutex, portMAX_DELAY);
+}
+static inline void eepromUnlock()
+{
+  if (gEepromMutex)
+    xSemaphoreGive(gEepromMutex);
+}
 #endif

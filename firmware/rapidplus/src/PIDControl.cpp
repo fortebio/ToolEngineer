@@ -1202,7 +1202,7 @@ void PIDControl::StartPreheat2_67()
         analogWrite(HEATER2IO, PWM_OFF);
         if (CURRENT_TEMP_PID > TARGET_TEMP + 20) // for heat block is 100, for hot lid is 120
         {
-            info_displayf("Heater2 is too hot, %d degree\n", CURRENT_TEMP_PID);
+            info_displayf("Heater2 is too hot, %.1f degree\n", CURRENT_TEMP_PID);
             return;
         }
         info_displayf("\nheater2 %.2f overheat, wait until it's cool down\n", CURRENT_TEMP_PID);
@@ -1312,7 +1312,7 @@ void PIDControl::StartPreheat3_67()
         analogWrite(HEATER3IO, PWM_OFF);
         if (CURRENT_TEMP_PID > AMPLIF_TEMP + 20) // for heat block is 100, for hot lid is 120
         {
-            info_displayf("Too hot, %d degree\n", CURRENT_TEMP_PID);
+            info_displayf("Too hot, %.1f degree\n", CURRENT_TEMP_PID);
             error.addError(errorHeaterSensor, errorOverheat, pidStep, 2);
             error.saveErrorToEEPROM();
             return;

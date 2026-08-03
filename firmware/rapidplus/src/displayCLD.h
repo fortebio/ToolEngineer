@@ -57,7 +57,6 @@ typedef enum
     eSettingMenu,
     eUpLoadData,
     eSettingBluetooth,
-    eSettingWifi,
 
     eSelectAmpli,
     eSelectMode,
@@ -110,7 +109,7 @@ public:
     void refreshStartWifiLine();
     // Full-screen QR that points a phone at the web dashboard. STA: encodes the dashboard
     // URL (phone must be on the same WiFi). SoftAP: encodes a WIFI: join code for the open
-    // "RAPID-<id>" AP - the captive portal then opens the dashboard by itself.
+    // AP named by dashboardApName() - the captive portal then opens the dashboard by itself.
     void screen_QR();
     // void screen_Complete();
     void screen_Result(char key);
@@ -174,7 +173,6 @@ public:
      * @brief Setting Menu
      */
     void setting_Menu(void);
-    void setting_Wifi(void);
 
     /* Calibration */
     void display_Select_menu_calib(void);

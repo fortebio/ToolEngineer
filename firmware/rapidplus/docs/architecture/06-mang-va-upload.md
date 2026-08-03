@@ -26,13 +26,16 @@ flowchart TD
 Dashboard **không** start trong `setup()` (WiFi thường chưa kịp connect) mà lazy trong
 `dashboardLoop()` khi `networkUp()`. Xem [05-web-dashboard.md](05-web-dashboard.md).
 
-## WiFi — 3 đường loại trừ nhau
+## WiFi — 2 đường loại trừ nhau
 
 | Đường | Khi nào | Việc |
 |---|---|---|
-| **STA** (creds EEPROM) | mặc định lúc boot | `WiFi.begin(ssid, password)`; upload Google Sheet được |
-| **SoftAP fallback** | STA fail lúc boot | `dashboardStartAP()`: **release BT (~60KB) trước** rồi `softAP("RAPID-<id>")` (mở, 192.168.4.1). Không release BT thì AP hết heap → client không lấy được DHCP IP. |
-| **WiFiManager portal** | menu Setting → WiFi (không phải boot) | release BT → `dashboardEnd()` → `resetSettings` → captive portal nhập creds → lưu EEPROM → thường `ESP.restart()` |
+| **STA** (creds EEPROM + list NVS) | mặc định lúc boot | `connectSavedNetworks()` → `WiFi.begin(ssid, password)`; upload Google Sheet được |
+| **SoftAP fallback** | STA fail lúc boot | `dashboardStartAP()`: **release BT (~60KB) trước** rồi `softAP(dashboardApName())` = `"FBT-<id>"` (mở, 192.168.4.1) + captive portal → dashboard. **`screen_QR()` phải gọi cùng hàm đó** — hai bên tự nối chuỗi là QR chỉ vào AP không tồn tại. Không release BT thì AP hết heap → client không lấy được DHCP IP. |
+
+**Đường thứ 3 (WiFiManager portal) đã bị xoá 2026-07-29** — nhập creds nay là `POST /wifi` +
+`/wifilist` trên dashboard (trial-then-commit, `wifiStore.cpp`). Xem
+[docs/history/2026-07-29-remove-wifimanager.md](../history/2026-07-29-remove-wifimanager.md).
 
 ## Upload kết quả — `postData_GoogleSheet()`
 
@@ -87,7 +90,7 @@ restart duy nhất của OTA).
 
 - **Release BT 1 chiều** (`releaseBluetoothStack`): `esp_bt_mem_release` trả ~60KB **vĩnh viễn**,
   chỉ gọi 1 lần (gọi lần 2 hỏng heap; `SerialBT.*` sau đó → assert → reboot). Cờ `gBtReleased`
-  idempotent qua 3 luồng (auto upload, manual upload, WiFiManager).
+  idempotent qua 3 luồng (auto upload, manual upload, SoftAP fallback).
 - **TLS cần ~40KB liền mạch** — chỉ đủ nhờ **bộ ba**: release BT + hủy JsonDocument trước handshake
   + `dashboardSuspend()` (đóng SSE + AsyncWebServer). Thiếu 1 → `-32512` (SSL alloc) / `-10368`
   (X509). Chế độ AP còn chật hơn → `dashboardLoop` log heap mỗi 10s để đo.

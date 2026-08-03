@@ -40,6 +40,11 @@ private:
     // Returns false only if the buffer overflowed and was flushed (caller should bail).
     bool readCommand(Stream &port, unsigned long window);
 
+    // NUL-terminate + validate parameter.device_id right after it is loaded from EEPROM.
+    // parameter.device_id is the ONLY device-ID store (the id_device global is gone), so this
+    // is the single trust boundary for it - see the comment on the definition.
+    void sanitiseDeviceId();
+
 public:
     ForteSetting(/* args */);
     ~ForteSetting();
@@ -63,7 +68,7 @@ public:
         PEND_NONE = 0,
         PEND_CONFIG, // full/partial parameter JSON -> JsonDataConfig()
         PEND_WIFI,   // ssid + password -> saveSettingDevice() + restart
-        PEND_ID,     // device id -> saveSettingDevice() (+ parameter.device_id)
+        PEND_ID,     // device id -> parameter.device_id (the one and only store)
         PEND_REVIEW,   // reload the last run from EEPROM -> recompute -> cache for the web
         PEND_OTACHECK, // ask GitHub whether a newer firmware exists (blocking HTTPS)
     };

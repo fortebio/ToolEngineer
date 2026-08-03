@@ -8,10 +8,8 @@
 #endif
 
 #include "NTPClient.h"
-#include <WiFiManager.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
-#include "LittleFS.h"
 
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
@@ -19,7 +17,8 @@
 struct parastructure; // forward declaration
 extern String ssid;
 extern String password;
-extern String id_device;
+// No id_device here any more: the device ID is protoID (_ForteSetting.parameter.device_id),
+// a single store as of 2026-07-30. Re-adding a global copy re-creates the drift bug.
 extern String id;
 
 extern BluetoothSerial SerialBT;
@@ -40,13 +39,6 @@ void saveSettingDevice();
 String paraToJson(parastructure para);
 void loadSettingDevice();
 void getDataAmplificationEEPROM(void);
-
-/**
- * @brief Connect to WiFi using WiFiManager
- * @version 2.1
- *
- */
-void Wifi_Connect(void);
 
 /**
  * @brief googlesheet API

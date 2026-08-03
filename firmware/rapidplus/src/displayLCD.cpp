@@ -54,7 +54,7 @@ displayCLD::~displayCLD()
  */
 void displayCLD::begin()
 {
-  this->display->begin();
+  this->display->begin(20000000);
   this->display->fillScreen(BLACK);
   this->display->setRotation(1);
   this->display->setTextWrap(false);
@@ -172,7 +172,7 @@ void displayCLD::drawWarnFrame(uint16_t color)
  *   - STA connected -> "http://<ip>/": scanning opens the dashboard directly (the phone
  *     must be on the same WiFi). Built from WiFi.localIP() every entry, so a new DHCP
  *     lease can never leave a stale address on screen.
- *   - SoftAP fallback -> "WIFI:T:nopass;S:RAPID-<id>;;": the phone joins the open AP and
+ *   - SoftAP fallback -> "WIFI:T:nopass;S:<dashboardApName()>;;": the phone joins the open AP and
  *     the captive portal (webDashboard) then opens the dashboard by itself.
  *  Drawn DARK-ON-LIGHT with a 4-module quiet zone - scanners need that contrast and
  *  margin, so the code sits on a white panel instead of the usual black screen.
@@ -183,24 +183,34 @@ void displayCLD::screen_QR()
 {
   changeScreen = false; // static screen: draw once per entry, like the other prompts
 
-  String payload, line1, line2;
+  String payload, line1;
   if (dashboardIsAP())
   {
-    String ap = "RAPID-" + id_device;
-    payload = "WIFI:T:nopass;S:" + ap + ";;"; // open AP -> no password field
-    line1 = "Scan to join";
-    line2 = ap;
+    // The SSID the RADIO is broadcasting - NOT one recomputed from the current device ID.
+    // WiFi.softAP() latches the name at boot and this core has no API to change it in place,
+    // so between a device-ID change and the deferred reboot that re-announces it,
+    // dashboardApName() names a network that is NOT on the air. A QR built from that joins
+    // nothing, which is worse than no QR at all. softAPSSID() reads the driver's own config,
+    // so it cannot go stale. dashboardApName() feeds the radio; whoever REPORTS asks the radio.
+    String ap = WiFi.softAPSSID();
+    if (ap.length())
+    {
+      payload = "WIFI:T:nopass;S:" + ap + ";;"; // open AP -> no password field
+      line1 = "Scan to join";
+    }
+    else
+    {
+      line1 = "No network"; // apActive but the driver has no SSID - encode nothing
+    }
   }
   else if (WiFi.status() == WL_CONNECTED)
   {
     payload = "http://" + WiFi.localIP().toString() + "/";
     line1 = "Scan to open";
-    line2 = WiFi.localIP().toString();
   }
   else
   {
     line1 = "No network"; // neither STA nor AP up yet - nothing worth encoding
-    line2 = "yet";
   }
 
   this->display->fillScreen(BLACK);
@@ -224,30 +234,55 @@ void displayCLD::screen_QR()
     }
     else
     {
-      this->display->print("http://" + id_device + ".local/");
+      // dashboardHostname(), not id_device: that is the sanitised label MDNS.begin() actually
+      // registered (lowercased, [a-z0-9-] only). Printing the raw ID here showed an address
+      // that does not resolve whenever the ID has a character mDNS had to drop.
+      this->display->print("http://" + dashboardHostname() + ".local/");
     }
     // Version 3 (29x29 modules) at ECC_LOW holds both payload shapes with room to spare
     // (URL ~21 chars, WiFi code ~32). Buffer is ~106 B on the stack.
+    //
+    // THE CAPACITY CHECK IS NOT DEFENSIVE PADDING - IT IS THE ONLY THING STANDING BETWEEN A
+    // LONG PAYLOAD AND A REBOOT. ricmoo/QRCode encodes into a VLA on THIS task's stack
+    // (codewordBytes[71] for version 3) via bb_appendBits(), which does no bounds check at
+    // all, and encodeDataCodewords() never compares the text length against the version's
+    // data capacity. Hand it 60+ bytes and it writes straight past the array into
+    // DisplayTask's stack -> panic -> the machine resets the instant this screen opens.
+    // 53 B is the version-3 / ECC_LOW byte-mode limit. Over it we draw the caption only:
+    // the address is on screen as text, so the operator can still get in by typing it.
+    const size_t kQrMaxBytes = 53;
     QRCode qr;
     uint8_t buf[qrcode_getBufferSize(3)];
-    qrcode_initText(&qr, buf, 3, ECC_LOW, payload.c_str());
-
-    const int scale = 5;                          // px per module -> 29*5 = 145 px of code
-    const int quiet = 4 * scale;                  // mandatory 4-module quiet zone
-    const int x0 = 0, y0 = 55;                    // top-left of the quiet zone, leaving 55 px for the caption columnj
-    const int side = qr.size * scale + 1 * quiet; // 185 px, fits 320x240 beside the text
-    this->display->fillRect(x0 + 10, y0 + 10, side, side, WHITE);
-    for (uint8_t y = 0; y < qr.size; y++)
-      for (uint8_t x = 0; x < qr.size; x++)
-        if (qrcode_getModule(&qr, x, y))
-          this->display->fillRect(x0 + quiet + x * scale, y0 + quiet + y * scale,
-                                  scale, scale, BLACK);
+    bool qrOk = payload.length() <= kQrMaxBytes &&
+                qrcode_initText(&qr, buf, 3, ECC_LOW, payload.c_str()) == 0;
+    if (!qrOk)
+    {
+      this->display->setTextColor(YELLOW);
+      this->display->setCursor(20, 100);
+      this->display->print("QR too long - type the address");
+    }
+    else
+    {
+      const int scale = 5;                          // px per module -> 29*5 = 145 px of code
+      const int quiet = 4 * scale;                  // mandatory 4-module quiet zone
+      const int x0 = 0, y0 = 55;                    // top-left of the quiet zone, leaving 55 px for the caption column
+      const int side = qr.size * scale + 1 * quiet; // 165 px, fits 320x240 beside the text
+      this->display->fillRect(x0 + 10, y0 + 10, side, side, WHITE);
+      for (uint8_t y = 0; y < qr.size; y++)
+        for (uint8_t x = 0; x < qr.size; x++)
+          if (qrcode_getModule(&qr, x, y))
+            this->display->fillRect(x0 + quiet + x * scale, y0 + quiet + y * scale,
+                                    scale, scale, BLACK);
+    }
   }
   this->display->setTextColor(CYAN);
   this->display->setCursor(20, 55);
   this->display->print("Wifi Name: ");
   this->display->setTextColor(WHITE);
-  this->display->print(WiFi.SSID());
+  // WiFi.SSID() is the STA network and is EMPTY while we are on the SoftAP fallback - i.e. this
+  // line was blank in the one mode where it matters, the mode whose fallback is "read the name
+  // off the screen and join it by hand". Pick the interface that is actually up.
+  this->display->print(dashboardIsAP() ? WiFi.softAPSSID() : WiFi.SSID());
 
   this->display->setTextColor(WHITE);
   this->display->setCursor(225, 230);
@@ -291,8 +326,6 @@ void displayCLD::screen_Start()
     this->display->setCursor(20, 230);
     this->display->print(ip);
     info_displayln(ip);
-    this->display->setCursor(20, 210);
-    this->display->print("ID " + id);
   }
   else
 
@@ -887,7 +920,7 @@ void displayCLD::waitLysis10min()
   this->display->setCursor(90, 190);
   unsigned long timeleft = (timer10minEnd - now) / 1000; // seconds left
   // this->display->printf("%d minute", timeleft / (60), timeleft % 60); // show the time left
-  this->display->printf("%d minute", ((timeleft / (60)) + 1)); // show the time left
+  this->display->printf("%lu minute", ((timeleft / (60)) + 1)); // show the time left
   // this->display->printf("%d minute", timeleft / (60)); // show the time left
 }
 
@@ -1087,8 +1120,8 @@ void displayCLD::waitAmplification30min()
   }
   this->display->fillRect(18, 150, 320, 100, BLACK);
   this->display->setCursor(90, 190);
-  unsigned long timeleft = (timer30minEnd - now) / 1000;     // seconds left
-  this->display->printf("%d Minute", (timeleft / (60) + 1)); // show the time left
+  unsigned long timeleft = (timer30minEnd - now) / 1000;      // seconds left
+  this->display->printf("%lu Minute", (timeleft / (60) + 1)); // show the time left
 }
 
 /***********************************************************************
@@ -1300,7 +1333,7 @@ void displayCLD::screen_Result(char key)
         else
         {
           this->display->setTextColor(ORANGE);
-          this->display->printf("|  /E|", CT_value[i]);
+          this->display->print("|  /E|");
         }
       }
       else
@@ -1323,12 +1356,12 @@ void displayCLD::screen_Result(char key)
         else if (result[i] == 'E')
         {
           this->display->setTextColor(ORANGE);
-          this->display->printf("|  ! |", CT_value[i]);
+          this->display->print("|  ! |");
         }
         else if (result[i] == 'B')
         {
           this->display->setTextColor(CYAN);
-          this->display->printf("| ---|", CT_value[i]);
+          this->display->print("| ---|");
         }
       }
     }
@@ -1608,12 +1641,6 @@ void displayCLD::loop()
       this->changeScreen = false;
       break;
     }
-    case eSettingWifi:
-    {
-      this->setting_Wifi();
-      this->changeScreen = false;
-      break;
-    }
     case eUpLoadData:
     {
       displayWaitingUpData();
@@ -1765,7 +1792,7 @@ void displayCLD::refreshStartWifiLine()
   }
   else if (ap)
   {
-    line = "0.0.0.0"; // no router WiFi; reach the machine via its RAPID-... hotspot / QR
+    line = "0.0.0.0"; // no router WiFi; reach the machine via its own hotspot / QR
     color = Forte_Green;
   }
   else
@@ -1784,7 +1811,7 @@ void displayCLD::refreshStartWifiLine()
   prev = line;
 
   int y = (this->language == 0) ? 230 : 210; // ip row differs per layout
-  this->display->fillRect(18, y - 6, 200, 15, BLACK);
+  this->display->fillRect(18, y - 12, 200, 15, BLACK);
   this->display->setTextSize(1);
   this->display->setTextColor(color);
   this->display->setCursor(20, y);
@@ -1834,7 +1861,7 @@ void displayCLD::setting_Menu(void)
   this->display->fillCircle(50, 100, 12, GREEN);
   this->display->setTextColor(GREEN);
   this->display->setCursor(70, 110);
-  this->display->print("Wifi/Update");
+  this->display->print("Wifi/Web QR"); // -> eShowQR; WiFi + firmware config live on the web now
 
   this->display->drawRoundRect(30, 130, 272, 50, 10, RED);
   this->display->drawCircle(50, 155, 16, RED);
@@ -1856,88 +1883,10 @@ void displayCLD::setting_Menu(void)
   this->display->print("RAPID Settings");
 }
 
-/***********************************************************************
- * Function: setting_Wifi()
- * Description: WiFi/device settings screen. Normalizes empty ssid,
- *  password and id_device to a space, draws the "Settings Device/Update"
- *  screen showing the current wifi name, password and id device, then
- *  calls Wifi_Connect() to obtain new values, redraws the updated values,
- *  waits 1s and performs esp_restart().
- * pramameter: none
- *  return: none
- */
-void displayCLD::setting_Wifi(void)
-{
-  if (WiFi.status() == WL_DISCONNECTED)
-  {
-    password = " ";
-    ssid = " ";
-  }
-  if (id_device == "")
-  {
-    id_device = " ";
-  }
-
-  {
-    this->display->fillScreen(BLACK);
-    this->display->fillRect(108, 0, 108, 20, Forte_Green);
-    this->display->drawBitmap(18, 5, logoFBT, 35, 34, Forte_Green);
-    this->display->setTextSize(1);
-    this->display->setCursor(110, 15);
-    this->display->setTextColor(BLACK);
-    this->display->println("FORTE BIOTECH");
-    this->display->setTextWrap(false);
-    this->display->setTextSize(2);
-    this->display->setCursor(45, 55);
-    this->display->print("Settings");
-    this->display->setCursor(45, 85);
-    this->display->print("Device/Update");
-
-    this->display->setTextSize(1);
-    this->display->drawRoundRect(29, 106, 272, 30, 10, RED);
-    this->display->setTextColor(WHITE);
-    this->display->setCursor(35, 180);
-    this->display->print("wifi name:");
-    this->display->print(String(ssid));
-    this->display->setCursor(35, 200);
-    this->display->print("password :");
-    this->display->print(String(password));
-    this->display->drawRoundRect(30, 158, 272, 60, 10, GREEN);
-    this->display->setCursor(35, 123);
-    this->display->print("id device:");
-    this->display->print(String(id_device));
-  }
-  Wifi_Connect();
-  {
-    this->display->fillScreen(BLACK);
-    this->display->fillRect(108, 0, 108, 20, Forte_Green);
-    // this->display->drawRoundRect(15, 0, 302, 240, 10, Forte_Green);
-    this->display->drawBitmap(18, 5, logoFBT, 35, 34, Forte_Green);
-
-    this->display->setTextSize(2);
-    this->display->setCursor(45, 55);
-    this->display->print("Settings");
-    this->display->setCursor(45, 85);
-    this->display->print("Device/Update");
-
-    this->display->setTextWrap(false);
-    this->display->setTextSize(1);
-    this->display->drawRoundRect(29, 106, 272, 30, 10, RED);
-    this->display->setTextColor(WHITE);
-    this->display->setCursor(35, 180);
-    this->display->print("wifi name:");
-    this->display->print(String(ssid));
-    this->display->setCursor(35, 200);
-    this->display->print("password :");
-    this->display->print(String(password));
-    this->display->drawRoundRect(30, 158, 272, 60, 10, GREEN);
-    this->display->setCursor(35, 123);
-    this->display->print("id device:");
-    this->display->print(String(id_device));
-  }
-  delay(1000);
-  esp_restart();
-}
+// setting_Wifi() was DELETED on 2026-07-29 together with Wifi_Connect(): the screen existed
+// only to host the WiFiManager captive portal and always ended in esp_restart(). GREEN in the
+// setting menu now opens eShowQR instead - same phone, fewer steps, and it leaves the dashboard
+// (which owns WiFi/device-id/firmware config now) running instead of tearing it down.
 
 /* Function Calib */
 /***********************************************************************

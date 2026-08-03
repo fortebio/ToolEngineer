@@ -139,6 +139,20 @@ async function main() {
   );
   ok(curveBefore === 0, "/curve is empty before review", `count=${curveBefore}`);
 
+  // A stray GET must NOT set the review going. The route is registered POST-only, but
+  // AsyncWebServer matches methods bitwise (WebServer.h HTTP_POST == 3, GET == 1, 3 & 1 != 0),
+  // so a link prefetch or a scanner reaches the same handler - and this one has no parameter
+  // to reject on. Hence ?go=1. Without it the device would queue an ~8 s EEPROM reload that
+  // overwrites the live sensor buffer.
+  const stray = await ev(
+    "fetch('/reviewlast').then(r=>r.json()).then(d=>!!d.ok)",
+  );
+  ok(stray === false, "a bare GET /reviewlast is refused (no ?go=1)", `ok=${stray}`);
+  const readyStill = await ev(
+    "fetch('/slots').then(r=>r.json()).then(d=>d.ready)",
+  );
+  ok(readyStill === false, "the stray GET did not start a review", `ready=${readyStill}`);
+
   // ------------------------------------------------------------ 2. open Result
   console.log("\n2) OPEN RESULT - client auto-reloads the stored run from EEPROM");
   await ev(

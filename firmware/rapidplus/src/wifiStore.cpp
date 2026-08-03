@@ -35,7 +35,7 @@ static uint8_t loadRaw(WifiNet *out, uint8_t max)
     if (n > WIFI_STORE_MAX)
         n = WIFI_STORE_MAX;
     uint8_t out_n = 0;
-    char key[8];
+    char key[12]; // "s" + up to 3 digits fits in 5, but -Wformat-truncation cannot narrow %u
     for (uint8_t i = 0; i < n && out_n < max; i++)
     {
         snprintf(key, sizeof(key), "s%u", i);
@@ -62,7 +62,7 @@ static bool saveRaw(const WifiNet *nets, uint8_t n)
     }
     p.clear(); // drop every key in the namespace, then rewrite
     p.putUChar("n", n);
-    char key[8];
+    char key[12]; // "s" + up to 3 digits fits in 5, but -Wformat-truncation cannot narrow %u
     for (uint8_t i = 0; i < n; i++)
     {
         snprintf(key, sizeof(key), "s%u", i);
