@@ -97,15 +97,15 @@ void readEEPROM()
  */
 String paraToJson(parastructure para)
 {
-  DynamicJsonDocument paradata(3000); // support maximum 3K
+  JsonDocument paradata; // ArduinoJson 7 sizes this on demand - no capacity to tune
 
   paradata["device ID"] = para.device_id;
   paradata["para version"] = para.para_version;
   paradata["PCB version"] = para.PCB_version;
-  JsonObject calibration = paradata.createNestedObject("opto calibration");
-  JsonArray slopes = calibration.createNestedArray("slopes");
-  JsonArray origins = calibration.createNestedArray("origins");
-  JsonArray ledPower = paradata.createNestedArray("LED power");
+  JsonObject calibration = paradata["opto calibration"].to<JsonObject>();
+  JsonArray slopes = calibration["slopes"].to<JsonArray>();
+  JsonArray origins = calibration["origins"].to<JsonArray>();
+  JsonArray ledPower = paradata["LED power"].to<JsonArray>();
   for (int i = 0; i < OPTOCHANNELS; i++)
   {
     slopes.add(para.slopes[i]);
@@ -113,7 +113,7 @@ String paraToJson(parastructure para)
     ledPower.add(para.led_power[i]);
   }
 
-  JsonObject opto_parameter = paradata.createNestedObject("parameters");
+  JsonObject opto_parameter = paradata["parameters"].to<JsonObject>();
   opto_parameter["min increase"] = para.min_increase;
   opto_parameter["min sharpness"] = para.min_sharpness;
   opto_parameter["min slight positive time"] = para.min_slight_positive_time;
@@ -135,23 +135,23 @@ String paraToJson(parastructure para)
   paradata["lysis temperature"] = para.lysisTemp;
   paradata["amplification temperature"] = para.amplifTemp;
 
-  JsonArray bottomTemperatureSensorSq = paradata.createNestedArray("bottom temperature sensor seq");
+  JsonArray bottomTemperatureSensorSq = paradata["bottom temperature sensor seq"].to<JsonArray>();
   for (int i = 0; i < 3; i++)
   {
     bottomTemperatureSensorSq.add(para.bottomTemperatureSensorSq[i]);
   }
 
-  JsonArray topTemperatureSensorSq = paradata.createNestedArray("top temperature sensor seq");
+  JsonArray topTemperatureSensorSq = paradata["top temperature sensor seq"].to<JsonArray>();
   for (int i = 0; i < 3; i++)
   {
     topTemperatureSensorSq.add(para.topTemperatureSensorSq[i]);
   }
 
-  JsonArray pid1 = paradata.createNestedArray("PID parameter");
-  JsonArray pid2 = paradata.createNestedArray("PID2 parameter");
-  JsonArray pid3 = paradata.createNestedArray("PID3 parameter");
-  JsonArray bottomOverheat = paradata.createNestedArray("Bottom overheat value");
-  JsonArray topOverheat = paradata.createNestedArray("Top overheat value");
+  JsonArray pid1 = paradata["PID parameter"].to<JsonArray>();
+  JsonArray pid2 = paradata["PID2 parameter"].to<JsonArray>();
+  JsonArray pid3 = paradata["PID3 parameter"].to<JsonArray>();
+  JsonArray bottomOverheat = paradata["Bottom overheat value"].to<JsonArray>();
+  JsonArray topOverheat = paradata["Top overheat value"].to<JsonArray>();
   for (int i = 0; i < 3; i++)
   {
     pid1.add(para.kpid[i]);
@@ -165,7 +165,7 @@ String paraToJson(parastructure para)
     topOverheat.add(para.topOverheat[i]);
   }
 
-  JsonArray temperatureOffset = paradata.createNestedArray("temperature value calibration");
+  JsonArray temperatureOffset = paradata["temperature value calibration"].to<JsonArray>();
   for (int i = 0; i < 6; i++)
   {
     temperatureOffset.add(para.temperatureOffset[i]);
@@ -174,10 +174,10 @@ String paraToJson(parastructure para)
   // hotlidPWM is settable via the "top heater PWM" key (ForteSetting.cpp) but was
   // never emitted here, so a GET could not pre-fill it. Shape: [[low,high],[low,high]]
   // to match hotlidPWM[i][0]=low / [i][1]=high as the PIDControl macros read them.
-  JsonArray topPWM = paradata.createNestedArray("top heater PWM");
+  JsonArray topPWM = paradata["top heater PWM"].to<JsonArray>();
   for (int i = 0; i < 2; i++)
   {
-    JsonArray row = topPWM.createNestedArray();
+    JsonArray row = topPWM.add<JsonArray>();
     row.add(para.hotlidPWM[i][0]);
     row.add(para.hotlidPWM[i][1]);
   }
@@ -553,23 +553,23 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
     }
 
     /* Machine Specifications */
-    JsonArray slopes_array = dataPostGoogleSheet.createNestedArray("slopes");
-    JsonArray origins_array = dataPostGoogleSheet.createNestedArray("origins");
-    JsonArray ledPower_array = dataPostGoogleSheet.createNestedArray("LED_power");
-    // JsonArray nameSlot_array = dataPostGoogleSheet.createNestedArray("nameSlot");
-    JsonArray CT_value_array = dataPostGoogleSheet.createNestedArray("CT_value");
-    JsonArray result_array = dataPostGoogleSheet.createNestedArray("result");
+    JsonArray slopes_array = dataPostGoogleSheet["slopes"].to<JsonArray>();
+    JsonArray origins_array = dataPostGoogleSheet["origins"].to<JsonArray>();
+    JsonArray ledPower_array = dataPostGoogleSheet["LED_power"].to<JsonArray>();
+    // JsonArray nameSlot_array = dataPostGoogleSheet["nameSlot"].to<JsonArray>();
+    JsonArray CT_value_array = dataPostGoogleSheet["CT_value"].to<JsonArray>();
+    JsonArray result_array = dataPostGoogleSheet["result"].to<JsonArray>();
 
     /* Data Read Amplification and Result (CT_value, Result) */
-    JsonArray recordOut_array = dataPostGoogleSheet.createNestedArray("record_out");
-    JsonArray amplification_array = dataPostGoogleSheet.createNestedArray("amplification");
+    JsonArray recordOut_array = dataPostGoogleSheet["record_out"].to<JsonArray>();
+    JsonArray amplification_array = dataPostGoogleSheet["amplification"].to<JsonArray>();
 
     for (uint8_t i = 0; i < OPTOCHANNELS; i++)
     {
       String slotName = "Slot_" + String(i + 1);
-      JsonObject recordOutSlot = recordOut_array.createNestedObject();
-      JsonObject peak_featuresObj = recordOutSlot[slotName].createNestedObject("peak_features");
-      JsonObject outcomeObj = recordOutSlot[slotName].createNestedObject("outcome");
+      JsonObject recordOutSlot = recordOut_array.add<JsonObject>();
+      JsonObject peak_featuresObj = recordOutSlot[slotName]["peak_features"].to<JsonObject>();
+      JsonObject outcomeObj = recordOutSlot[slotName]["outcome"].to<JsonObject>();
       outcome[i].transition_time.x = rounded((float)outcome[i].transition_time.x);
       outcome[i].transition_time.y = rounded((float)outcome[i].transition_time.y);
       outcome[i].plateau_point.x = rounded((float)outcome[i].plateau_point.x);

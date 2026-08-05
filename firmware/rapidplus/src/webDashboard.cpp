@@ -71,6 +71,12 @@ public:
 static ViewerCapHandler viewerCap;
 static bool started = false;
 static bool apActive = false;      // true when running as SoftAP fallback (no STA)
+// Set by dashboardRequestAP() (InputTask), consumed by dashboardLoop() (NetworkTask). volatile
+// because those are two tasks and the write is a single byte - same shape as otaState.
+static volatile bool apRequested = false;
+// True only when the AP came up because someone ASKED for it, not from the boot fallback. The
+// exit path reboots on the first and must not on the second.
+static bool apOnDemand = false;
 static bool handlersReady = false; // routes registered once (survive end/begin cycles)
 static bool suspended = false;     // paused to free heap for a TLS upload
 static uint32_t lastPush = 0;
@@ -131,6 +137,8 @@ bool dashboardDeviceBusy()
 }
 
 bool dashboardIsAP() { return apActive; }
+void dashboardRequestAP() { apRequested = true; }
+bool dashboardApStartedOnDemand() { return apOnDemand; }
 
 // Step of the on-device calibration wizard, as a stable name for the web to follow.
 // The real flow (see button.cpp / sensor6035.cpp): BLUE long-press -> preheatStart,
@@ -163,40 +171,253 @@ static const char *calibStep(e_statuslcd s)
   }
 }
 
+// Results for the last run are computed and cached. Defined here rather than beside
+// dashboardSetResults() because fillStatus needs it: escreenFinished covers BOTH the ~90 s in
+// which screen_Result() is still computing and uploading AND the finished screen afterwards,
+// and this flag is the only thing that tells them apart.
+static bool gResultsReady = false;
+
 // Derive the home-screen status block from the LCD state machine.
-static void fillStatus(JsonObject status, e_statuslcd s)
+//
+// EVERY state an operator can sit in gets a case. It used to cover 12 of 38 and let the rest
+// fall through to "Idle / Waiting for a run to start.", which is not a small cosmetic gap: at
+// ewaitphase2 the machine is waiting for someone to take the hot lysis tube out, and the web
+// said "Idle" while the green chip beside it said "Amplification" - the same screen telling the
+// operator there is nothing to do and offering them a labelled button.
+//
+// Two rules for the `phase` string, both learned the hard way:
+//   - NEVER report "idle" for a state where RED means something other than "start naming":
+//     data/script.js:67 rewrites a red press into the naming gate whenever phase == "idle".
+//     That is why ewaitLysisTube has its own phase, and why the ones added here do too.
+//   - "finished" is not a free label either - the client's chartMode includes it, so handing it
+//     out puts the chart on Home. States that merely follow a run get their own phase instead.
+// Unknown phases are safe: the client treats anything it does not name as the plain view.
+//
+// bt / tp are the temperatures buildHomeJson already fetched (bottom = {lysis, ampLeft,
+// ampRight}, hotlid = {topLeft, topRight, ambient}); passed in so this does not read them twice.
+static void fillStatus(JsonObject status, e_statuslcd s, const double *bt, const double *tp)
 {
   const char *phase = "idle";
-  const char *title = "Idle";
+  String title = "Idle";
   String sub = "Waiting for a run to start.";
+  const parastructure &p = _ForteSetting.parameter;
 
   switch (s)
   {
+  // ---- lysis leg ---------------------------------------------------------------------
   case epreheating80:
     phase = "heater";
-    title = "Heating Lysis";
-    sub = "Warming to 80 C";
+    title = "Heating lysis block";
+    // The target, and how far off it is. "Warming to 80 C" never moved, so it read like a
+    // stuck screen on the ~10 minutes this takes.
+    sub = String(r1(bt[0]), 1) + " / " + String(p.lysisTemp, 1) + " C";
     break;
+  // No case for eheathotlid1: nothing in src/ ever assigns it, and displayLCD's own switch has
+  // no case either, so it would describe a screen that does not exist.
   case eheatLysis:
     phase = "heater";
-    title = "Lysis heating";
-    sub = "~" + String(_displayCLD.lysisRemainSec() / 60.0, 1) + " min remaining";
+    title = "Lysis running";
+    // Ceil to whole minutes like a person reads a clock; the TFT shows the same countdown.
+    sub = "~" + String((_displayCLD.lysisRemainSec() + 59) / 60) + " min left, block " +
+          String(r1(bt[0]), 1) + " C";
     break;
+  case ewaitphase2:
+    // The machine is waiting on a PERSON, with a hot tube in the block. Its own phase: RED does
+    // not mean "start naming" here, and reporting "idle" made the web rewrite it into that.
+    phase = "waitphase2";
+    title = "Remove lysis tube";
+    sub = "Take the tube out and close the lid, then press Amplification (green).";
+    break;
+  // ---- amplification leg -------------------------------------------------------------
   case eheating67:
-  case epreheat67:
     phase = "heater";
-    title = "Heating";
-    sub = "Warming to 67 C";
+    title = "Heating to " + String(p.amplifTemp, 1) + " C";
+    sub = "Blocks " + String(r1(bt[1]), 1) + "/" + String(r1(bt[2]), 1) + " C, lids " +
+          String(r1(tp[0]), 1) + "/" + String(r1(tp[1]), 1) + " C";
+    break;
+  case epreheat67:
+  {
+    // Split from eheating67: there the heaters are still climbing, here they are AT temperature
+    // and the wait is the hold plus the optics. Two separate gates, so do not promise a single
+    // countdown - when the hold has run out and the screen has not moved on, the honest answer
+    // is that something else is still not ready.
+    phase = "heater";
+    title = "Warming up optics";
+    uint32_t now = millis();
+    uint32_t deadline = _PIDControl.timeStartWait + _PIDControl.hotlidWaitMs;
+    // timeStartWait == 0 is a real value, not "unset": the post-lysis green press writes it to
+    // make the hold count as already served, so there is no countdown to show on that path.
+    if (_PIDControl.timeStartWait && deadline > now)
+      sub = "~" + String(((deadline - now) / 1000 + 59) / 60) + " min of temperature hold left";
+    else
+      sub = "Waiting for the lids and the optics to be ready";
+    break;
+  }
+  case eoptoreading:
+  {
+    phase = "amplification";
+    title = "Amplification";
+    // The clock and the acquisition are independent counters: the run ends when the round count
+    // reaches the target, so the timer can reach zero with rounds still to go. Show both, and
+    // stop claiming minutes once the clock has run out.
+    uint32_t left = _displayCLD.ampRemainSec();
+    if (left)
+      sub = "~" + String((left + 59) / 60) + " min left";
+    else
+      sub = "Finishing the last rounds";
+    sub += " - round " + String(_sensor6035.getCurrentLoop()) + "/" + String(p.amplification_time);
+    break;
+  }
+  // ---- end of run --------------------------------------------------------------------
+  case escreenFinished:
+    // ONE enum, two very different screens: screen_Result() spends ~30-90 s computing the
+    // outcome and blocking in mbedTLS uploading it, and only then is anything actually ready.
+    // Saying "Results ready." for that whole window invited a reload that found an empty table.
+    phase = "finished";
+    if (gResultsReady)
+    {
+      title = "Run complete";
+      sub = "Results ready.";
+    }
+    else
+    {
+      title = "Finishing the run";
+      sub = "Computing results and uploading - this can take a minute.";
+    }
+    break;
+  case escreenResult:
+    phase = "finished";
+    title = "Results";
+    sub = "Reading the run back from the device.";
+    break;
+  case escreenErrorResult:
+    // Own phase, NOT "idle": red here does not open the naming gate.
+    phase = "error";
+    title = "Sensor error during the run";
+    sub = "The device is showing which channels failed. Check the screen.";
+    break;
+  case escreenReview:
+    phase = "review";
+    title = "Reviewing last run";
+    sub = "Reading the stored run out of memory.";
+    break;
+  case errprocess:
+    phase = "error";
+    title = "Error";
+    sub = "Check the device.";
+    break;
+  case escreenRestart:
+  case ebuttonrestart:
+  case ewaitingtimeout:
+    // These three hold whichever restart prompt is already on the TFT; from the web they are one
+    // thing - the machine is on its way back to the start screen.
+    phase = "restart";
+    title = "Restarting";
+    sub = "Returning to the start screen.";
+    break;
+  // ---- on-device menus / tools -------------------------------------------------------
+  case eSettingMenu:
+    phase = "setting";
+    title = "Settings menu (on the device)";
+    sub = "Green: WiFi / web QR - Red: upload the last run - White: Bluetooth.";
+    break;
+  case eUpLoadData:
+    phase = "upload";
+    title = "Uploading last run";
+    // No countdown on purpose: nothing timestamps the start of the upload, so any number here
+    // would be invented.
+    sub = "Re-sending the stored run to the cloud - this can take a minute.";
+    break;
+  case eShowQR:
+    phase = "qr";
+    title = "Dashboard QR on the screen";
+    // Reads the radio, same rule as screen_QR() and net.ssid: the builder feeds softAP(),
+    // whoever REPORTS the name asks the driver.
+    if (dashboardIsAP())
+      sub = "Join " + WiFi.softAPSSID() + " then open 192.168.4.1";
+    else
+      sub = "Scan it, or open http://" + WiFi.localIP().toString() + "/";
+    break;
+  case eUpdateOTA:
+    // One enum, two screens: the offer, and the download. dashboardDeviceBusy() already
+    // distinguishes them the same way.
+    if (otaState == OTA_UPDATING)
+    {
+      phase = "ota";
+      title = "Installing firmware";
+      sub = "Downloading the update - do not power off. The device reboots when it finishes.";
+    }
+    else
+    {
+      phase = "ota";
+      title = "Firmware update available";
+      sub = "The device is asking whether to install it. Green accepts, red declines.";
+    }
+    break;
+  // ---- calibration wizard (on-device; the web card is hidden but the machine still runs it) --
+  case ecalibPreheatStart:
+    phase = "calib";
+    title = "Calibration - ready to preheat";
+    sub = "Heaters are off. Red starts warming the amplification block to 55 C.";
     break;
   case ecalibPreheating:
     phase = "heater";
     title = "Calibration heating";
-    sub = "Warming heaters";
+    sub = "Warming to 55 C - now " + String(r1(bt[1]), 1) + "/" + String(r1(bt[2]), 1) + " C";
     break;
-  case eoptoreading:
-    phase = "amplification";
-    title = "Amplification";
-    sub = "~" + String(_displayCLD.ampRemainSec() / 60.0, 1) + " min remaining";
+  case ecalibSelect:
+    phase = "calib";
+    title = "Preheated to 55 C";
+    sub = "Blue = calibrate, Red = run amplification. Block at " + String(r1(bt[1]), 1) + "/" +
+          String(r1(bt[2]), 1) + " C.";
+    break;
+  case eSelectMode:
+    phase = "calib";
+    title = "Calibration - choose action";
+    sub = "Blue = calibrate a slot, Red = set LED power.";
+    break;
+  case eSelectAmpli:
+    phase = "calib";
+    title = "Calibration - amplification selected";
+    sub = "Preparing the amplification block.";
+    break;
+  case eSelectSlot:
+    phase = "calib";
+    title = "Calibration - pick a slot";
+    sub = "Slot " + String(_displayCLD.slot + 1) + " selected. Red steps, Blue confirms.";
+    break;
+  case eCalibrating:
+    phase = "calib";
+    title = "Calibration - insert tube";
+    sub = "Slot " + String(_displayCLD.slot + 1) + ", point " +
+          String(_sensor6035.type_calib + 1) + " of 4. Swap the tube, then press Blue.";
+    break;
+  case eWaitingCalib:
+    phase = "calib";
+    title = "Calibration - measuring";
+    sub = "Reading slot " + String(_displayCLD.slot + 1) + ". Do not open the lid.";
+    break;
+  case eCalibComplete:
+    phase = "calib";
+    title = "Calibration finished";
+    sub = "Slot " + String(_displayCLD.slot + 1) + " - check the slope on the device screen.";
+    break;
+  case eSaveCalib:
+    phase = "calib";
+    title = "Calibration saved";
+    sub = "Slot " + String(_displayCLD.slot + 1) + " slope " +
+          String(p.slopes[_displayCLD.slot], 3) + " written to memory.";
+    break;
+  case eSetPowerLed:
+    phase = "calib";
+    title = "Set LED power";
+    sub = "Slot " + String(_displayCLD.slot + 1) + " - editing on the device.";
+    break;
+  case eSavePowerLed:
+    phase = "calib";
+    title = "LED power saved";
+    sub = "Slot " + String(_displayCLD.slot + 1) + " = " +
+          String(p.led_power[_displayCLD.slot]) + ".";
     break;
   case ewaitLysisTube:
     // NOT "idle". It shares a screen family with escreenStart but RED means something else
@@ -207,7 +428,9 @@ static void fillStatus(JsonObject status, e_statuslcd s)
     // starts" report. One phase per meaning; anything else that reads phase inherits the fix.
     phase = "waitlysis";
     title = "Insert lysis tube";
-    sub = "Waiting for user";
+    // "Waiting for user" said nothing the title had not; the block temperature is the thing an
+    // operator standing at the machine actually wants before dropping a tube in.
+    sub = "Block at " + String(r1(bt[0]), 1) + " C - press Start lysis";
     break;
   case ewaitname:
     // naming gate BEFORE heating: web shows the slot-naming card, Confirm starts preheat
@@ -221,16 +444,8 @@ static void fillStatus(JsonObject status, e_statuslcd s)
     title = "Insert amplification tube";
     sub = "Name slots, then start";
     break;
-  case escreenFinished:
-    phase = "finished";
-    title = "Run complete";
-    sub = "Results ready.";
-    break;
-  case errprocess:
-    phase = "idle";
-    title = "Error";
-    sub = "Check the device.";
-    break;
+  // escreenStart is the genuine idle screen, and the transient states between screens have
+  // nothing worth reporting - they are gone before a 1 Hz frame can show them.
   case escreenStart:
   default:
     break;
@@ -357,7 +572,7 @@ static String buildHomeJson()
   temps["topLeft"] = r1(tp[0]);
   temps["topRight"] = r1(tp[1]);
 
-  fillStatus(doc["status"].to<JsonObject>(), _displayCLD.type_infor);
+  fillStatus(doc["status"].to<JsonObject>(), _displayCLD.type_infor, bt, tp);
 
   bool fin = (_displayCLD.type_infor == escreenFinished);
   JsonObject notify = doc["notify"].to<JsonObject>();
@@ -502,7 +717,7 @@ String slotNames[10];          // disease per slot (fixed shrimp-disease list)
 static String slotSamples[10]; // free-text sample label per slot
 static float gCT[10] = {0};
 static char gResult[10] = {0};
-static bool gResultsReady = false;
+// (definition hoisted above fillStatus - see there)
 
 static const char *SLOT_NS = "slotlabels";
 
@@ -1801,8 +2016,75 @@ void dashboardLoop()
     Serial.println("[dash] deferred restart");
     ESP.restart();
   }
+  // Left the QR screen by ANY route -> undo the on-demand hotspot. Watched here rather than
+  // hooked onto the WHITE handler: handleLongPress_Red/Blue/White each overwrite type_infor
+  // from any state, so exit-by-exit arming left the machine stranded on its own hotspot with
+  // STA dead, a run's upload silently failing, and nothing on the TFT saying so.
+  //
+  // Standing down when the operator comes BACK to the screen is why this keeps its own
+  // deadline instead of arming dashboardRequestRestart() straight away: that flag is shared
+  // with OTA and the device-ID change, and cancelling it would cancel theirs too.
+  // The condition cannot survive the reboot it causes - apOnDemand is false on a fresh boot,
+  // and the boot fallback never sets it - so this is not the reboot loop that a permanent
+  // condition would be.
+  if (apOnDemand)
+  {
+    static uint32_t apExitAt = 0;
+    if (_displayCLD.type_infor == eShowQR)
+      apExitAt = 0; // back on the QR screen - stand down
+    else if (!apExitAt)
+    {
+      apExitAt = millis() + 1500;
+      if (!apExitAt)
+        apExitAt = 1; // 0 means "not armed"; millis() wraps every ~49 days
+    }
+    else if ((int32_t)(millis() - apExitAt) >= 0) // signed: survives the millis() wrap
+    {
+      apExitAt = 0;
+      apOnDemand = false; // committed; don't re-arm on the next tick
+      Serial.println("[dash] left the QR screen - rebooting out of the on-demand SoftAP");
+      dashboardRequestRestart(0); // still gated on idle by the restart check above
+    }
+  }
+
+  // Raise the SoftAP on request (Setting menu -> GREEN -> QR). Executed HERE, on NetworkTask,
+  // because WiFi.mode() must not be re-entered from the button task while async_tcp is serving.
+  // Consumed unconditionally so a request made while busy is dropped, not queued to fire later
+  // at an arbitrary moment.
+  if (apRequested)
+  {
+    apRequested = false;
+    if (apActive)
+    {
+      // Already on the hotspot (boot fallback). Nothing to raise, and NOT marked on-demand:
+      // the exit path must not reboot a machine that was going to be on the AP anyway.
+      Serial.println("[dash] SoftAP already up - QR shows it as is");
+    }
+    else if (suspended || dashboardDeviceBusy())
+    {
+      // Killing STA mid-run takes the end-of-run upload with it. `suspended` is checked HERE
+      // rather than by the early return below: that return would leave the flag latched, and
+      // the hotspot would come up on the first tick after the upload finished - minutes after
+      // the button was pressed, with nothing to connect the two. The QR then just shows the
+      // STA address, which is still a usable way onto the dashboard.
+      Serial.println("[dash] SoftAP request ignored - device busy or uploading");
+    }
+    else
+    {
+      Serial.println("[dash] SoftAP requested from the setting menu");
+      dashboardStartAP();
+      apOnDemand = true;
+      // The QR was drawn before the radio switched, so it still shows the STA URL. Ask the
+      // display to paint it again now that dashboardIsAP() answers differently.
+      if (_displayCLD.type_infor == eShowQR)
+        _displayCLD.changeScreen = true;
+    }
+  }
+
   if (suspended)
     return; // paused for a TLS upload - don't touch WiFi/heap or restart the server
+
+
   if (!started)
   {
     // WiFi associates AFTER setup() returns, so start the server here the moment STA

@@ -83,6 +83,22 @@ void dashboardRequestRestart(uint32_t delayMs = 800);
 // and tears at the AP the browser is on, and STA cannot succeed anyway.
 bool dashboardIsAP();
 
+// Ask for the SoftAP to be raised ON PURPOSE (Setting menu -> GREEN -> QR), as opposed to the
+// boot fallback that only fires when STA never joined.
+//
+// This only sets a flag. The switch itself is WiFi.mode(WIFI_AP) and must happen on the task
+// that owns the dashboard (NetworkTask, from dashboardLoop) - calling it from InputTask would
+// re-enter esp_wifi_set_mode() underneath async_tcp, which is the shape that has hung this
+// machine twice (GOTCHA 8/11). Ignored while the device is busy: raising the AP kills STA, and
+// doing that mid-run would take the end-of-run upload with it.
+//
+// It is a ONE-WAY switch - there is no runtime path back to STA - so whoever asked for it is
+// expected to arm a reboot when the user leaves the QR screen. dashboardApStartedOnDemand()
+// reports whether THIS request is what raised the AP, so the boot fallback (where a reboot
+// would just land on the AP again, and on every peek at the QR) is left alone.
+void dashboardRequestAP();
+bool dashboardApStartedOnDemand();
+
 // TEMPORARY (2026-07-27): log free heap + largest contiguous INTERNAL block at a named
 // point. Used to find which boot step splits the big region that mbedTLS needs (GOTCHA 2).
 void dashHeapProbe(const char *where);

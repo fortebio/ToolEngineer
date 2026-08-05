@@ -170,8 +170,30 @@ struct parastructure
 
   // Opto measurement configuration
   uint16_t lysisDuration = 600;           // duration of lysis, "lysis duration"
-  uint16_t optopreheatduration = 15 * 20; // duration for LED and opto sensor preheat in second. "opto
-                                          // preheat time"
+  // LED + opto sensor preheat, in SECONDS. "opto preheat time".
+  // PREHEATLOOPS = optopreheatduration * 1000 / timePerLoop, so 900 s = 45 rounds of 20 s.
+  //
+  // READ THIS BEFORE ASSUMING IT GATES ANYTHING. The opto preheat clock starts at BOOT, not when
+  // the operator asks for a run: sensor6035::begin() sets sensorStep = eSensorpreheat, and
+  // setStepeSensorpreheat() - the call sitting next to timeStartWait = millis() in button.cpp -
+  // is `if (sensorStep == eSensorwait)`, which only CALIBRATION ever produces. So on every
+  // normal power cycle those calls are no-ops and the optics finish preheating ~900 s after
+  // boot regardless of when RED is pressed.
+  //
+  // PIDControl.cpp's transition needs the hotlid wait (timeStartWait + hotlidWaitMs, and
+  // timeStartWait is millis()-at-button or 0) AND getSensorPreheatReady(). Both land at or after
+  // boot + 15 min, with the hotlid always last, so THIS VALUE DOES NOT DECIDE WHEN A RUN MAY
+  // START - raising it from 300 to 900 on 2026-08-05 changed no observable timing. What it
+  // changes is how long the machine counts preheat rounds after boot; eSensormaintain then runs
+  // the identical LED cycle minus the counter, so the optics are not treated differently either.
+  //
+  // Making the sync real would mean letting RED re-arm the clock (relax that eSensorwait guard),
+  // which is a behaviour change in its own right - the lysis path (timeStartWait = 0) would gain
+  // a 15-minute wait it has never had.
+  //
+  // Was written `15 * 20` = 300 s, which read as "15 minutes" to everyone who met it and which
+  // sensor6035.h stated outright. It was 5 minutes. Now it is 900.
+  uint16_t optopreheatduration = 15 * 60;
 
   uint LEDDuration = 2 * 100;       // LED(time in ms) is on for 0.2s before sensor
                                     // reading###"LED Duration"
@@ -213,23 +235,23 @@ struct parastructure
 #define dbg_main(format, ...)                                  \
   (cMainDebug & cDebug)                                        \
       ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) \
-      : NULL
+      : 0
 #define dbg_sensor(format, ...)                                \
   (cSensorDebug & cDebug)                                      \
       ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) \
-      : NULL
+      : 0
 #define dbg_button(format, ...)                                \
   (cButtonDebug & cDebug)                                      \
       ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) \
-      : NULL
+      : 0
 #define dbg_display(format, ...)                               \
   (cDisplayDebug & cDebug)                                     \
       ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) \
-      : NULL
+      : 0
 #define dbg_bluetooth(format, ...)                             \
   (cBlueToothDebug & cDebug)                                   \
       ? DEBUG_COM.printf(HEADER_FORMAT(format), ##__VA_ARGS__) \
-      : NULL
+      : 0
 
 // Set true once the Bluetooth Classic stack has been permanently torn down
 // (esp_bt_mem_release). After that point ANY SerialBT call posts to a freed

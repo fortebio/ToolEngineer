@@ -7,10 +7,12 @@ the text length against the capacity, and bb_appendBits() has no bounds check, s
 straight past codewordBytes[71] - a VLA on DisplayTask's stack. The failure mode is not a bad
 QR, it is a panic + reset the instant the screen opens.
 
-The payload is "WIFI:T:nopass;S:" + <the broadcast SSID> + ";;" (18 fixed bytes). Note the
-indirection (added 2026-07-30): screen_QR() reads WiFi.softAPSSID() - the driver's copy - not
-dashboardApName(). The arithmetic below still holds because the ONLY string ever handed to
-WiFi.softAP() is dashboardApName()'s clamped output, which section 2 pins.
+There are TWO payloads, and both are bounded here:
+  - SoftAP: "WIFI:T:nopass;S:" + <the broadcast SSID> + ";;" (18 fixed bytes). Note the
+    indirection (2026-07-30): screen_QR() reads WiFi.softAPSSID() - the driver's copy - not
+    dashboardApName(). The arithmetic still holds because the ONLY string ever handed to
+    WiFi.softAP() is dashboardApName()'s clamped output, which section 2 pins.
+  - STA: "http://" + dashboardHostname() + ".local/" (2026-08-04, was the IP). Section 1b.
 
 Run: python tools/test_qr_payload.py       (host-side, no hardware)
 """
@@ -38,12 +40,48 @@ def body(src, sig):
 
 
 def code_only(text):
-    """Drop /* */ AND // comments. Every check below must look at code, not prose - a guard that
-    trips on a comment explaining the bug is a guard someone deletes. Both forms matter: the
-    function doc-headers in this codebase are /* */ blocks, and they legitimately name
-    dashboardApName() while describing why the code no longer calls it."""
-    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
-    return re.sub(r"//[^\n]*", "", text)
+    """Drop /* */ and // comments, but NOT the contents of string literals.
+
+    Every check below must look at code, not prose - a guard that trips on a comment explaining
+    the bug is a guard someone deletes. Both comment forms matter: the doc-headers here are
+    /* */ blocks and they legitimately name dashboardApName() while explaining why the code no
+    longer calls it.
+
+    String-aware since 2026-08-04, and that is not a refinement. A regex `//[^\\n]*` cuts
+    `payload = "http://" + dashboardHostname() + ".local/";` down to `payload = "http:` - the
+    URL scheme's own slashes read as a comment - so section 1b silently saw no payload at all
+    and reported the code as missing. The failure mode of the alternative is worse: a check
+    written against a literal containing `//` would pass because the guard blinded itself, and
+    nothing would say so. The prefix-literal scan below needs literals kept for the same reason.
+    """
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c = text[i]
+        if c in "\"'":  # string/char literal: copy it whole, escapes included
+            out.append(c)
+            i += 1
+            while i < n:
+                ch = text[i]
+                out.append(ch)
+                i += 1
+                if ch == "\\" and i < n:
+                    out.append(text[i])
+                    i += 1
+                elif ch == c:
+                    break
+            continue
+        if c == "/" and i + 1 < n:
+            if text[i + 1] == "/":
+                while i < n and text[i] != "\n":
+                    i += 1
+                continue
+            if text[i + 1] == "*":
+                j = text.find("*/", i + 2)
+                i = n if j < 0 else j + 2
+                continue
+        out.append(c)
+        i += 1
+    return "".join(out)
 
 
 # ---- 1. dashboardApName() is the single source of truth, and it clamps -------------------
@@ -68,6 +106,49 @@ if worst > QR_V3_LOW_BYTES:
         f"worst-case AP payload is {worst} B > {QR_V3_LOW_BYTES} B capacity "
         f"(wrapper {WIFI_WRAPPER} + prefix {pfx} + id {max_id}): "
         "lower the id clamp or raise the QR version"
+    )
+
+# ---- 1b. The STA payload is bounded too, and both address forms stay on screen ------------
+# Added 2026-08-04, when the QR moved from the IP to the mDNS name. The IP bounded itself - an
+# IPv4 string cannot exceed 15 characters - while a hostname is built from the device ID, so
+# the overflow-into-DisplayTask's-stack path from section 1 just gained a second entrance.
+#
+# The second assertion matters more. ".local" resolves only if the CLIENT speaks mDNS (iOS,
+# macOS and Windows 10+ do; older Android does not), and nothing on the device can detect that,
+# so the screen has to carry an address that always works next to the one it encodes.
+# Collapsing the caption to .local as well would leave those phones with no way in at all - and
+# it would read like a tidy-up, which is why it is pinned here rather than left to a comment.
+try:
+    host = body(DASH, "String dashboardHostname()")
+except ValueError:
+    fail.append("dashboardHostname() is gone - the STA QR payload has no bound")
+    host = ""
+
+hclamp = re.search(r"out\.length\(\)\s*<\s*(\d+)", host)
+if not hclamp:
+    fail.append(
+        "dashboardHostname() does not clamp out.length() - a long device ID reaches the encoder"
+    )
+max_host = int(hclamp.group(1)) if hclamp else 999
+worst_sta = len("http://") + max_host + len(".local/")
+if worst_sta > QR_V3_LOW_BYTES:
+    fail.append(
+        f"worst-case STA payload is {worst_sta} B > {QR_V3_LOW_BYTES} B capacity "
+        f"(http:// + hostname {max_host} + .local/): lower the hostname clamp or raise the version"
+    )
+
+qr_body = code_only(body(LCD, "void displayCLD::screen_QR()"))
+if not re.search(
+    r'payload\s*=\s*"http://"\s*\+\s*dashboardHostname\(\)\s*\+\s*"\.local/"', qr_body
+):
+    fail.append(
+        "screen_QR() no longer encodes http://<dashboardHostname()>.local/ on STA - the bound "
+        "above is for THAT string, and dashboardHostname() is the label MDNS.begin() registered"
+    )
+if "localIP()" not in qr_body:
+    fail.append(
+        "screen_QR() no longer prints the IP. .local only resolves on a client that speaks mDNS, "
+        "so the printed IP is the only way in for a phone that does not - it cannot be dropped"
     )
 
 # ---- 2. The builder feeds the RADIO; everyone else ASKS the radio -------------------------
@@ -182,4 +263,7 @@ if fail:
     for f in fail:
         print("  -", f)
     sys.exit(1)
-print(f"ok - QR payload bounded: worst case {worst} B <= {QR_V3_LOW_BYTES} B, no prefix drift")
+print(
+    f"ok - QR payload bounded: AP {worst} B, STA {worst_sta} B <= {QR_V3_LOW_BYTES} B, "
+    "no prefix drift, IP still printed as the non-mDNS fallback"
+)

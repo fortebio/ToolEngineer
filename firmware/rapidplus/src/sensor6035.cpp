@@ -1366,25 +1366,31 @@ void sensor6035::eSensorPreheat()
     }
     else
     {
-        if (PREHEATLOOPS == 0) // in case the parameter is zero!
+        // Reaching here means COUNTER >= PREHEATLOOPS, i.e. the target is already met. That is
+        // the whole exit criterion, so finish - do not test PREHEATLOOPS again.
+        //
+        // It used to only accept PREHEATLOOPS == 0 and otherwise log "Reading error, takes too
+        // long time" on every tick, forever. That path WEDGED THE MACHINE and it is reachable
+        // from the dashboard: PREHEATLOOPS is a macro over the live parameter, so lowering
+        // "Opto preheat" while a preheat is running (escreenStart is not "busy", so the write is
+        // accepted) drops the target below the COUNTER that already passed it. sensorStep then
+        // never reaches eSensormaintain, getSensorPreheatReady() stays false and
+        // PIDControl.cpp's transition can never fire - the machine heats to 65/75 and holds
+        // there with no error, no timeout, and the only offered way out being "skip preheat".
+        // Worse, the loop exits mid-round about half the time, and this branch never called
+        // LED_off_unguarded(), so one LED sat at continuous DC instead of its ~50% duty.
+        if (_PIDControl.getphase2ready())
         {
-            if (_PIDControl.getphase2ready())
-            {
-                info_display("heater is finished as well, update the display status\n");
-                _displayCLD.type_infor = ewaitampTube;
-                _displayCLD.changeScreen = true;
-                _buzzer.BuzzerAlert();
-            }
-            info_displayf("finish preheating, maintain the sensor heating\n");
-            // finish the reading, update the step
-            sensorStep = eSensormaintain; // preheat for 15mins already, enter maintain mode
-                                          //  info_displayln("eSensormaintain");
-            return;
+            info_display("heater is finished as well, update the display status\n");
+            _displayCLD.type_infor = ewaitampTube;
+            _displayCLD.changeScreen = true;
+            _buzzer.BuzzerAlert();
         }
-        else
-        {
-            info_displayln("Reading error, takes too long time");
-        }
+        _LED.LED_off_unguarded(iChannel); // may have been left energised mid-round
+        info_displayf("preheat target already met (%d/%d rounds), maintain the sensor heating\n",
+                      COUNTER, (int)PREHEATLOOPS);
+        sensorStep = eSensormaintain;
+        return;
     }
 }
 
@@ -1455,12 +1461,11 @@ void sensor6035::outputHeader()
     info_displayln("<AmpStart>");
 
     // write metadata in a json file
-    const size_t capacity = 1000; // total buffer capacity
-    DynamicJsonDocument metadata(capacity);
-    JsonObject calibration = metadata.createNestedObject("calibration");
-    JsonArray slopes = calibration.createNestedArray("slopes");
-    JsonArray origins = calibration.createNestedArray("origins");
-    JsonArray ledPower = metadata.createNestedArray("led_power");
+    JsonDocument metadata;
+    JsonObject calibration = metadata["calibration"].to<JsonObject>();
+    JsonArray slopes = calibration["slopes"].to<JsonArray>();
+    JsonArray origins = calibration["origins"].to<JsonArray>();
+    JsonArray ledPower = metadata["led_power"].to<JsonArray>();
     for (int i = 0; i < OPTOCHANNELS; i++)
     {
         slopes.add(FORTE_SLOPES[i]);
@@ -2192,12 +2197,11 @@ void sensor6035::OptoCommandProcess(char command)
     case 'M':
         info_displayln("Printing calibration:");
         // write metadata in a json file
-        const size_t capacity = 1000; // total buffer capacity
-        DynamicJsonDocument metadata(capacity);
-        JsonObject calibration = metadata.createNestedObject("calibration");
-        JsonArray slopes = calibration.createNestedArray("slopes");
-        JsonArray origins = calibration.createNestedArray("origins");
-        JsonArray ledPower = metadata.createNestedArray("led_power");
+        JsonDocument metadata;
+        JsonObject calibration = metadata["calibration"].to<JsonObject>();
+        JsonArray slopes = calibration["slopes"].to<JsonArray>();
+        JsonArray origins = calibration["origins"].to<JsonArray>();
+        JsonArray ledPower = metadata["led_power"].to<JsonArray>();
         for (int i = 0; i < OPTOCHANNELS; i++)
         {
             slopes.add(FORTE_SLOPES[i]);

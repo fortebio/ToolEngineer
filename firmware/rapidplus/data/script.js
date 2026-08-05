@@ -402,8 +402,8 @@ function makeChart(divId) {
     : null;
 }
 
-// A chart plus its per-run baseline state (baseline = mean of first BASELINE_N
-// points; the chart plots value - baseline so each curve starts near 0).
+// A chart plus its per-run baseline state. The chart plots value - baseline, so every curve
+// starts at zero and only real amplification lifts it off.
 function makeView(divId, lastUpdateId) {
   return {
     chart: makeChart(divId),
@@ -411,15 +411,41 @@ function makeView(divId, lastUpdateId) {
     baseSum: new Array(10).fill(0),
     baseCount: new Array(10).fill(0),
     baseline: new Array(10).fill(0),
-    // baseline-subtracted values per channel, kept so SG can re-smooth the whole run
-    // (the chart series holds only the smoothed output).
+    // RAW calibrated readings per channel, indexed by device round. The baseline is
+    // subtracted at DRAW time, not stored subtracted: it is only final once its window has
+    // passed, and pre-subtracting froze every early point against a baseline still moving.
     rawY: [[], [], [], [], [], [], [], [], [], []],
     nextIdx: 0,
   };
 }
 var homeView = makeView("homeChart", "lastUpdateHome");
 var resultView = makeView("resultChart", null);
-var BASELINE_N = 20; // first 20 rounds (0..19) -> baseline for the run
+
+/* ---------- Baseline window - THE TUNING KNOBS ----------
+ * The optics and the solution take a couple of minutes to settle: the first readings climb
+ * steeply from a cold start (measured on a real run: 311 -> 427 within five rounds) and only
+ * then sit flat. Averaging from round 0 pulls the baseline BELOW that flat level, so the
+ * settling ramp itself renders as a rising curve - every channel of that run showed a bump in
+ * the first two minutes (up to 21.7 counts) and two channels that never amplify "lifted off"
+ * at 1.3 min, which reads as a positive on a negative control.
+ *
+ * So the window starts AFTER the settle. Both values are in MINUTES and are meant to be
+ * tuned: how long the optics take to settle is a property of the instrument, not of the code.
+ * Measured on that run with 2 / 4 - bump in the first two minutes = 0 on all channels, the
+ * flat channels never lift off, and the two real amplifications still lift at ~7 min. */
+var BASELINE_START_MIN = 2; // skip this many minutes from the start of the run
+var BASELINE_RANGE_MIN = 2; // then average this many minutes to get the baseline
+
+// The window in ROUNDS. minPerRound comes from /curve, so this follows a re-configured
+// "time per loop" without anyone having to convert the two numbers above.
+function baselineWindow(total) {
+  var per = minPerRound > 0 ? minPerRound : 1;
+  var start = Math.round(BASELINE_START_MIN / per);
+  var len = Math.max(1, Math.round(BASELINE_RANGE_MIN / per));
+  // A run too short to reach the window still gets a baseline instead of a flat-zero chart.
+  if (total !== undefined && start >= total) start = 0;
+  return { start: start, len: len };
+}
 
 /* ---------- Savitzky-Golay smoothing (quadratic, order 2) ----------
  * SG fits a low-degree polynomial to a sliding window and takes the fitted centre,
@@ -465,16 +491,25 @@ function sgSmooth(arr) {
   return out;
 }
 
-// Redraw one channel from its retained raw (baseline-subtracted) values, SG-smoothed.
-// Noise floor is applied BEFORE smoothing: sub-2 samples become real 0 input to the SG
-// window, so the baseline sits flat at 0 instead of wobbling. Cost: the clamped zeros are
-// averaged into the first rising points, so the curve leaves 0 slightly later, and the
-// smoothed output is no longer clamped (yAxis min 0 hides any small negative dip).
+// Redraw one channel: subtract the baseline, apply the noise floor, SG-smooth, plot.
+// Floor BEFORE smoothing: sub-2 samples become real 0 input to the SG window, so the
+// baseline sits flat at 0 instead of wobbling. Cost: the clamped zeros are averaged into the
+// first rising points, so the curve leaves 0 slightly later, and the smoothed output is no
+// longer clamped (yAxis min 0 hides any small negative dip).
+// Until the baseline window has produced a sample there is nothing to subtract, so the
+// channel draws flat at 0 - which is also what those settling rounds floor to afterwards.
 function drawSmoothed(v, ch) {
   if (!v.chart || !v.chart.series[ch]) return;
   var raw = v.rawY[ch],
+    base = v.baseline[ch],
+    have = v.baseCount[ch] > 0,
     floored = new Array(raw.length);
-  for (var i = 0; i < raw.length; i++) floored[i] = raw[i] < 2 ? 0 : raw[i]; // noise floor: values below 2 -> 0
+  for (var i = 0; i < raw.length; i++) {
+    // A gap in the run leaves a hole in the array; undefined - base is NaN, which Highcharts
+    // would render as a break in the line.
+    var y = have && raw[i] !== undefined ? raw[i] - base : 0;
+    floored[i] = y < 0 ? 0 : y; // noise floor: values below 0 -> 0
+  }
   var sm = sgSmooth(floored),
     pts = [];
   for (var j = 0; j < sm.length; j++) pts.push([j * minPerRound, sm[j]]);
@@ -510,15 +545,20 @@ function loadCurve(v) {
       minPerRound = (d.intervalMs || 60000) / 60000;
       for (var ch = 0; ch < 10 && ch < d.series.length; ch++) {
         var vals = d.series[ch] || [];
-        var bn = Math.min(BASELINE_N, vals.length),
-          bsum = 0;
-        for (var k = 0; k < bn; k++) bsum += vals[k];
+        // Window in rounds, clipped to what the run actually contains. Seeded into
+        // baseSum/baseCount so live points arriving after the backfill keep accumulating
+        // into the same window instead of restarting it.
+        var w = baselineWindow(vals.length),
+          bsum = 0,
+          bn = 0;
+        for (var k = w.start; k < Math.min(w.start + w.len, vals.length); k++) {
+          bsum += vals[k];
+          bn++;
+        }
         v.baseSum[ch] = bsum;
         v.baseCount[ch] = bn;
         v.baseline[ch] = bn ? bsum / bn : 0;
-        v.rawY[ch] = [];
-        for (var j = 0; j < vals.length; j++)
-          v.rawY[ch].push(vals[j] - v.baseline[ch]);
+        v.rawY[ch] = vals.slice(); // raw; drawSmoothed subtracts the baseline
         drawSmoothed(v, ch); // SG-smooth the whole channel, then setData
       }
       v.nextIdx = d.count || 0;
@@ -544,15 +584,21 @@ function plotPoint(v, jsonValue) {
     if (!(ch >= 0 && ch < v.chart.series.length)) return;
     var y = Number(jsonValue[k]);
     if (isNaN(y)) return; // guard: SSE must send scalars, not arrays
-    if (v.baseCount[ch] < BASELINE_N) {
+    // Only rounds inside the window feed the baseline. Before it opens the channel has no
+    // baseline at all and drawSmoothed holds it at 0 - which is what those settling rounds
+    // floor to once the baseline does arrive, so nothing jumps when it does.
+    var w = baselineWindow();
+    if (idx >= w.start && idx < w.start + w.len) {
       v.baseSum[ch] += y;
       v.baseCount[ch]++;
       v.baseline[ch] = v.baseSum[ch] / v.baseCount[ch];
     }
-    // Retain the raw baseline-subtracted value; idx is the device round, so index by it
-    // (a re-sent round overwrites, never appends a duplicate). Then re-smooth the whole
-    // channel: the SG window over the newest points tightens as more of them arrive.
-    v.rawY[ch][idx] = y - v.baseline[ch];
+    // Store the RAW reading; idx is the device round, so index by it (a re-sent round
+    // overwrites, never appends a duplicate). Then re-smooth the whole channel: the SG window
+    // over the newest points tightens as more arrive, and every earlier point is re-drawn
+    // against the current baseline - so the window filling up corrects the run behind it
+    // instead of leaving the first rounds subtracted by a half-formed average.
+    v.rawY[ch][idx] = y;
     drawSmoothed(v, ch);
   });
   v.nextIdx = idx + 1;
@@ -685,8 +731,21 @@ function loadNamingSlots() {
 /* Slot name = one of a fixed set of shrimp diseases, chosen from a dropdown (tap the
  * field -> the disease options drop out). Empty = the slot keeps its #N default.
  * A <select> keeps every existing hook working (.slot-name value, onRename, the
- * cross-table sync in onRename, applyNamesTo, fitNameColumn) with no plumbing changes. */
-var DISEASES = ["PC", "EHP", "EMS", "WSSV", "TPD"];
+ * cross-table sync in onRename, applyNamesTo) with no plumbing changes. */
+var DISEASES = [
+  "PCV",
+  "PCM",
+  "EHP",
+  "EMS",
+  "WSSV",
+  "TPD",
+  "PCT",
+  "ISKNV",
+  "PCS",
+  "ASF p72",
+  "ASF I177L",
+  "ASF MGF",
+];
 var DASH = String.fromCharCode(8212); // em dash, built at runtime -> source stays ASCII
 
 function makeDiseaseSelect(i, value) {
@@ -714,9 +773,9 @@ function makeDiseaseSelect(i, value) {
   return sel;
 }
 
-/* Free-text sample label, sits beside the disease picker. Its own class (NOT .slot-name)
-   so fitNameColumn keeps sizing the column to the disease text only; the sample field
-   takes the remaining flex room and wraps below on a narrow row. */
+/* Free-text sample label, sits beside the disease picker. Its own class (NOT .slot-name):
+   the two fields flex against each other inside the cell, and this one wraps below on a
+   narrow row instead of crushing the disease picker. */
 function makeSampleInput(i, value) {
   var inp = document.createElement("input");
   inp.type = "text";
@@ -760,12 +819,24 @@ function buildTable(tbodyId, slots, withResults) {
     cb.setAttribute("aria-label", "Show #" + (i + 1) + " on the chart");
     cb.style.setProperty("--series", SERIES_COLORS[i]);
     cb.addEventListener("change", onToggle);
-    sampleBox.appendChild(cb);
+    // Result reads colour | result | CT | sample, so the dot is its own leading column there.
+    // The naming table has no verdict columns to order against, so it keeps the dot inline
+    // with the #N it labels.
+    if (!withResults) sampleBox.appendChild(cb);
 
-    var no = document.createElement("span");
-    no.className = "slot-no";
-    no.textContent = "#" + (i + 1);
-    sampleBox.appendChild(no);
+    // #N belongs to the NAMING table only. There you are matching physical tubes to names and
+    // the number IS the task; on Result it repeats what the row's fixed position already says,
+    // and the 27px it took were the difference between a one-line row and a two-line one on a
+    // 360px phone (measured 81px -> 43px per row).
+    // Identity is not lost on Result: the table is always all ten rows in order, the coloured
+    // dot carries the same series colour the chart legend labels #1..#10, and that dot's
+    // aria-label still reads "Show #N on the chart" for a screen reader.
+    if (!withResults) {
+      var no = document.createElement("span");
+      no.className = "slot-no";
+      no.textContent = "#" + (i + 1);
+      sampleBox.appendChild(no);
+    }
 
     var cur = s.name !== undefined ? s.name || "" : slotNames[i] || "";
     sampleBox.appendChild(makeDiseaseSelect(i, cur));
@@ -773,35 +844,48 @@ function buildTable(tbodyId, slots, withResults) {
       s.sample !== undefined ? s.sample || "" : slotSamples[i] || "";
     sampleBox.appendChild(makeSampleInput(i, curSample));
     sampleTd.appendChild(sampleBox);
-    tr.appendChild(sampleTd);
 
     if (withResults) {
+      var visTd = document.createElement("td");
+      visTd.className = "vis";
+      visTd.appendChild(cb);
+
       var ctTd = document.createElement("td");
       ctTd.className = "ct";
       if (s.ct === null || s.ct === undefined)
         ctTd.innerHTML = '<span class="res-empty">-</span>'; // recede: most rows have no CT
       else ctTd.textContent = Number(s.ct).toFixed(1);
-      tr.appendChild(ctTd);
 
-      var td = document.createElement("td");
+      var resTd = document.createElement("td");
+      resTd.className = "res";
       var r = s.result || "";
       if (r && "PNSEB".indexOf(r) >= 0) {
         var badge = document.createElement("span");
         badge.className = "res-badge res-" + r;
         badge.textContent = r;
-        td.appendChild(badge);
+        resTd.appendChild(badge);
         // The rows that carry a detection are the ones the operator is looking for;
         // give them a quiet tint so they read first instead of every row shouting equally.
         if (r === "P" || r === "S") tr.classList.add("hit");
       } else {
-        td.innerHTML = '<span class="res-empty">-</span>';
+        resTd.innerHTML = '<span class="res-empty">-</span>';
       }
-      tr.appendChild(td);
+
+      // colour | result | CT | sample. The verdict leads because it is what the run is read
+      // for; the sample identity trails because it is the thing you already know. Cell ORDER
+      // is the DOM order here - a table cannot be reordered in CSS without breaking the
+      // reading order for a screen reader, which would announce a verdict before saying which
+      // sample it belongs to.
+      tr.appendChild(visTd);
+      tr.appendChild(resTd);
+      tr.appendChild(ctTd);
+      tr.appendChild(sampleTd);
+    } else {
+      tr.appendChild(sampleTd);
     }
 
     body.appendChild(tr);
   }
-  fitNameColumn(tbodyId);
 }
 
 function cell(content) {
@@ -811,32 +895,12 @@ function cell(content) {
   return td;
 }
 
-// Size the Name column to the widest name in THIS table; the other (value)
-// columns share the rest evenly (table-layout: fixed).
-function fitNameColumn(tbodyId) {
-  var body = document.getElementById(tbodyId);
-  if (!body) return;
-  var table = body.parentNode; // <table>
-  var inputs = table.querySelectorAll(".slot-name");
-  var th = table.querySelector("thead th.col-name");
-  if (!inputs.length || !th) return;
-  var meas = document.getElementById("nameMeasure");
-  if (!meas) {
-    meas = document.createElement("span");
-    meas.id = "nameMeasure";
-    meas.style.cssText =
-      "position:absolute;visibility:hidden;white-space:pre;left:-9999px;font-size:0.85rem";
-    document.body.appendChild(meas);
-  }
-  var w = 0;
-  inputs.forEach(function (inp) {
-    meas.textContent = inp.value || inp.placeholder || "";
-    if (meas.offsetWidth > w) w = meas.offsetWidth;
-  });
-  // + padding, + a fixed budget for the sample field sitting beside the disease, clamped.
-  // On a narrow row the column can't reach the max and the sample field wraps below.
-  th.style.width = Math.min(Math.max(w + 34 + 132, 210), 600) + "px";
-}
+// The Name column is NOT sized in JS. table-layout:fixed plus the rem-sized value columns
+// already hand it the exact remainder, at every width and root font size - that IS the
+// clamp, for free. The old fitNameColumn() measured the widest disease string and pinned
+// an inline px width with a hard 210px floor; 210 + 2 value columns overflowed the card on
+// a 320px phone (312 in 254) and on the 820px desktop breakpoint (344 in 212), which is
+// what made the Result table spill and the page scroll sideways. Do not reintroduce it.
 
 function onToggle(e) {
   var i = Number(e.target.getAttribute("data-slot"));
@@ -853,7 +917,52 @@ function onToggle(e) {
     homeView.chart.series[i].setVisible(e.target.checked, true);
   if (resultView.chart && resultView.chart.series[i])
     resultView.chart.series[i].setVisible(e.target.checked, true);
+  syncVisAll();
 }
+
+/* ---------- Show / hide EVERY slot ----------
+ * Ten dots is a lot of clicking to isolate one curve or bring them all back. The header dot
+ * drives all of them at once and reports the mix through the checkbox's own `indeterminate`
+ * state, so "some hidden" needs no extra widget or wording. */
+function setAllVis(on) {
+  var v = slotVis();
+  for (var i = 0; i < SLOTS; i++) v[i] = on;
+  saveSlotVis(v);
+  document.querySelectorAll("input.vis-dot[data-slot]").forEach(function (cb) {
+    cb.checked = on;
+  });
+  // redraw ONCE per chart, not once per series: setVisible(.., true) on ten series is ten
+  // full Highcharts redraws, and on the 120-point curve that is a visible stutter.
+  [homeView, resultView].forEach(function (view) {
+    if (!view.chart) return;
+    for (var i = 0; i < SLOTS && i < view.chart.series.length; i++)
+      view.chart.series[i].setVisible(on, false);
+    view.chart.redraw();
+  });
+  syncVisAll();
+}
+
+// Reflect the per-slot state back onto the header dot. Called after any change and after a
+// table render, so the header is never stale against the rows below it.
+function syncVisAll() {
+  var shown = 0;
+  for (var i = 0; i < SLOTS; i++) if (isVisible(i)) shown++;
+  document.querySelectorAll("input.vis-all").forEach(function (cb) {
+    cb.checked = shown > 0;
+    cb.indeterminate = shown > 0 && shown < SLOTS;
+  });
+}
+
+document.querySelectorAll("input.vis-all").forEach(function (cb) {
+  cb.addEventListener("change", function () {
+    setAllVis(cb.checked);
+  });
+});
+// At load, not only from applyVisTo(): that runs when a chart is drawn, and the stored state
+// has to show on the header the moment the page opens - the markup ships `checked`, so a
+// reload with slots hidden would otherwise claim everything is plotted. syncVisAll reads
+// localStorage, not the DOM, so it is correct before a single row exists.
+syncVisAll();
 
 function onRename(e) {
   var i = Number(e.target.getAttribute("data-slot"));
@@ -872,8 +981,6 @@ function onRename(e) {
     });
   applyNamesTo(homeView);
   applyNamesTo(resultView);
-  fitNameColumn("namingBody");
-  fitNameColumn("slotBody");
 }
 
 // Sample label is web-only, persisted next to the disease (POST /rename?...&sample=).
@@ -912,6 +1019,7 @@ function applyVisTo(v) {
   for (var i = 0; i < 10; i++) {
     if (v.chart.series[i]) v.chart.series[i].setVisible(isVisible(i), false);
   }
+  syncVisAll(); // the header dot follows the same stored state the series just did
 }
 
 /* Confirm names. Two contexts:
@@ -973,15 +1081,15 @@ var CARDS = [
       '<path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>',
     ),
   },
-  {
-    id: "id",
-    title: "Device ID",
-    desc: "Change the machine id",
-    custom: "id",
-    icon: ico(
-      '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h3M15 12h3M5 17c1-2 5-2 6 0"/>',
-    ),
-  },
+  // {
+  //   id: "id",
+  //   title: "Device ID",
+  //   desc: "Change the machine id",
+  //   custom: "id",
+  //   icon: ico(
+  //     '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h3M15 12h3M5 17c1-2 5-2 6 0"/>',
+  //   ),
+  // },
   {
     id: "profile",
     title: "Profile Configuration",
@@ -989,6 +1097,9 @@ var CARDS = [
     icon: ico(
       '<path d="M14 14.76V4.5a2.5 2.5 0 0 0-5 0v10.26a4.5 4.5 0 1 0 5 0z"/>',
     ),
+    // Every duration here is entered in MINUTES. The device stores seconds (lysis, opto
+    // preheat) and rounds (amplification) and keeps doing so - see the toUi/toDev note in
+    // renderFields for why the conversion cannot move onto the device.
     fields: [
       {
         p: "lysis temperature",
@@ -999,12 +1110,18 @@ var CARDS = [
         step: 0.1,
       },
       {
-        p: "lysis duration",
-        l: "Lysis duration",
-        u: "s",
+        p: "lysis duration", // the device key stays "lysis duration"; only the label moved
+        l: "Lysis time",
+        u: "min",
         min: 0,
-        max: 65535,
-        step: 1,
+        max: 1092, // = 65535 s, the uint16 the device stores this in
+        step: 0.1, // 6 s of resolution: the stored unit is seconds, do not round it away
+        toUi: function (s) {
+          return Math.round(s / 6) / 10;
+        },
+        toDev: function (m) {
+          return Math.round(m * 60);
+        },
       },
       {
         p: "amplification temperature",
@@ -1014,32 +1131,46 @@ var CARDS = [
         max: 110,
         step: 0.1,
       },
+      // ONE field where there were two. The device counts ROUNDS and asks "time per loop"
+      // how long a round is; the operator thinks in minutes and the round is fixed at 20 s.
+      // "time per loop" is deliberately no longer in this list, so collectFields never sends
+      // it and the device keeps its own value - which is also the value converted against
+      // here, so a machine set to a different round length still reads back the truth
+      // instead of a number computed from an assumption.
       {
         p: "amplification time",
-        l: "Amplification rounds",
-        u: "max 130",
+        l: "Amplification time",
+        u: "min",
         min: 1,
-        max: 130,
-        step: 1,
-      },
-      {
-        p: "time per loop",
-        l: "Time per round",
-        u: "ms",
-        min: 1000,
-        max: 120000,
-        step: 100,
+        max: 43, // 130 rounds x 20 s = 43.3 min. toDev clamps for real - see below
+        step: 0.5,
+        toUi: function (r) {
+          return Math.round((r * perLoopMs()) / 6000) / 10;
+        },
+        toDev: function (m) {
+          // 130 is not a preference: COUNTER indexes sensor67Value[10][130] and anything
+          // larger overflows it mid-run. The firmware rejects >130 too (handleConfigPost);
+          // this clamp just stops the form ever posting a value it knows will be refused.
+          var r = Math.round((m * 60000) / perLoopMs());
+          return Math.min(130, Math.max(1, r));
+        },
       },
       {
         p: "opto preheat time",
         l: "Opto preheat",
-        u: "s",
+        u: "min",
         min: 0,
-        max: 3600,
-        step: 1,
+        max: 60, // = 3600 s, the firmware's own cap
+        step: 0.5,
+        toUi: function (s) {
+          return Math.round(s / 6) / 10;
+        },
+        toDev: function (m) {
+          return Math.round(m * 60);
+        },
       },
     ],
-    hint: "Rounds x time per round = run length. 120 x 20000 ms = a 40 minute run.",
+    hint: "All times are in minutes. A round is 20 s on the device, so amplification tops out at 43 min (130 rounds).",
   },
   // ---- HIDDEN ON PURPOSE, to be switched back on later (decided 2026-08-02) -------------
   // LED, Calibration, PID/heater and Other parameters are commented out, not deleted. Their
@@ -1268,6 +1399,14 @@ function setPath(o, p, v) {
   o[parts[parts.length - 1]] = v;
 }
 
+/* How long one amplification round lasts, in ms. Read from the device rather than hardcoded:
+   it is a stored parameter ("time per loop", 20 s by default), and the Profile card converts
+   rounds <-> minutes against it. A machine set to something else must still show the truth. */
+function perLoopMs() {
+  var v = Number(getPath(cfgCache, "time per loop"));
+  return v > 0 ? v : 20000;
+}
+
 function el(tag, cls, txt) {
   var e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -1414,7 +1553,8 @@ function openPanel(id) {
 document.getElementById("setBack").addEventListener("click", function () {
   var was = openCard;
   showMenu();
-  var card = was && document.querySelector('.set-card[data-card="' + was + '"]');
+  var card =
+    was && document.querySelector('.set-card[data-card="' + was + '"]');
   if (card) card.focus();
 });
 
@@ -1515,7 +1655,12 @@ function renderFields(form, c) {
       t.setAttribute("data-kind", "str");
       row.appendChild(t);
     } else {
-      var n = numInput(f, cur);
+      // f.toUi/f.toDev let a field be EDITED in one unit and STORED in another (minutes in
+      // the form, seconds or rounds on the device). The conversion lives here and in
+      // collectFields, nowhere else: parastructure is 400 B against a 402 B ceiling so the
+      // device cannot carry a second copy in friendlier units, and the firmware's range
+      // checks are written against the stored units.
+      var n = numInput(f, f.toUi && cur !== undefined ? f.toUi(cur) : cur);
       n.setAttribute("data-path", f.p);
       n.setAttribute("data-kind", "num");
       n.setAttribute("data-min", f.min === undefined ? "" : f.min);
@@ -1576,7 +1721,8 @@ function collectFields(c, form) {
           bad = bad || f.l;
           e2.classList.add("bad");
         } else e2.classList.remove("bad");
-        setPath(body, f.p, Number(e2.value));
+        var num = Number(e2.value);
+        setPath(body, f.p, f.toDev ? f.toDev(num) : num);
       }
     }
   });
@@ -1908,7 +2054,46 @@ function wifiScanHas(ssid) {
   });
 }
 function renderWifi(form) {
-  form.appendChild(
+  /* Two jobs, two views. Joining a network (scan -> pick -> password -> reboot) and managing
+   * the ones already stored are separate tasks, and stacking them made a panel long enough
+   * that the Save button sat below the fold on a phone.
+   *
+   * Radios, not a hand-rolled tab strip: a radiogroup gives arrow-key navigation, ONE tab
+   * stop and the checked state to a screen reader for free. Each input is wrapped by its own
+   * <label>, so the visible word IS the accessible name. */
+  var views = [
+    { id: "connect", label: "Connect" },
+    { id: "saved", label: "Saved" },
+  ];
+  var seg = el("div", "wifi-seg");
+  seg.setAttribute("role", "radiogroup");
+  seg.setAttribute("aria-label", "WiFi view");
+  var panes = {};
+  views.forEach(function (v, i) {
+    var lab = el("label", "wifi-seg-btn");
+    var r = el("input");
+    r.type = "radio";
+    r.name = "wifiView";
+    r.value = v.id;
+    r.checked = i === 0; // Connect first: it is the reason the panel gets opened
+    r.addEventListener("change", function () {
+      views.forEach(function (o) {
+        panes[o.id].classList.toggle("hide", o.id !== v.id);
+      });
+    });
+    lab.appendChild(r);
+    lab.appendChild(el("span", null, v.label));
+    seg.appendChild(lab);
+  });
+  form.appendChild(seg);
+  views.forEach(function (v, i) {
+    panes[v.id] = el("div", "wifi-pane" + (i === 0 ? "" : " hide"));
+    form.appendChild(panes[v.id]);
+  });
+  var connect = panes.connect;
+  var savedPane = panes.saved;
+
+  connect.appendChild(
     el(
       "p",
       "f-hint",
@@ -1920,18 +2105,55 @@ function renderWifi(form) {
   );
   // Saved networks (stored in NVS): the machine tries these in order if the preferred
   // one is out of range, so a lab can move it between rooms without reconfiguring.
-  form.appendChild(el("p", "f-lbl", "Saved networks"));
+  // Rendered even while its view is hidden - loadSavedWifi() also feeds wifiSavedSsids, which
+  // the Connect view's nearby list filters against.
   var saved = el("div", "wifi-list");
   saved.id = "wifiSaved";
   saved.appendChild(el("p", "f-hint", "Loading..."));
-  form.appendChild(saved);
+  savedPane.appendChild(saved);
   loadSavedWifi();
 
-  form.appendChild(el("p", "f-lbl", "Nearby networks"));
+  // <details>, not a hand-rolled toggle: the browser supplies the click target, the keyboard
+  // handling and the expanded/collapsed state to assistive tech for free. Open while the
+  // operator is still choosing; picking a network collapses it (see renderWifiList) so the
+  // SSID and password boxes come up to meet the thumb instead of sitting under 8 scan rows.
+  var scan = el("details", "wifi-scan");
+  scan.id = "wifiScan";
+  scan.open = true;
+  scan.appendChild(el("summary", "f-lbl", "Nearby networks"));
+  // Rescan lives INSIDE the <details>, not in the <summary>: a button nested in a summary is
+  // nested interactive content, and its click also toggles the disclosure unless every event
+  // is stopped by hand. Here it is a plain sibling of the list it refreshes.
+  var again = el("button", "wifi-rescan");
+  again.type = "button";
+  // Icon only. The label moves to aria-label/title: with the button parked in the corner of
+  // the disclosure row there is no room for text, and "Scan again" was the accessible NAME -
+  // dropping the span without this would leave a nameless button for a screen reader.
+  again.setAttribute("aria-label", "Scan again");
+  again.title = "Scan again";
+  again.innerHTML =
+    SVG_OPEN +
+    '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/>' +
+    "</svg>";
+  again.addEventListener("click", function () {
+    if (again.disabled) return;
+    again.disabled = true;
+    var list = document.getElementById("wifiList");
+    if (list) {
+      list.innerHTML = "";
+      list.appendChild(el("p", "f-hint", "Scanning..."));
+    }
+    // The device restarts its scan on the next GET when it is not already running, so this is
+    // just the same poll from tries=0. Re-enabled by renderWifiList, which every exit path of
+    // the poll reaches - success, give-up and error alike - so the button can never stay dead.
+    pollWifiScan(0);
+  });
+  scan.appendChild(again);
   var list = el("div", "wifi-list");
   list.id = "wifiList";
   list.appendChild(el("p", "f-hint", "Scanning..."));
-  form.appendChild(list);
+  scan.appendChild(list);
+  connect.appendChild(scan);
 
   /* A real text box, not just the scan list: picking from the list fills it in, but a
      HIDDEN network never appears in a scan and could not be joined at all before. */
@@ -1945,7 +2167,7 @@ function renderWifi(form) {
   ss.maxLength = 32; // firmware rejects 0 or >32 (handleWifi)
   ss.placeholder = "pick one above, or type a hidden network";
   srow.appendChild(ss);
-  form.appendChild(srow);
+  connect.appendChild(srow);
 
   var row = el("div", "f-row");
   var plbl = el("label", "f-lbl", "Password");
@@ -1957,7 +2179,7 @@ function renderWifi(form) {
   pw.maxLength = 54; // EEPROM slot is 54 chars, not WPA2's 63
   pw.placeholder = "leave empty for an open network";
   row.appendChild(pw);
-  form.appendChild(row);
+  connect.appendChild(row);
 
   var b = el("button", "save-btn", "Save & reboot");
   b.type = "button";
@@ -2026,7 +2248,7 @@ function renderWifi(form) {
         setMsg("Failed - no connection", false);
       });
   });
-  form.appendChild(b);
+  connect.appendChild(b);
   pollWifiScan(0);
 }
 
@@ -2188,6 +2410,13 @@ function loadSavedWifi() {
 function renderWifiList(nets) {
   var list = document.getElementById("wifiList");
   if (!list) return;
+  // Re-arm "Scan again". EVERY exit of pollWifiScan lands here - a list, giving up after 20
+  // tries, and the fetch error path - so this is the one place that can do it without a second
+  // timer to leak. Without it the button disables itself on the first press and stays dead for
+  // the life of the panel, which is exactly the case an operator hits: the network they were
+  // waiting for did not show up in the first scan.
+  var again = document.querySelector(".wifi-rescan");
+  if (again) again.disabled = false;
   list.innerHTML = "";
   if (nets === null) {
     wifiScanNets = [];
@@ -2217,18 +2446,74 @@ function renderWifiList(nets) {
   shown.sort(function (a, b) {
     return b.rssi - a.rssi;
   });
-  shown.forEach(function (n) {
+  shown.forEach(renderScanRow);
+}
+
+/* Signal strength as the phone's own glyph: three arcs over a dot, lit from the inside out,
+ * plus a padlock when the network needs a password. "lock  -73 dBm" asked the operator to
+ * know that -73 is worse than -48; the arcs say it without being read.
+ *
+ * dBm is NOT thrown away - it stays in title/aria-label, so a screen reader and an engineer
+ * chasing a weak link both still get the number. Strength is carried by HOW MANY arcs are
+ * lit, never by colour alone. */
+var RSSI_STEPS = [-60, -70, -80]; // >= -60 -> 3 arcs, >= -70 -> 2, >= -80 -> 1, else 0
+function rssiBars(rssi) {
+  var n = 0;
+  for (var i = 0; i < RSSI_STEPS.length; i++) if (rssi >= RSSI_STEPS[i]) n++;
+  return n; // 0..3
+}
+var RSSI_WORD = ["weak", "fair", "good", "excellent"];
+
+function wifiMeta(n) {
+  var bars = rssiBars(Number(n.rssi));
+  var wrap = el("span", "wifi-meta");
+  var sig = el("span", "wifi-sig sig-" + bars);
+  // Arcs are drawn largest-first so the dimmed ones sit BEHIND; each is its own path so the
+  // lit/dim split is a class on the parent, not a redraw.
+  sig.innerHTML =
+    SVG_OPEN +
+    '<path class="a3" d="M2 8.5a16 16 0 0 1 20 0"/>' +
+    '<path class="a2" d="M5 12a11 11 0 0 1 14 0"/>' +
+    '<path class="a1" d="M8.5 15.5a6 6 0 0 1 7 0"/>' +
+    '<circle class="a0" cx="12" cy="19" r="1.1" fill="currentColor" stroke="none"/>' +
+    "</svg>";
+  wrap.appendChild(sig);
+  if (!n.open) {
+    var lk = el("span", "wifi-lock");
+    lk.innerHTML =
+      SVG_OPEN +
+      '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/>' +
+      "</svg>";
+    wrap.appendChild(lk);
+  }
+  var text =
+    "Signal " +
+    RSSI_WORD[bars] +
+    " (" +
+    n.rssi +
+    " dBm), " +
+    (n.open ? "open network" : "password required");
+  wrap.title = text;
+  wrap.setAttribute("aria-label", text);
+  return wrap;
+}
+
+function renderScanRow(n) {
+  var list = document.getElementById("wifiList");
+  if (list) {
     var b = el("button", "wifi-item");
     b.type = "button";
     b.appendChild(el("span", "wifi-name", n.ssid || "(hidden)"));
-    b.appendChild(
-      el("span", "wifi-meta", (n.open ? "open  " : "lock  ") + n.rssi + " dBm"),
-    );
+    b.appendChild(wifiMeta(n));
     b.addEventListener("click", function () {
       list.querySelectorAll(".wifi-item").forEach(function (x) {
         x.classList.remove("sel");
       });
       b.classList.add("sel");
+      // The list has done its job - fold it away so the SSID and password boxes are the next
+      // thing on screen. Not destroyed: the summary is still there to re-open and change.
+      var scan = document.getElementById("wifiScan");
+      if (scan) scan.open = false;
       // Fill the name box and drop straight into the password field: picking a network
       // is never the last step, so make the next one the obvious one.
       var box = document.getElementById("wifiSsid");
@@ -2246,7 +2531,7 @@ function renderWifiList(nets) {
       setMsg("Selected " + n.ssid, true);
     });
     list.appendChild(b);
-  });
+  }
 }
 
 /* ---------- Calib wizard: mirrors the device's own flow ----------

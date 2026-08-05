@@ -26,7 +26,12 @@
 typedef enum
 {
     eSensorwait,       // wait before it starts to work
-    eSensorpreheat,    // preheat for 15 mins during heater preheating to amp temperature
+    eSensorpreheat,    // 45 rounds = 900 s, counted from BOOT (begin() enters this step; the
+                       // setStepeSensorpreheat() calls on the button paths are no-ops because
+                       // they guard on eSensorwait, which only calibration produces). It is
+                       // therefore never the condition that decides when a run may start - the
+                       // hotlid wait always lands later. See define.h. Was 300 s until
+                       // 2026-08-05, whatever the old "15 mins" comment here claimed.
     eSensormaintain,   // maintain after preheating
     eSensorstart,      // start to initialize the opto
     eSensor1stReading, // start to read the 1st stage opto data

@@ -17,7 +17,7 @@
   "units": "nM FAM",
   "device ID": "proto 1",
   "lysis duration": 600,
-  "opto preheat time": 300,
+  "opto preheat time": 900,
   "LED Duration": 200,
   "time per loop": 20000,
   "amplification time": 120

@@ -107,16 +107,109 @@ void displayCLD::logoFortebiotech()
  * pramameter: none
  *  return: none
  */
+// Signal strength as a count of lit bars, 0..3. Same boundaries as the web scan list
+// (rssiBars in data/script.js) so the phone and the machine never disagree about the same
+// link. 0 means "associated but barely there" - it is NOT the same as disconnected, which
+// the icon beside it says on its own.
+int wifiBarsFromRssi(int rssi)
+{
+  if (rssi >= -60)
+    return 3;
+  if (rssi >= -70)
+    return 2;
+  if (rssi >= -80)
+    return 1;
+  return 0;
+}
+
+// Debounced level for the display. RSSI jitters by a few dB every read, so a bare threshold
+// makes the bars flap whenever the link sits on a boundary - and every flap is a full bitmap
+// blit over SPI. Only accept a new level once TWO consecutive samples agree on it.
+int wifiDisplayBars(void)
+{
+  static int shown = -1, pending = -1;
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    shown = pending = -1;
+    return -1; // no link at all
+  }
+  // Throttled INSIDE the function, so both callers - the 100ms redraw gate and the draw
+  // itself - can ask freely without either of them advancing the debounce twice per tick.
+  static uint32_t lastPoll = 0;
+  uint32_t t = millis();
+  if (shown >= 0 && t - lastPoll < 1500)
+    return shown;
+  lastPoll = t;
+
+  int now = wifiBarsFromRssi(WiFi.RSSI());
+  if (now == shown)
+  {
+    pending = -1;
+    return shown;
+  }
+  if (shown < 0)
+    shown = now; // first reading after a connect shows immediately
+  else if (now == pending)
+    shown = now; // seen twice in a row -> commit
+  else
+    pending = now;
+  return shown;
+}
+
+/***********************************************************************
+ * Function: show_IconWifi()
+ * Description: Draws the WiFi status icon at the top right, plus three
+ *  strength bars to its left while the link is up.
+ * pramameter: none
+ *  return: none
+ */
 void show_IconWifi(void)
 {
-  if (WiFi.status() == WL_CONNECTED)
+  // One glyph, four states. The weaker levels are the SAME artwork with the outer arcs
+  // removed (see displayresources.h), so the apex stays put and only the fan shrinks -
+  // nothing jumps around as the signal moves.
+  const int bars = wifiDisplayBars(); // -1 = no link at all; 0..3 = arcs lit
+  const unsigned char *icon;
+  switch (bars)
   {
-    _displayCLD.display->drawBitmap(286, 9, image_WIFI_Connect, 19, 16, WHITE);
+  case -1:
+    icon = image_WIFI_Disconnect;
+    break;
+  case 0:
+    icon = image_WIFI_Lv0;
+    break;
+  case 1:
+    icon = image_WIFI_Lv1;
+    break;
+  case 2:
+    icon = image_WIFI_Lv2;
+    break;
+  default:
+    icon = image_WIFI_Connect;
+    break; // 3 arcs = the original, full-strength glyph
   }
-  else
-  {
-    _displayCLD.display->drawBitmap(286, 9, image_WIFI_Disconnect, 19, 16, WHITE);
-  }
+
+  // Wipe first: the levels differ only in their upper rows, so painting a shorter fan over a
+  // taller one would leave the dropped arcs behind. The screen's own fillScreen only happens
+  // on a screen change, and this can repaint without one.
+  _displayCLD.display->fillRect(286, 9, 19, 16, BLACK);
+
+  // TWO passes while the link is up, and the dim one is not decoration. drawBitmap paints only
+  // the SET pixels, so a level bitmap on its own leaves the arcs it dropped as bare background -
+  // and on a black screen "one arc lit" and "a small icon" look exactly alike. Painting the FULL
+  // fan grey first puts the missing arcs back as an outline, so the icon reads as "1 of 3".
+  // That is the whole design: strength is the COUNT of lit arcs, never a colour - the same rule
+  // the web scan list follows. DARKGREY measures 5.0:1 against black (visible) and white sits
+  // 4.2:1 above it (clearly the lit one), so both comparisons hold on their own.
+  //
+  // The four bitmaps NEST (test_wifi_bars.cpp pins it), so the white pass covers exactly the lit
+  // subset - no grey can show through inside a lit arc, and no lit pixel can land outside the fan.
+  //
+  // Not for the disconnected glyph: that one is already a hollow outline with a slash through it,
+  // and a solid grey fan behind it would fight the drawing rather than complete it.
+  if (bars >= 0)
+    _displayCLD.display->drawBitmap(286, 9, image_WIFI_Connect, 19, 16, 0x3186);
+  _displayCLD.display->drawBitmap(286, 9, icon, 19, 16, WHITE);
 }
 
 /***********************************************************************
@@ -169,9 +262,10 @@ void displayCLD::drawWarnFrame(uint16_t color)
  * Description: Full-screen QR that gets a phone onto the web dashboard. WHITE on the
  *  idle start screen opens it (that button did nothing there before); WHITE again goes
  *  back. The payload follows the CURRENT network mode:
- *   - STA connected -> "http://<ip>/": scanning opens the dashboard directly (the phone
- *     must be on the same WiFi). Built from WiFi.localIP() every entry, so a new DHCP
- *     lease can never leave a stale address on screen.
+ *   - STA connected -> "http://<hostname>.local/": scanning opens the dashboard directly
+ *     (the phone must be on the same WiFi). The mDNS name rather than the IP, so the code
+ *     stays valid across DHCP leases - and the IP is printed beside it as the fallback for
+ *     a browser that cannot resolve mDNS. Both forms are on screen, always.
  *   - SoftAP fallback -> "WIFI:T:nopass;S:<dashboardApName()>;;": the phone joins the open AP and
  *     the captive portal (webDashboard) then opens the dashboard by itself.
  *  Drawn DARK-ON-LIGHT with a 4-module quiet zone - scanners need that contrast and
@@ -205,7 +299,15 @@ void displayCLD::screen_QR()
   }
   else if (WiFi.status() == WL_CONNECTED)
   {
-    payload = "http://" + WiFi.localIP().toString() + "/";
+    // The mDNS name, not the IP. Same string MDNS.begin() registered (dashboardHostname()
+    // sanitises the device ID the same way), so it resolves for as long as the machine is on
+    // this LAN - across DHCP leases, reboots and router restarts.
+    //
+    // The IP has NOT disappeared: it moved to the caption below, and that swap is load-bearing.
+    // .local needs the CLIENT to speak mDNS - iOS/macOS/Windows 10+ do, older Android does not -
+    // and nothing on the device can detect that from here. So the screen carries both forms:
+    // the one a phone scans, and the one an operator types when scanning leads nowhere.
+    payload = "http://" + dashboardHostname() + ".local/";
     line1 = "Scan to open";
   }
   else
@@ -220,13 +322,20 @@ void displayCLD::screen_QR()
   this->display->setTextColor(BLACK);
   this->display->println("FORTE BIOTECH");
 
+  // Caption band above the code: one line at (20, 40), the full 320 px to play with (the QR
+  // panel does not start until y = 65).
+  //
+  // Printed in EVERY state, including the two that encode nothing. It used to sit inside the
+  // `if (payload.length())` below, so both no-network paths assigned line1 = "No network" and
+  // then never drew it: the machine showed a bare screen with no code, no address and no reason,
+  // in the one state where the operator most needs to be told what is wrong.
+  this->display->setTextSize(1);
+  this->display->setTextColor(Forte_Green);
+  this->display->setCursor(20, 40);
+  this->display->print(payload.length() ? line1 + ": " : line1);
+
   if (payload.length())
   {
-    // Caption column to the right of the code (x >= 205), small text so it fits 115 px.
-    this->display->setTextSize(1);
-    this->display->setTextColor(Forte_Green);
-    this->display->setCursor(20, 40);
-    this->display->print(line1 + ": ");
     this->display->setTextColor(WHITE);
     if (dashboardIsAP())
     {
@@ -234,13 +343,15 @@ void displayCLD::screen_QR()
     }
     else
     {
-      // dashboardHostname(), not id_device: that is the sanitised label MDNS.begin() actually
-      // registered (lowercased, [a-z0-9-] only). Printing the raw ID here showed an address
-      // that does not resolve whenever the ID has a character mDNS had to drop.
-      this->display->print("http://" + dashboardHostname() + ".local/");
+      // The IP, printed as text - the QR above already carries the .local name. This is the
+      // fallback for a browser that cannot resolve mDNS, so it has to be the address that
+      // ALWAYS works, and it has to be readable rather than scannable: the whole reason to
+      // read it is that scanning did not get the operator in.
+      this->display->print("http://" + WiFi.localIP().toString() + "/");
     }
     // Version 3 (29x29 modules) at ECC_LOW holds both payload shapes with room to spare
-    // (URL ~21 chars, WiFi code ~32). Buffer is ~106 B on the stack.
+    // (URL 17-22 chars in practice, 38 worst case at dashboardHostname()'s 24-char clamp;
+    // WiFi code ~32, 46 worst case). Buffer is ~106 B on the stack.
     //
     // THE CAPACITY CHECK IS NOT DEFENSIVE PADDING - IT IS THE ONLY THING STANDING BETWEEN A
     // LONG PAYLOAD AND A REBOOT. ricmoo/QRCode encodes into a VLA on THIS task's stack
@@ -1742,8 +1853,11 @@ void displayCLD::loop()
     // connect/disconnect. Redraw it only when the link state flipped OR a new screen was
     // entered (whose fillScreen erased the icon). WiFi.status() itself is a cheap RAM read.
     static e_statuslcd lastWifiType = (e_statuslcd)-1;
-    static int lastWifiState = -1;
-    int wifiNow = (WiFi.status() == WL_CONNECTED) ? 1 : 0;
+    static int lastWifiState = -2; // -1 is a real value now ("no link"), so start outside it
+    // The strength LEVEL, not just up/down: the bars have to follow the signal, and this is
+    // what decides whether a repaint is worth the SPI writes. wifiDisplayBars() throttles and
+    // debounces internally, so asking every 100 ms costs one RSSI read per 1.5 s.
+    int wifiNow = wifiDisplayBars();
     if (wifiNow != lastWifiState || this->type_infor != lastWifiType)
     {
       lastWifiState = wifiNow;

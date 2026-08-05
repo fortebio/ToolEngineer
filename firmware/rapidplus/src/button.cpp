@@ -629,8 +629,19 @@ void buttonManager::handleShortPress_Blue()
     // Used to open the WiFiManager captive portal (deleted 2026-07-29). The QR is the same
     // "get a phone onto the config UI" gesture minus a library, a reboot and a disabled WDT:
     // the dashboard's Setting tab owns WiFi, device ID and firmware now. WHITE exits.
+    //
+    // Raise the hotspot too: this menu is where an operator goes when the machine has no
+    // usable WiFi, so the QR should hand them a network to join rather than an address on a
+    // LAN their phone is not on. Only a REQUEST - the mode switch happens on NetworkTask
+    // (dashboardLoop), never from here, and is dropped if a run is in progress.
+    // type_infor FIRST, then the request. dashboardLoop() re-arms the repaint with
+    // `if (type_infor == eShowQR) changeScreen = true` after it raises the AP; NetworkTask
+    // ticks every ~10 ms and runs on the other core, so requesting first leaves a window where
+    // it consumes the flag while this task has not written eShowQR yet - the repaint is then
+    // never asked for and the QR keeps showing the address of a network the radio just left.
     _displayCLD.type_infor = eShowQR;
     _displayCLD.changeScreen = true;
+    dashboardRequestAP();
   }
   else if (_displayCLD.type_infor == eSelectAmpli)
   {
@@ -748,6 +759,9 @@ void buttonManager::handleShortPress_White()
   {
     _displayCLD.type_infor = escreenStart; // WHITE again = leave the QR screen
     _displayCLD.changeScreen = true;
+    // Undoing the on-demand hotspot is NOT hooked here. All three long-press handlers
+    // overwrite type_infor from any state, including this one, so enumerating the exits
+    // leaves holes - dashboardLoop() watches for "no longer on the QR screen" instead.
     return;
   }
   if (_displayCLD.type_infor == eUpLoadData)

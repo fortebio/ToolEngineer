@@ -108,6 +108,23 @@ Connect dùng mật khẩu đã lưu trong máy.
   rồi **render lại** Nearby — thiếu bước này thì Forget xong mạng đó không quay lại Nearby cho
   tới lần quét sau.
 
+## 4b. Chọn mạng xong thì thu danh sách quét lại
+
+Sau khi bấm một mạng ở Nearby, danh sách vẫn trải hết — ô SSID và Password bị đẩy xuống dưới 3-8
+hàng, trên điện thoại phải cuộn qua chính cái danh sách vừa dùng xong mới nhập được mật khẩu.
+
+Bọc danh sách trong **`<details>`** (`#wifiScan`), mở sẵn; click một hàng → `scan.open = false`.
+
+**Dùng `<details>` chứ không tự dựng toggle**: vùng bấm, phím Enter/Space, và trạng thái
+đóng/mở báo cho screen reader đều do trình duyệt lo, không tốn dòng nào. Hàng **không bị xoá**,
+chỉ ẩn — bấm lại `<summary>` là mở ra đổi mạng khác.
+
+**Bẫy CSS**: `.f-lbl` đặt `display: block`, mà `<summary>` display block thì **mất tam giác
+disclosure** ở Blink/WebKit — tức là mất đúng cái tín hiệu nói rằng khối này gập được. Phải ghi đè
+`summary.f-lbl { display: list-item }`.
+
+Đo được: ô SSID nhảy từ **521px → 377px** tính từ đỉnh viewport 390px.
+
 ## 5. Hiển thị
 
 - Desktop: ô nhập số kéo hết bề ngang panel (**845px** cho giá trị 2 ký tự) →

@@ -37,7 +37,7 @@ void checkFirmware(bool promptOnDevice)
     {
         String payload = http.getString();
         info_displayln(payload);
-        DynamicJsonDocument json(1024);
+        JsonDocument json;
         deserializeJson(json, payload);
         fwVersion = json["versionCode"].as<int>();
         fwName = json["fileName"].as<String>();

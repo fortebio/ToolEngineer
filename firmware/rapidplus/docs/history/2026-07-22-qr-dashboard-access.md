@@ -15,8 +15,12 @@ giờ bị cũ):
 
 | Chế độ | QR chứa | Người dùng làm gì |
 | --- | --- | --- |
-| **STA** (có WiFi) | `http://<ip>/` | Quét → mở thẳng dashboard (điện thoại cùng WiFi) |
+| **STA** (có WiFi) | `http://<ip>/` ¹ | Quét → mở thẳng dashboard (điện thoại cùng WiFi) |
 | **SoftAP** (không WiFi) | `WIFI:T:nopass;S:RAPID-<id>;;` | Quét → tự nối AP → **captive portal tự mở dashboard** |
+
+¹ **Không còn đúng kể từ 2026-08-04**: QR ở STA nay mã hoá `http://<hostname>.local/`, còn IP
+chuyển xuống dòng chữ dưới mã. Xem
+[2026-08-04-qr-ma-hoa-mdns-local.md](2026-08-04-qr-ma-hoa-mdns-local.md).
 
 SoftAP là **AP mở** (`WiFi.softAP(ap)` không mật khẩu) nên mã WiFi dùng `T:nopass`.
 

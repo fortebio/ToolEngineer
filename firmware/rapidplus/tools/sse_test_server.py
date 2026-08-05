@@ -20,6 +20,9 @@ makes the slot-naming gate and the post-run chart actually testable.
 
   Run:        python tools/sse_test_server.py          # open http://localhost:8000
   Full scale: python tools/sse_test_server.py --full   # a real 40-minute run's data
+  Real run:   python tools/sse_test_server.py --slots tools/slots.txt --reboot
+                                                       # replay a captured run, chart ready
+                                                       # immediately in the Result tab
   Self-check: python tools/sse_test_server.py selftest
   E2E:        node tools/test_full_run.js              # against --full
 
@@ -44,8 +47,38 @@ CHANNELS = 10
 # count and axis values are exactly what the device produces.
 FULL = "--full" in sys.argv
 
-AMP_ROUNDS = 120 if FULL else 44               # rounds in one amplification
-REPORT_INTERVAL_MS = 20000 if FULL else 1200   # ms/round reported -> client x axis
+# --slots <file>: replay a REAL run instead of the synthetic sigmoids. One line per slot,
+# comma-separated CALIBRATED readings - exactly the shape /curve serves. Fed in through
+# reading_at(), so the live SSE playback and the stored curve both show it and the chart is
+# exercised the same way it is on the machine. Row/round counts come from the file, so a run
+# of any length works; missing rows are flat at 0 (an unused slot).
+def _slots_arg():
+    for i, a in enumerate(sys.argv):
+        if a == "--slots" and i + 1 < len(sys.argv):
+            return sys.argv[i + 1]
+        if a.startswith("--slots="):
+            return a.split("=", 1)[1]
+    return None
+
+
+def _load_slots(path):
+    rows = []
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        vals = [float(v) for v in line.replace('"', "").split(",") if v.strip()]
+        if vals:
+            rows.append(vals)
+    if not rows:
+        raise SystemExit(f"--slots {path}: no data rows (one comma-separated line per slot)")
+    return rows
+
+
+SLOTS_PATH = _slots_arg()
+SLOTS = _load_slots(SLOTS_PATH) if SLOTS_PATH else None
+
+AMP_ROUNDS = (
+    max(len(r) for r in SLOTS) if SLOTS else (120 if FULL else 44)
+)                                              # rounds in one amplification
+REPORT_INTERVAL_MS = 20000 if (FULL or SLOTS) else 1200  # ms/round reported -> client x axis
 TICK_SEC = 0.08 if FULL else 1.2               # wall-clock seconds per round
 T_HEAT_SEC = 4.0 if FULL else 8.0              # lysis heating duration
 HOME_PERIOD = 0.25 if FULL else 1.0            # 'home' push cadence (device: 1 s)
@@ -255,6 +288,15 @@ PROFILES = _profiles()
 def reading_at(rnd):
     """One amplification round across all channels -> {'#1': val, ... '#10': val}.
     rnd is the 0-based round index within the amplification phase (the x-axis base)."""
+    if SLOTS:
+        # The single place the run's numbers come from, so --slots reaches BOTH the SSE
+        # playback and /curve. A row shorter than the run holds its last value rather than
+        # dropping out - a gap would render as a break in the line, not as "no data".
+        out = {}
+        for i in range(CHANNELS):
+            row = SLOTS[i] if i < len(SLOTS) else None
+            out[f"#{i + 1}"] = (row[rnd] if rnd < len(row) else row[-1]) if row else 0.0
+        return out
     out = {}
     for i, (base, amp, mid, k) in enumerate(PROFILES):
         y = base + amp / (1 + math.exp(-k * (rnd - mid)))
@@ -779,5 +821,7 @@ if __name__ == "__main__":
     print(f"  scale: {AMP_ROUNDS} rounds x {REPORT_INTERVAL_MS} ms "
           f"= {AMP_ROUNDS * REPORT_INTERVAL_MS / 60000:.0f} min run"
           f"{'  [--full]' if FULL else ''}")
+    if SLOTS:
+        print(f"  slots: replaying {SLOTS_PATH} - {len(SLOTS)} slot(s) x {AMP_ROUNDS} rounds")
     print("  the run waits at 'waitamp' until you press Start (red) on the web")
     srv.serve_forever()

@@ -145,8 +145,36 @@ Bấm **Confirm** (`#confirmNamesBtn`) → mở Start, hiện **chart live**, v�
 
 `chartMode` gồm cả **`phase == "finished"`** → run xong **chart vẫn ở lại Home**; chỉ mất
 khi **nút trắng** (máy hoặc chip web) rời màn finished: `escreenFinished` → `escreenRestart`
-(không có trong `fillStatus` → `default` → `phase "idle"`). Trạng thái máy là nguồn duy nhất
+(nay là `phase "restart"`, **không** nằm trong `chartMode`). Trạng thái máy là nguồn duy nhất
 điều khiển việc này — client không giữ cờ riêng.
+
+**`fillStatus` phủ MỌI state người vận hành ngồi được, và `phase` không phải nhãn tuỳ ý** (2026-08-05).
+Trước đó nó xử lý **12/38 state**, phần còn lại rơi vào `default` = *"Idle / Waiting for a run to
+start."* — trong đó có `ewaitphase2`, lúc máy đang chờ người **rút ống lysis đang nóng** ra. Cùng
+một màn hình vừa nói "đang rảnh" vừa hiện chip xanh có nhãn "Amplification". Nay **34/38**, 4 state
+còn lại nằm trong allowlist có ghi lý do (`escreenStart` là idle thật; `ewaitingReadsensor`,
+`eheathotlid1`, `eprepare` **không nơi nào gán** — kiểm bằng `grep "type_infor = <tên>" src/`).
+
+Hai luật khi đặt `phase`:
+
+- **KHÔNG bao giờ trả `"idle"` cho state mà nút ĐỎ mang nghĩa khác** — `script.js` viết lại cú bấm
+  đỏ thành cổng đặt tên **khi và chỉ khi** `phase === "idle"`. Đây là lý do `ewaitLysisTube` có
+  phase riêng từ trước, và mọi state mới thêm cũng vậy. `escreenStart` là **ca cơ sở**, không phải
+  ngoại lệ: ở đó đỏ đúng nghĩa "mở cổng đặt tên".
+- **`"finished"` cũng không miễn phí** — `chartMode` của client chứa nó, nên phát nhãn đó là kéo
+  chart lên Home. State chỉ *đi sau* một run thì cho phase riêng (`review`, `error`, `restart`).
+
+Phase lạ thì **an toàn**: client coi mọi tên nó không biết là màn hình thường.
+
+Nội dung đã đồng bộ với TFT: có **nhiệt độ hiện tại / mục tiêu** ở các pha sấy, **đếm ngược làm
+tròn LÊN phút** giống hệt `waitLysis10min` in ra, **số vòng** ở pha đo (đồng hồ và bộ đếm vòng là
+hai thứ độc lập — đồng hồ về 0 mà vòng chưa hết thì nói "finishing the last rounds", không bịa
+phút), và `escreenFinished` **tách hai giai đoạn** theo `gResultsReady` (~30-90 s tính kết quả +
+upload TLS trước đó báo sẵn "Results ready." nên reload vào thấy bảng trống).
+
+Guard: `python tools/test_status_coverage.py` — phủ state, **`fillActions` và `fillStatus` phải
+biết cùng một tập state** (hai bảng tra trên một enum, lệch nhau chính là bug này), và không state
+mang nghĩa-đỏ nào được báo `"idle"`.
 
 SSE events (client `data/script.js`):
 
@@ -159,6 +187,24 @@ SSE events (client `data/script.js`):
   giá trị **calibrated** `(sensor67Value[i][COUNTER-1] - origins[i]) / slopes[i]`.
   Phải là **scalar** (client gọi `Number()`), KHÔNG phải mảng. `i` = **chỉ số vòng đo**
   (`COUNTER-1`) → trục X (client bỏ qua key không bắt đầu bằng `#`).
+
+**Baseline của chart (web-only, KHÔNG quyết định kết quả)**: `baseline = trung bình các vòng
+trong cửa sổ **[BASELINE_START_MIN, +BASELINE_RANGE_MIN)` phút** (mặc định **2 / 4**, `script.js`,
+đổi được — thời gian quang học ổn định là tính chất của máy, không phải của code). Chart vẽ
+`giá trị − baseline`.
+
+**Vì sao có điểm BẮT ĐẦU chứ không tính từ vòng 0**: quang học + dung dịch cần vài phút mới ổn,
+những vòng đầu leo dốc từ trạng thái nguội (đo trên run thật: **311 → 427 trong 5 vòng**) rồi mới
+phẳng. Trung bình từ vòng 0 kéo baseline **xuống dưới** mức phẳng đó → chính đoạn ổn định-hoá hiện
+lên như tín hiệu đang lên: cả 8 kênh đều vọt trong 2 phút đầu (tới **21.7**), và **2 kênh không hề
+khuếch đại lại "lift-off" ở phút 1.3** — tức âm tính trông như dương tính. Với 2/4: vọt 2 phút đầu
+= **0** ở mọi kênh, 2 kênh phẳng **không bao giờ** lift-off, 2 kênh khuếch đại thật vẫn lên ở ~7 phút.
+
+**`rawY` giữ giá trị RAW, trừ baseline lúc VẼ** — không trừ sẵn khi lưu. Baseline chỉ chốt sau khi
+cửa sổ chạy xong, mà trừ sẵn thì mọi điểm sớm bị đóng băng theo một baseline còn đang dịch (bug cũ:
+reload giữa chừng làm đoạn đầu nhích khác đi). Trước khi cửa sổ mở, `baseCount == 0` → vẽ **phẳng 0**,
+đúng bằng thứ mấy vòng ổn định-hoá sẽ floor về sau đó, nên lúc baseline có thì không có cú nhảy nào.
+Chi tiết: [docs/history/2026-08-02-chart-baseline-start-window.md](docs/history/2026-08-02-chart-baseline-start-window.md).
 
 `GET /curve` → `{count, intervalMs, series:[[cal...] ×10]}`: **toàn bộ** run tới hiện tại
 (cùng công thức calibrate). Client gọi khi mở chart và mỗi lần SSE reconnect → vẽ lại đủ
@@ -175,16 +221,23 @@ preheat/maintain/finished/review). Vì `COUNTER` **dùng chung cho cả đếm v
 thì **giấu kết quả cache của run cũ** (máy chỉ giữ 1 run) → bảng và chart trên Result luôn
 cùng một run.
 
-## Tab Setting (4 card đang bật / 8 định nghĩa)
+## Tab Setting (3 card đang bật / 8 định nghĩa)
 
-**Đang hiện**: WiFi · Device ID · Test profile · **Firmware (OTA)**. **Đang bị comment trong
-`CARDS` (`script.js`)**: LED · **Calib** · PID/heater · Other. Master-detail: lưới card → bấm mở
-panel form.
+**Đang hiện**: WiFi · **Profile Configuration** · **Firmware (OTA)**. **Đang bị comment trong
+`CARDS` (`script.js`)**: **Device ID** (ẩn 2026-08-05) · LED · **Calib** · PID/heater · Other.
+Master-detail: lưới card → bấm mở panel form.
 
 **Ẩn là CỐ Ý, sẽ bật lại sau (chốt 2026-08-02) — comment chứ không xoá.** Renderer + route của
-cả 4 card vẫn sống, nên bật lại một card = bỏ comment entry của nó. **Đừng "dọn" `renderCalib()`
-(~110 dòng), nhánh `openPanel` `custom === "calib"`, hook `applySettingLock` `openCard === "calib"`
-hay route `/calib` của firmware** — chúng trông như code chết nhưng là đường bật lại.
+cả 5 card vẫn sống, nên bật lại một card = bỏ comment entry của nó. **Đừng "dọn" `renderCalib()`
+(~110 dòng), `renderDeviceId()`, nhánh `openPanel` `custom === "calib"`/`"id"`, hook
+`applySettingLock` `openCard === "calib"` hay route `/calib` + `POST /deviceid` của firmware** —
+chúng trông như code chết nhưng là đường bật lại.
+
+**Khoảng hở khi Device ID đang ẩn**: `POST /deviceid` là đường ghi ID **có busy gate** (409 khi
+đang chạy run); `JsonDataConfig()` (Serial/BT) thì **không có gate nào**. Ẩn card đi là bỏ mất
+đường *được gác*, để lại đúng đường *không được gác* — nên nếu cần đổi ID lúc này thì làm qua
+Serial **khi máy rảnh**, đừng đổi giữa run. ID vẫn **đọc được** trên web ở thẻ `#setAbout`
+("Device → ID") và trên header, chỉ là không sửa được.
 
 **Khoảng hở đã biết khi Calib đang ẩn**: BLUE long-press trên máy **vẫn vào wizard**, mà
 `/calib?action=cancel` là **đường huỷ sạch duy nhất** (Setting #7 — WHITE gọi `ESP.restart()` và
@@ -237,6 +290,20 @@ calib bắt đầu ở máy phải kết thúc ở máy. Firmware/client vẫn c
    `python tools/test_phase0_guards.py`.
 5. **`parastructure` = 400B / giới hạn 402B** (`sizeof(parameter) > 512-110`) → **không
    thêm field mới** vào struct.
+   - Hệ quả trực tiếp: **card Profile nhập PHÚT nhưng thiết bị vẫn lưu giây/vòng** — không có
+     chỗ cho một bản sao ở đơn vị khác, và validate ở mục 4 viết theo **đơn vị lưu**. Chuyển đổi
+     nằm ở **rìa form**, qua hai móc `f.toUi`/`f.toDev` trong `renderFields`/`collectFields`
+     (`data/script.js`), **không ở đâu khác**. `Lysis time`→`lysis duration` (giây),
+     `Amplification time`→`amplification time` (**vòng**), `Opto preheat`→`opto preheat time` (giây).
+   - **`time per loop` đã rời khỏi form** (gộp vào Amplification time). `collectFields` chỉ gửi key
+     của card nên nó **không bị ghi**; và `perLoopMs()` **đọc giá trị của chính máy** từ `/config`
+     (mặc định 20 000 ms) để quy đổi — hardcode 20000 sẽ làm máy đặt vòng khác đọc ra số phút sai.
+   - `toDev` của Amplification time **kẹp 1..130** — cùng biên với mục 4, hai cổng chứ không phải
+     một; form không được post một giá trị mà nó biết chắc firmware sẽ từ chối. Trần: **43 phút**.
+   - Guard `node tools/test_profile_minutes.js` ghim round-trip ở mặc định (600 s↔10′,
+     300 s↔5′, 120 vòng↔40′), clamp, và việc `perLoopMs()` hỏi thiết bị. **Negative test tìm ra
+     một lỗ trong chính guard**: bản đầu chỉ regex thân `perLoopMs` xem có đọc `"time per loop"`
+     không, nên gieo `return 20000;` (để lại lệnh đọc chết) vẫn xanh → nay guard **gọi hàm thật**.
 6. **Device ID có ĐÚNG MỘT store: `parameter.device_id`** (EEPROM 512, đọc qua macro `protoID`).
    Global `id_device` + slot EEPROM 170 **đã xoá hẳn 2026-07-30** — trước đó hai store lệch nhau
    mọi hướng (header đọc cái này, thẻ Setting đọc cái kia, Serial/BT đổi một cái mà không đổi
@@ -345,6 +412,37 @@ thành công lại báo lỗi mạng. UI dùng **XHR** (chỉ XHR có upload pro
 
 Chi tiết: [docs/history/2026-07-24-web-ota-update.md](docs/history/2026-07-24-web-ota-update.md).
 
+**Mức sóng WiFi trên TFT** (`show_IconWifi`, `displayLCD.cpp`): 4 bitmap cùng một glyph —
+`image_WIFI_Lv0/Lv1/Lv2` + `image_WIFI_Connect` (3 cung). **Ba mức yếu được CẮT RA từ chính
+`image_WIFI_Connect`**, không vẽ lại: phân loại từng pixel theo bán kính elip quanh đỉnh quạt
+(apex ≈ (8.9, 13.0), x-scale 1.15) thì nó rơi vào **4 băng đồng tâm sạch** — chấm, cung trong,
+giữa, ngoài — rồi bỏ băng ngoài. Nhờ vậy nét vẽ vẫn là art gốc, và mức 3 **trùng byte-for-byte**
+với `image_WIFI_Connect` nên không cần Lv3. Đỉnh quạt đứng yên, chỉ quạt co lại. Ngưỡng **-60/-70/-80** **phải khớp `rssiBars()` trong `data/script.js`**: điện thoại
+và máy đang nói về cùng một đường truyền, lệch nhau còn tệ hơn không hiện.
+
+- **VẼ HAI LƯỢT: quạt đầy màu `DARKGREY` trước, rồi mức đang sáng màu `WHITE` đè lên.** Cung chưa
+  sáng phải là **viền**, không phải nền trống — "1 trên 3" mới đọc ra là yếu; mạnh/yếu là **SỐ
+  cung**, không phải màu. `drawBitmap` chỉ tô pixel **bật**, nên vẽ một mình bitmap mức thì cung bị
+  bỏ đi **chìm hẳn vào nền đen** và "1 cung sáng" trông y hệt "một cái icon nhỏ" — chính là lỗi bản
+  bitmap đầu tiên mắc phải khi thay cách vẽ vạch bằng `fillRect` cũ (sửa 2026-08-04). `DARKGREY` đo
+  được **5.0:1** so với nền đen (nhìn thấy được) và trắng đứng trên nó **4.2:1** (rõ là cung đang
+  sáng) — hai phép so đều tự đứng vững. **Không vẽ lượt xám cho `image_WIFI_Disconnect`**: glyph đó
+  vốn đã là viền rỗng có gạch chéo, đệm quạt đặc phía sau là đá nhau chứ không bổ sung.
+  Tính **lồng nhau** của 4 bitmap chính là thứ khiến lượt trắng phủ **đúng** phần đang sáng.
+- **Phải chống nhảy**: RSSI dao động vài dB mỗi lần đọc, so thẳng ngưỡng thì vạch nhấp nháy khi
+  đường truyền nằm sát biên, mà **mỗi lần nhấp là một lần blit bitmap qua SPI** trên chính task vẽ
+  màn hình lúc đang chạy run. Phải **hai mẫu liên tiếp giống nhau** mới đổi mức.
+- **Throttle nằm TRONG hàm** (1.5 s): cả gate vẽ lại (100ms) lẫn chỗ vẽ đều gọi nó, đặt throttle ở
+  ngoài thì mỗi tick advance debounce hai lần.
+- **Gate vẽ lại phải theo MỨC, không phải theo connected/disconnected** — không thì vạch không bao
+  giờ đổi theo sóng. `lastWifiState` khởi tạo **-2** vì -1 nay là giá trị thật ("mất kết nối").
+- **`show_IconWifi` phải `fillRect` xoá ô icon trước khi vẽ**: các mức chỉ khác nhau ở phần TRÊN,
+  nên vẽ quạt ngắn đè lên quạt dài sẽ để lại cung đã bỏ.
+- Guard: `g++ tools/test_wifi_bars.cpp` — ngoài ngưỡng và chống nhảy, nó còn ghim **4 bitmap phải
+  LỒNG NHAU** (`lv[k] & ~lv[k+1] == 0`, và số pixel tăng dần 21 < 45 < 81 < 123). Một pixel sót lại
+  sau khi cắt sẽ thành lỗ hoặc mảnh bay lơ lửng **chỉ xuất hiện ở đúng một mức sóng** — thứ không ai
+  thấy cho tới khi máy nằm trong phòng sóng yếu.
+
 **QR vào dashboard**: nút **TRẮNG ở màn chính** (`escreenStart`, nút này vốn không làm gì) —
 hoặc **XANH trong Setting menu** (chỗ portal WiFiManager cũ đứng, xem dưới) →
 state `eShowQR` → `screen_QR()` (displayLCD.cpp) vẽ QR bằng `ricmoo/QRCode` (version 3, ECC_LOW,
@@ -375,16 +473,31 @@ ra với station đang kết nối; `dashboardStartAP()` không idempotent) và 
 Guard `test_qr_payload.py` ghim call graph: `WiFi.softAP()` **đúng 1 lần** trong `src/`,
 `dashboardApName()` **đúng 1 call site**, hai reporter phải có `softAPSSID()` và không có builder;
 cộng lệnh **cấm literal `"RAPID-"`/`"FBT-"`** trong `webDashboard.cpp`/`displayLCD.cpp`/`script.js`.
-Caption `.local` dùng `dashboardHostname()` (nhãn mDNS thật). Dòng "Wifi Name:" trên màn QR phải
+Dòng "Wifi Name:" trên màn QR phải
 theo mode (`WiFi.SSID()` là **STA**, rỗng khi đang ở AP). Chi tiết:
 [docs/history/2026-07-30-device-id-ap-ssid-latch.md](docs/history/2026-07-30-device-id-ap-ssid-latch.md) ·
 [docs/history/2026-07-29-qr-reset-ssid-drift.md](docs/history/2026-07-29-qr-reset-ssid-drift.md).
 
-Nội dung theo chế độ: **STA** → `http://<ip>/`; **SoftAP** → `WIFI:T:nopass;S:FBT-<id>;;` (AP mở) rồi
-**captive portal** (`DNSServer` + `onNotFound` redirect, chỉ khi `apActive`) tự bật dashboard.
+Nội dung theo chế độ: **STA** → `http://<hostname>.local/`; **SoftAP** → `WIFI:T:nopass;S:FBT-<id>;;`
+(AP mở) rồi **captive portal** (`DNSServer` + `onNotFound` redirect, chỉ khi `apActive`) tự bật dashboard.
 `dnsServer.processNextRequest()` phải nằm **trên throttle 1s** của `dashboardLoop`. `eShowQR`
 nằm trong allowlist `isBusy()` (xem QR không phải "bận"). Chi tiết:
 [docs/history/2026-07-22-qr-dashboard-access.md](docs/history/2026-07-22-qr-dashboard-access.md).
+
+**Màn QR ở STA mang HAI dạng địa chỉ, và đó là bất biến** (2026-08-04): QR mã hoá
+`http://<dashboardHostname()>.local/`, còn **dòng chữ dưới nó in IP**. Trước đó ngược lại. `.local`
+sống qua đổi lease DHCP nên hợp làm mã quét, nhưng nó **chỉ phân giải nếu CLIENT nói mDNS** —
+iOS/macOS/Windows 10+ có, Android đời cũ không — và **thiết bị không có cách nào biết điều đó**.
+Nên IP không được biến mất theo: nó là đường vào duy nhất cho mấy máy đó, và phải là dạng **đọc để
+gõ tay** vì lý do người ta đọc nó chính là quét không vào được. Gộp caption về `.local` nữa là bỏ
+đường thoát duy nhất — nhìn thì giống dọn dẹp, nên `test_qr_payload.py` mục 1b ghim lại:
+`screen_QR()` phải **vừa** có `dashboardHostname()...".local/"` trong payload **vừa** còn
+`localIP()`. Mục đó cũng chặn biên payload STA (`7 + clamp 24 + 7 = 38 B ≤ 53`) — IP tự giới hạn ở
+15 ký tự, hostname thì không, nên đường tràn stack của mục 1 vừa có thêm cửa thứ hai.
+**`code_only()` của guard nay biết string literal**: regex `//[^\n]*` cũ cắt
+`payload = "http://" + ...` còn `payload = "http:` — hai gạch chéo của chính scheme URL bị đọc là
+comment, guard **tự mù** và báo "không tìm thấy payload". Chi tiết:
+[docs/history/2026-08-04-qr-ma-hoa-mdns-local.md](docs/history/2026-08-04-qr-ma-hoa-mdns-local.md).
 
 **WiFiManager đã bị XOÁ (2026-07-29)** — `Wifi_Connect()`, `setting_Wifi()`, enum `eSettingWifi`,
 `dashboardEnd()` (caller duy nhất là portal) và `lib_deps` đều đi hết: **−96 160 B flash**
@@ -394,6 +507,28 @@ Setting → `POST /wifi` / `/wifilist` (trial-then-commit). Device ID → `POST 
 `disableCore0WDT()` mà không bao giờ bật lại (trong khi ControlTask giữ duty heater),
 `resetSettings()` xoá creds mỗi lần vào màn, và SoftAP riêng của nó đá văng người đang xem
 dashboard. Chi tiết: [docs/history/2026-07-29-remove-wifimanager.md](docs/history/2026-07-29-remove-wifimanager.md).
+
+**Bật SoftAP THEO YÊU CẦU (giữ ĐỎ → XANH → QR)**: menu này là nơi người vận hành tới khi máy
+chưa có WiFi dùng được, nên nó raise luôn hotspot và QR thành mã join WiFi.
+
+- **`WiFi.mode()` chạy ở `dashboardLoop()` (NetworkTask)**, không bao giờ từ InputTask (GOTCHA 8).
+  Nút chỉ `dashboardRequestAP()` đặt một byte volatile — cùng khuôn `otaState`.
+- **Tiêu thụ cờ PHẢI nằm TRÊN `if (suspended) return;`** và từ chối khi `suspended || busy`. Nằm
+  dưới thì bấm lúc đang upload sẽ **treo cờ lại**, hotspot bật lên ở tick đầu sau khi upload xong —
+  vài phút sau, không ai liên hệ được với nút đã bấm.
+- **Ghi `type_infor = eShowQR` TRƯỚC rồi mới `dashboardRequestAP()`.** Hai task, hai core, loop
+  ~10ms: đặt cờ trước để lộ khe cho NetworkTask tiêu thụ khi `type_infor` chưa đổi → không ai xin
+  vẽ lại, QR giữ URL của mạng radio vừa rời.
+- **Gỡ hotspot canh theo ĐIỀU KIỆN "không còn ở `eShowQR`" trong `dashboardLoop()`, KHÔNG hook vào
+  từng nút.** `handleLongPress_Red/Blue/White` đều ghi đè `type_infor` từ mọi state, nên liệt kê
+  đường thoát là để lỗ — vào QR rồi giữ ĐỎ là máy **kẹt trên hotspot**, run sau không upload được.
+  Giữ deadline riêng (`apExitAt`) thay vì arm `dashboardRequestRestart()` ngay, để **quay lại QR
+  thì đứng xuống**; `otaRestartAt` dùng chung nên huỷ nó là huỷ cả của OTA/đổi ID.
+- Điều kiện đó **không sống sót qua chính reboot nó gây ra** (`apOnDemand` false sau boot, fallback
+  không set nó) → không phải vòng lặp reboot.
+- `apOnDemand` tách khỏi `apActive`: AP lên do **fallback boot** thì rời QR **không** reboot.
+  `otaRestartAt` nay có **ba** nguồn (OTA, đổi Device ID, đường này). Chi tiết:
+[docs/history/2026-08-02-softap-theo-yeu-cau-tu-man-QR.md](docs/history/2026-08-02-softap-theo-yeu-cau-tu-man-QR.md).
 
 SoftAP fallback: STA fail → `dashboardStartAP()` phát `FBT-<id>` (`dashboardApName()`, 192.168.4.1).
 Log heap mỗi 10s: `[dash] heap free=.. maxAlloc=.. clients=.. ap=..`.
@@ -610,7 +745,9 @@ script hợp nhất alpha xuống nền thật):
 
 - **Làm mờ bằng `grayscale`, KHÔNG bằng `opacity`.** `opacity` nhạt **cả chữ lẫn nền** nên tỷ lệ
   sập hai phía: `.noact` ở .45 đo được **1.26:1** (vô hình). `grayscale()` **bảo toàn luminance**
-  → `.noact` = opacity .85 + grayscale .65 = **4.68:1**. Đừng quay lại opacity.
+  → `.noact` = opacity .85 + grayscale (**.35** trong code hiện tại; đo 4.68:1 hồi còn .65 — hạ
+  xuống .35 để xanh/đỏ/trắng còn phân biệt được, và vì grayscale bảo toàn luminance nên tỷ lệ không
+  tụt theo). Đừng quay lại opacity.
 - **Nút `.on` (sáng khi nhấn) không làm sáng nền** — nền sáng từng kéo trắng-trên-đỏ xuống 3.11
   và trắng-trên-xanh xuống **2.28**, tệ nhất đúng lúc người dùng nhìn nút vừa bấm. Báo hiệu bằng
   **ring + glow**.
@@ -657,8 +794,68 @@ script hợp nhất alpha xuống nền thật):
   biến mất cùng sidebar, nhưng breakpoint vẫn phải gác cả hai chiều.)* Có media riêng cho **rộng-mà-thấp**
   (`min-width: 700px` + `max-height: 599px`): giữ bottom nav, `--maxw` 700px, header 56px
   (nhớ hạ luôn `--header-h`, chart tính theo nó). `min-width` **không** đồng nghĩa "màn hình lớn".
+- **`1fr` TRẦN trong grid là bug, luôn dùng `minmax(0, 1fr)`.** `1fr` = `minmax(auto, 1fr)`, và
+  cái hỏng là **minimum `auto`**: track lấy base size = min-content của item và free space âm nên
+  `1fr` không bao giờ được áp. Đo trên máy thật: `.set-grid` track **350.7px trong khung 288px** ở
+  điện thoại 320px → trang tràn ngang → **Chrome mobile nới layout viewport** (`innerWidth` 367)
+  → `.bottom-nav` (`fixed; width:100%`) giãn theo trong khi header vẫn 320 = người dùng thấy
+  **"giao diện lệch sang phải"**. `width: 100%` trên item **vô dụng** (item cũng có
+  `min-width: auto`), `overflow:hidden` không giảm min-content, `min-width: 0` trên con chỉ kẹp
+  used size chứ không kẹp contribution đẩy ngược lên. Trên **desktop lỗi này ẩn dưới dạng LỆCH
+  CỘT** chứ không tràn: ở 1280/font 150% đo được **496px vs 388px**, `scrollWidth` sạch nên không
+  có gì lộ ra. Guard `test_no_hscroll.js` gác cả hai mặt.
+- **`.card-head` phải `flex-wrap: wrap`** kể từ khi nó mang cả tiêu đề lẫn control. Hàng cứng làm
+  nhãn "All slots" (`white-space: nowrap`) **đẩy cả trang trượt ngang** ở 320px/130%: đo được
+  `scrollWidth 347 / 320`, control thò ra ngoài card 48px. `test_no_hscroll.js` **không bắt được**
+  vì `#homeChartCard` luôn `.hide` ở mọi state guard đi qua — nay guard tự bỏ `.hide` **trong cùng
+  một tick** với phép đo (`renderHome` gắn lại sau mỗi frame SSE).
+- **Guard phải MỞ một panel Setting, không chỉ xem lưới card.** Lưới chỉ có 4 hàng ngắn và luôn vừa;
+  nội dung rộng nằm trong panel. Một lỗi tràn thật ở panel WiFi (hàng mạng đã lưu, 366px trong 320)
+  nằm đó không ai thấy vì guard chỉ nhìn lưới. Nay nó mở card `wifi` và **chờ quét xong** — không
+  chờ thì danh sách chỉ là một dòng "Scanning..." và lại không đo được gì.
+- **KHÔNG ghim px vào cột bảng bằng JS.** `fitNameColumn()` (đã xoá) ghim
+  `th.style.width` với sàn cứng 210px; cộng 2 cột `3.2rem` là **312 trong card 254** ở máy 320px,
+  và **344 trong 212** ở desktop 820px. `table-layout: fixed` + hai cột value cỡ rem **đã** trả
+  đúng phần còn lại — đó chính là cái kẹp, miễn phí, ở mọi bề rộng và cỡ chữ. Đừng thêm lại.
+- **Chiều cao chart nằm trong MỘT token `--chart-h`, khai báo trên `body` — KHÔNG trên `:root`.**
+  `var()` trong custom property được thay **tại phần tử khai báo**: từ `:root` nó nướng cứng
+  `--nav-h: 62px` của root, nên `body.nonav { --nav-h: 0px }` không bao giờ với tới và **mọi run
+  mất 62px chiều cao chart**. Khai báo trên `body` thì nó giải theo `--nav-h` của chính body. Đo:
+  606px → **668px** khi `.nonav`. Không viết lại công thức lần hai.
+  Fallback `vh`/`dvh` giữ bằng **`@supports (height: 100dvh)`** chứ không bằng thứ tự khai báo:
+  custom property nhận `100dvh` như token lạ trên trình duyệt cũ và **chỉ hỏng lúc DÙNG**, nên hai
+  dòng `--chart-h` liền nhau sẽ không tự rơi về bản `vh`.
+- **Desktop: hai thẻ ở tab Result cao bằng nhau.** `#screen-result.active:not(:has(#resultChartCard.hide))
+  > .card { height: var(--chart-h) }` — cùng token với chart, không có công thức thứ hai để lệch.
+  `#resultChartCard` thành flex column và `.chart-container` bỏ chiều cao riêng (`height: auto; flex: 1;
+  min-height: 0`) để lấp phần còn lại sau card head; thẻ bảng `overflow-y: auto` cuộn 10 hàng bên trong.
+  **Phải gác bằng `:not(:has(.hide))`**: khi chưa bấm "View chart" thì layout co về một cột, mà bảng bị
+  ghim theo chiều cao viewport sẽ thành một hộp cao lêu nghêu chứa một bảng ngắn. Đo: 662 vs 662 px,
+  cùng mép trên, chart vẫn được 602/662.
+- **Dải 481–819px phải nới `--maxw: 100%`** (media riêng, đặt **TRÊN** rule landscape). `--maxw`
+  mặc định 480px viết cho điện thoại, mà **không có gì nới nó lại cho tới 820px** → tablet dọc hoặc
+  cửa sổ trình duyệt nửa màn hình render một dải 480px với nền trang hai bên: đo được **170px mỗi
+  bên ở 819px**. Người dùng đọc ra là **"hai viền trắng"** vì header xanh đậm là thứ duy nhất có
+  màu mạnh và nó cũng dừng ở mép cột. **Thứ tự nguồn là bắt buộc**: 700–819px rộng **và** dưới
+  600px cao khớp *cả hai* rule, và ở đó cap 700px của landscape mới là lựa chọn đúng (điện thoại
+  xoay ngang không phải tablet). Đo lại sau khi sửa: gutter = 0 ở 481/600/736/768/819, còn
+  736×390 / 844×390 vẫn giữ đúng 700px. Chi tiết:
+  [docs/history/2026-08-02-maxw-gap-481-819.md](docs/history/2026-08-02-maxw-gap-481-819.md).
 
-**Bảng slot = 3 cột** (`Sample | CT | Result`, trước là `Show|Slot|Disease|CT|Result`): cột Sample
+**Bảng Result = 4 cột theo thứ tự `màu | Result | CT | Sample`** (2026-08-02). Kết luận đứng
+trước vì đó là thứ người ta mở tab này để đọc; định danh mẫu đi sau vì đó là thứ đã biết sẵn.
+Chấm màu tách thành **cột riêng dẫn đầu** (`td.vis`), nên `.sample-cell` giờ chỉ còn select bệnh +
+ô tên mẫu.
+
+- **Thứ tự ô = thứ tự DOM, KHÔNG đảo bằng CSS.** Đảo thứ tự ô của `<table>` bằng CSS làm hỏng thứ
+  tự đọc của screen reader — nó sẽ đọc kết luận trước khi nói kết luận đó thuộc mẫu nào. Guard
+  `verify` so `getBoundingClientRect().left` theo DOM với thứ tự đã sort để ghim điều này.
+- **Chiều rộng cột keyed bằng CLASS (`col-vis`/`col-res`/`col-ct`/`col-name`), KHÔNG `:nth-child`.**
+  Rule cũ gác `:nth-child(2)/(3)`; thêm cột chấm vào đầu là chúng **âm thầm trỏ sang cột khác**.
+- **Bảng NAMING (Home) giữ nguyên một cột**: ở đó không có cột kết luận nào để xếp thứ tự, và chấm
+  phải nằm cạnh `#N` mà nó gắn nhãn.
+
+**Bảng slot (lịch sử) = 3 cột** (`Sample | CT | Result`, trước là `Show|Slot|Disease|CT|Result`): cột Sample
 gộp **chấm màu + số slot + select bệnh**. Chấm chính là **checkbox thật** (giữ bàn phím/screen
 reader/`onToggle`) được style thành **màu series của slot đó trên chart** (`--series` set theo hàng;
 `SERIES_COLORS` tách khỏi `buildSeries()`). Hai bẫy: **không** đặt `display:flex` thẳng lên `<td>`
@@ -666,6 +863,54 @@ reader/`onToggle`) được style thành **màu series của slot đó trên cha
 để **3.2rem trên mobile** (5.5rem khiến cột Sample còn 110px → select 35px → **vùng chữ 2px**, mất
 hẳn nội dung; desktop mới trả về 5.5rem). Hàng có `P`/`S` được `tr.hit` (nền `#fff7f5`, CT đậm) —
 **sắc nền chỉ dẫn mắt**, nghĩa vẫn nằm ở chữ cái badge.
+
+**`#N` chỉ có ở bảng NAMING, không có ở bảng Result** (`if (!withResults)` trong `buildTable`).
+Ở Home anh đang khớp ống thật với tên nên con số **là** việc chính; ở Result nó lặp lại đúng thứ
+mà vị trí hàng đã nói, mà 27px nó chiếm là ranh giới giữa hàng một dòng và hai dòng trên máy 360px.
+**Không mất định danh**: bảng luôn đủ 10 hàng theo thứ tự, chấm màu đúng màu series mà legend của
+chart gắn nhãn `#1..#10`, và `aria-label` của chấm vẫn đọc "Show #N on the chart".
+
+**Bảng Result trên điện thoại ép MỘT dòng để thấy đủ 10 slot** (media mobile, chỉ
+`#screen-result` — bảng naming ở Home giữ ô rộng để đặt tên). Hàng **88px → 43px**, đủ 10 slot
+không cuộn trang ở 390 và 412px. Cơ chế: select + ô mẫu trước đây có flex-basis `5rem + 6rem`,
+cộng chấm + `#N` + 3 gap là ~243px trong ô ~240px — **thiếu vài pixel là xuống dòng**. Hạ basis
+xuống `3.8rem`/`4rem` là đủ chung một dòng.
+
+- **`disease-sel` sizing theo nhãn DÀI NHẤT trong `DISEASES`, và phải `flex: 1 1 …` (grow 1).**
+  Ghim `0 1` thì nó không lấy được phần dư và cắt cụt. Danh sách đã từ 5 mã 4 chữ lên **12 mục**,
+  dài nhất `ASF I177L` = **58px** ở cỡ chữ 16px cảm ứng; ở basis 3.8rem content box chỉ 53px (390)
+  và 35px (360) nên **`ASF I177L` và `ASF MGF` cùng hiện thành "ASF …"** — hai xét nghiệm khác
+  nhau đọc ra như một, trên đúng bảng kết quả. Nay `5rem` + thu máng chevron
+  (`padding-right: .95rem`, `background-position: right .25rem`) → **61-87px**, đủ mọi nhãn mà vẫn
+  một dòng và vẫn đủ 10 slot. **Cắt cụt chỉ xảy ra ở ca MỘT DÒNG**: chỗ nào cặp control xuống dòng
+  (320px, hay 412px ở font 130%) thì select đã chiếm cả ô và thừa chỗ.
+  **Thêm nhãn dài hơn thì phải đo lại** — `probe`: đặt mọi select về nhãn dài nhất rồi so bề rộng
+  chữ với `clientWidth - padding`.
+- **`.sample-name` `min-width` là 3rem trên Result, 4.5rem ở bảng naming.** Nó là sàn giữ ô còn
+  đọc được và là thứ làm cặp control **xuống dòng thay vì co thành hai mảnh vô dụng**. Hạ xuống
+  3rem chỉ ở Result vì ở đó việc chính là **phân biệt hai xét nghiệm**, còn gõ tên mẫu diễn ra ở
+  Home nơi ô giữ nguyên bề rộng. Xuống dòng ở 320px là phương án dự phòng, không phải lỗi.
+
+**Ẩn/hiện TOÀN BỘ slot nằm ở GÓC PHẢI TRÊN của thẻ chart** (`label.chart-vis` chứa
+`input.vis-all`), có trong **cả hai** thẻ chart — Home và Result. Cũng là checkbox thật, và trạng
+thái "một số đang ẩn" báo bằng **`indeterminate` gốc của checkbox** — không cần widget hay chữ
+nghĩa thêm.
+
+- **Nó ở cạnh thứ nó điều khiển, không ở tiêu đề bảng.** Bản trước đặt trong `<th>` cột Sample:
+  ô tiêu đề vừa là nhãn cột vừa là nút, nên chạm nhầm vào chữ "Sample" là xoá sạch 10 đường đang
+  đọc. Trong thẻ chart thì `<label>` bọc **chữ của chính nó** ("All slots") → không còn vùng bấm
+  nhập nhằng, và tên khả truy cập khớp chữ nhìn thấy (WCAG 2.5.3).
+- **Ở góc phải là do `.card-head` có `justify-content: space-between`** — nó chỉ cần là con cuối.
+  Trên Home nó đi cùng `.head-right` bên cạnh dòng "Last update".
+
+- **`setAllVis()` redraw MỘT lần mỗi chart**, không phải mỗi series: `setVisible(.., true)` ×10 là
+  10 lần redraw Highcharts, trên đường cong 120 điểm thấy giật rõ.
+- **`syncVisAll()` phải gọi lúc LOAD**, không chỉ trong `applyVisTo()` — hàm đó chỉ chạy khi vẽ
+  chart, mà markup ship sẵn `checked`, nên reload lúc đang ẩn vài slot thì header nói dối là đang
+  hiện đủ. `syncVisAll` đọc localStorage chứ không đọc DOM nên đúng cả khi chưa có hàng nào.
+- **Vùng bấm chỉ là cái chấm, KHÔNG bọc `<label>` quanh chữ "Sample"**: bọc thì bấm vào tiêu đề cột
+  là ẩn sạch 10 đường — một cú chạm nhầm xoá hết biểu đồ đang đọc. Checkbox có `aria-label` riêng
+  nên không cần label nhìn thấy.
 
 Chi tiết: [docs/history/2026-07-23-ui-contrast-a11y-review.md](docs/history/2026-07-23-ui-contrast-a11y-review.md).
 
@@ -684,6 +929,7 @@ Chi tiết: [docs/history/2026-07-23-ui-contrast-a11y-review.md](docs/history/20
 python tools/sse_test_server.py            # mock ESP32 -> http://localhost:8000
 python tools/sse_test_server.py --full     # scale THẬT: 120 vòng x 20s = run 40 phút
 python tools/sse_test_server.py --reboot   # boot như vừa tắt/bật: run cũ ở EEPROM, RAM trống
+python tools/sse_test_server.py --slots tools/slots.txt --reboot   # PHÁT LẠI run thật từ file
 python tools/sse_test_server.py selftest   # tự kiểm các hàm thuần
 python tools/test_no_runtime_wifi_begin.py # guard: KHÔNG WiFi.begin() runtime ngoài setup()
 g++ -O2 -std=c++17 tools/test_readcmd_overflow.cpp -o t && ./t  # readCommand không tràn recvData[2048]
@@ -694,6 +940,9 @@ python tools/test_no_method_branch.py       # guard: KHÔNG handler nào so req-
 python tools/test_phase0_guards.py          # guard: không strcpy(parameter.*), 4 field char[10] được validate, secrets không nằm trong source commit, **-Wformat còn bật**
 python tools/test_web_assets.py             # guard: UI nhúng đủ + có route + .gz không cũ + không serveStatic + KHÔNG LittleFS (GOTCHA 4)
 python tools/test_ota_guards.py             # guard: eUpdateOTA không "busy", rebootOnUpdate(false), ?md5= hạ chữ thường
+node tools/test_profile_minutes.js          # guard: card Profile nhập PHÚT nhưng lưu giây/vòng, clamp 130 giữ nguyên
+python tools/test_status_coverage.py        # guard: web không báo "Idle" khi máy đang chờ người; fillStatus/fillActions cùng tập state
+g++ -O2 -std=c++17 tools/test_wifi_bars.cpp -o t && ./t          # vach song WiFi tren TFT: nguong khop web + chong nhay
 python tools/test_qr_payload.py             # guard: payload QR ≤ 53B (encoder KHÔNG bounds-check → reset), SSID không lệch 2 nơi
 python tools/test_device_id.py               # guard: ID 1 giá trị qua 2 store + 4 giới hạn khớp, input touch 16px (iOS zoom)
 node tools/test_full_run.js                # E2E full quy trình (chạy với --full)
@@ -701,6 +950,7 @@ node tools/test_review_reboot.js           # E2E xem lại run sau reboot (tự 
 node tools/ui_screenshot.js <outDir>       # chụp 9 trạng thái UI (mobile/landscape/desktop) để soát thiết kế
 node tools/test_chart_ticks.js             # guard: trục Y chart LUÔN đúng 10 nấc, sàn 200 (cần mock chạy sẵn)
 node tools/test_setting_a11y.js            # guard: tab Setting - nhãn gắn với ô, focus vào/ra panel, Nearby lọc, disabled không dùng opacity (cần mock chạy sẵn)
+node tools/test_no_hscroll.js              # guard: KHÔNG màn nào trượt ngang (320-412px × font 100-130%) + 2 cột Setting bằng nhau (cần mock)
 ```
 
 **`test_chart_ticks.js`** khoá bất biến trục tung: **luôn đúng 10 nấc**, sàn **200** (sàn 50 cũ
@@ -732,6 +982,15 @@ còn đó (core tự reconnect STA nền → không cần app gọi begin). Thê
 test đỏ ngay (host-side, không cần máy). Chi tiết:
 [docs/history/2026-07-20-updata-wifi-reconnect-hang.md](docs/history/2026-07-20-updata-wifi-reconnect-hang.md).
 
+**Panel WiFi có HAI view** (`.wifi-seg`): **Connect** (quét + SSID + mật khẩu + Save & reboot) và
+**Saved** (danh sách đã lưu, Connect/Forget). Gộp chung một cột làm panel dài tới mức nút Save nằm
+dưới màn trên điện thoại. **Dùng `<input type=radio>` trong `role="radiogroup"`, KHÔNG phải hai nút
+tự chế**: radiogroup cho sẵn phím mũi tên, **một tab stop** và trạng thái checked cho screen reader;
+mỗi input bọc trong `<label>` riêng nên chữ nhìn thấy **chính là** accessible name.
+Mặc định là **Connect** — đó là lý do người ta mở panel. Segment đang chọn báo bằng **chip trắng
+nổi (box-shadow)**, không chỉ bằng màu. **`loadSavedWifi()` vẫn chạy dù view Saved đang ẩn** vì nó
+cũng nuôi `wifiSavedSsids` mà danh sách Nearby bên Connect lọc theo.
+
 **Lưu nhiều WiFi** (`wifiStore.cpp`, **NVS/Preferences** namespace `wifinets` — KHÔNG LittleFS:
 `uploadfs` reflash cả partition `spiffs` từ `data/` → file runtime bị XÓA mỗi lần nạp UI. NVS ở
 partition riêng `uploadfs` không đụng → **sống sót qua nạp**. Cũng không dùng buffer-4096 EEPROM). `setup()`
@@ -743,7 +1002,28 @@ mạng khác phải power-cycle. Routes `GET /wifilist` (list, chỉ SSID), `POS
 khẩu). **Sai mật khẩu KHÔNG ghi đè mạng cũ** (trial-then-commit): Save/Connect `wifiStoreSetTrial` rồi
 reboot; `setup()` thử trial trước, **nối được mới cam kết** (EEPROM + list), thất bại thì giữ mạng
 cũ + `/wifilist` trả `trial:failed` → web báo "wrong password, re-enter". Kiểm mật khẩu buộc phải
-reboot (begin runtime treo async_tcp). Web chặn SSID-không-có-trong-scan trước reboot. Forget dùng
+reboot (begin runtime treo async_tcp). Web chặn SSID-không-có-trong-scan trước reboot. Có nút **Scan again** (`.wifi-rescan`): **chỉ icon**, đặt ở **góc phải trên** của khối quét bằng
+`position: absolute` trong `.wifi-scan { position: relative }` — **KHÔNG đưa vào `<summary>`**, vì
+nút lồng trong summary là nested interactive content và cú bấm còn gập/mở luôn khối trừ khi chặn tay
+từng event. Bỏ chữ thì **tên khả truy cập biến mất cùng nó** → phải có `aria-label` + `title`
+("Scan again"). Ô vuông **30px** vì icon 14px một mình chỉ cho vùng chạm 20px — và vì thế **hàng `summary` phải
+CAO bằng nút**: line box của nó chỉ 16px (22px ở font 130%), nên nút neo `top: 0` thò **9px** xuống
+và **đè lên hàng mạng đầu tiên**. `min-height: 30px` giữ chỗ, `line-height: 30px` canh giữa chữ;
+`display` vẫn phải là `list-item` (đổi khác là mất tam giác disclosure). Thêm
+`padding-right: 2.4rem` để chữ không chui xuống dưới nút khi font phóng to. Bấm → disable +
+`pollWifiScan(0)`; **`renderWifiList()` là chỗ duy nhất bật lại** vì mọi đường thoát của poll
+(có list / hết lượt / lỗi) đều đi qua đó, nên nút không thể chết cứng.
+
+**`.wifi-item` phải `flex-wrap: wrap`**: hàng mạng đã lưu mang SSID + badge "connected" + tối đa hai
+nút, để cứng thì ở 320px/130% nó dài **366px trong client 320** và kéo cả trang trượt ngang.
+
+Hàng quét hiện **biểu tượng sóng + ổ khoá** thay cho chữ `lock  -73 dBm`: 3 cung sáng dần (`rssiBars()`, ngưỡng `-60/-70/-80`) cộng padlock khi mạng có mật khẩu. **dBm KHÔNG mất** — nó nằm ở `title`/`aria-label` ("Signal good (-61 dBm), password required") để screen reader và kỹ sư dò sóng yếu vẫn đọc được. Mạnh/yếu mã hoá bằng **SỐ CUNG SÁNG, không bằng màu** (cả glyph là `currentColor`); cung chưa sáng để `opacity .22` làm nền đếm, còn **chấm luôn đậm hết cỡ kể cả `sig-0`** — làm mờ nó thì cả glyph xuống ~1.9:1 và trông như lỗi render chứ không phải "không vạch". Danh sách
+"Nearby networks" nằm trong **`<details id="wifiScan">`**, mở sẵn và **tự gập khi chọn một mạng**
+(ô SSID/Password lên trên, không phải cuộn qua chính danh sách vừa dùng xong; đo được 521→377px).
+Hàng chỉ ẩn chứ không xoá, bấm `<summary>` mở lại. Dùng `<details>` để lấy sẵn vùng bấm, phím
+Enter/Space và trạng thái cho screen reader; **`summary.f-lbl` phải `display: list-item`** — `.f-lbl` đặt
+`block`, mà `<summary>` block thì **mất tam giác disclosure** ở Blink/WebKit, tức mất đúng tín hiệu
+"khối này gập được". Forget dùng
 `fetch cache:"no-store"` (tránh GET cache cũ làm mạng "xóa rồi" hiện lại). TFT
 start screen: `refreshStartWifiLine()` hiện `Scanning...`/`0.0.0.0`/IP theo trạng thái.
 Guards: `g++ tools/test_wifi_store.cpp` (contract list), `test_no_runtime_wifi_begin.py` (begin ở
@@ -791,6 +1071,15 @@ Mock **được web điều khiển** như máy thật: `waitamp` **đứng ch�
 `finished` đứng chờ tới khi bấm White. Nhờ vậy gate đặt tên + chart sau run mới test được.
 `--full` giữ **đúng khối lượng dữ liệu và trục X thật** (120 vòng, 20s/vòng → 39.67 phút,
 `/curve` ≈ 7.7KB) nhưng nén đồng hồ còn ~20s.
+
+**`--slots <file>` phát lại run THẬT** thay cho đường sigmoid tổng hợp — để soát chart (baseline,
+làm mượt, trục) trên số liệu thật mà không cần máy. File: **mỗi dòng một slot**, các giá trị
+**đã calibrate** ngăn bằng dấu phẩy (đúng dạng `/curve` phục vụ); số vòng và `AMP_ROUNDS` lấy
+theo file, `REPORT_INTERVAL_MS` tự thành 20 s. Dòng thiếu → slot phẳng 0; dòng ngắn hơn run →
+giữ giá trị cuối (bỏ trống sẽ thành **đứt đường**, không phải "hết dữ liệu"). Cắm vào **`reading_at()`**
+— nguồn duy nhất của cả SSE `new_readings` lẫn `/curve` — nên phát lại đi đúng hai đường mà máy
+thật đi. Kèm `--reboot` thì Result có chart ngay (không thì phải chạy hết một run).
+Mẫu sẵn có: `tools/slots.txt` (10 slot × 120 vòng).
 
 `tools/test_full_run.js` — E2E qua Edge headless + DevTools Protocol (chỉ dùng node
 stdlib, poll DOM nên không race SSE). Đi hết: heater → waitamp (Start khoá, đặt tên) →

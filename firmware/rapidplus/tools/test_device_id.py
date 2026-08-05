@@ -139,8 +139,16 @@ else:
             "JsonDataConfig() does not re-sanitise after applying \"device ID\": Serial/BT reach "
             "it with no validation at all, and that field feeds the SoftAP SSID and the QR payload"
         )
-    elif 'containsKey("device ID")' not in FS[FS.index("bool ForteSetting::JsonDataConfig()") : FS.index("void ForteSetting::begin()")]:
-        fail.append("the JsonDataConfig() sanitise is not guarded by containsKey(\"device ID\")")
+    else:
+        # The invariant is "the sanitise only runs when the caller actually sent the key",
+        # not one spelling of it: ArduinoJson 7 deprecated containsKey() and the 42 gates in
+        # this file moved to !doc["k"].isNull(). Accept either, reject neither being present.
+        _jdc_raw = FS[FS.index("bool ForteSetting::JsonDataConfig()") : FS.index("void ForteSetting::begin()")]
+        if not re.search(r'(containsKey\("device ID"\)|\["device ID"\]\.isNull\(\))', _jdc_raw):
+            fail.append(
+                'the JsonDataConfig() sanitise is not gated on "device ID" being present - it '
+                "would re-sanitise (and queue a reboot) on every unrelated config write"
+            )
 
 # ---- 4. Load order: the store is populated BEFORE its first reader ------------------------
 # dashboardHostname() reads protoID, so _ForteSetting.begin() must precede WiFi.setHostname().

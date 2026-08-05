@@ -64,6 +64,20 @@ Nhiệt mục tiêu: **Lysis 82°C** · **Amplification 65.8°C** (tên code "67
 Transition `ehotlid23heat → epid23ready` cần đồng thời: cả 2 nắp trong ±3°C **và** đủ thời gian
 hold (15 phút, 5 phút nếu qua calib) **và** `_sensor6035.getSensorPreheatReady()`.
 
+**Hai timer, nay CỐ Ý bằng nhau** (2026-08-05): `PIDControl::hotlidWaitMs` = **15 phút** (giữ nắp) và
+`parameter.optopreheatduration` = **15 phút** (preheat LED/opto, 900 **giây** →
+`PREHEATLOOPS = 900000 / timePerLoop` = **45 vòng** × 20 s). `button.cpp:437-442` khởi động **cả hai
+đồng hồ trên hai dòng liền nhau**, nên khớp giá trị nghĩa là quang học ấm đúng bằng khoảng thời gian
+nhiệt ổn định.
+
+*Trước đó opto preheat là **5 phút*** — viết `15 * 20`, đọc lên như "15 phút" nhưng là 15 **vòng**
+× 20 s, và `sensor6035.h` ghi thẳng "15 mins". Comment nói 15, máy chạy 5.
+
+**Đường calib → amplification không có override tương ứng**: `button.cpp:463-468` cố ý hạ
+`hotlidWaitMs` xuống 5 phút, nhưng `optopreheatduration` là tham số lưu nên không đổi theo → đường đó
+nay **chờ 15 phút** thay vì 5. Chậm chứ không hỏng; muốn giữ 5 phút thì phải thêm một override
+runtime cho `PREHEATLOOPS`, tương tự `hotlidWaitMs`.
+
 ### An toàn nhiệt
 
 - **Watchdog sensor**: quá hạn không có dữ liệu / sai số lượng / `-127` → `ErrorProcess` + `rerun()`.

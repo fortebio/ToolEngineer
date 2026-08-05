@@ -212,7 +212,7 @@ bool ForteSetting::JsonDataConfig()
     }
     info_display("Json data received\n");
     // Parse the received JSON data
-    DynamicJsonDocument json_document(1024 * 3);
+    JsonDocument json_document;
     DeserializationError error = deserializeJson(json_document, recvData);
     if (error)
     {
@@ -223,7 +223,7 @@ bool ForteSetting::JsonDataConfig()
     else
     {
         // Access JSON data
-        if (json_document.containsKey("para version"))
+        if (!json_document["para version"].isNull())
         {
             info_displayln("parameter configuration");
             if (sizeof(parameter) > 512 - 110)
@@ -232,7 +232,7 @@ bool ForteSetting::JsonDataConfig()
                 return true;
             }
 
-            // if (json_document.containsKey("para version"))
+            // if (!json_document["para version"].isNull())
             {
                 String paraVersion = json_document["para version"].as<String>();
                 // strlcpy, not strcpy: this also runs from Serial/BT where nothing
@@ -242,7 +242,7 @@ bool ForteSetting::JsonDataConfig()
                 info_displayln("Para Version: " + paraVersion);
             }
 
-            if (json_document.containsKey("PCB version"))
+            if (!json_document["PCB version"].isNull())
             {
                 String PCBVersion = json_document["PCB version"].as<String>();
                 strlcpy(parameter.PCB_version, PCBVersion.c_str(), sizeof(parameter.PCB_version));
@@ -254,91 +254,91 @@ bool ForteSetting::JsonDataConfig()
             String idBefore(parameter.device_id);
 
             // Print the extracted data
-            if (json_document.containsKey("opto calibration"))
+            if (!json_document["opto calibration"].isNull())
             {
                 JsonObject calibration = json_document["opto calibration"];
                 loadJsonArr(calibration["slopes"].as<JsonArray>(), parameter.slopes, "Calibration - Slopes:");
                 loadJsonArr(calibration["origins"].as<JsonArray>(), parameter.origins, "Calibration - Origins:");
             }
 
-            if (json_document.containsKey("LED power"))
+            if (!json_document["LED power"].isNull())
                 loadJsonArr(json_document["LED power"].as<JsonArray>(), parameter.led_power, "LED Power:");
 
             // extract the parameter
-            if (json_document.containsKey("parameters"))
+            if (!json_document["parameters"].isNull())
             {
                 JsonObject json_object = json_document["parameters"];
-                if (json_object.containsKey("min increase"))
+                if (!json_object["min increase"].isNull())
                 {
                     double min_inc = json_object["min increase"];
                     parameter.min_increase = min_inc;
                     info_displayln("min increase: " + String(min_inc));
                 }
 
-                if (json_object.containsKey("min sharpness"))
+                if (!json_object["min sharpness"].isNull())
                 {
                     double min_shp = json_object["min sharpness"];
                     parameter.min_sharpness = min_shp;
                     info_displayln("min sharpness: " + String(min_shp));
                 }
 
-                if (json_object.containsKey("min slight positive time"))
+                if (!json_object["min slight positive time"].isNull())
                 {
                     double min_spt = json_object["min slight positive time"];
                     parameter.min_slight_positive_time = min_spt;
                     info_displayln("min slight positive time: " + String(min_spt));
                 }
 
-                if (json_object.containsKey("detect shape"))
+                if (!json_object["detect shape"].isNull())
                 {
                     bool detect_shp = json_object["detect shape"];
                     parameter.detect_shape = detect_shp;
                     info_displayln("detect shape: " + String(detect_shp));
                 }
 
-                if (json_object.containsKey("detection margin time"))
+                if (!json_object["detection margin time"].isNull())
                 {
                     double value = json_object["detection margin time"];
                     parameter.detection_margin_time = value;
                     info_displayln("detection margin time: " + String(value));
                 }
 
-                if (json_object.containsKey("arm percentile"))
+                if (!json_object["arm percentile"].isNull())
                 {
                     double value = json_object["arm percentile"];
                     parameter.arm_percentile = value;
                     info_displayln("arm percentile: " + String(value));
                 }
 
-                if (json_object.containsKey("transition percentile"))
+                if (!json_object["transition percentile"].isNull())
                 {
                     double value = json_object["transition percentile"];
                     parameter.transition_percentile = value;
                     info_displayln("transition percentile: " + String(value));
                 }
 
-                if (json_object.containsKey("sg order"))
+                if (!json_object["sg order"].isNull())
                 {
                     uint8_t value = json_object["sg order"];
                     parameter.sg_order = value;
                     info_displayln("sg order: " + String(value));
                 }
 
-                if (json_object.containsKey("sg window"))
+                if (!json_object["sg window"].isNull())
                 {
                     uint8_t value = json_object["sg window"];
                     parameter.sg_window = value;
                     info_displayln("sg window: " + String(value));
                 }
 
-                if (json_object.containsKey("baseline start"))
+                if (!json_object["baseline start"].isNull())
                 {
                     uint8_t value = json_object["baseline start"];
                     parameter.baseline_start = value;
                     info_displayln("baseline start: " + String(value));
                 }
 
-                if (json_object.containsKey("baseline range"))
+                if (!json_object["baseline range"].isNull())
                 {
                     uint8_t value = json_object["baseline range"];
                     parameter.baseline_range = value;
@@ -346,21 +346,21 @@ bool ForteSetting::JsonDataConfig()
                 }
             }
 
-            if (json_document.containsKey("units"))
+            if (!json_document["units"].isNull())
             {
                 String units = json_document["units"].as<String>();
                 strlcpy(parameter.units, units.c_str(), sizeof(parameter.units));
                 info_displayln("Units: " + units);
             }
 
-            if (json_document.containsKey("device ID"))
+            if (!json_document["device ID"].isNull())
             {
                 String deviceId = json_document["device ID"].as<String>();
                 strlcpy(parameter.device_id, deviceId.c_str(), sizeof(parameter.device_id));
                 info_displayln("Device ID: " + deviceId);
             }
 
-            if (json_document.containsKey("lysis duration"))
+            if (!json_document["lysis duration"].isNull())
             {
                 uint16_t lysisDuration = json_document["lysis duration"];
                 // parameter.LYSIS_DURATION = lysisDuration;
@@ -368,73 +368,73 @@ bool ForteSetting::JsonDataConfig()
                 info_displayln("Lysis duration: " + String(lysisDuration));
             }
 
-            if (json_document.containsKey("opto preheat time"))
+            if (!json_document["opto preheat time"].isNull())
             {
                 uint16_t optopreheatduraton = json_document["opto preheat time"];
                 parameter.optopreheatduration = optopreheatduraton;
                 info_displayln("opto preheat time: " + String(optopreheatduraton));
             }
 
-            if (json_document.containsKey("LED Duration"))
+            if (!json_document["LED Duration"].isNull())
             {
                 uint LEDDuration = json_document["LED Duration"];
                 parameter.LEDDuration = LEDDuration;
                 info_displayln("LED Duration: " + String(LEDDuration));
             }
 
-            if (json_document.containsKey("time per loop"))
+            if (!json_document["time per loop"].isNull())
             {
                 ulong loopDuration = json_document["time per loop"];
                 parameter.timePerLoop = loopDuration;
                 info_displayln("time per loop: " + String(loopDuration));
             }
 
-            if (json_document.containsKey("amplification time"))
+            if (!json_document["amplification time"].isNull())
             {
                 int amplificationTime = json_document["amplification time"];
                 parameter.amplification_time = amplificationTime;
                 info_displayln("Amplification time: " + String(amplificationTime));
             }
 
-            if (json_document.containsKey("lysis temperature"))
+            if (!json_document["lysis temperature"].isNull())
             {
                 float lysisTemp = json_document["lysis temperature"];
                 parameter.lysisTemp = lysisTemp;
                 info_displayln("lysis temperature: " + String(lysisTemp));
             }
 
-            if (json_document.containsKey("amplification temperature"))
+            if (!json_document["amplification temperature"].isNull())
             {
                 float ampTemp = json_document["amplification temperature"];
                 parameter.amplifTemp = ampTemp;
                 info_displayln("amplification temperature: " + String(ampTemp));
             }
 
-            if (json_document.containsKey("bottom temperature sensor seq"))
+            if (!json_document["bottom temperature sensor seq"].isNull())
                 loadJsonArr(json_document["bottom temperature sensor seq"].as<JsonArray>(), parameter.bottomTemperatureSensorSq, "bottom temperature sensor seq:");
 
-            if (json_document.containsKey("top temperature sensor seq"))
+            if (!json_document["top temperature sensor seq"].isNull())
                 loadJsonArr(json_document["top temperature sensor seq"].as<JsonArray>(), parameter.topTemperatureSensorSq, "top temperature sensor seq:");
 
-            if (json_document.containsKey("PID parameter"))
+            if (!json_document["PID parameter"].isNull())
                 loadJsonArr(json_document["PID parameter"].as<JsonArray>(), parameter.kpid, "PID parameter of bottom heater1:");
 
-            if (json_document.containsKey("PID2 parameter"))
+            if (!json_document["PID2 parameter"].isNull())
                 loadJsonArr(json_document["PID2 parameter"].as<JsonArray>(), parameter.kpid2, "PID2 parameter of bottom heater2&3:");
 
-            if (json_document.containsKey("PID3 parameter"))
+            if (!json_document["PID3 parameter"].isNull())
                 loadJsonArr(json_document["PID3 parameter"].as<JsonArray>(), parameter.kpid3, "PID3 parameter of top hotlid2&3:");
 
-            if (json_document.containsKey("Bottom overheat value"))
+            if (!json_document["Bottom overheat value"].isNull())
                 loadJsonArr(json_document["Bottom overheat value"].as<JsonArray>(), parameter.bottomOverheat, "Bottom overheat value:");
 
-            if (json_document.containsKey("Top overheat value"))
+            if (!json_document["Top overheat value"].isNull())
                 loadJsonArr(json_document["Top overheat value"].as<JsonArray>(), parameter.topOverheat, "Top overheat value:");
 
-            if (json_document.containsKey("temperature value calibration"))
+            if (!json_document["temperature value calibration"].isNull())
                 loadJsonArr(json_document["temperature value calibration"].as<JsonArray>(), parameter.temperatureOffset, "temperature value calibration");
 
-            if (json_document.containsKey("top heater PWM"))
+            if (!json_document["top heater PWM"].isNull())
             {
                 JsonArray hotlidPWM = json_document["top heater PWM"];
                 info_displayln("top heater PWM");
@@ -450,7 +450,7 @@ bool ForteSetting::JsonDataConfig()
                 }
             }
 
-            if (json_document.containsKey("buzzer"))
+            if (!json_document["buzzer"].isNull())
             {
                 String buzzerOn = json_document["buzzer"].as<String>();
                 info_display("buzzer: ");
@@ -470,14 +470,14 @@ bool ForteSetting::JsonDataConfig()
                 }
             }
 
-            if (json_document.containsKey("kitId"))
+            if (!json_document["kitId"].isNull())
             {
                 double kitId = json_document["kitId"];
                 parameter.kitId = kitId;
                 info_displayln("kitId: " + String(kitId));
             }
 
-            if (json_document.containsKey("empty"))
+            if (!json_document["empty"].isNull())
             {
                 JsonArray empty = json_document["empty"];
                 info_displayln("empty: ");
@@ -489,7 +489,7 @@ bool ForteSetting::JsonDataConfig()
                 }
             }
 
-            if (json_document.containsKey("counter")) // for test purpose only, to show the diagram better, it won't be saved in the EEPROM
+            if (!json_document["counter"].isNull()) // for test purpose only, to show the diagram better, it won't be saved in the EEPROM
             {
                 _sensor6035.setCounterDisplayflag(true);
             }
@@ -511,7 +511,7 @@ bool ForteSetting::JsonDataConfig()
             // the LENGTH, but a control character or an empty string still gets through, and this
             // one field now feeds the SoftAP SSID, the mDNS label and the QR payload. Re-run the
             // same check begin() applies, so every way into the store lands on a usable value.
-            if (json_document.containsKey("device ID"))
+            if (!json_document["device ID"].isNull())
             {
                 sanitiseDeviceId();
                 // Same reason as PEND_ID: the ID is latched into the radio at boot (softAP SSID,
@@ -527,7 +527,7 @@ bool ForteSetting::JsonDataConfig()
             }
             return true;
         }
-        else if (json_document.containsKey("raw_data")) // include raw data which means for the testing purpose
+        else if (!json_document["raw_data"].isNull()) // include raw data which means for the testing purpose
         {
             info_displayln("algorithm testing");
             _sensor6035.AlgLoop(recvData);
@@ -677,7 +677,7 @@ bool ForteSetting::start_amplification_simulation()
     getDataAmplificationEEPROM();
 
     info_display("Json data received\n");
-    DynamicJsonDocument json_document(1024 * 3);
+    JsonDocument json_document;
     DeserializationError error = deserializeJson(json_document, recvData);
     if (error)
     {
@@ -687,7 +687,7 @@ bool ForteSetting::start_amplification_simulation()
     }
     else
     {
-        if (json_document.containsKey("Slot"))
+        if (!json_document["Slot"].isNull())
         {
             for (size_t i = 0; i < loops; i++)
             {

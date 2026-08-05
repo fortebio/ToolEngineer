@@ -30,8 +30,8 @@ Dashboard **không** start trong `setup()` (WiFi thường chưa kịp connect) 
 
 | Đường | Khi nào | Việc |
 |---|---|---|
-| **STA** (creds EEPROM + list NVS) | mặc định lúc boot | `connectSavedNetworks()` → `WiFi.begin(ssid, password)`; upload Google Sheet được |
-| **SoftAP fallback** | STA fail lúc boot | `dashboardStartAP()`: **release BT (~60KB) trước** rồi `softAP(dashboardApName())` = `"FBT-<id>"` (mở, 192.168.4.1) + captive portal → dashboard. **`screen_QR()` phải gọi cùng hàm đó** — hai bên tự nối chuỗi là QR chỉ vào AP không tồn tại. Không release BT thì AP hết heap → client không lấy được DHCP IP. |
+| **STA** (creds EEPROM + list NVS) | mặc định lúc boot | `connectSavedNetworks()` → `WiFi.begin(ssid, password)`; upload Google Sheet được. `screen_QR()` mã hoá **`http://<dashboardHostname()>.local/`** (tên mDNS, sống qua đổi lease) và **in IP bên dưới** làm đường vào cho client không phân giải được mDNS — hai dạng địa chỉ, cả hai đều phải có |
+| **SoftAP fallback** | STA fail lúc boot | `dashboardStartAP()`: **release BT (~60KB) trước** rồi `softAP(dashboardApName())` = `"FBT-<id>"` (mở, 192.168.4.1) + captive portal → dashboard. **Builder nuôi radio; ai BÁO CÁO tên thì đọc `WiFi.softAPSSID()`** — `screen_QR()`/`buildHomeJson()` **không được** gọi `dashboardApName()` (`softAP()` latch tên vào radio lúc boot, tính lại là QR chỉ vào AP không tồn tại — 2026-07-30, `test_qr_payload.py` mục 2 ghim). Không release BT thì AP hết heap → client không lấy được DHCP IP. |
 
 **Đường thứ 3 (WiFiManager portal) đã bị xoá 2026-07-29** — nhập creds nay là `POST /wifi` +
 `/wifilist` trên dashboard (trial-then-commit, `wifiStore.cpp`). Xem

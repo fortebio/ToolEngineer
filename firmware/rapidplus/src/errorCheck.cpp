@@ -37,10 +37,10 @@ void postError_Googlesheet(uint8_t errorModule, uint8_t errorType, uint8_t error
         dataPostGoogleSheet["id_device"] = _ForteSetting.parameter.device_id;
         dataPostGoogleSheet["version"] = FirmwareVer;
 
-        JsonArray error_array = dataPostGoogleSheet.createNestedArray("error");
+        JsonArray error_array = dataPostGoogleSheet["error"].to<JsonArray>();
         char tmp[10];
         sprintf(tmp, "%04d", e.EncodeError(e.error[0]));
-        JsonObject errorObj = error_array.createNestedObject();
+        JsonObject errorObj = error_array.add<JsonObject>();
         errorObj["Slot"] = errorSlotStr[e.error[0].errorModule][e.error[0].errorSlot];
         errorObj["error_code"] = String(tmp);
         errorObj["error_msg"] = e.decodeError(e.error[0]);
@@ -81,12 +81,12 @@ void postError_fullGoogleSheet(void)
         dataPostGoogleSheet["id_device"] = _ForteSetting.parameter.device_id;
         dataPostGoogleSheet["version"] = FirmwareVer;
 
-        JsonArray error_array = dataPostGoogleSheet.createNestedArray("error");
+        JsonArray error_array = dataPostGoogleSheet["error"].to<JsonArray>();
         for (size_t i = 0; i < error.numUnit; i++)
         {
             char tmp[10];
             sprintf(tmp, "%04d", error.EncodeError(error.error[i]));
-            JsonObject errorObj = error_array.createNestedObject();
+            JsonObject errorObj = error_array.add<JsonObject>();
             errorObj["Slot"] = errorSlotStr[error.error[i].errorModule][error.error[i].errorSlot];
             errorObj["error_code"] = String(tmp);
             errorObj["error_msg"] = error.decodeError(error.error[i]);

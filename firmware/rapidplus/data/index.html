@@ -98,9 +98,17 @@
         <div class="home-side">
         <!-- Live amplification chart (shown after names confirmed / while running) -->
         <div class="card wide hide" id="homeChartCard">
+          <!-- Show/hide-ALL lives here, top right of the chart it drives - not in the slot
+               table, where it was a column header doing double duty. The <label> wraps its own
+               visible text ("All slots"), so unlike the header version there is no risk of a
+               stray tap on a column title blanking the chart, and the accessible name matches
+               what is printed (WCAG 2.5.3). -->
           <div class="card-head">
             <p class="card-title">Realtime LAMP Amplification</p>
-            <span class="time">Last update: <span id="lastUpdateHome">-</span></span>
+            <span class="head-right">
+              <span class="time">Last update: <span id="lastUpdateHome">-</span></span>
+              <label class="chart-vis" title="Show or hide every slot on the chart"><input type="checkbox" class="vis-dot vis-all" checked><span>All slots</span></label>
+            </span>
           </div>
           <div id="homeChart" class="chart-container"></div>
         </div>
@@ -131,6 +139,7 @@
         <div class="card hide" id="resultChartCard">
           <div class="card-head">
             <p class="card-title">Stored run curve</p>
+            <label class="chart-vis" title="Show or hide every slot on the chart"><input type="checkbox" class="vis-dot vis-all" checked><span>All slots</span></label>
           </div>
           <div id="resultChart" class="chart-container"></div>
         </div>
@@ -138,7 +147,10 @@
           <p class="card-title">Results &amp; slots</p>
           <table class="slot-table">
             <thead>
-              <tr><th class="col-name">Sample</th><th>CT</th><th>Result</th></tr>
+              <!-- colour | result | CT | sample. Header cells carry CLASSES, not positions:
+                   the width rules used to key off :nth-child(2)/(3) and adding this column
+                   would have silently re-pointed them at the wrong columns. -->
+              <tr><th class="col-vis"></th><th class="col-res">Result</th><th class="col-ct">CT</th><th class="col-name">Sample</th></tr>
             </thead>
             <tbody id="slotBody"></tbody>
           </table>
@@ -146,13 +158,13 @@
                Positive / Negative / Slight Positive / Error, plus "Break" written by
                sensor6035 for an invalid curve). Nothing on the device or the web spelled
                them out, so a first-time operator could not learn what S or B meant. -->
-          <p class="res-legend">
+          <!-- <p class="res-legend">
             <span><span class="res-badge res-P">P</span>Positive</span>
             <span><span class="res-badge res-N">N</span>Negative</span>
             <span><span class="res-badge res-S">S</span>Slight positive</span>
             <span><span class="res-badge res-E">E</span>Error</span>
             <span><span class="res-badge res-B">B</span>Break (invalid curve)</span>
-          </p>
+          </p> -->
           <button type="button" id="viewChartBtn">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 12 8 12 11 19 16 5 19 12 21 12"/></svg>
             View chart

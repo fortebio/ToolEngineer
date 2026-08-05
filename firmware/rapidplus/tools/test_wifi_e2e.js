@@ -156,9 +156,18 @@ async function main() {
     // Empty the old list FIRST, so the wait below means "the fresh render landed" and not
     // "the previous render is still on screen" - otherwise assertions read stale rows.
     await ev(`(() => { const b = document.getElementById('wifiSaved'); if (b) b.innerHTML = ''; })()`);
-    await ev(
-      `[...document.querySelectorAll('.set-card')].find(x => x.textContent.indexOf('WiFi') >= 0).click()`,
+    // Poll for the card - do NOT click after a fixed delay. The cards only exist once
+    // loadConfig() resolves (script.js), so on a slow render `.find(...)` returned undefined
+    // and this line threw "cannot read .click of undefined" - a flaky red that looks like a
+    // product bug. Same race has bitten the screenshot and a11y harnesses.
+    const opened = await ev(
+      `new Promise(res => { let n = 0; const iv = setInterval(() => {
+         const c = [...document.querySelectorAll('.set-card')].find(x => x.textContent.indexOf('WiFi') >= 0);
+         if (c) { clearInterval(iv); c.click(); res('opened'); }
+         else if (++n > 60) { clearInterval(iv); res('TIMEOUT'); }
+       }, 100); })`,
     );
+    if (opened !== "opened") throw new Error("WiFi card never rendered - is the mock running?");
     for (let i = 0; i < 20; i++) {
       if (await ev(`document.querySelectorAll('#wifiSaved .saved-row').length > 0`)) break;
       await sleep(500);
