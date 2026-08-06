@@ -8,6 +8,8 @@
 #include "PIDControl.h"
 #include "displayCLD.h"
 #include "button.h"
+#include "errorCheck.h"  // the per-slot error table behind GET /errors. Kept with the other
+                         // project headers, i.e. BEFORE <ESPAsyncWebServer.h> - GOTCHA 3.
 #include "updateOTA.h"   // otaState / checkFirmware(): the web Setting tab drives OTA
 #include "wifiStore.h"   // saved networks (NVS): multi-network join fallback
 #include <Preferences.h> // slot labels in NVS (see loadSlotLabels): survives `uploadfs`
@@ -291,10 +293,13 @@ static void fillStatus(JsonObject status, e_statuslcd s, const double *bt, const
     sub = "Reading the run back from the device.";
     break;
   case escreenErrorResult:
-    // Own phase, NOT "idle": red here does not open the naming gate.
-    phase = "error";
-    title = "Sensor error during the run";
-    sub = "The device is showing which channels failed. Check the screen.";
+    // Its OWN phase, and deliberately not the same "error" as errprocess: this is the operator
+    // ASKING to see the error table (RED on the finished screen), not the machine failing. Home
+    // swaps the chart for that table on this phase, and doing that on a real fault would be
+    // wrong. Also not "idle" - red here does not open the naming gate.
+    phase = "errortable";
+    title = "Sensor error table";
+    sub = "Per-channel errors for the last run. White returns.";
     break;
   case escreenReview:
     phase = "review";
@@ -507,6 +512,13 @@ static void fillActions(JsonObject a, e_statuslcd s)
     red = "Errors Table";
     white = "Return";
     break;
+  case escreenErrorResult:
+    // The screen the RED above leads to. It had no case, so all three chips came up blank on
+    // the one screen whose printed instruction is "Press white key to test next" - the button
+    // worked, it just was not labelled. WHITE falls through handleShortPress_White's checks to
+    // ebuttonrestart, so "Next test" is what it actually does.
+    white = "Next test";
+    break;
   case eSettingMenu:
     green = "WiFi";
     red = "Upload";
@@ -717,6 +729,20 @@ String slotNames[10];          // disease per slot (fixed shrimp-disease list)
 static String slotSamples[10]; // free-text sample label per slot
 static float gCT[10] = {0};
 static char gResult[10] = {0};
+
+// Per-slot sensor-error snapshot for GET /errors - the same table the machine draws on
+// screen_errorResult() (RED on the finished/review screens).
+//
+// A SNAPSHOT, not a live read, and that is the whole design. `error.error` is a
+// std::vector that ControlTask push_back()s from ~28 call sites at any moment; a
+// push_back reallocates, so iterating it from the AsyncTCP task would be a
+// use-after-free waiting for a bad run. Taken in dashboardSetResults() instead, which
+// runs on DisplayTask (screen_Result) or SettingTask (/reviewlast) - the same task that
+// already reads the vector to draw the TFT table, so this adds no exposure that was not
+// there. It also lands at the same instant as the CT/outcome cache, so /errors and
+// /slots can never describe different runs (the 2026-07-21 table-vs-chart desync).
+static ErrorRecord_t gErrRec[10];
+static bool gErrHas[10] = {false};
 // (definition hoisted above fillStatus - see there)
 
 static const char *SLOT_NS = "slotlabels";
@@ -761,6 +787,13 @@ void dashboardSetResults(const float *ct, const char *result)
   {
     gCT[i] = ct[i];
     gResult[i] = result[i];
+    // Same query the TFT's error table runs (displayLCD.cpp screen_errorResult): light-sensor
+    // module, "no data", first reading step, this slot. Mirroring the query rather than
+    // inventing a broader one keeps the two screens from ever disagreeing about the same run.
+    uint8_t k = error.searchError(errorLightSensor, errorNoData, eSensor1stReading, i);
+    gErrHas[i] = (k != 255);
+    if (gErrHas[i])
+      gErrRec[i] = error.error[k]; // copy the record out; the route must not touch the vector
   }
   gResultsReady = true;
 }
@@ -795,6 +828,41 @@ static void handleSlots(AsyncWebServerRequest *req)
     else
       s["ct"] = nullptr;
     s["result"] = ready ? String(gResult[i]) : String("");
+  }
+  String out;
+  serializeJson(doc, out);
+  req->send(200, "application/json", out);
+}
+
+// GET /errors -> {ready, slots:[{code, text} x10]} - the web copy of the machine's own error
+// table (RED on the finished/review screens, screen_errorResult()).
+//
+// Gated on the SAME `ready` expression as /slots: this table belongs to a run, and during a new
+// amplification the snapshot still describes the previous one.
+//
+// Reads only the gErrRec snapshot, never error.error - see the note beside gErrRec. decodeError()
+// takes the record BY VALUE and only indexes static string tables, so calling it here is safe.
+// Ten entries, so no chunked writer is needed (GOTCHA 10 is about the full-run payloads).
+static void handleErrors(AsyncWebServerRequest *req)
+{
+  bool ready = gResultsReady && (_displayCLD.type_infor != eoptoreading);
+
+  JsonDocument doc;
+  doc["ready"] = ready;
+  JsonArray arr = doc["slots"].to<JsonArray>();
+  for (int i = 0; i < 10; i++)
+  {
+    JsonObject s = arr.add<JsonObject>();
+    if (ready && gErrHas[i])
+    {
+      // Same 4-digit encoding the TFT prints, so an operator can read one screen to the other.
+      s["code"] = error.EncodeError(gErrRec[i]);
+      s["text"] = error.decodeError(gErrRec[i]);
+    }
+    else
+    {
+      s["code"] = nullptr;
+    }
   }
   String out;
   serializeJson(doc, out);
@@ -1924,6 +1992,7 @@ void dashboardBegin()
     dashServer.on("/home", HTTP_GET, [](AsyncWebServerRequest *req)
                   { req->send(200, "application/json", buildHomeJson()); });
     dashServer.on("/slots", HTTP_GET, handleSlots);
+    dashServer.on("/errors", HTTP_GET, handleErrors);
     dashServer.on("/rename", HTTP_ANY, handleRename);
     dashServer.on("/curve", HTTP_GET, handleCurve);
     // Setting tab

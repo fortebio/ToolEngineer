@@ -69,10 +69,19 @@ const SHOTS = [
 ];
 
 async function main() {
+  // A REUSED profile picks up Edge's bundled extensions, and one of them injects a popup
+  // and restyles page text straight into the capture - you then review an image the app
+  // never rendered. Start clean, with extensions off.
+  fs.rmSync(PROFILE, { recursive: true, force: true });
   const edge = spawn(EDGE, [
     "--headless=new",
     "--disable-gpu",
     "--hide-scrollbars",
+    "--disable-extensions",
+    "--disable-component-extensions-with-background-pages",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-background-networking",
     `--remote-debugging-port=${CDP_PORT}`,
     `--user-data-dir=${PROFILE}`,
     "about:blank",

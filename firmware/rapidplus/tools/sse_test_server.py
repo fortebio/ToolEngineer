@@ -122,11 +122,43 @@ SLOT_SAMPLES = [""] * 10
 FAKE_CT = [22.3, None, None, 28.9, None, 19.5, None, None, None, None]
 FAKE_RESULT = ["P", "N", "N", "S", "N", "P", "E", "N", "B", "N"]
 
+if SLOTS:
+    # Replaying a REAL run: derive the verdicts from the curves instead of keeping the
+    # canned ones. Otherwise the table calls a flat channel "Positive" while the chart next
+    # to it shows a flat line - fine as a layout fixture, wrong in a screenshot that teaches
+    # someone how to read a result. This is a DEMO heuristic, not the device's algorithm
+    # (bResultGet); the device stays the authority on real hardware.
+    def _verdict(row):
+        # Same baseline window the chart draws against (script.js BASELINE_START_MIN 2,
+        # BASELINE_RANGE_MIN 4). Averaging from round 0 instead would fold the optics'
+        # warm-up climb into the baseline and every channel would look like it took off.
+        per_min = 60000.0 / REPORT_INTERVAL_MS
+        b0, b1 = int(2 * per_min), int(6 * per_min)
+        if not row or len(row) <= b1 or b1 <= b0:
+            return ("N", None)
+        base = sum(row[b0:b1]) / (b1 - b0)
+        adj = [v - base for v in row]
+        rise = max(adj[b1:])
+        if rise < 12:
+            return ("N", None)
+        idx = next((i for i in range(b1, len(adj)) if adj[i] >= rise * 0.2), None)
+        ct = round(idx / per_min, 1) if idx is not None else None
+        return ("P" if rise >= 40 else "S", ct)
+
+    FAKE_RESULT, FAKE_CT = [], []
+    for _i in range(CHANNELS):
+        _r, _ct = _verdict(SLOTS[_i] if _i < len(SLOTS) else None)
+        FAKE_RESULT.append(_r)
+        FAKE_CT.append(_ct)
+
 # ---- Run state machine (shared by every client, like the real device) --------
 # Amplification (RED) flow:  idle --red--> waitname --red--> heater --(timed)-->
 #                            waitamp --red--> amplification --> finished --white--> idle
 # Lysis (GREEN) flow:        idle --green--> heater (names at waitamp, no waitname gate)
 _naming = False                # RED at idle -> waitname (name slots BEFORE heating)
+_amp_flow = True               # which leg is heating: True = eheating67, False = epreheating80.
+                               # The two legs put DIFFERENT text on the same "heater" phase
+                               # (fillStatus splits them), so the mock has to know which one.
 _run_start = None              # monotonic when the heater phase began (None = not yet)
 _amp_start = None              # monotonic when Start was pressed (None = not started)
 _ran_before = False            # a run has completed since boot -> device holds a curve
@@ -158,6 +190,9 @@ def _wifi_live():
 _reviewed = False              # /reviewlast reloaded the stored EEPROM run
 
 
+_err_table = False   # escreenErrorResult: RED on the finished screen, WHITE leaves
+
+
 def run_state():
     """(phase, rounds_done) mirroring the device. rounds_done == COUNTER (0 outside amp)."""
     global _ran_before
@@ -178,27 +213,41 @@ def run_state():
         # streams the final round in that window (else the mock fakes a 1-round gap).
         return ("amplification", AMP_ROUNDS)
     _ran_before = True
+    # escreenFinished --RED--> escreenErrorResult. Its OWN phase, not "error": that one is
+    # a real fault (errprocess), this is the operator asking to look at the table.
+    if _err_table:
+        return ("errortable", AMP_ROUNDS)
     return ("finished", AMP_ROUNDS)
 
 
 def press(btn):
     """A web /control press, driving the run like the device's buttons do."""
-    global _amp_start, _run_start, _naming
+    global _amp_start, _run_start, _naming, _amp_flow, _err_table
     PRESSED[btn] = time.monotonic() + 2.0
     phase, _ = run_state()
     if btn == "ampname" and phase == "idle":
         _naming = True                  # web Amplification --> ewaitname (name first)
     elif btn == "red" and phase == "idle":
+        _amp_flow = True
         _run_start = time.monotonic()   # PHYSICAL Amplification --> heat directly
     elif btn == "red" and phase == "waitname":
         _naming = False                 # ewaitname --red(confirm)--> eheating67
+        _amp_flow = True
         _run_start = time.monotonic()
     elif btn == "green" and phase == "idle":
-        _run_start = time.monotonic()   # escreenStart --green(Lysis)--> heating
+        _amp_flow = False               # escreenStart --green(Lysis)--> epreheating80
+        _run_start = time.monotonic()
     elif btn == "red" and phase == "waitamp":
         _amp_start = time.monotonic()   # ewaitampTube --red--> eoptoreading
     elif btn == "white" and phase == "waitname":
         _naming = False                 # ewaitname --white--> escreenStart (cancel)
+    elif btn == "red" and phase == "finished":
+        _err_table = True               # escreenFinished --red--> escreenErrorResult
+    elif btn == "white" and phase == "errortable":
+        _err_table = False              # --white--> ebuttonrestart -> back to idle
+        _naming = False
+        _run_start = None
+        _amp_start = None
     elif btn == "white" and phase == "finished":
         _naming = False                 # escreenFinished --white--> back to idle
         _run_start = None
@@ -316,16 +365,33 @@ def _ramp(v, start, end, t0, t1):
 def home_payload(phase, rounds):
     """The 'home' SSE event for a given run state (pure -> testable)."""
     prog = rounds / float(AMP_ROUNDS) if AMP_ROUNDS else 0
-    if phase == "idle":
+    # Setpoints come from the live config, like fillStatus reads p.amplifTemp / p.lysisTemp:
+    # editing them in the Setting tab has to move the text the operator reads.
+    AMP_SETPOINT = float(CONFIG.get("amplification temperature", 65.8))
+    LYSIS_SETPOINT = float(CONFIG.get("lysis temperature", 82))
+    # The lids are NOT configurable: HOTLID23_TEMP is a compile-time macro (define.h:373),
+    # so it does not come from /config like the other two. The mock used to report 105 C
+    # here, which is not a temperature this machine ever targets.
+    HOTLID_SETPOINT = 75.0
+    if phase in ("idle", "waitname"):
+        # ewaitname is BEFORE any heating: naming is the gate that STARTS the preheat, so
+        # everything is still at room temperature here.
         lysis, amp, top = 25.0, 25.0, 25.0
     elif phase == "heater":
-        lysis, amp, top = 45.0, 25.0, 60.0
+        # Which blocks are hot depends on the leg: the lysis leg heats the lysis block, the
+        # amplification leg heats the two amp blocks and the lids.
+        if _amp_flow:
+            lysis, amp, top = 25.5, 55.0, 62.0
+        else:
+            lysis, amp, top = 45.0, 25.0, 40.0
     elif phase == "waitamp":
-        lysis, amp, top = 65.0, 63.0, 105.0
+        # The lysis block is only hot if the run came through the lysis leg; the
+        # amplification-only run never touches it.
+        lysis, amp, top = (25.5 if _amp_flow else 65.0), AMP_SETPOINT, HOTLID_SETPOINT
     elif phase == "amplification":
-        lysis, amp, top = 64.5, 63.0, 105.0
+        lysis, amp, top = (25.5 if _amp_flow else 64.5), AMP_SETPOINT, HOTLID_SETPOINT
     else:
-        lysis, amp, top = 64.0, 40.0, 105.0
+        lysis, amp, top = (26.0 if _amp_flow else 64.0), 40.0, 70.0
     wig = 0.3 * math.sin(rounds / 3.0 + prog)
 
     # actions = what each button does in this state (fillActions in webDashboard.cpp)
@@ -333,29 +399,49 @@ def home_payload(phase, rounds):
         # escreenStart: the device sits here after boot / after Next test
         status = {"phase": "idle", "title": "Idle",
                   "subtitle": "Waiting for a run to start."}
-        actions = {"green": "Lysis", "red": "Amplification", "white": ""}
+        # WHITE is not idle here: on escreenStart it opens the dashboard QR screen.
+        actions = {"green": "Lysis", "red": "Amplification", "white": "QR / Web"}
     elif phase == "waitname":
         # ewaitname: name the slots BEFORE heating; RED confirms + starts preheat
         status = {"phase": "waitname", "title": "Name the samples",
                   "subtitle": "Pick a disease per slot, then start"}
         actions = {"green": "", "red": "Confirm & heat", "white": "Return"}
     elif phase == "heater":
-        status = {"phase": "heater", "title": "Lysis heating",
-                  "subtitle": "Warming sample to 65 C"}
+        # Mirror fillStatus's two heater screens verbatim - the amplification leg reports the
+        # amp blocks and the lids, the lysis leg reports the lysis block against its setpoint.
+        if _amp_flow:
+            status = {"phase": "heater",
+                      "title": f"Heating to {AMP_SETPOINT:.1f} C",
+                      "subtitle": (f"Blocks {round(amp + wig, 1):.1f}/{round(amp - wig, 1):.1f} C, "
+                                   f"lids {round(top + wig, 1):.1f}/{round(top - wig, 1):.1f} C")}
+        else:
+            status = {"phase": "heater", "title": "Heating lysis block",
+                      "subtitle": f"{round(lysis + wig, 1):.1f} / {LYSIS_SETPOINT:.1f} C"}
         actions = {"green": "", "red": "", "white": "Return"}
     elif phase == "waitamp":
         status = {"phase": "waitamp", "title": "Insert amplification tube",
                   "subtitle": "Name slots, then start"}
         actions = {"green": "", "red": "Start", "white": "Return"}
     elif phase == "amplification":
-        remain = (AMP_ROUNDS - rounds) * REPORT_INTERVAL_MS / 1000.0 / 60.0
+        # fillStatus: whole minutes rounded UP, plus the round counter - the clock and the
+        # acquisition are independent, so both are shown.
+        left = int((AMP_ROUNDS - rounds) * REPORT_INTERVAL_MS / 1000.0)
+        sub = (f"~{(left + 59) // 60} min left" if left else "Finishing the last rounds")
         status = {"phase": "amplification", "title": "Amplification",
-                  "subtitle": f"~{remain:.1f} min remaining"}
+                  "subtitle": f"{sub} - round {rounds}/{AMP_ROUNDS}"}
         actions = {"green": "", "red": "", "white": "Return"}
+    elif phase == "errortable":
+        # escreenErrorResult: the operator asked to SEE the machine's error table.
+        # Its OWN phase, never "finished" - Home swaps the chart for that table on it, and
+        # folding it into the else branch is exactly how this went unnoticed: the mock kept
+        # reporting "finished" while its own state machine had already moved on.
+        status = {"phase": "errortable", "title": "Sensor error table",
+                  "subtitle": "Per-channel errors for the last run. White returns."}
+        actions = {"green": "", "red": "", "white": "Next test"}
     else:
         status = {"phase": "finished", "title": "Run complete",
-                  "subtitle": "Results ready"}
-        actions = {"green": "", "red": "Errors", "white": "Next test"}
+                  "subtitle": "Results ready."}
+        actions = {"green": "", "red": "Errors Table", "white": "Next test"}
 
     # Mirrors webDashboard.cpp isBusy(): settings are locked unless the device is idle.
     # Of the mock's phases only "finished" is idle; calibrating counts as busy too.
@@ -405,6 +491,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._control()
         if self.path.startswith("/slots"):
             return self._slots()
+        if self.path.startswith("/errors"):
+            return self._errors()
         if self.path.startswith("/rename"):
             return self._rename()
         if self.path.startswith("/curve"):
@@ -681,6 +769,30 @@ class Handler(SimpleHTTPRequestHandler):
                   "ct": FAKE_CT[i] if ready else None,
                   "result": FAKE_RESULT[i] if ready else ""}
                  for i in range(10)]
+        return self._json({"ready": ready, "slots": slots})
+
+    def _errors(self):
+        """Mirror GET /errors (webDashboard.cpp handleErrors).
+
+        Same `ready` gate as _slots on purpose: on the device both read one snapshot taken at
+        the same instant, so a mock that let them disagree would hide exactly the desync the
+        firmware is built to prevent.
+
+        Two slots are seeded with the device's own 4-digit encoding
+        (module*1000 + type*100 + step*10 + slot) so the table has something to render; the
+        rest report no error.
+        """
+        phase, _ = run_state()
+        available = _ran_before or _reviewed or not _stored
+        ready = phase != "amplification" and available
+        seeded = {2: "[Sensor Light]- no data from sensor 1st reading ",
+                  7: "[Sensor Light]- no data from sensor 1st reading "}
+        slots = []
+        for i in range(10):
+            if ready and i in seeded:
+                slots.append({"code": 0 * 1000 + 1 * 100 + 0 * 10 + i, "text": seeded[i]})
+            else:
+                slots.append({"code": None})
         return self._json({"ready": ready, "slots": slots})
 
     def _rename(self):

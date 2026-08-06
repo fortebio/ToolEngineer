@@ -219,12 +219,57 @@ async function main() {
     grid.cols.map((c) => Math.round(c) + "px").join(" vs "),
   );
 
+  // The two-column layout begins at 820px, and the four-across temperature row used to be
+  // gated on that SAME breakpoint - but the right column is only ~370px there. Measured
+  // before the fix at 820: 53px of inner box width for a 78px reading, i.e. the temperature
+  // printed OUTSIDE its box on every iPad in portrait, and scrollWidth stayed clean so
+  // nothing above catches it. Assert the WIDEST reading the machine can show still fits,
+  // across the whole two-column range.
+  await send("Page.setFontSizes", { fontSizes: { standard: 16 } }); // undo the 150% above
+  for (const [w, h] of [
+    [820, 1180],   // iPad 10.9 portrait - the narrowest two-column viewport
+    [834, 1194],   // iPad Pro 11 portrait
+    [1024, 1366],  // iPad Pro 12.9 portrait
+    [1180, 820],   // iPad landscape
+    [1280, 860],   // laptop - where four-across starts
+    [1920, 1080],
+  ]) {
+    await send("Emulation.setDeviceMetricsOverride", {
+      width: w, height: h, deviceScaleFactor: 1, mobile: false,
+    });
+    await send("Page.navigate", { url: URL });
+    await sleep(1600);
+    const fit = await ev(`(function(){
+      var card = document.getElementById('tempFullAmp');
+      if (!card) return { over: 0, boxes: 0 };
+      // Widest real reading: the hot lids sit near 105 C, one digit more than the blocks.
+      [].slice.call(card.querySelectorAll('.temp-val')).forEach(function (v) {
+        v.textContent = '105.3\\u00B0C';
+      });
+      var worst = -1e9, n = 0;
+      [].slice.call(card.querySelectorAll('.temp-box')).forEach(function (b) {
+        var r = document.createRange();
+        r.selectNodeContents(b.querySelector('.temp-val'));
+        var cs = getComputedStyle(b);
+        var inner = b.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+        worst = Math.max(worst, r.getBoundingClientRect().width - inner);
+        n++;
+      });
+      return { over: Math.round(worst), boxes: n };
+    })()`);
+    check(
+      fit.boxes === 4 && fit.over <= 0,
+      `${w}px - the four temperature readings fit inside their boxes`,
+      `${fit.boxes} boxes, widest overflows by ${fit.over}px`,
+    );
+  }
+
   ws.close();
   edge.kill();
   console.log(
     failures
       ? `\nFAIL - ${failures} check(s)`
-      : "\nok - no screen scrolls sideways at 320-412px @ 100-130% font, desktop tracks even at 150%",
+      : "\nok - no screen scrolls sideways at 320-412px @ 100-130% font, desktop tracks even at 150%,\n     and temperatures fit their boxes from 820px up",
   );
   process.exit(failures ? 1 : 0);
 }

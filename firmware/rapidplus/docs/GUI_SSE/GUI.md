@@ -227,8 +227,12 @@ Review **mất ~8 giây**, không phải ~10ms (đọc record EEPROM + chạy l�
       │     <th class="col-ct">   CT
       │     <th class="col-name"> Sample
       ├── .res-legend ............ ĐANG BỊ COMMENT trong index.html
-      └── #viewChartBtn .......... "View chart"
+      └── .result-actions ........ [View chart] [Error table]  (flex-wrap)
 ```
+
+**`#resultChartCard` và `#resultErrorCard` DÙNG CHUNG một chỗ** — `showResultPane("chart"|"errors")`
+hiện cái này thì ẩn cái kia. Hai thứ trả lời cùng một câu hỏi về cùng một run từ hai phía; xếp
+chồng hai card cao bằng viewport là bắt cuộn qua thứ không xem.
 
 **Kết luận đứng trước** vì đó là thứ người ta mở tab này để đọc; định danh mẫu đi sau vì đó là thứ
 đã biết sẵn. **Không đảo thứ tự ô bằng CSS** — screen reader sẽ đọc kết luận trước khi nói kết luận
@@ -401,6 +405,7 @@ body { --chart-h: calc(100vh - var(--header-h) - var(--nav-h) - 6rem); }
 | SSE `new_readings` (mỗi vòng đo) | điểm mới trên chart Home |
 | `GET /curve` | vẽ lại **toàn bộ** run — gọi khi mở chart và **mỗi lần SSE reconnect** (thiết bị là nguồn sự thật, client không tự giữ lịch sử) |
 | `GET /slots` | bảng Result (`#slotBody`, qua `loadResultSlots`) **và** bảng đặt tên trên Home (`#namingBody`, qua `loadNamingSlots`, dựng **1 lần** mỗi lượt vào naming/chart) — cùng một route nuôi cả hai bảng, kèm tên bệnh + tên mẫu đã lưu |
+| `GET /errors` | bảng lỗi cảm biến trên tab Result (snapshot chụp cùng lúc với `/slots`, `ready` cùng biểu thức) |
 | `GET /config` | form Profile Configuration |
 | `GET /wifiscan`, `/wifilist` | hai danh sách của panel WiFi |
 | `GET /ota` | thẻ Firmware |

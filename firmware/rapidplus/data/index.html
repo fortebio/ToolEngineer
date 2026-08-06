@@ -113,6 +113,18 @@
           <div id="homeChart" class="chart-container"></div>
         </div>
 
+        <!-- Takes the chart's slot on Home when the machine is showing its own error table
+             (RED on the finished screen, from the machine or the web chip). The web follows the
+             device rather than offering a view of its own: whoever is standing at the machine
+             and whoever is holding the phone are then looking at the same thing. -->
+        <div class="card wide hide" id="homeErrorCard">
+          <div class="card-head">
+            <p class="card-title">Sensor errors</p>
+            <span class="time">Same table as the device screen</span>
+          </div>
+          <div id="homeErrorBody" class="err-wrap" aria-live="polite"></div>
+        </div>
+
         <!-- Temperatures: full cards (default) -->
         <div class="card" id="tempFullLysis">
           <p class="card-title">Lysis</p>
@@ -143,6 +155,16 @@
           </div>
           <div id="resultChart" class="chart-container"></div>
         </div>
+        <!-- Takes the chart's place, not a spot below it: the two answer the same question
+             about the same run ("what happened in each slot?") and only one is worth looking
+             at at a time. Same card, same slot in the layout, same height rule. -->
+        <div class="card hide" id="resultErrorCard">
+          <div class="card-head">
+            <p class="card-title">Sensor errors</p>
+            <span class="time">Same table as the device screen</span>
+          </div>
+          <div id="resultErrorBody" class="err-wrap" aria-live="polite"></div>
+        </div>
         <div class="card">
           <p class="card-title">Results &amp; slots</p>
           <table class="slot-table">
@@ -165,10 +187,16 @@
             <span><span class="res-badge res-E">E</span>Error</span>
             <span><span class="res-badge res-B">B</span>Break (invalid curve)</span>
           </p> -->
-          <button type="button" id="viewChartBtn">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 12 8 12 11 19 16 5 19 12 21 12"/></svg>
-            View chart
-          </button>
+          <div class="result-actions">
+            <button type="button" id="viewChartBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 12 8 12 11 19 16 5 19 12 21 12"/></svg>
+              View chart
+            </button>
+            <button type="button" id="viewErrorsBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Error table
+            </button>
+          </div>
         </div>
       </section>
 

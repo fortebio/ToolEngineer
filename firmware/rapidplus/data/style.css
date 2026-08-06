@@ -158,7 +158,12 @@ body {
 }
 
 /* ---------- Button states (rounded-rectangle chips) ---------- */
-.btn-row { display: flex; gap: 0.6rem; }
+/* MUST wrap: the chips carry state-dependent labels, and the widest set the firmware can
+   send ("Lysis" / "Amplification" / "QR / Web" on the idle screen) does not fit one row at
+   320px with a 130% font. flex:1 does not save it - a flex item will not shrink below its
+   own min-content, so the row overflowed the page by 7px and Chrome widened the layout
+   viewport, which reads to the operator as "the whole UI is shifted right". */
+.btn-row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 .btn-chip {
   flex: 1; text-align: center; cursor: pointer; font-family: inherit;
   padding: 0.75rem 0.4rem; border-radius: 12px;
@@ -216,7 +221,7 @@ body {
    normal way to start a run. Media query = the exact complement of the desktop one below
    (min-width 820 AND min-height 600), so a landscape phone counts as mobile here too. */
 @media (max-width: 819px), (max-height: 599px) {
-  #screen-home.active:has(#homeChartCard:not(.hide)) #namingCard { display: none; }
+  #screen-home.active:has(#homeChartCard:not(.hide), #homeErrorCard:not(.hide)) #namingCard { display: none; }
 
   /* Ten slots on one phone screen. The row was 88px because the disease picker and the
      sample field each took a line of their own: their flex BASES (5rem + 6rem) plus the dot,
@@ -403,17 +408,55 @@ body { --chart-h: calc(100vh - var(--header-h) - var(--nav-h) - 6rem); }
 .sample-name:hover { border-color: #a9ccd0; }
 .sample-name:focus { outline: none; border-color: var(--blue); background: #fff; }
 
-/* View chart: primary CTA of the Process tab */
-#viewChartBtn {
+/* The two Result CTAs. MUST wrap: at 320px with a 130% font "View chart" + "Error table" do
+   not fit one row, and a flex item never shrinks below its own min-content - the same way the
+   button chips overflowed the page and made Chrome widen the layout viewport. */
+.result-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+
+/* View chart: primary CTA of the Result tab. Error table is the same control in a quieter
+   skin - it is the second question you ask about a run, not the first. */
+#viewChartBtn, #viewErrorsBtn {
   display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;
   padding: 0.7rem 1.5rem; font-family: inherit; font-size: 0.95rem; font-weight: 700;
   color: #fff; background: var(--blue); border: none; border-radius: 10px;
   box-shadow: 0 3px 12px rgba(19, 117, 122, .28);
   transition: background .15s, box-shadow .15s, transform .08s;
 }
-#viewChartBtn svg { width: 18px; height: 18px; }
-#viewChartBtn:hover { background: var(--blue-600); box-shadow: 0 5px 16px rgba(19, 117, 122, .36); }
-#viewChartBtn:active { transform: scale(.97); }
+#viewChartBtn svg, #viewErrorsBtn svg { width: 18px; height: 18px; }
+#viewChartBtn:hover, #viewErrorsBtn:hover { background: var(--blue-600); box-shadow: 0 5px 16px rgba(19, 117, 122, .36); }
+#viewChartBtn:active, #viewErrorsBtn:active { transform: scale(.97); }
+/* Secondary: outlined, not faded. Greying it out would read as disabled on a device where
+   half the controls really are disabled half the time. */
+#viewErrorsBtn {
+  color: var(--blue); background: var(--card);
+  border: 1px solid var(--blue); box-shadow: none;
+}
+#viewErrorsBtn:hover { color: #fff; background: var(--blue-600); box-shadow: none; }
+
+/* ---------- Sensor error table (Result tab) ---------- */
+.err-summary {
+  margin: 0 0 0.8rem; font-size: 0.86rem; font-weight: 700; color: var(--green);
+}
+.err-summary-bad { color: var(--red); }
+.err-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.err-table th {
+  text-align: left; padding: 0.35rem 0.4rem; font-size: 0.68rem; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+  border-bottom: 1px solid var(--hairline);
+}
+.err-table td {
+  padding: 0.45rem 0.4rem; font-size: 0.84rem;
+  border-bottom: 1px solid var(--hairline); vertical-align: top;
+}
+.err-table th:nth-child(1), .err-slot { width: 3.4rem; }
+.err-table th:nth-child(2), .err-code { width: 4.6rem; }
+.err-slot { font-weight: 700; }
+.err-code { font-variant-numeric: tabular-nums; color: var(--muted); }
+/* A row with a real error: tint plus WEIGHT. Same rule as the P/S rows in the results table -
+   colour points the eye, the characters carry the meaning. */
+.err-row { background: #fff7f5; }
+.err-row .err-code { color: var(--red); font-weight: 700; }
+.err-text { color: var(--muted); word-break: break-word; }
 
 /* Card header row: title left, meta right (chart card) */
 .card-head {
@@ -821,7 +864,8 @@ body.nonav .bottom-nav { display: none; }
   #screen-home #buttonsCard  { order: 3; }
   #screen-home #tempCompact  { order: 4; }
   /* Right column: the curve sits above the temperature cards while a run is going. */
-  #screen-home #homeChartCard { order: 1; }
+  /* Same slot as the chart: only one of the two is ever visible, so they share order 1. */
+  #screen-home #homeChartCard, #screen-home #homeErrorCard { order: 1; }
   #screen-home #tempFullLysis { order: 2; }
   #screen-home #tempFullAmp   { order: 3; }
   /* Naming table spans BOTH columns: ten rows of slot + disease picker squeezed into half
@@ -832,23 +876,28 @@ body.nonav .bottom-nav { display: none; }
   /* While a run is plotting: the curve is the thing being watched, so it takes the window
      height, and the slot table drops into the LEFT column underneath the status cards -
      it is the legend for the curves (same dots, same colours) rather than a form. */
-  #screen-home.active:has(#homeChartCard:not(.hide)) #namingCard {
+  #screen-home.active:has(#homeChartCard:not(.hide), #homeErrorCard:not(.hide)) #namingCard {
     grid-column: 1;
   }
   /* ...and the chart column must span BOTH rows, otherwise the table starts below the
      chart's bottom edge (measured y=855 against left-column cards ending at y=425) instead
      of continuing the left column. align-items:start keeps the chart its own height. */
-  #screen-home.active:has(#homeChartCard:not(.hide)) .home-side {
+  #screen-home.active:has(#homeChartCard:not(.hide), #homeErrorCard:not(.hide)) .home-side {
     grid-row: 1 / span 2;
   }
   /* Narrow left column -> the naming table's centred 30rem block would sit off to one side;
      let it use the column it has. */
-  #screen-home.active:has(#homeChartCard:not(.hide)) #namingCard .sample-cell {
+  #screen-home.active:has(#homeChartCard:not(.hide), #homeErrorCard:not(.hide)) #namingCard .sample-cell {
     max-width: none;
   }
 
-  /* Amplification: 4 temps in one row so it matches Lysis height (no gap) */
-  #screen-home .temp-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  /* Amplification: 4 temps in one row so it matches Lysis height (no gap).
+     NOT here - see the 1280px block below. The two-column layout starts at 820px, but the
+     right column is only ~370px there, so four boxes leave 53px of inner width for a value
+     78px wide: the reading spills OUT of its box on every iPad in portrait. Measured
+     overflow: +26px at 820, +16 at 900, +3 at 1000, fits from ~1100. The widest real value
+     is "105.3 C" (the hot lids), ~91px, which needs ~1280 to sit comfortably. Below that
+     the base 2x2 grid is used - the same one phones get, and it has room to spare. */
 
   /* The naming table spans the full width but has a single column, so its content sat
      hard left with ~3/4 of every row empty. Centre the row content and let the disease
@@ -858,7 +907,7 @@ body.nonav .bottom-nav { display: none; }
   #namingCard .sample-name { max-width: 18rem; }
   #namingCard .slot-table th.col-name { padding-left: 0; text-align: center; }
   /* Chart visible -> the curve earns two thirds, the text column shrinks to one. */
-  #screen-home.active:has(#homeChartCard:not(.hide)) {
+  #screen-home.active:has(#homeChartCard:not(.hide), #homeErrorCard:not(.hide)) {
     grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   }
 
@@ -923,6 +972,16 @@ body.nonav .bottom-nav { display: none; }
   /* Stretched to ~600px each on a 1280 screen, which read as three banners rather than
      three buttons. Cap them and keep them left-aligned with the rest of the content. */
   .btn-row { max-width: 780px; }
+}
+
+/* Four temperatures on ONE row - only once the right column can actually hold them.
+   Gated at 1280 rather than at the 820 where the two-column layout begins: measured inner
+   box width is 53px at 820 and 88px at 1100, against a 78px value ("25.0 C") and a 91px
+   worst case ("105.3 C" on the hot lids). Between 820 and 1279 the base 2x2 grid applies,
+   which is what phones use and what an iPad in portrait now gets. Keep the height gate:
+   a wide-but-short window is still the phone layout. */
+@media (min-width: 1280px) and (min-height: 600px) {
+  #screen-home .temp-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 /* ============================================================

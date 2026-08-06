@@ -78,7 +78,8 @@ Không ẩn khi **calib** — wizard calib nằm trong tab Setting, ẩn nav là
 
 Routes: `/` (UI nhúng trong firmware, `kWebAssets[]` — xem GOTCHA 4), `/events` (SSE), `/control?btn=red|green|white` (bấm nút →
 `_buttonManager.postShortPress`; **green** = nút vật lý `B_BLUE`), `/home` (snapshot),
-`/slots` (bảng kết quả: `{name, sample, ct, result}` ×10), `/rename?slot=N&name=<bệnh>&sample=<mẫu>`
+`/slots` (bảng kết quả: `{name, sample, ct, result}` ×10),
+`/errors` (bảng lỗi cảm biến: `{code, text}` ×10 — xem dưới), `/rename?slot=N&name=<bệnh>&sample=<mẫu>`
 (`name`→NVS key `names`, `sample`→NVS key `samples`, namespace `slotlabels`; **hai trường độc
 lập**, gửi cái nào áp cái đó, cap 32 ký tự; xem [docs/history/2026-07-24-slot-sample-name.md](docs/history/2026-07-24-slot-sample-name.md)),
 `/curve` (toàn bộ đường cong từ đầu run → backfill),
@@ -557,10 +558,17 @@ người xem. `/home` 19→34 ms, `/curve` 89 ms ở 8 client; đóng hết thì
    chưa đủ thì `canHandle` false → rơi xuống SSE handler thật.
 
 Đây là chính sách *ai được xem*, **không phải** giới hạn heap. Lưu ý **1 tab = 1 client**.
-Người bị từ chối **vẫn xem được trang** (static + `/home` + `/curve`), chỉ không có live; và
-`EventSource` của browser **tự retry** nên có người rời là vào được ngay — cũng nhờ vậy mà
-reload trang không bị kẹt slot. Đo thật: 2 người → #3 nhận `503 Too many viewers`, sau khi
-2 người rời thì #3 vào lại `200`.
+Người bị từ chối **vẫn xem được trang** (static + `/home` + `/curve`), chỉ không có live.
+Đo thật: 2 người → #3 nhận `503 Too many viewers`, sau khi 2 người rời thì #3 vào lại `200`.
+
+**NHƯNG tab bị từ chối KHÔNG tự hồi — phải RELOAD** (sửa 2026-08-06; trước đây mục này ghi
+"`EventSource` tự retry nên có người rời là vào được ngay", **sai**). Theo HTML spec, response
+có status **khác 200** (hoặc sai content-type) làm UA **"fail the connection"**: bắn `error`
+**một lần** rồi đặt `readyState = 2 (CLOSED)` **vĩnh viễn**. Auto-reconnect chỉ áp dụng cho
+đứt giữa chừng/EOF, **không** cho lỗi HTTP. Đo bằng thực nghiệm (endpoint trả 503 trong 6 s
+rồi chuyển sang 200): browser gửi **đúng 1 request**, `readyState=2` suốt 18 s sau khi
+endpoint đã khoẻ; reload thì `OPENED after 0 errors` ngay. Hệ quả cho UI/tài liệu: người thứ
+3 phải **tải lại trang** khi có suất trống — đừng hứa nó tự vào.
 
 **Hai cái bẫy khi làm giới hạn này** (đừng lặp lại):
 
@@ -794,6 +802,15 @@ script hợp nhất alpha xuống nền thật):
   biến mất cùng sidebar, nhưng breakpoint vẫn phải gác cả hai chiều.)* Có media riêng cho **rộng-mà-thấp**
   (`min-width: 700px` + `max-height: 599px`): giữ bottom nav, `--maxw` 700px, header 56px
   (nhớ hạ luôn `--header-h`, chart tính theo nó). `min-width` **không** đồng nghĩa "màn hình lớn".
+- **"Vào được layout 2 cột" ≠ "đủ chỗ cho mọi thứ trong 2 cột".** `.temp-grid.four` từng dùng
+  **chung breakpoint 820px** với lưới 2 cột, nhưng ở 820 cột phải chỉ ~370px → 4 ô nhiệt độ còn
+  **53px lòng ô** cho giá trị rộng **78px**: nhiệt độ **in tràn ra ngoài ô trên MỌI iPad dựng dọc**,
+  mà `scrollWidth` vẫn sạch nên `test_no_hscroll` không thấy. Đo: tràn **+26px @820**, +16 @900,
+  +3 @1000, vừa từ ~1100; giá trị rộng nhất là `"105.3 C"` (nắp) ≈ 91px. Nay 4-ô-ngang gác riêng
+  ở **`min-width: 1280px`**, dải 820–1279 dùng lưới **2×2** sẵn có của điện thoại. Bài học: mỗi
+  rule *bên trong* media query desktop phải tự hỏi **ở mép dưới 820px có vừa không**, đừng thừa
+  hưởng breakpoint của layout. Guard: `test_no_hscroll.js` quét 6 kích thước 2 cột, **tự nhét giá
+  trị rộng nhất** rồi so bề rộng chữ với lòng ô (đo thật, không chép công thức).
 - **`1fr` TRẦN trong grid là bug, luôn dùng `minmax(0, 1fr)`.** `1fr` = `minmax(auto, 1fr)`, và
   cái hỏng là **minimum `auto`**: track lấy base size = min-content của item và free space âm nên
   `1fr` không bao giờ được áp. Đo trên máy thật: `.set-grid` track **350.7px trong khung 288px** ở
@@ -841,6 +858,33 @@ script hợp nhất alpha xuống nền thật):
   xoay ngang không phải tablet). Đo lại sau khi sửa: gutter = 0 ở 481/600/736/768/819, còn
   736×390 / 844×390 vẫn giữ đúng 700px. Chi tiết:
   [docs/history/2026-08-02-maxw-gap-481-819.md](docs/history/2026-08-02-maxw-gap-481-819.md).
+
+**Bảng lỗi cảm biến trên web (`GET /errors`, 2026-08-05)** — bản sao bảng máy vẽ ở
+`screen_errorResult()` (nút ĐỎ trên màn finished/review). Nút **"Error table"** ở tab Result
+**thay chỗ** chart chứ không xếp dưới: hai thứ trả lời cùng một câu hỏi về cùng một run từ hai
+phía, và một card cao bằng viewport nữa nằm dưới là bắt người ta cuộn qua thứ họ không xem.
+
+- **Là SNAPSHOT, không phải đọc sống, và đó là toàn bộ thiết kế.** `error.error` là
+  `std::vector` mà **ControlTask `push_back()` từ ~28 chỗ** bất kỳ lúc nào; `push_back` cấp phát
+  lại, nên duyệt nó từ task AsyncTCP là **use-after-free** chờ ngày nổ. Chụp trong
+  `dashboardSetResults()` — chạy trên DisplayTask (`screen_Result`) hoặc SettingTask
+  (`/reviewlast`), **đúng task đã đọc vector đó để vẽ TFT**, nên không thêm phơi nhiễm mới.
+- **Cùng thời điểm với cache CT/outcome** → `/errors` và `/slots` **không thể** mô tả hai run khác
+  nhau (bài học desync bảng-vs-chart 2026-07-21). `ready` dùng **cùng biểu thức**.
+- **Mirror đúng truy vấn của TFT** (`errorLightSensor` + `errorNoData` + `eSensor1stReading`), và
+  in **cùng mã 4 chữ số** (`module*1000 + type*100 + step*10 + slot`) để đọc chéo hai màn hình.
+  Nới rộng truy vấn ở một bên là hai bảng bắt đầu bất đồng về cùng một run.
+- **`ready=false` ≠ "không có lỗi"** — client nói "No stored run to report on yet.", vì cấp giấy
+  chứng nhận sạch cho một máy chưa chạy gì là thứ tệ hơn im lặng.
+- **Trên tab HOME cũng vậy**: hết run bấm **ĐỎ** (chip web hoặc nút máy) → máy sang
+  `escreenErrorResult` → `phase "errortable"` → Home **đổi chart sang bảng lỗi**, giữ nguyên
+  strip nhiệt gọn + bảng slot. Web **đi theo máy**, không tự bày view riêng: ai đứng ở máy và ai
+  cầm điện thoại nhìn thấy cùng một thứ. Bấm **TRẮNG** rời màn → về idle, mất cả hai.
+- **`escreenErrorResult` phải có phase RIÊNG, không dùng chung `"error"` với `errprocess`** — cái
+  kia là máy hỏng thật, cái này là người dùng *xin xem*. Gộp lại là lỗi PID sẽ kéo bảng lỗi lên
+  Home. Cũng không được là `"finished"` (mock từng làm thế và giấu mất cả tính năng).
+- Guard: `node tools/test_error_table.js` (mock `--reboot`) · `node tools/test_home_error_table.js`
+  (mock `--full`, chạy trọn một run).
 
 **Bảng Result = 4 cột theo thứ tự `màu | Result | CT | Sample`** (2026-08-02). Kết luận đứng
 trước vì đó là thứ người ta mở tab này để đọc; định danh mẫu đi sau vì đó là thứ đã biết sẵn.
@@ -942,6 +986,8 @@ python tools/test_web_assets.py             # guard: UI nhúng đủ + có route
 python tools/test_ota_guards.py             # guard: eUpdateOTA không "busy", rebootOnUpdate(false), ?md5= hạ chữ thường
 node tools/test_profile_minutes.js          # guard: card Profile nhập PHÚT nhưng lưu giây/vòng, clamp 130 giữ nguyên
 python tools/test_status_coverage.py        # guard: web không báo "Idle" khi máy đang chờ người; fillStatus/fillActions cùng tập state
+node tools/test_error_table.js              # guard: Error table thay chỗ chart, đủ 10 slot, mã trùng máy (cần mock --reboot)
+node tools/test_home_error_table.js         # guard: hết run bấm ĐỎ -> Home đổi chart sang bảng lỗi (cần mock --full)
 g++ -O2 -std=c++17 tools/test_wifi_bars.cpp -o t && ./t          # vach song WiFi tren TFT: nguong khop web + chong nhay
 python tools/test_qr_payload.py             # guard: payload QR ≤ 53B (encoder KHÔNG bounds-check → reset), SSID không lệch 2 nơi
 python tools/test_device_id.py               # guard: ID 1 giá trị qua 2 store + 4 giới hạn khớp, input touch 16px (iOS zoom)

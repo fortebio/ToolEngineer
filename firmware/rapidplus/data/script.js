@@ -188,10 +188,17 @@ function renderHome(d) {
   // Chart stays up through "finished" so the completed curve is still on screen
   // after the run ends. It only goes away on the WHITE button (device or web
   // "Return"), which leaves escreenFinished -> escreenRestart -> phase "idle".
+  // The machine's own error table (RED on the finished screen, pressed here or on the device).
+  // It is a PANE of the run view, not a mode of its own: the compact temperature strip and the
+  // slot table stay exactly where they were, and only the chart is swapped out. Following the
+  // device's state rather than offering a web-only toggle means whoever is at the machine and
+  // whoever is holding the phone see the same thing.
+  var errorTable = phase === "errortable";
   var chartMode =
     (phase === "waitamp" && confirmed) ||
     phase === "amplification" ||
-    phase === "finished";
+    phase === "finished" ||
+    errorTable;
 
   // populate the slot table once per session (avoid clobbering an open select).
   // Built for BOTH stages: naming before the run, and as the run's legend while it plots -
@@ -217,7 +224,7 @@ function renderHome(d) {
     resetView(homeView);
   lastPhase = phase;
 
-  setHomeMode(naming, chartMode, curveReady);
+  setHomeMode(naming, chartMode, curveReady, errorTable);
 
   var n = d.notify;
   var nBox = document.getElementById("notify");
@@ -275,7 +282,8 @@ function applyRunNav(hide) {
 // Toggle the Home layout between full-temps, naming, and running/chart modes.
 // curveReady = the device holds this run's curve (see renderHome); only then do we
 // pull /curve, otherwise a fresh run would inherit the previous run's points.
-function setHomeMode(naming, chartMode, curveReady) {
+var homeErrOn = false;
+function setHomeMode(naming, chartMode, curveReady, errorTable) {
   /* The slot table serves two stages. Before the run it is the naming form (hint + Confirm
      button). While the chart is up it stays as the run's legend - same coloured dots as the
      curves, so the operator can read which sample is which and toggle series - but the
@@ -286,15 +294,21 @@ function setHomeMode(naming, chartMode, curveReady) {
   var hint = document.querySelector("#namingCard .naming-hint");
   if (hint) hint.classList.toggle("hide", !naming);
   show("confirmNamesBtn", naming);
-  show("homeChartCard", chartMode);
+  // One slot, two panes: the chart, or the device's error table.
+  show("homeChartCard", chartMode && !errorTable);
+  show("homeErrorCard", errorTable);
   show("tempFullLysis", !chartMode);
   show("tempFullAmp", !chartMode);
   show("tempCompact", chartMode);
-  var wantCurve = chartMode && curveReady;
+  // Fetch on the EDGE, not every frame: renderHome runs once a second and this table only
+  // changes when a run ends.
+  if (errorTable && !homeErrOn) loadErrors("homeErrorBody");
+  homeErrOn = errorTable;
+  var wantCurve = chartMode && !errorTable && curveReady;
   if (wantCurve && !homeCurveOn) loadCurve(homeView); // just became loadable
   homeCurveOn = wantCurve;
-  homeChartOn = chartMode;
-  if (chartMode && homeView.chart) homeView.chart.reflow();
+  homeChartOn = chartMode && !errorTable;
+  if (homeChartOn && homeView.chart) homeView.chart.reflow();
 }
 
 function show(id, on) {
@@ -1044,15 +1058,101 @@ if (confirmBtn)
     }
   });
 
-/* Result tab: reveal the stored-run chart on demand. */
+/* Result tab: the stored-run chart and the sensor-error table share one slot in the layout.
+ * They answer the same question about the same run from two sides, so showing one hides the
+ * other rather than stacking a second full-height card under it. */
 var resultShown = false;
+
+function showResultPane(which) {
+  var chart = document.getElementById("resultChartCard");
+  var errs = document.getElementById("resultErrorCard");
+  chart.classList.toggle("hide", which !== "chart");
+  errs.classList.toggle("hide", which !== "errors");
+  if (which === "chart") {
+    resultShown = true;
+    loadCurve(resultView); // draw the whole stored run
+    // Highcharts sizes to a container that was display:none until a moment ago.
+    if (resultView.chart) resultView.chart.reflow();
+  } else {
+    loadErrors();
+  }
+}
+
+/* GET /errors -> the same per-slot table the machine draws (RED on the finished screen).
+ * `ready` false means there is no run to report on, which is NOT the same as "a run with no
+ * errors" - saying "no errors" for an empty device would be a clean bill of health nobody
+ * earned. */
+function loadErrors(boxId) {
+  // Two callers, one renderer: the Result tab's "Error table" button and Home, which mirrors
+  // the device whenever it is showing this table itself.
+  var box = document.getElementById(boxId || "resultErrorBody");
+  if (!box) return;
+  box.textContent = "Loading...";
+  fetch("/errors", { cache: "no-store" })
+    .then(function (r) {
+      return r.json();
+    })
+    .then(function (d) {
+      box.innerHTML = "";
+      if (!d || !d.ready) {
+        box.appendChild(el("p", "f-hint", "No stored run to report on yet."));
+        return;
+      }
+      var rows = d.slots || [];
+      var bad = rows.filter(function (s) {
+        return s && s.code !== null && s.code !== undefined;
+      }).length;
+
+      var head = el(
+        "p",
+        "err-summary" + (bad ? " err-summary-bad" : ""),
+        bad
+          ? bad + " of " + rows.length + " channels reported a sensor error"
+          : "No sensor errors in the last run",
+      );
+      box.appendChild(head);
+
+      var t = el("table", "err-table");
+      var thead = el("thead");
+      var htr = el("tr");
+      ["Slot", "Code", "Detail"].forEach(function (h) {
+        htr.appendChild(el("th", null, h));
+      });
+      thead.appendChild(htr);
+      t.appendChild(thead);
+      var tb = el("tbody");
+      for (var i = 0; i < rows.length; i++) {
+        var s = rows[i] || {};
+        var tr = el("tr");
+        if (s.code !== null && s.code !== undefined) tr.className = "err-row";
+        tr.appendChild(el("td", "err-slot", "#" + (i + 1)));
+        // The device prints this same 4-digit code, so an operator can read one screen
+        // against the other. DASH (em dash) for "nothing wrong here", matching the
+        // machine's own "----".
+        tr.appendChild(
+          el("td", "err-code", s.code === null || s.code === undefined ? DASH : String(s.code)),
+        );
+        tr.appendChild(el("td", "err-text", s.text || ""));
+        tb.appendChild(tr);
+      }
+      t.appendChild(tb);
+      box.appendChild(t);
+    })
+    .catch(function () {
+      box.innerHTML = "";
+      box.appendChild(el("p", "f-hint", "Could not read the error table."));
+    });
+}
+
 var viewBtn = document.getElementById("viewChartBtn");
 if (viewBtn)
   viewBtn.addEventListener("click", function () {
-    document.getElementById("resultChartCard").classList.remove("hide");
-    resultShown = true;
-    loadCurve(resultView); // draw the whole stored run
-    if (resultView.chart) resultView.chart.reflow();
+    showResultPane("chart");
+  });
+var errBtn = document.getElementById("viewErrorsBtn");
+if (errBtn)
+  errBtn.addEventListener("click", function () {
+    showResultPane("errors");
   });
 
 /* ============================================================
