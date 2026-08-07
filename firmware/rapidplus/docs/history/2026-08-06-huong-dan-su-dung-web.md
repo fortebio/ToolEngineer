@@ -123,6 +123,170 @@ người vận hành phải truy được về `src/` hoặc về file cấu hì
 Các mốc còn lại đã đối chiếu và khớp: lysis 82 °C / 600 s, khuếch đại 65.8 °C, 20 s mỗi vòng,
 opto preheat 900 s.
 
+## Bổ sung 3: bản trực quan (Artifact) cho người vận hành
+
+Bản Word là tài liệu tra cứu đầy đủ; thêm một bản **trực quan, một trang cuộn** cho người
+đứng ở máy: `docs/manual/visual-guide.html` (nguồn) → `tools/build_visual_guide.py` →
+`visual-guide.build.html` (**0,53 MB**, tự chứa).
+
+- **Kế thừa hệ màu của chính sản phẩm** (`data/style.css`): cùng brand token, cùng màu nút
+  xanh/đỏ/trắng, cùng màu badge P/N/S/E/B. Tài liệu vẽ màu khác là dạy một cái máy không tồn tại.
+- **Bố cục = vòng lặp thao tác**: mỗi bước là một băng có rãnh "MÁY HIỆN" (chuỗi tiếng Anh
+  nguyên văn) và "BẠN BẤM" (nút đúng màu thật), ảnh màn hình đặt cạnh.
+- **Hero là dữ liệu thật**: 10 đường cong của một mẻ chạy thật, trừ nền đúng cửa sổ phút 2–6
+  mà chart dùng, hai kênh dương tính vẽ đậm.
+- Ảnh nhúng **WebP q90** thành data URI (CSP của Artifact chặn mọi host ngoài).
+
+**Bản PDF A4** (`docs/manual/HDSD-truc-quan-FBT-RAPID.pdf`, 10 trang) dựng bằng
+`node tools/print_guide_pdf.js` (Edge headless → `Page.printToPDF`, `preferCSSPageSize`,
+`printBackground`, ép theme sáng). Khối `@media print` **dựng lại bố cục hai cột** thay vì
+thừa hưởng: trang A4 chỉ rộng ~718 px CSS, dưới ngưỡng 820 px, nên nếu để mặc thì bản in rơi
+về layout điện thoại và bỏ trống nửa trang cạnh mỗi ảnh. Một bước cao hơn nửa trang nên không
+bao giờ có hai bước chung một tờ — vì vậy ảnh in **to hơn** bản web (19rem), cùng số trang mà
+đỡ trống và chữ trên ảnh còn đọc được. `break-inside: avoid` giữ mỗi bước, mỗi thẻ, mỗi bảng
+nguyên vẹn trong một tờ.
+
+**Bốn lỗi phải sửa trong lúc làm, đều chỉ lộ ra khi render thật:**
+
+1. **Hiệu ứng scroll-reveal làm mất trắng phần giữa trang.** `IntersectionObserver` chỉ kích
+   khi phần tử lọt khung nhìn; kéo thanh cuộn nhanh hoặc nhảy giữa trang là các băng bước
+   nằm nguyên ở `opacity: 0`. Ảnh render đầu tiên cho thấy **toàn bộ 5 bước trống trơn**.
+   Đã **bỏ hẳn** — một quy trình vận hành không được phép render rỗng.
+2. **Media query lọt vào selector list** (`:root[data-theme] .x, @media ... { }`) — CSS không
+   hợp lệ, âm thầm huỷ rule.
+3. **Va chạm class `.two`.** Nó vừa là lưới hai cột (`display: grid`) vừa là biến thể nhãn
+   `.tag.two`, nên **mọi nhãn "Hai cột" biến thành grid container** và giãn hết bề rộng ô —
+   chỉ nhìn ra khi soi trang PDF. Đổi lớp bố cục thành `.pair`. Đúng loại lỗi mà một tên lớp
+   chung chung sinh ra: `.two` không nói nó là *cái gì có hai*.
+4. **Kiểm thử mobile sai suốt nhiều vòng.** Nguồn artifact là **fragment** (không `<head>`),
+   nên mở thẳng bằng `file://` thì không có thẻ viewport → Edge giả lập mobile ở **layout
+   viewport 980px**, chữ bị `.hero{overflow:hidden}` cắt mà `scrollWidth` vẫn báo 0. Harness
+   nay **bọc fragment đúng khung publish** trước khi đo. Bài học: kiểm bản dựng trong đúng
+   khung nó sẽ chạy, đừng kiểm cái fragment.
+
+## Bổ sung 4: nhánh Lysis, thuật ngữ, và nhận diện công ty
+
+**Mock chưa hề mô phỏng nhánh Lysis** — nó gộp thẳng `heater → waitamp`, bỏ mất **ba màn hình
+mà máy dừng lại chờ người**: `ewaitLysisTube` (đặt ống vào), `eheatLysis` (đếm ngược 10 phút),
+`ewaitphase2` (lấy ống nóng ra). Vì tài liệu được viết từ ảnh chụp mock, bản trực quan ban đầu
+chỉ có nhánh Amplification. Nay `run_state()` mô hình đủ ba state, `press()` có hai điểm dừng
+chờ người, kèm chuỗi hiển thị lấy nguyên văn `fillStatus` và `busy = True` (firmware
+`isBusy()` là **deny-by-default**, mọi state ngoài allowlist đều bận).
+
+Hai bẫy khi chụp nhánh này:
+
+- **`eheatLysis` báo `phase = "heater"`**, trùng với màn preheat trước nó — `fillStatus` cố ý
+  như vậy, chỉ khác title. Harness chờ theo **title** (`waitTitle`) cho các màn đó; chờ theo
+  phase thì timeout mãi mãi.
+- **Nắp gia nhiệt phải ở nhiệt độ phòng suốt nhánh Lysis.** Mock để 40 °C, mâu thuẫn với chính
+  chú thích của tài liệu. Firmware chỉ arm nắp ở `setPreheat67()` (nhánh khuếch đại);
+  `setpid1startpreHeat80()` chỉ chạy heater1.
+
+**Thuật ngữ** (theo yêu cầu): *giếng* → **kênh**, *mẻ* → **lần chạy**. Không thay máy móc — 63
+chỗ dùng "mẻ" phần lớn đứng cạnh động từ "chạy", thay thẳng sẽ ra "lần chạy đang chạy". Danh
+sách quy tắc đi từ cụm dài nhất tới ngắn nhất, rồi quét lại tìm cụm lặp.
+
+**Nhận diện công ty** lấy từ `fortebio.tech`: tên pháp lý *Forte Biotech Pte. Ltd.*, slogan
+*"Diagnostic. Wherever. Whenever."*, dòng định vị (LAMP tới tận ao nuôi, không cần lab/chuỗi
+lạnh/kỹ thuật viên) và thông tin liên hệ — đưa vào hero và chân trang. **Bảng màu không lấy từ
+web**: repo đã có token trích từ chính file logo và đã được kiểm tương phản.
+
+> **Còn vênh, chưa giải quyết:** website ghi RAPIDPlus chạy **2 mẫu/lần**, firmware máy này có
+> **10 kênh quang** (`OPTOCHANNELS 10`) và mã máy `RPL…`. Tài liệu bám firmware. Cần xác nhận
+> RPL thuộc dòng nào trước khi phát hành ra ngoài.
+
+## Bổ sung 5: cắt ảnh theo vùng, nền trắng, bỏ chương giao diện
+
+**Khoảng trống là do ảnh, không phải do bố cục.** Một ảnh chụp nguyên màn điện thoại là
+780×1688 đứng cạnh đoạn chữ cao ~330px — hai phần ba khung hình là viền máy và thẻ rỗng, và
+phần rỗng đó chính là nửa dưới trống trơn của mỗi bước. Nay `manual_screenshots.js` có
+`clipRect()`: chụp **đúng hợp của các thẻ mà bước đó nói tới** (`Page.captureScreenshot` với
+`clip`), nên hình ngắn, rộng, và **mỗi bước một hình dạng khác nhau** — hết luôn cảm giác lặp.
+
+Đo được: PDF **20 → 16 trang**, ảnh bước 09 từ 102 KB xuống 64 KB mà chữ trên ảnh **to hơn**
+vì không còn phải thu nhỏ cả màn hình.
+
+Ba điều rút ra khi chỉnh phân trang PDF (đều đo, không đoán):
+
+- Nới ảnh in **14rem → 18rem** làm trang lấp từ **56% → 72%**. Vì một bước cao hơn nửa trang
+  nên **không bao giờ có hai bước chung một tờ**; đã vậy thì ảnh nhỏ chỉ đổi lấy giấy trắng.
+- Biến thể `.step.stack` (bước 04 dàn ngang) **tốn thêm một tờ khi in** — text full-width cộng
+  một hàng hai hình cao hơn chính nội dung đó xếp hai cột. Nay `.stack` chỉ còn là hiệu ứng
+  của bản màn hình; bản in giữ hai cột.
+- `fs.rmSync` file tạm sau khi in **không được phép làm hỏng lượt chạy**: Edge còn giữ file,
+  PDF thì đã ghi xong.
+
+**Nền trắng**: `--paper` từ `#eef6f7` → `#ffffff`, thẻ chuyển sang `#f6fafb` để vẫn đọc ra là
+khối lõm trên nền trắng.
+
+**Bỏ hẳn chương "Hai kiểu giao diện" và mọi nội dung iPad** (theo yêu cầu). Việc bỏ chương làm
+đánh số chương lùi lại đúng như cũ, nên tham chiếu `"xem mục 7.1"` trong mục 2.3 — thứ từng
+sai khi thêm chương — **tự đúng trở lại**. Ảnh `02-home-idle-desktop` mồ côi theo chương đó
+nên được đưa lên mở đầu chương *Màn hình Home*.
+
+## Bổ sung 6: bảng lỗi cảm biến — và một mã không khớp giữa hai màn hình
+
+Tài liệu **bỏ sót hoàn toàn** bảng lỗi (`GET /errors`, nút "Error table" ở thẻ Result, và
+màn `escreenErrorResult` mà Home soi theo). Nay có mục riêng ở cả hai bản, kèm ảnh chụp thật:
+harness đi thêm hai nhánh — bấm nút "Error table" ở thẻ Result, và bấm ĐỎ ở màn finished để
+máy sang `errortable` rồi WHITE quay ra.
+
+**Lỗi thật tìm được khi soi ảnh chụp:** máy in mã bằng `sprintf("%04d")` (`errorCheck.cpp`)
+nên hiện **`0102`**, còn client in `String(s.code)` nên hiện **`102`**. `webDashboard.cpp`
+chú thích rõ *"Same 4-digit encoding the TFT prints, so an operator can read one screen to the
+other"* — tức ý đồ là phải khớp, nhưng client bỏ số 0 đầu. Cùng một mã đọc ra thành hai, đúng
+thứ mà việc đọc chéo sinh ra để tránh.
+
+- Sửa: `String(s.code).padStart(4, "0")`. **Không** dùng `("000" + s).slice(-4)` — cách đó
+  **cắt cụt** mã dài hơn 4 chữ số.
+- **Guard đang ghim chính giá trị sai**: `test_error_table.js` assert `firstCode === "102"`
+  trong khi phần chú thích đầu file nói "mã 4 chữ số của máy". Guard đứng canh mà giữ nguyên
+  bug. Nay assert `"0102"` kèm lý do. Chạy lại: **toàn bộ xanh** ở 390/320/1280 px.
+- Guard này **không tự bật mock** (khác các guard khác) — phải chạy
+  `python tools/sse_test_server.py --reboot` trước, nếu không nó đỏ với
+  `Cannot read properties of null` vì trang không tải được.
+
+> `data/script.js` đã đổi → cần nạp lại firmware (`pio run -e esp32dev -t upload`) thì máy
+> thật mới hiện mã 4 chữ số.
+
+## Bổ sung 7: chương Setting, và thanh nav in đè giữa ảnh chụp
+
+Bản trực quan **thiếu hẳn thẻ Setting** (bản Word đã có ở mục 7). Nay có chương "Cấu hình máy"
+với 6 ảnh mới (menu ở hai cỡ màn, WiFi Connect, WiFi Saved, Profile, Firmware) và ba điều mà
+người vận hành phải biết trước khi chạm vào: đổi WiFi **bắt buộc khởi động lại máy** (máy chỉ
+đổi mạng lúc boot), **gõ sai mật khẩu không mất mạng cũ** (trial-then-commit), và **máy không
+kiểm tra được tệp `.bin` có bị cắt cụt hay không** — đường brick thật duy nhất.
+
+**Thanh nav in đè ngang giữa hình.** Ảnh toàn trang chụp bằng `captureBeyondViewport: true`:
+Chrome render cả trang, nhưng `.bottom-nav` là `position: fixed` nên nó **neo theo viewport
+860px**, không theo trang. Trang nào cao hơn thì thanh nav bị vẽ **cắt ngang giữa hình** — nó
+đang nằm đúng trên slot #4–#5 của bảng kết quả và bảng lỗi.
+
+Hai lần vấp khi sửa, cả hai đều là "sửa xong trông vẫn sai":
+
+1. Đặt `position: static` cho nó chảy về đáy thật — hết đè, **nhưng thanh nav ra nửa chiều
+   rộng và lệch trái**. `position: fixed` cũng chính là thứ cho nó chiều rộng đầy; bỏ đi thì nó
+   rơi về `max-width` của một breakpoint hẹp hơn.
+2. Bù `width: 100%` vẫn lệch, vì thanh nav căn giữa bằng `left: 50%` **và**
+   `transform: translateX(-50%)`. `left` hết tác dụng khi static, **`transform` thì không** —
+   nó vẫn kéo thanh sang trái nửa bề rộng. Phải xoá cả `transform` lẫn `left`.
+
+Kèm theo: `document.body.paddingBottom = 0` (khoảng chừa cho thanh nav thành dải trắng thừa
+dưới đáy khi thanh nav đã chảy vào luồng), và **khôi phục lại hết** sau khi chụp — cùng một
+tab chụp tiếp mấy chục ảnh nữa.
+
+## Ba lần thất bại im lặng của chính harness
+
+Đáng ghi lại vì cả ba đều **không đỏ**, chỉ cho ra kết quả sai trông như thật:
+
+- **Không có timeout cho lệnh CDP** → một lệnh không bao giờ trả lời làm harness treo ~1,9 giờ
+  mà **không in gì thêm**. Tôi đọc dòng log cuối rồi báo "đang chạy" — sai. Nay mỗi lệnh có
+  deadline 120 s và `ws.onclose` báo khi trình duyệt biến mất.
+- **Chuỗi lệnh nối bằng `;`** → bước chụp hỏng nhưng hai bước dựng Word vẫn chạy, ra file đầy
+  đủ **dựng từ ảnh cũ**, kích thước hợp lý, không có dấu hiệu gì. Nay nối bằng `&&`.
+- **Backtick trong chú thích nằm bên trong template literal** → đóng chuỗi sớm,
+  `SyntaxError`. Chú thích viết trong chuỗi JS thì không được chứa backtick.
+
 ## Nội dung tài liệu
 
 9 chương: giới thiệu + 3 nút (kèm **giữ nút**) → kết nối (QR/IP/SoftAP, đọc dòng địa chỉ trên

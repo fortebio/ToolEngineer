@@ -1129,8 +1129,18 @@ function loadErrors(boxId) {
         // The device prints this same 4-digit code, so an operator can read one screen
         // against the other. DASH (em dash) for "nothing wrong here", matching the
         // machine's own "----".
+        // PAD TO 4: the TFT prints it with sprintf("%04d") (errorCheck.cpp), so a code whose
+        // module digit is 0 shows as "0102" there and showed as "102" here - the same number
+        // read as two different codes, which is exactly what cross-reading is supposed to
+        // prevent.
         tr.appendChild(
-          el("td", "err-code", s.code === null || s.code === undefined ? DASH : String(s.code)),
+          el(
+            "td",
+            "err-code",
+            s.code === null || s.code === undefined
+              ? DASH
+              : String(s.code).padStart(4, "0"),
+          ),
         );
         tr.appendChild(el("td", "err-text", s.text || ""));
         tb.appendChild(tr);

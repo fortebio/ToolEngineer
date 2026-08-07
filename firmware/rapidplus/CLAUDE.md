@@ -51,9 +51,12 @@ Globals chính: `_displayCLD`, `_PIDControl`, `_sensor6035`, `_ForteSetting`,
 ## Module chính
 
 - `Bluetooth.cpp` — BLE config (dead — nhả BT), EEPROM settings,
-  upload TLS (`postData_GoogleSheet` → **3 đích**: GAS/Google Sheet,
-  ingest `fbt.basa-luma` Bearer token, ERP `api.fortebio` **X-API-Key**; qua
-  `postJsonRetry(url, payload, label, bearer, apiKey, outBody)`), release BT
+  upload TLS: **`postJsonToAllTargets(payload, what)` là NƠI DUY NHẤT biết danh sách 3 đích**
+  (GAS/Google Sheet · ingest `fbt.basa-luma` Bearer · ERP `api.fortebio` **X-API-Key**), gọi
+  `postJsonRetry(url, payload, label, bearer, apiKey, outBody)` cho từng đích. **Cả kết quả
+  (`postData_GoogleSheet`) lẫn lỗi (`postError_*`) đều đi qua nó** — trước 2026-08-05 đường lỗi
+  có bản sao riêng và **chỉ tới GAS**, nên máy hỏng kênh thì báo bảng tính mà không báo hai hệ
+  thống người ta thật sự theo dõi. Guard `python tools/test_upload_targets.py`. Release BT
   (`releaseBluetoothStack`, gọi sớm ở main.cpp — GOTCHA 1).
 - `displayCLD/displayLCD.cpp` — máy trạng thái UI: `type_infor` kiểu `e_statuslcd`.
 - `PIDControl.cpp` — nhiệt độ: `getBottomTemperature()` = {lysis, ampLeft, ampRight},
@@ -984,6 +987,7 @@ python tools/test_no_method_branch.py       # guard: KHÔNG handler nào so req-
 python tools/test_phase0_guards.py          # guard: không strcpy(parameter.*), 4 field char[10] được validate, secrets không nằm trong source commit, **-Wformat còn bật**
 python tools/test_web_assets.py             # guard: UI nhúng đủ + có route + .gz không cũ + không serveStatic + KHÔNG LittleFS (GOTCHA 4)
 python tools/test_ota_guards.py             # guard: eUpdateOTA không "busy", rebootOnUpdate(false), ?md5= hạ chữ thường
+python tools/test_upload_targets.py         # guard: mọi upload đi đủ 3 đích, từ MỘT danh sách
 node tools/test_profile_minutes.js          # guard: card Profile nhập PHÚT nhưng lưu giây/vòng, clamp 130 giữ nguyên
 python tools/test_status_coverage.py        # guard: web không báo "Idle" khi máy đang chờ người; fillStatus/fillActions cùng tập state
 node tools/test_error_table.js              # guard: Error table thay chỗ chart, đủ 10 slot, mã trùng máy (cần mock --reboot)
@@ -998,6 +1002,13 @@ node tools/test_chart_ticks.js             # guard: trục Y chart LUÔN đúng 
 node tools/test_setting_a11y.js            # guard: tab Setting - nhãn gắn với ô, focus vào/ra panel, Nearby lọc, disabled không dùng opacity (cần mock chạy sẵn)
 node tools/test_no_hscroll.js              # guard: KHÔNG màn nào trượt ngang (320-412px × font 100-130%) + 2 cột Setting bằng nhau (cần mock)
 ```
+
+**Wokwi (mô phỏng TFT, không cần máy)**: `wokwi.toml` + `diagram.json` ở repo root — build
+`pio run -e esp32dev` rồi mở bằng extension "Wokwi for VS Code" (F1 → *Wokwi: Start Simulator*;
+cần license key, bản community free). Chỉ để **soát màn TFT tĩnh** (boot / idle / QR / Setting):
+VEML6035, TCA9548A, MCP23017, DS18B20 **không có part** → lỗi cảm biến trên màn là **kỳ vọng**,
+và nhiệt độ không bao giờ lên nên các pha chờ nhiệt đứng yên. Nút web mock vẫn là đường test
+chính cho dashboard. Chi tiết + giới hạn: [docs/history/2026-08-07-wokwi-tft-simulation.md](docs/history/2026-08-07-wokwi-tft-simulation.md).
 
 **`test_chart_ticks.js`** khoá bất biến trục tung: **luôn đúng 10 nấc**, sàn **200** (sàn 50 cũ
 đổi 2026-07-29 — giá trị VEML đã calibrate nằm ở hàng trăm, trục cao 50 biến nhiễu nền thành thứ

@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "author": "FBT",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 20, "left": 60, "attrs": {} },
+    { "type": "wokwi-ili9341", "id": "tft", "top": 0, "left": -360, "attrs": {} },
+    { "type": "wokwi-pushbutton", "id": "btnRed", "top": 30, "left": 420, "attrs": { "color": "red" } },
+    { "type": "wokwi-pushbutton", "id": "btnBlue", "top": 130, "left": 420, "attrs": { "color": "blue" } },
+    { "type": "wokwi-pushbutton", "id": "btnWhite", "top": 230, "left": 420, "attrs": { "color": "white" } },
+    { "type": "wokwi-resistor", "id": "rRed", "top": 65, "left": 330, "attrs": { "value": "10000" } },
+    { "type": "wokwi-resistor", "id": "rBlue", "top": 165, "left": 330, "attrs": { "value": "10000" } },
+    { "type": "wokwi-resistor", "id": "rWhite", "top": 265, "left": 330, "attrs": { "value": "10000" } }
+  ],
+  "connections": [
+    [ "tft:VCC", "esp:3V3", "red", [] ],
+    [ "tft:GND", "esp:GND.1", "black", [] ],
+    [ "tft:SCK", "esp:18", "orange", [] ],
+    [ "tft:MOSI", "esp:23", "yellow", [] ],
+    [ "tft:MISO", "esp:19", "gold", [] ],
+    [ "tft:CS", "esp:22", "green", [] ],
+    [ "tft:D/C", "esp:21", "purple", [] ],
+    [ "tft:RESET", "esp:17", "blue", [] ],
+    [ "tft:LED", "esp:3V3", "red", [] ],
+
+    [ "btnRed:1.l", "esp:VN", "red", [] ],
+    [ "btnRed:2.l", "esp:GND.2", "black", [] ],
+    [ "rRed:1", "esp:VN", "red", [] ],
+    [ "rRed:2", "esp:3V3", "red", [] ],
+
+    [ "btnBlue:1.l", "esp:34", "blue", [] ],
+    [ "btnBlue:2.l", "esp:GND.2", "black", [] ],
+    [ "rBlue:1", "esp:34", "blue", [] ],
+    [ "rBlue:2", "esp:3V3", "red", [] ],
+
+    [ "btnWhite:1.l", "esp:VP", "gray", [] ],
+    [ "btnWhite:2.l", "esp:GND.2", "black", [] ],
+    [ "rWhite:1", "esp:VP", "gray", [] ],
+    [ "rWhite:2", "esp:3V3", "red", [] ]
+  ],
+  "dependencies": {}
+}

@@ -104,7 +104,10 @@ const ok = (n, c, d) => { console.log(`${c ? "  ok  " : "FAIL  "}${n}${d ? "  ->
     ok("Error table replaces the chart", r.errs && !r.chart, JSON.stringify({ chart: r.chart, errs: r.errs }));
     ok("all 10 slots listed", r.rows === 10, String(r.rows));
     ok("the two seeded errors are flagged", r.bad === 2, `${r.bad} rows`);
-    ok("slot #3 shows the device's own code", r.firstCode === "102", r.firstCode);
+    // ZERO-PADDED to four. The TFT prints sprintf("%04d") (errorCheck.cpp), so a code whose
+    // module digit is 0 reads "0102" there. This assertion used to pin "102" - the guard was
+    // holding the bug in place while its own header claimed the codes match across screens.
+    ok("slot #3 shows the device's own 4-digit code", r.firstCode === "0102", r.firstCode);
     ok("summary counts them", /2 of 10/.test(r.summary), r.summary);
     ok("no horizontal overflow", r.ovf <= 0, String(r.ovf));
 

@@ -468,6 +468,51 @@ static int postJsonRetry(const char *url, const String &payload, const char *lab
 }
 
 /***********************************************************************
+ * Function: postJsonToAllTargets()
+ * Description: POSTs one JSON payload to ALL THREE cloud destinations - GAS/Google Sheet,
+ *  the ingest API (Bearer) and the ERP (X-API-Key). Each gets a FRESH TLS client and its own
+ *  retries (postJsonRetry); reusing one WiFiClientSecure across hosts leaves a half-closed
+ *  socket that the next connect hits as code=-1/-3. Returns the GAS code, which is the one
+ *  the TFT reports as "Upload Success/Failed".
+ *
+ *  THE POINT OF THIS FUNCTION IS THAT THE DESTINATION LIST EXISTS ONCE. The results path and
+ *  the error path each had their own copy and they drifted: errors only ever reached GAS, so
+ *  a machine that failed a channel told the spreadsheet and told neither of the two systems
+ *  anyone actually watches. Add a fourth destination here and both paths get it.
+ *
+ *  Does NOT suspend the dashboard - the caller owns that window, because it also covers
+ *  building the payload (postData_GoogleSheet frees a ~25-40 KB JsonDocument before the
+ *  handshake, and that has to happen inside the same suspended stretch).
+ * pramameter: jsonPost - the serialized payload
+ * pramameter: what - short tag for the serial markers ("data" / "error")
+ *  return: the GAS HTTP/error code
+ */
+uint16_t postJsonToAllTargets(const String &jsonPost, const char *what)
+{
+  Serial.printf("[up] %s -> GAS + ingest + ERP (%u B)\n", what, (unsigned)jsonPost.length());
+
+  // GAS /exec answers 302 after it finishes appending (~6-40 s); postJsonRetry treats that
+  // as success.
+  String gasBody;
+  uint16_t gasCode = postJsonRetry(serverName, jsonPost, "GAS", nullptr, nullptr, gasBody);
+
+  delay(100);
+
+  String server_feedback;
+  postJsonRetry(serverName2, jsonPost, "ingest", server_engineerToken, nullptr, server_feedback);
+  Serial.printf("Engineer server feedback: %s\n", server_feedback.c_str());
+
+  delay(100);
+
+  // ERP (api.fortebio.tech) authenticates with an X-API-Key header (NOT Bearer).
+  String erp_feedback;
+  postJsonRetry(serverERP, jsonPost, "ERP", nullptr, server_erpToken, erp_feedback);
+  Serial.printf("ERP server feedback: %s\n", erp_feedback.c_str());
+
+  return gasCode;
+}
+
+/***********************************************************************
  * Function: postData_GoogleSheet()
  * Description: Builds a JSON payload of machine specs, per-slot CT values,
  *  results, peak features/outcomes and raw amplification curves, then POSTs
@@ -643,27 +688,7 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
     serializeJson(dataPostGoogleSheet, jsonPost);
   } // <- JsonDocument destructed here, ~25-40KB returned to heap
 
-  // POST to GAS, then to the ingest API. Each call opens a FRESH TLS client and retries
-  // transient failures (postJsonRetry). GAS /exec returns 302 after it finishes appending
-  // (~6-40s) which we treat as success; the ingest API needs a Bearer token. Reusing one
-  // WiFiClientSecure across both hosts / rapid uploads was the -1/-3 "transient" failure.
-  String gasBody;
-  uint16_t tmpHttpCode = postJsonRetry(serverName, jsonPost, "GAS", nullptr, nullptr, gasBody);
-
-  delay(100);
-
-  // Serial.printf("Engineer server request: %s\n", jsonPost.c_str());
-  String server_feedback;
-  postJsonRetry(serverName2, jsonPost, "ingest", server_engineerToken, nullptr, server_feedback);
-  Serial.printf("Engineer server feedback: %s\n", server_feedback.c_str());
-
-  delay(100);
-
-  // ERP (api.fortebio.tech) authenticates with an X-API-Key header (NOT Bearer).
-  // Serial.printf("ERP server request: %s\n", jsonPost.c_str());
-  String erp_feedback;
-  postJsonRetry(serverERP, jsonPost, "ERP", nullptr, server_erpToken, erp_feedback);
-  Serial.printf("ERP server feedback: %s\n", erp_feedback.c_str());
+  uint16_t tmpHttpCode = postJsonToAllTargets(jsonPost, "data");
 
   dashboardResume(); // bring the dashboard back now that TLS is done
   return tmpHttpCode;

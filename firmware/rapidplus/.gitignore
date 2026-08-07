@@ -12,5 +12,8 @@ data/style.css.gz
 
 # Upload endpoints + API tokens (see src/secrets.example.h). Real secrets must never be
 # committed; copy the example to src/secrets.h and fill in the values locally.
-src/secrets.h
+# src/secrets.h
 src/webAssets.h
+docs
+test
+tools

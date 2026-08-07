@@ -156,6 +156,8 @@ if SLOTS:
 #                            waitamp --red--> amplification --> finished --white--> idle
 # Lysis (GREEN) flow:        idle --green--> heater (names at waitamp, no waitname gate)
 _naming = False                # RED at idle -> waitname (name slots BEFORE heating)
+_lysis_start = None            # monotonic when RED started the lysis incubation (None = not yet)
+T_LYSIS_SEC = 16.0             # stands in for lysisDuration (600 s on the device)
 _amp_flow = True               # which leg is heating: True = eheating67, False = epreheating80.
                                # The two legs put DIFFERENT text on the same "heater" phase
                                # (fillStatus splits them), so the mock has to know which one.
@@ -202,6 +204,19 @@ def run_state():
     if _run_start is None:
         return ("idle", 0)              # escreenStart: waits for a button
     if _amp_start is None:
+        # ---- lysis leg -----------------------------------------------------
+        # The device does NOT go preheat -> waitamp on this path: it stops twice for a
+        # person (drop the tube in, take the hot tube out). Collapsing those two screens
+        # is how the guide ended up documenting only half the machine.
+        if not _amp_flow:
+            if _lysis_start is not None:
+                if now - _lysis_start < T_LYSIS_SEC:
+                    return ("lysisrun", 0)   # eheatLysis: the incubation countdown
+                return ("waitphase2", 0)
+            if now - _run_start < T_HEAT_SEC:
+                return ("heater", 0)         # epreheating80
+            return ("waitlysis", 0)          # ewaitLysisTube: HOLDS until RED
+        # ---- amplification leg ---------------------------------------------
         if now - _run_start < T_HEAT_SEC:
             return ("heater", 0)
         return ("waitamp", 0)           # HOLDS until the RED "Start" press
@@ -222,7 +237,7 @@ def run_state():
 
 def press(btn):
     """A web /control press, driving the run like the device's buttons do."""
-    global _amp_start, _run_start, _naming, _amp_flow, _err_table
+    global _amp_start, _run_start, _naming, _amp_flow, _lysis_start, _err_table
     PRESSED[btn] = time.monotonic() + 2.0
     phase, _ = run_state()
     if btn == "ampname" and phase == "idle":
@@ -236,7 +251,18 @@ def press(btn):
         _run_start = time.monotonic()
     elif btn == "green" and phase == "idle":
         _amp_flow = False               # escreenStart --green(Lysis)--> epreheating80
+        _lysis_start = None
         _run_start = time.monotonic()
+    elif btn == "red" and phase == "waitlysis":
+        _lysis_start = time.monotonic() # ewaitLysisTube --red--> eheatLysis
+    elif btn == "green" and phase == "waitphase2":
+        # ewaitphase2 --green--> eheating67. From here both legs run the same procedure.
+        _amp_flow = True
+        _lysis_start = None
+        _run_start = time.monotonic()
+    elif btn == "white" and phase in ("waitlysis", "lysisrun", "waitphase2"):
+        _run_start = None               # "Return" -> back to the start screen
+        _lysis_start = None
     elif btn == "red" and phase == "waitamp":
         _amp_start = time.monotonic()   # ewaitampTube --red--> eoptoreading
     elif btn == "white" and phase == "waitname":
@@ -383,7 +409,15 @@ def home_payload(phase, rounds):
         if _amp_flow:
             lysis, amp, top = 25.5, 55.0, 62.0
         else:
-            lysis, amp, top = 45.0, 25.0, 40.0
+            # Lysis preheat drives heater1 only - setpid1startpreHeat80() never arms the
+            # lids; those wait for setPreheat67() on the amplification leg. Reporting a
+            # warm lid here contradicted the guide's own caption.
+            lysis, amp, top = 45.0, 25.0, 25.0
+    elif phase in ("waitlysis", "lysisrun", "waitphase2"):
+        # Only heater1 runs on this leg - the amplification blocks and the lids stay cold
+        # until the green press at ewaitphase2 starts the 65.8 C preheat.
+        lysis = LYSIS_SETPOINT if phase != "waitphase2" else LYSIS_SETPOINT - 1.5
+        amp, top = 25.0, 25.0
     elif phase == "waitamp":
         # The lysis block is only hot if the run came through the lysis leg; the
         # amplification-only run never touches it.
@@ -418,6 +452,28 @@ def home_payload(phase, rounds):
             status = {"phase": "heater", "title": "Heating lysis block",
                       "subtitle": f"{round(lysis + wig, 1):.1f} / {LYSIS_SETPOINT:.1f} C"}
         actions = {"green": "", "red": "", "white": "Return"}
+    elif phase == "waitlysis":
+        # NOT "idle": RED means "Start lysis" here, and the web rewrites a red press at idle
+        # into the naming gate. One phase per meaning (fillStatus, ewaitLysisTube).
+        status = {"phase": "waitlysis", "title": "Insert lysis tube",
+                  "subtitle": f"Block at {round(lysis + wig, 1):.1f} C - press Start lysis"}
+        actions = {"green": "", "red": "Start lysis", "white": "Return"}
+    elif phase == "lysisrun":
+        # eheatLysis reports phase "heater" to the web; only the title differs.
+        frac = 1.0
+        if _lysis_start is not None:
+            frac = max(0.0, 1.0 - (time.monotonic() - _lysis_start) / T_LYSIS_SEC)
+        secs = int(frac * float(CONFIG.get("lysis duration", 600)))
+        status = {"phase": "heater", "title": "Lysis running",
+                  "subtitle": f"~{(secs + 59) // 60} min left, "
+                              f"block {round(lysis + wig, 1):.1f} C"}
+        actions = {"green": "", "red": "", "white": "Return"}
+    elif phase == "waitphase2":
+        # The machine is waiting on a PERSON with a hot tube in the block.
+        status = {"phase": "waitphase2", "title": "Remove lysis tube",
+                  "subtitle": "Take the tube out and close the lid, "
+                              "then press Amplification (green)."}
+        actions = {"green": "Amplification", "red": "", "white": "Return"}
     elif phase == "waitamp":
         status = {"phase": "waitamp", "title": "Insert amplification tube",
                   "subtitle": "Name slots, then start"}
@@ -446,7 +502,8 @@ def home_payload(phase, rounds):
     # Mirrors webDashboard.cpp isBusy(): settings are locked unless the device is idle.
     # Of the mock's phases only "finished" is idle; calibrating counts as busy too.
     status["busy"] = bool(_calib_step) or phase in (
-        "waitname", "heater", "waitamp", "amplification")
+        "waitname", "heater", "waitamp", "amplification",
+        "waitlysis", "lysisrun", "waitphase2")
     status["calib"] = _calib_step
 
     return {

@@ -45,5 +45,9 @@ void getDataAmplificationEEPROM(void);
  * @version 2.2
  */
 uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops);
+// The ONE place that knows the cloud destination list (GAS + ingest + ERP). Both the results
+// upload and the error upload go through it, so they cannot drift to different sets again.
+// Blocks in TLS: call it with the dashboard suspended.
+uint16_t postJsonToAllTargets(const String &jsonPost, const char *what);
 
 #endif
