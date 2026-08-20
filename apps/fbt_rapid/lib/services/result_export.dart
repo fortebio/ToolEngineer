@@ -61,6 +61,7 @@ class ResultExport {
         for (final s in run.slots)
           {
             'index': s.index,
+            'name': s.name, // tên bệnh (firmware v2.4.3+), '' nếu máy cũ
             'result': s.classification.label,
             'ct': s.ct,
             'slope': s.slope,

@@ -167,8 +167,8 @@ class RapidErpApi implements CloudHistoryClient {
     final codes = (j['result_codes'] as Map?) ?? const {};
     final slots = <SlotResult>[];
     for (var i = 0; i < 10; i++) {
-      final raw = (codes['$i'] ?? codes[i] ?? '').toString();
-      slots.add(_slot(i + 1, _letterOf(raw), _ctOf(raw), const [], null));
+      final r = parseResultCell(codes['$i'] ?? codes[i]);
+      slots.add(_slot(i + 1, r.letter, r.ct, const [], null, name: r.name));
     }
     return TestResult(
       id: (j['id'] ?? '').toString(),
@@ -213,9 +213,12 @@ class RapidErpApi implements CloudHistoryClient {
 
       String letter;
       double? ct;
+      String name;
       if (ch.containsKey('result_code') || ch.containsKey('ct_value')) {
-        letter = _letterOf((ch['result_code'] ?? '').toString());
-        ct = _numOf(ch['ct_value']);
+        final r = parseResultCell(ch['result_code']);
+        letter = r.letter;
+        name = r.name;
+        ct = _numOf(ch['ct_value']) ?? r.ct;
         // CT chỉ có nghĩa với dương tính (đồng bộ quy ước fromCloudRun).
         final cls = Classification.fromLetter(letter);
         if (cls == Classification.negative ||
@@ -224,9 +227,10 @@ class RapidErpApi implements CloudHistoryClient {
           ct = null;
         }
       } else {
-        final raw = (codes['$i'] ?? codes[i] ?? '').toString();
-        letter = _letterOf(raw);
-        ct = _ctOf(raw);
+        final r = parseResultCell(codes['$i'] ?? codes[i]);
+        letter = r.letter;
+        name = r.name;
+        ct = r.ct;
       }
 
       slots.add(_slot(
@@ -235,6 +239,7 @@ class RapidErpApi implements CloudHistoryClient {
         ct,
         curve,
         _numOf(ch['calibration_slope'] ?? ch['slope']),
+        name: name,
       ));
     }
 
@@ -334,8 +339,9 @@ class RapidErpApi implements CloudHistoryClient {
     String letter,
     double? ct,
     List<double> curve,
-    double? slope,
-  ) {
+    double? slope, {
+    String name = '',
+  }) {
     final cls = Classification.fromLetter(letter);
     final shownCt = (cls == Classification.negative ||
             cls == Classification.error ||
@@ -344,6 +350,7 @@ class RapidErpApi implements CloudHistoryClient {
         : ct;
     return SlotResult(
       index: index,
+      name: name,
       classification: cls,
       ct: shownCt,
       curve: curve,
@@ -363,22 +370,6 @@ class RapidErpApi implements CloudHistoryClient {
       if (d != null) return d.toLocal();
     }
     return DateTime.fromMillisecondsSinceEpoch(0);
-  }
-
-  /// "22.3 | N" → "N"; "! | E" → "E"; "N" → "N". Trả "?" nếu rỗng.
-  String _letterOf(Object? x) {
-    final s = (x ?? '').toString().trim();
-    if (s.isEmpty) return '?';
-    final part = s.contains('|') ? s.split('|').last : s;
-    final c = part.trim();
-    return c.isEmpty ? '?' : c[0].toUpperCase();
-  }
-
-  /// CT từ "22.3 | N" (phần trước `|`). "! | E"/rỗng/"N/A" → null.
-  double? _ctOf(Object? x) {
-    final s = (x ?? '').toString();
-    final part = s.contains('|') ? s.split('|').first : s;
-    return _numOf(part);
   }
 
   double? _numOf(Object? x) {

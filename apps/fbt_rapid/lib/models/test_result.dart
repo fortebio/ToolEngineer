@@ -95,9 +95,49 @@ enum Classification {
   }
 }
 
+/// Tách MỘT ô của mảng `result` mà firmware gửi lên.
+///
+/// Từ **v2.4.3** máy cho chọn tên bệnh cho từng slot nên ô có BA phần —
+/// `"PCV | 22.3 | P"`, lỗi cảm biến là `"PCV | 22 | /E"`. Bản cũ chỉ có hai
+/// (`"22.3 | N"`), file/máy cũ hơn nữa có khi chỉ một (`"N"`, `"Positive"`).
+/// Số phần quyết định phần đầu là TÊN BỆNH hay CT — đọc `split(...).first` như
+/// trước là lấy nhầm "PCV" làm CT.
+///
+/// Chữ phân loại lấy ở phần CUỐI, bỏ mọi ký tự không phải chữ cái rồi lấy chữ
+/// đầu: `"/E"` → `E` (dạng lỗi của firmware), `"Positive"` → `P`.
+({String name, double? ct, String letter}) parseResultCell(Object? x) {
+  final parts = (x ?? '').toString().split('|').map((e) => e.trim()).toList();
+  final head = parts.first;
+  return (
+    name: parts.length >= 3 && head.toUpperCase() != 'N/A' ? head : '',
+    ct: parts.length >= 2 ? _numOrNull(parts[parts.length - 2]) : null,
+    letter: _letterOf(parts.last),
+  );
+}
+
+String _letterOf(String s) {
+  final t = s.trim().toUpperCase();
+  if (t == 'N/A') return '?'; // "không có dữ liệu", KHÔNG phải Negative
+  final c = t.replaceAll(RegExp('[^A-Z]'), '');
+  return c.isEmpty ? '?' : c[0];
+}
+
+double? _numOrNull(String s) {
+  final t = s.trim();
+  if (t.isEmpty || t == '--' || t == '!' || t.toUpperCase() == 'N/A') {
+    return null;
+  }
+  return double.tryParse(t);
+}
+
 /// Kết quả của 1 slot quang.
 class SlotResult {
   final int index; // 1..10
+
+  /// Tên BỆNH của slot (PCV, EHP, WSSV…) — người dùng chọn trên máy, firmware
+  /// **v2.4.3+** ghi kèm vào chuỗi `result`. Rỗng = máy cũ hoặc slot chưa đặt tên.
+  final String name;
+
   final Classification classification;
   final double? ct; // null nếu "N/A"
   final List<double> curve; // raw draw (cloud) hoặc processed_data (/getdata)
@@ -109,10 +149,15 @@ class SlotResult {
     required this.ct,
     required this.curve,
     this.slope,
+    this.name = '',
   });
+
+  /// Nhãn hiển thị: "Slot 3 - PCV", hoặc "Slot 3" nếu chưa có tên bệnh.
+  String get label => name.isEmpty ? 'Slot $index' : 'Slot $index - $name';
 
   Map<String, dynamic> toJson() => {
         'index': index,
+        'name': name,
         'classification': classification.storageKey,
         'ct': ct,
         'curve': curve,
@@ -122,6 +167,7 @@ class SlotResult {
   factory SlotResult.fromJson(Map<String, dynamic> j) {
     return SlotResult(
       index: (j['index'] as num).toInt(),
+      name: (j['name'] ?? '').toString(),
       classification: Classification.fromStorage(j['classification'] as String),
       ct: (j['ct'] as num?)?.toDouble(),
       curve: (j['curve'] as List? ?? const [])
@@ -190,11 +236,13 @@ class TestResult {
           ? null
           : double.tryParse(ctStr);
 
-      final resStr = i < resList.length ? resList[i].toString() : '';
+      final res = parseResultCell(i < resList.length ? resList[i] : '');
 
       slots.add(SlotResult(
         index: i + 1,
-        classification: Classification.fromDevice(resStr),
+        name: res.name,
+        // Máy cũ trả nguyên chữ ("Positive"); parseResultCell đã rút về P/N/S/E.
+        classification: Classification.fromLetter(res.letter),
         ct: ct,
         curve: curve,
         slope: slope,
@@ -225,8 +273,11 @@ class TestResult {
 
     final slots = <SlotResult>[];
     for (var i = 0; i < 10; i++) {
+      // Nguồn Google: Apps Script đã rút `result` về một chữ cái và KHÔNG gửi tên
+      // bệnh — slot ở nguồn này luôn không tên, nhãn giữ nguyên "Slot N".
       final cls = i < resList.length
-          ? Classification.fromLetter(resList[i].toString())
+          ? Classification.fromLetter(
+              parseResultCell(resList[i]).letter)
           : Classification.unknown;
 
       // CT chỉ có ý nghĩa với dương tính; âm/lỗi/không rõ hiển thị N/A.
@@ -290,6 +341,7 @@ class TestResult {
         if (curve.isNotEmpty) anyCurve = true;
         slots.add(SlotResult(
           index: (s['index'] as num?)?.toInt() ?? ++i,
+          name: (s['name'] ?? '').toString(),
           classification: Classification.fromLoose(
               (s['result'] ?? s['classification'] ?? '').toString()),
           ct: (s['ct'] as num?)?.toDouble(),

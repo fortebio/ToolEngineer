@@ -82,13 +82,25 @@ class AuthApi {
       throw AuthException(
           (decoded['error'] ?? 'Đăng nhập thất bại').toString());
     }
-    // Server cấp token API sau đăng nhập thành công (bản WEB không nhúng token
-    // vào JS được) → Cài đặt chưa có token thì lưu để các call Bearer
-    // (/sessions, /devices...) dùng ngay trong phiên này.
+    // Server cấp token API sau đăng nhập thành công → LƯU ĐÈ, mỗi lần đăng nhập.
+    //
+    // Trước 2026-08-19 chỉ lưu KHI Ô ĐANG TRỐNG, và đó là nguồn của lỗi "chọn
+    // bản OTA trên điện thoại thì 401": máy mới đăng nhập nhận token THIẾT BỊ
+    // (server phát chung cho mọi vai trò), đọc chạy bình thường nhưng ghi OTA
+    // thì hỏng — mà cách chữa duy nhất là dán tay token admin vào từng máy.
+    //
+    // Nay server phát token THEO VAI TRÒ (`auth.api_token_for`): nhân sự nhận
+    // token ghi OTA, khách hàng nhận token đọc. Ghi đè mỗi lần đăng nhập nên
+    // đổi vai trò hay xoay token đều tự áp, không phải đụng tay ở đâu.
+    //
+    // ⚠️ THỨ TỰ TRIỂN KHAI: **server trước, app sau**. Chạy app này với server
+    // CHƯA vá thì token admin đã dán tay bị ghi đè bằng token thiết bị → OTA
+    // 401. Kiểm server đã vá chưa: đăng nhập bằng tài khoản root rồi so
+    // `apiToken` trả về với `OTA_ADMIN_TOKEN` trong `/etc/fbt-receiver.env`.
     final tok = (decoded['apiToken'] ?? '').toString().trim();
     if (tok.isNotEmpty) {
       final s = await AppSettings.load();
-      if (s.engineerToken.trim().isEmpty) {
+      if (s.engineerToken.trim() != tok) {
         s.engineerToken = tok;
         await s.save();
       }

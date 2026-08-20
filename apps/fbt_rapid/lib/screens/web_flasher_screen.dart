@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
 import '../util/esptool_js.dart';
 import '../util/i18n.dart';
 import '../util/web_serial.dart';
@@ -192,6 +193,8 @@ class _WebFlasherScreenState extends State<WebFlasherScreen> {
               onPressed: () => Navigator.pop(c, false),
               child: Text(tr('common.cancel'))),
           FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(c).colorScheme.error),
               onPressed: () => Navigator.pop(c, true),
               child: const Text('Xóa flash')),
         ],
@@ -284,10 +287,12 @@ class _WebFlasherScreenState extends State<WebFlasherScreen> {
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).colorScheme;
+    // Nền trong suốt + KHÔNG appBar — mục con của `AppTabScaffold` (tab Kỹ Thuật
+    // bản web) đã có tiêu đề rồi. Giữ y bản desktop để hai bản không lệch nhau.
     return Scaffold(
-      appBar: AppBar(title: Text(tr('tech.flash'))),
+      backgroundColor: Colors.transparent,
       body: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -369,11 +374,14 @@ class _WebFlasherScreenState extends State<WebFlasherScreen> {
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
                   children: [
+                    // 200px: 140 làm NHÃN BỊ CẮT ("Bootloader @ of…"). Offset là
+                    // số hex → mono (bám desktop `flasher_screen.dart`).
                     _box(
-                      140,
+                      200,
                       TextField(
                         controller: b.offset,
                         enabled: !_busy,
+                        style: const TextStyle(fontFamily: 'JetBrains Mono'),
                         decoration:
                             InputDecoration(labelText: '${b.label} @ offset'),
                       ),
@@ -422,7 +430,12 @@ class _WebFlasherScreenState extends State<WebFlasherScreen> {
                   icon: const Icon(Icons.flash_on, size: 18),
                   label: const Text('Nạp'),
                 ),
+                // Thao tác PHÁ HUỶ → tô theo `error` (bám desktop).
                 OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: c.error,
+                    side: BorderSide(color: c.error.withValues(alpha: 0.5)),
+                  ),
                   onPressed: _busy ? null : _eraseFlash,
                   icon: const Icon(Icons.delete_forever, size: 18),
                   label: const Text('Xóa flash'),
@@ -476,17 +489,18 @@ class _WebFlasherScreenState extends State<WebFlasherScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E1E),
-                  borderRadius: BorderRadius.circular(8),
+                  // Nền LUÔN tối như terminal — giống hệt bản desktop.
+                  color: AppSemantic.of(context).consoleBg,
+                  borderRadius: BorderRadius.circular(AppRadius.base),
                 ),
                 child: SingleChildScrollView(
                   controller: _logScroll,
                   child: SelectableText(
                     _log.isEmpty ? '— log esptool sẽ hiện ở đây —' : '$_log',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'JetBrains Mono',
                       fontSize: 12,
-                      color: Color(0xFFD4D4D4),
+                      color: AppSemantic.of(context).consoleFg,
                     ),
                   ),
                 ),

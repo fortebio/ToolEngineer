@@ -294,25 +294,12 @@ class _WebTempLogScreenState extends State<WebTempLogScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // Nền trong suốt + KHÔNG appBar — mục con của `AppTabScaffold` (tab Kỹ Thuật
+    // bản web) đã có tiêu đề rồi. Giữ y bản desktop để hai bản không lệch nhau.
     return Scaffold(
-      appBar: AppBar(
-        title: Text(tr('tech.templog')),
-        actions: [
-          IconButton(
-            tooltip: 'Dừng tất cả',
-            icon: const Icon(Icons.stop_circle_outlined),
-            onPressed: _readers.isEmpty
-                ? null
-                : () async {
-                    for (final r in List.of(_readers)) {
-                      await _stop(r);
-                    }
-                  },
-          ),
-        ],
-      ),
+      backgroundColor: Colors.transparent,
       body: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -325,6 +312,19 @@ class _WebTempLogScreenState extends State<WebTempLogScreen> {
                   onPressed: _addPort,
                   icon: const Icon(Icons.add),
                   label: Text(tr('techweb.openPort')),
+                ),
+                // Chuyển từ AppBar (đã bỏ) xuống cạnh chính thứ nó tác động:
+                // danh sách cổng đang mở ngay bên phải.
+                IconButton(
+                  tooltip: 'Dừng tất cả',
+                  icon: const Icon(Icons.stop_circle_outlined),
+                  onPressed: _readers.isEmpty
+                      ? null
+                      : () async {
+                          for (final r in List.of(_readers)) {
+                            await _stop(r);
+                          }
+                        },
                 ),
                 for (final r in _readers)
                   ChoiceChip(
@@ -409,7 +409,11 @@ class _WebTempLogScreenState extends State<WebTempLogScreen> {
               padding: const EdgeInsets.all(4),
               child: Column(
                 children: [
-                  const TempLegend(),
+                  // PHẢI truyền `visible`: chú giải nằm TRONG RepaintBoundary
+                  // nên nó đi vào cả ảnh PNG lưu ra. Thiếu tham số thì đồ thị
+                  // lọc còn 2 đường mà chú giải vẫn liệt kê đủ 6 kênh — đọc ra
+                  // thành "4 kênh kia mất tín hiệu". Hai màn desktop đã đúng.
+                  TempLegend(visible: _visibleCh),
                   Expanded(
                     child: TempChart(
                         samples: r.samples, visibleChannels: _visibleCh),

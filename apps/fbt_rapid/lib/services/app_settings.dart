@@ -26,8 +26,24 @@ const String kDefaultAuthApiUrl =
 const String kDefaultRapidErpUrl = 'https://api.fortebio.tech/api/v1/results';
 
 /// URL gốc **FBT Home Server** (nguồn Engineer Server) — server FastAPI của kỹ
-/// sư expose qua Tailscale. Đổi host thì sửa 1 dòng này (ghi đè được ở Cài đặt).
-const String kDefaultEngineerUrl = 'https://fbt.basa-luma.ts.net';
+/// sư expose qua **Cloudflare Tunnel** (2026-08-17). Đổi host thì sửa 1 dòng này
+/// (ghi đè được ở Cài đặt).
+///
+/// Đường cũ `https://fbt.basa-luma.ts.net` (Tailscale Funnel) VẪN SỐNG song song
+/// vì 109 máy nạp cứng URL đó trong firmware — đừng tắt cho tới khi fleet đổi.
+/// URL gốc Engineer Server. **Đổi được lúc build** qua
+/// `--dart-define=FBT_URL=…` (mặc định giữ nguyên bản production).
+///
+/// Vì sao cần: app gọi API bằng URL **tuyệt đối**, nên bản web chạy ở bất kỳ
+/// origin nào khác `hub.fortebio.tech` đều bị trình duyệt chặn CORS — kể cả
+/// `flutter run -d chrome` lẫn bản host trên `*.ts.net`. Có cờ này thì host
+/// local chỉ việc trỏ về chính origin của nó (kèm proxy) là hết CORS.
+///
+/// ⚠️ **Không để rỗng**: `FbtApi._get` coi `baseUrl` rỗng là "chưa cấu hình" và
+/// ném lỗi, chứ KHÔNG hiểu là đường dẫn tương đối. Host local thì truyền thẳng
+/// origin của server local, vd `--dart-define=FBT_URL=http://localhost:8080`.
+const String kDefaultEngineerUrl =
+    String.fromEnvironment('FBT_URL', defaultValue: 'https://hub.fortebio.tech');
 
 /// Token mặc định cho Engineer Server — KHÔNG hardcode vào source, truyền lúc
 /// build: `flutter build windows --release --dart-define=FBT_TOKEN=<token>`.

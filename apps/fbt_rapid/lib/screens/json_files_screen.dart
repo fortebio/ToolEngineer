@@ -9,6 +9,7 @@ import '../services/app_settings.dart';
 import '../services/cloud_history_api.dart';
 import '../services/fbt_api.dart';
 import '../services/session_store.dart';
+import '../theme/app_theme.dart';
 import '../util/i18n.dart';
 
 /// Mục "JSON data" (tab Thư Mục): danh sách file JSON thiết bị đã đẩy lên
@@ -100,7 +101,7 @@ class _JsonFilesScreenState extends State<JsonFilesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(e.message),
-          backgroundColor: Theme.of(context).colorScheme.error,
+          backgroundColor: kErrorSnackBg,
         ));
       }
       return;
@@ -124,7 +125,7 @@ class _JsonFilesScreenState extends State<JsonFilesScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(tr('history.openJsonError')),
-        backgroundColor: Theme.of(context).colorScheme.error,
+        backgroundColor: kErrorSnackBg,
       ));
       return;
     }
@@ -231,22 +232,31 @@ class _JsonFilesScreenState extends State<JsonFilesScreen> {
           );
         }
         final r = _items[i];
-        return ListTile(
-          dense: true,
-          leading: const Icon(Icons.description_outlined),
-          title: Text('${r.deviceId} · ${_fmt(r.timestamp)}',
-              overflow: TextOverflow.ellipsis),
-          subtitle: Text(
-            '#${r.id}${r.version.isEmpty ? '' : ' · ${r.version}'}',
-            style: const TextStyle(
-                fontFeatures: [FontFeature.tabularFigures()]),
+        return AppFadeIn(
+          index: i,
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.description_outlined, color: cs.primary),
+            // Mã máy + ID phiên = định danh → mono + tabular.
+            title: Text('${r.deviceId} · ${_fmt(r.timestamp)}',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontFamily: 'JetBrains Mono',
+                  fontFeatures: [FontFeature.tabularFigures()],
+                )),
+            subtitle: Text(
+              '#${r.id}${r.version.isEmpty ? '' : ' · ${r.version}'}',
+              style: TextStyle(
+                  color: cs.onSurfaceVariant,
+                  fontFeatures: const [FontFeature.tabularFigures()]),
+            ),
+            trailing: _openingId == r.id
+                ? const SizedBox(
+                    width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+            onTap: () => _viewRun(r),
           ),
-          trailing: _openingId == r.id
-              ? const SizedBox(
-                  width: 18, height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.chevron_right),
-          onTap: () => _viewRun(r),
         );
       },
     );

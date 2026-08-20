@@ -277,6 +277,8 @@ class _FlasherScreenState extends State<FlasherScreen> {
               onPressed: () => Navigator.pop(c, false),
               child: Text(tr('common.cancel'))),
           FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(c).colorScheme.error),
               onPressed: () => Navigator.pop(c, true),
               child: const Text('Xóa')),
         ],
@@ -312,19 +314,14 @@ class _FlasherScreenState extends State<FlasherScreen> {
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).colorScheme;
+    // Nền trong suốt + KHÔNG appBar: màn này luôn là mục con của `AppTabScaffold`
+    // trong tab Kỹ Thuật, vốn đã có tiêu đề + dải chọn mục. Một AppBar nữa ở đây
+    // là tiêu đề thứ ba nói cùng một điều. Nút của nó chuyển xuống cạnh chính
+    // thứ nó điều khiển (hàng chọn cổng).
     return Scaffold(
-      appBar: AppBar(
-        title: Text(tr('tech.flash')),
-        actions: [
-          IconButton(
-            tooltip: 'Làm mới cổng',
-            onPressed: _busy ? null : _refreshPorts,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
+      backgroundColor: Colors.transparent,
       body: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -344,6 +341,11 @@ class _FlasherScreenState extends State<FlasherScreen> {
                   ],
                   onChanged: _busy ? null : (v) => setState(() => _portName = v),
                 )),
+                IconButton(
+                  tooltip: 'Làm mới cổng',
+                  onPressed: _busy ? null : _refreshPorts,
+                  icon: const Icon(Icons.refresh),
+                ),
                 _box(170, DropdownButtonFormField<String>(
                   value: _chip,
                   isExpanded: true,
@@ -418,9 +420,12 @@ class _FlasherScreenState extends State<FlasherScreen> {
             for (final b in _bins) ...[
               Row(
                 children: [
-                  _box(140, TextField(
+                  // 200px: 140 làm NHÃN BỊ CẮT ("Bootloader @ of…"). Offset là
+                  // số hex → mono cho dễ đọc/đối chiếu (sai offset = boot loop).
+                  _box(200, TextField(
                     controller: b.offset,
                     enabled: !_busy,
+                    style: const TextStyle(fontFamily: 'JetBrains Mono'),
                     decoration: _dec('${b.label} @ offset'),
                   )),
                   const SizedBox(width: 8),
@@ -462,7 +467,13 @@ class _FlasherScreenState extends State<FlasherScreen> {
                   icon: const Icon(Icons.bolt),
                   label: const Text('Nạp'),
                 ),
+                // Thao tác PHÁ HUỶ → tô theo `error` để không lẫn với nút
+                // thường ("Xóa log" bên cạnh chỉ xoá text, giữ trung tính).
                 OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: c.error,
+                    side: BorderSide(color: c.error.withValues(alpha: 0.5)),
+                  ),
                   onPressed: _busy ? null : _eraseFlash,
                   icon: const Icon(Icons.delete_sweep_outlined),
                   label: const Text('Xóa flash'),
@@ -521,19 +532,20 @@ class _FlasherScreenState extends State<FlasherScreen> {
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E1E),
-                  borderRadius: BorderRadius.circular(6),
+                  // Log esptool: nền LUÔN tối như terminal (không theo theme).
+                  color: AppSemantic.of(context).consoleBg,
+                  borderRadius: BorderRadius.circular(AppRadius.base),
                 ),
                 padding: const EdgeInsets.all(10),
                 child: SingleChildScrollView(
                   controller: _scroll,
                   child: SelectableText(
                     _log.isEmpty ? '— log esptool sẽ hiện ở đây —' : _log.toString(),
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
+                    style: TextStyle(
+                      fontFamily: 'JetBrains Mono',
                       fontSize: 12,
                       height: 1.35,
-                      color: Color(0xFFD4D4D4),
+                      color: AppSemantic.of(context).consoleFg,
                     ),
                   ),
                 ),
@@ -547,9 +559,7 @@ class _FlasherScreenState extends State<FlasherScreen> {
 
   Widget _box(double w, Widget child) => SizedBox(width: w, child: child);
 
-  InputDecoration _dec(String label) => InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        isDense: true,
-      );
+  // Viền/bo lấy từ `inputDecorationTheme` (app_theme.dart) — không đè.
+  InputDecoration _dec(String label) =>
+      InputDecoration(labelText: label, isDense: true);
 }

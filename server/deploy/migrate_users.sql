@@ -12,4 +12,12 @@ CREATE TABLE IF NOT EXISTS users (
   date_create timestamptz NOT NULL DEFAULT now(),
   fw_version  text
 );
-GRANT SELECT, INSERT, UPDATE ON users TO engineer;
+-- DELETE là BẮT BUỘC: màn Quản lý User trong app có action deleteUser. Thiếu nó thì
+-- xoá tài khoản báo "Lỗi máy chủ" (500) chung chung, rất khó lần ra. (schema.sql có
+-- sẵn DELETE; file này thiếu → box nào provision bằng migration là dính.)
+GRANT SELECT, INSERT, UPDATE, DELETE ON users TO engineer;
+
+-- username KHÔNG phân biệt hoa/thường: mọi truy vấn trong db.py dùng lower(username),
+-- nhưng UNIQUE ở trên lại phân biệt → tạo được CẢ 'admin' lẫn 'Admin', rồi
+-- set_password/delete_user tác động lên cả hai dòng còn get_user lấy đại một dòng.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users (lower(username));

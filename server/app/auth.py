@@ -45,6 +45,30 @@ def _check_login(username: str, password: str) -> dict | None:
     return u
 
 
+
+def api_token_for(role: str) -> str:
+    """Token API phát cho client SAU khi đăng nhập thành công, theo VAI TRÒ.
+
+    Nhân sự (root/admin) nhận `OTA_ADMIN_TOKEN` — token DUY NHẤT qua được các
+    route ghi OTA (`ota_admin`). Khách hàng nhận token thiết bị `TOKEN`: đọc
+    được, không ghi được.
+
+    Vì sao phát theo vai trò thay vì nhúng vào app: bản web nằm ở
+    `hub.fortebio.tech/app/main.dart.js` — CÔNG KHAI. Nhúng token admin vào đó
+    là ai tải file JS về cũng nạp được firmware cho cả 109 máy. Phát sau khi đã
+    xác thực là cách duy nhất vừa tiện vừa không lộ.
+
+    Trước 2026-08-19 mọi vai trò đều nhận `TOKEN`, nên admin đăng nhập trên máy
+    mới (điện thoại, bản web) đọc được hết nhưng **chọn bản OTA thì 401** — và
+    cách chữa duy nhất là dán tay token admin vào Cài đặt trên TỪNG máy.
+
+    `OTA_ADMIN_TOKEN` rỗng (tính năng chưa bật) → rơi về `TOKEN` y như cũ, nên
+    deploy file này một mình KHÔNG đổi hành vi gì.
+    """
+    if role in ("root", "admin") and config.OTA_ADMIN_TOKEN:
+        return config.OTA_ADMIN_TOKEN
+    return config.TOKEN
+
 def _login(body: dict) -> dict:
     u = _check_login(_str(body.get("username")).strip(), _str(body.get("password")))
     if u is None:
@@ -63,7 +87,10 @@ def _login(body: dict) -> dict:
         # token vào JS được) dùng cho các call Bearer còn lại (/sessions, /devices...).
         # Đánh đổi (chấp nhận, ngang hàng desktop nhúng FBT_TOKEN): user hợp lệ nào
         # cũng cầm token đọc toàn bộ API — lọc theo máy vẫn ở client (canSee).
-        "apiToken": config.TOKEN,
+        # LUÔN là token CHÍNH, không bao giờ là một token cũ đang trong cửa sổ xoay
+        # (config.TOKENS_OLD) — phát ra token sắp bị khai tử thì app sẽ 401 ngay khi
+        # cửa sổ đóng. Đây là lý do token chính tách riêng thay vì một danh sách.
+        "apiToken": api_token_for(u["role"]),
     }
 
 

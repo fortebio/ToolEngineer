@@ -8,7 +8,6 @@ import 'package:flutter_libserialport/flutter_libserialport.dart';
 
 import '../services/storage_paths.dart';
 import '../theme/app_theme.dart';
-import '../util/i18n.dart';
 import '../util/serial_ports.dart';
 
 /// **Đọc serial** (Kỹ Thuật): console đọc/ghi **nhiều cổng COM** để nhân sự
@@ -318,19 +317,14 @@ class _SerialConsoleScreenState extends State<SerialConsoleScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // Nền trong suốt + KHÔNG appBar: màn này luôn là mục con của `AppTabScaffold`
+    // trong tab Kỹ Thuật, vốn đã có tiêu đề + dải chọn mục. Một AppBar nữa ở đây
+    // là tiêu đề thứ ba nói cùng một điều. Nút của nó chuyển xuống cạnh chính
+    // thứ nó điều khiển (hàng chọn cổng).
     return Scaffold(
-      appBar: AppBar(
-        title: Text(tr('tech.serial')),
-        actions: [
-          IconButton(
-            tooltip: 'Làm mới cổng',
-            onPressed: _refreshPorts,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
+      backgroundColor: Colors.transparent,
       body: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -346,9 +340,7 @@ class _SerialConsoleScreenState extends State<SerialConsoleScreen> {
                     value: _pickPort,
                     isExpanded: true,
                     decoration: const InputDecoration(
-                        labelText: 'Cổng COM',
-                        border: OutlineInputBorder(),
-                        isDense: true),
+                        labelText: 'Cổng COM', isDense: true),
                     items: [
                       for (final p in _freePorts)
                         DropdownMenuItem(value: p, child: Text(p)),
@@ -356,15 +348,18 @@ class _SerialConsoleScreenState extends State<SerialConsoleScreen> {
                     onChanged: (v) => setState(() => _pickPort = v),
                   ),
                 ),
+                IconButton(
+                  tooltip: 'Làm mới cổng',
+                  onPressed: _refreshPorts,
+                  icon: const Icon(Icons.refresh),
+                ),
                 SizedBox(
                   width: 130,
                   child: DropdownButtonFormField<int>(
                     value: _pickBaud,
                     isExpanded: true,
-                    decoration: const InputDecoration(
-                        labelText: 'Baud',
-                        border: OutlineInputBorder(),
-                        isDense: true),
+                    decoration:
+                        const InputDecoration(labelText: 'Baud', isDense: true),
                     items: [
                       for (final b in _bauds)
                         DropdownMenuItem(value: b, child: Text('$b')),
@@ -383,9 +378,7 @@ class _SerialConsoleScreenState extends State<SerialConsoleScreen> {
                     value: _ending,
                     isExpanded: true,
                     decoration: const InputDecoration(
-                        labelText: 'Xuống dòng',
-                        border: OutlineInputBorder(),
-                        isDense: true),
+                        labelText: 'Xuống dòng', isDense: true),
                     items: [
                       for (final e in _endings.keys)
                         DropdownMenuItem(value: e, child: Text(e)),
@@ -526,7 +519,7 @@ class _SerialConsoleScreenState extends State<SerialConsoleScreen> {
                 child: SelectableText(
                   s.rx.isEmpty ? '— chưa có dữ liệu —' : s.rx,
                   style: TextStyle(
-                    fontFamily: 'monospace',
+                    fontFamily: 'JetBrains Mono',
                     fontSize: 12,
                     height: 1.35,
                     color: s.rx.isEmpty ? cs.onSurfaceVariant : cs.onSurface,
@@ -547,7 +540,6 @@ class _SerialConsoleScreenState extends State<SerialConsoleScreen> {
                   inputFormatters: [LengthLimitingTextInputFormatter(4000)],
                   decoration: const InputDecoration(
                     hintText: 'Lệnh gửi tới cổng này…',
-                    border: OutlineInputBorder(),
                     isDense: true,
                   ),
                 ),

@@ -171,10 +171,12 @@ class _WebSerialConsoleScreenState extends State<WebSerialConsoleScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // Nền trong suốt + KHÔNG appBar — mục con của `AppTabScaffold` (tab Kỹ Thuật
+    // bản web) đã có tiêu đề rồi. Giữ y bản desktop để hai bản không lệch nhau.
     return Scaffold(
-      appBar: AppBar(title: Text(tr('tech.serial'))),
+      backgroundColor: Colors.transparent,
       body: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(4, 8, 4, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

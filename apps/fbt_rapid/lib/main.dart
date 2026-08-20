@@ -27,9 +27,7 @@ class RapidPlusApp extends StatelessWidget {
         key: ValueKey('locale_${AppPrefs.instance.localeCode}'),
         title: 'FBT_RAPID',
         debugShowCheckedModeBanner: false,
-        theme: appTheme(Brightness.light),
-        darkTheme: appTheme(Brightness.dark),
-        themeMode: AppPrefs.instance.themeMode,
+        theme: appTheme(),
         home: const _AuthGate(),
       ),
     );

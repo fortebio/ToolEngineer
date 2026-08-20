@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../util/i18n.dart';
+import '../widgets/app_tab_scaffold.dart';
 import 'flasher_screen.dart';
 import 'serial_console_screen.dart';
 import 'temperature_log_screen.dart';
 
-/// Tab **Kỹ Thuật** (nhân sự: root + nhân viên) — gộp 3 công cụ kỹ thuật:
-/// **Log nhiệt | Đọc serial | Nạp code**. Nút gạt ở trên, mỗi màn giữ nguyên
-/// AppBar/hành động riêng (mẫu giống tab Lịch sử gộp).
+/// Tab **Kỹ Thuật** (nhân sự: root + nhân viên) — gộp 3 công cụ:
+/// **Log nhiệt | Đọc serial | Nạp code**.
 ///
 /// Lưu ý cổng COM: 3 màn dùng chung phần cứng COM. Mở cổng X ở "Log nhiệt"/"Đọc
 /// serial" rồi sang "Nạp code" nạp cổng X sẽ báo bận → **đóng cổng trước khi nạp**.
@@ -23,52 +23,31 @@ class _TechScreenState extends State<TechScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: SegmentedButton<int>(
-                showSelectedIcon: false,
-                segments: [
-                  ButtonSegment(
-                    value: 0,
-                    icon: const Icon(Icons.thermostat_outlined),
-                    label: Text(tr('tech.templog')),
-                  ),
-                  ButtonSegment(
-                    value: 1,
-                    icon: const Icon(Icons.terminal_outlined),
-                    label: Text(tr('tech.serial')),
-                  ),
-                  ButtonSegment(
-                    value: 2,
-                    icon: const Icon(Icons.memory_outlined),
-                    label: Text(tr('tech.flash')),
-                  ),
-                ],
-                selected: {_seg},
-                onSelectionChanged: (sel) => setState(() => _seg = sel.first),
-              ),
-            ),
-            Expanded(
-              child: IndexedStack(
-                index: _seg,
-                // active=false khi không phải segment đang chọn → màn tự nhả cổng
-                // COM (Đọc serial đóng cổng; Nạp code dừng theo dõi) tránh tranh
-                // chấp phần cứng. Log nhiệt giữ đọc nền (không mất dữ liệu mẫu).
-                children: [
-                  const TemperatureLogScreen(),
-                  SerialConsoleScreen(active: _seg == 1),
-                  FlasherScreen(active: _seg == 2),
-                ],
-              ),
-            ),
-          ],
+    return AppTabScaffold(
+      title: tr('nav.tech'),
+      subtitle: tr('tech.comShared'),
+      index: _seg,
+      onChanged: (i) => setState(() => _seg = i),
+      tabs: [
+        AppTab(
+          icon: Icons.thermostat_outlined,
+          label: tr('tech.templog'),
+          // active=false khi không phải mục đang chọn → màn tự nhả cổng COM
+          // (Đọc serial đóng cổng; Nạp code dừng theo dõi) tránh tranh chấp
+          // phần cứng. Log nhiệt CỐ Ý giữ đọc nền để không mất mẫu.
+          page: const TemperatureLogScreen(),
         ),
-      ),
+        AppTab(
+          icon: Icons.terminal_outlined,
+          label: tr('tech.serial'),
+          page: SerialConsoleScreen(active: _seg == 1),
+        ),
+        AppTab(
+          icon: Icons.memory_outlined,
+          label: tr('tech.flash'),
+          page: FlasherScreen(active: _seg == 2),
+        ),
+      ],
     );
   }
 }

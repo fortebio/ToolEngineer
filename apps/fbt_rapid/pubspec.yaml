@@ -22,6 +22,13 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    # Logo Forte Biotech — LẤY TỪ `FBT-DXD243/data/logo.png` (bản đã tách nền
+    # trắng của `FBT-DXD243/src/download.png`), KHÔNG lấy thẳng file `src/`:
+    # file gốc có nền trắng đặc, dán lên rail nền tối là một khối trắng.
+    # Không crop riêng phần dấu được — chữ "FORTE BIOTECH" nằm LỌT GIỮA cụm tam
+    # giác trên và cụm dưới, cắt là logo cụt (đã ghi trong FBT-DXD243/CLAUDE.md).
+    - assets/images/forte-logo.png
   # Bộ font design system (Homies): DM Sans (body/UI), JetBrains Mono (số/log),
   # Source Serif 4 (tiêu đề display). Variable font — 1 TTF/họ, Flutter tự map
   # weight qua trục `wght`.

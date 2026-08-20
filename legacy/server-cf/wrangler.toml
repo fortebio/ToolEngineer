@@ -1,0 +1,33 @@
+# Worker thay thế FBT Home Server (FastAPI trên MiniPC).
+#
+# Tạo tài nguyên 1 lần trước khi deploy:
+#   npx wrangler d1 create fbt
+#   npx wrangler r2 bucket create fbt-data
+#   npx wrangler d1 execute fbt --remote --file schema.sql
+#   npx wrangler secret put RECEIVER_TOKEN
+# rồi dán database_id thật vào dưới.
+name = "fbt-server"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# Flutter build web --release --base-href /app/  →  copy vào public/app/
+# Assets được phục vụ TRƯỚC Worker cho path khớp; /app/* là tĩnh, còn lại vào Worker.
+# KHÔNG bật single-page-application: nó nuốt mọi path lạ thành index.html → API mất 404.
+[assets]
+directory = "./public"
+not_found_handling = "none"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "fbt"
+database_id = "PLACEHOLDER-chay-wrangler-d1-create-roi-dan-vao-day"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "fbt-data"
+
+[vars]
+# Số vòng PBKDF2 khi ĐẶT mật khẩu mới.
+# ⚠️ Workers gói FREE giới hạn 10ms CPU/request → 100k vòng sẽ vượt, login lỗi.
+# Gói Paid ($5/tháng) cho 30s CPU → thoải mái. Chạy free thì hạ xuống ~10000.
+PBKDF2_ITER = "100000"

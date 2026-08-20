@@ -86,7 +86,6 @@ class _TemperatureLogScreenState extends State<TemperatureLogScreen> {
           decoration: const InputDecoration(
             labelText: 'Tên gợi nhớ (để trống = bỏ tên)',
             hintText: 'vd: Máy Lysis, Buồng A…',
-            border: OutlineInputBorder(),
           ),
           onSubmitted: (_) => Navigator.pop(c, true),
         ),
@@ -132,38 +131,11 @@ class _TemperatureLogScreenState extends State<TemperatureLogScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Nền trong suốt + KHÔNG appBar: mục con của `AppTabScaffold` (tab Kỹ Thuật)
+    // đã có tiêu đề rồi. Bốn nút của AppBar cũ chuyển xuống CÙNG hàng với tiêu
+    // đề nhóm "Cổng COM" bên dưới.
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Nhiệt độ (UART)'),
-        actions: [
-          IconButton(
-            tooltip: 'Làm mới cổng',
-            onPressed: _ctrl.refreshPorts,
-            icon: const Icon(Icons.refresh),
-          ),
-          IconButton(
-            tooltip: 'Dừng tất cả',
-            onPressed: _stopAll,
-            icon: const Icon(Icons.stop_circle_outlined),
-          ),
-          IconButton(
-            tooltip: 'Tất cả đồ thị (COM hoạt động)',
-            onPressed: () => _open(
-                AllTempChartsScreen(controller: _ctrl, names: _names)),
-            icon: const Icon(Icons.grid_view),
-          ),
-          PopupMenuButton<int>(
-            tooltip: 'Đã lưu',
-            icon: const Icon(Icons.history),
-            onSelected: (i) => _open(
-                i == 0 ? const SavedLogsScreen() : const SavedChartsScreen()),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 0, child: Text('Log đã lưu')),
-              PopupMenuItem(value: 1, child: Text('Đồ thị đã lưu')),
-            ],
-          ),
-        ],
-      ),
+      backgroundColor: Colors.transparent,
       body: ListenableBuilder(
         listenable: _ctrl,
         builder: (context, _) {
@@ -172,13 +144,51 @@ class _TemperatureLogScreenState extends State<TemperatureLogScreen> {
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Cổng COM (bấm để xem đồ thị)',
-                        style: TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.bold)),
+                    // Tiêu đề nhóm + nút điều khiển màn CÙNG một hàng. Cho bốn
+                    // biểu tượng một hàng riêng thì chúng chiếm trọn chiều ngang
+                    // mà không nói thêm điều gì — chỗ đó để dành cho đồ thị.
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text('Cổng COM (bấm để xem đồ thị)',
+                              style: TextStyle(
+                                  fontSize: 15, fontWeight: FontWeight.bold)),
+                        ),
+                        IconButton(
+                          tooltip: 'Làm mới cổng',
+                          onPressed: _ctrl.refreshPorts,
+                          icon: const Icon(Icons.refresh),
+                        ),
+                        IconButton(
+                          tooltip: 'Dừng tất cả',
+                          onPressed: _stopAll,
+                          icon: const Icon(Icons.stop_circle_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Tất cả đồ thị (COM hoạt động)',
+                          onPressed: () => _open(AllTempChartsScreen(
+                              controller: _ctrl, names: _names)),
+                          icon: const Icon(Icons.grid_view),
+                        ),
+                        PopupMenuButton<int>(
+                          tooltip: 'Đã lưu',
+                          icon: const Icon(Icons.history),
+                          position: PopupMenuPosition.under,
+                          onSelected: (i) => _open(i == 0
+                              ? const SavedLogsScreen()
+                              : const SavedChartsScreen()),
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(value: 0, child: Text('Log đã lưu')),
+                            PopupMenuItem(
+                                value: 1, child: Text('Đồ thị đã lưu')),
+                          ],
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 8),
                     if (_ctrl.available.isEmpty)
                       Text(
@@ -450,10 +460,12 @@ class _RawUartPanelState extends State<_RawUartPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFFFF),
-        borderRadius: BorderRadius.circular(8),
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(AppRadius.base),
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -462,14 +474,13 @@ class _RawUartPanelState extends State<_RawUartPanel> {
             padding: const EdgeInsets.fromLTRB(10, 4, 4, 0),
             child: Row(
               children: [
-                const Icon(Icons.terminal, size: 8, color: Color(0xFF9CDCFE)),
+                Icon(Icons.terminal, size: 16, color: cs.primary),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     'UART — ${widget.reader.rawLines.length} dòng',
-                    style: const TextStyle(
-                        // color: Color(0xFFD4D4D4),
-                        color: Color(0xFF1E1E1E),
+                    style: TextStyle(
+                        color: cs.onSurface,
                         fontSize: 16,
                         fontWeight: FontWeight.bold),
                   ),
@@ -482,7 +493,7 @@ class _RawUartPanelState extends State<_RawUartPanel> {
                           ? Icons.vertical_align_bottom
                           : Icons.pause_circle_outline,
                       size: 18,
-                      color: const Color(0xFF9CDCFE)),
+                      color: cs.primary),
                   onPressed: () => setState(() {
                     _tail = !_tail;
                     if (_tail && _scroll.hasClients) {
@@ -523,10 +534,10 @@ class _RawUartPanelState extends State<_RawUartPanel> {
                     itemCount: lines.length,
                     itemBuilder: (c, i) => Text(
                       lines[i],
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
+                      style: TextStyle(
+                        fontFamily: 'JetBrains Mono',
                         fontSize: 14,
-                        color: Color(0xFF1E1E1E),
+                        color: cs.onSurface,
                         height: 1.3,
                       ),
                     ),

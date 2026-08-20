@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600&display=swap">
+  <style>
+    body { margin: 0; background: #F1F2F5;
+           font-family: 'DM Sans', system-ui, sans-serif; color: #16202B; }
+    a { color: #0F5F63; } a:hover { color: #0A4448; }
+    .card { background: #FFFFFF; border-radius: 20px; border: 1px solid #C0D6DA;
+            box-shadow: 0 1px 2px rgba(16,32,43,.06), 0 8px 24px rgba(16,32,43,.05);
+            overflow: hidden; }
+    .head { display: grid; grid-template-columns: 132px 116px minmax(0, 1fr);
+            gap: 16px; padding: 10px 16px; background: #C7DADE;
+            font-size: 12px; font-weight: 600; color: #4F5A68; }
+    .row { display: grid; grid-template-columns: 132px 116px minmax(0, 1fr);
+           gap: 16px; padding: 11px 16px; align-items: center;
+           border-top: 1px solid rgba(192,214,218,.5); }
+    .dev { display: flex; align-items: center; gap: 10px;
+           font-family: 'JetBrains Mono', ui-monospace, monospace;
+           font-weight: 600; font-size: 13px; }
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: #0E6E32; }
+    .dot.off { background: #57858E; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-weight: 600; font-size: 13px; }
+    .sub { font-size: 11px; color: #4F5A68; display: flex; align-items: center; gap: 4px; }
+    .chip { display: inline-flex; align-items: center; gap: 4px;
+            padding: 2px 8px; border-radius: 999px;
+            font-size: 11.5px; font-weight: 600; }
+    .chip.ota { color: #0E6E32; background: rgba(14,110,50,.12);
+                border: 1px solid rgba(14,110,50,.40); }
+    .chip.pin { color: #C21C1C; background: rgba(194,28,28,.12);
+                border: 1px solid rgba(194,28,28,.40); }
+    .title { font-size: 13px; font-weight: 700; letter-spacing: .04em;
+             text-transform: uppercase; color: #4F5A68; margin: 0 0 4px; }
+    .lede { font-size: 12.5px; color: #4F5A68; margin: 0 0 14px; max-width: 54ch; }
+    .flag { display: inline-block; margin-left: 6px; padding: 1px 6px;
+            border-radius: 999px; font-size: 10.5px; font-weight: 600;
+            color: #B45309; background: rgba(180,83,9,.12); }
+  </style>
+</helmet>
+
+  <style>
+    .btnOut { display:inline-flex; align-items:center; gap:6px; flex:none;
+      padding:6px 12px; border-radius:14px; border:1px solid #57858E;
+      background:#FFFFFF; color:#0F5F63; font-family:inherit;
+      font-size:12.5px; font-weight:600; cursor:pointer; }
+    .btnOut:hover { background:#EAF3F5; border-color:#0F5F63; }
+    .chipBtn { display:inline-flex; align-items:center; gap:5px;
+      padding:5px 8px 5px 10px; border-radius:999px; cursor:pointer;
+      font-family:inherit; font-size:12px; font-weight:700; }
+    .chipBtn.ota { color:#0E6E32; background:rgba(14,110,50,.14); border:1px solid rgba(14,110,50,.55); }
+    .chipBtn.pin { color:#C21C1C; background:rgba(194,28,28,.14); border:1px solid rgba(194,28,28,.55); }
+    .chipBtn.ota:hover { background:rgba(14,110,50,.22); }
+    .chipBtn.pin:hover { background:rgba(194,28,28,.22); }
+    .iconBtn { flex:none; width:32px; height:32px; display:inline-flex;
+      align-items:center; justify-content:center; border-radius:999px;
+      border:1px solid #57858E; background:#FFFFFF; color:#0F5F63; cursor:pointer; }
+    .iconBtn:hover { background:#EAF3F5; border-color:#0F5F63; }
+    .selBox { display:flex; align-items:center; justify-content:space-between; gap:10px;
+      width:100%; text-align:left; padding:6px 10px; border-radius:14px;
+      border:1px solid #57858E; background:#FFFFFF; color:#4F5A68;
+      font-family:inherit; cursor:pointer; }
+    .selBox:hover { background:#EAF3F5; border-color:#0F5F63; }
+    .selBox.off { border-style:dashed; border-color:#C0D6DA; cursor:default; }
+    .lockNote { flex:none; font-size:10.5px; color:#4F5A68; font-style:italic; }
+  </style>
+
+<div style="padding: 24px 24px 28px">
+  <p class="title">D · Cả ô là ô chọn</p>
+  <p class="lede">Mượn đúng hình dạng ô nhập của app nên đọc ra là control theo thói quen sẵn có. Vùng bấm lớn nhất; đổi lại mỗi hàng trông nặng hơn.</p>
+  <div class="card">
+    <div class="head"><div>Máy</div><div>Firmware</div><div>Trạng thái update</div></div>
+    <div class="row">
+      <div class="dev"><span class="dot"></span>RPL03003</div>
+      <div class="mono">v2.4.5</div>
+      <button class="selBox"><div style="min-width:0"><span class="chip pin"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"></path><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"></path></svg> Riêng</span><div class="sub" style="margin-top:3px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg> Chờ nạp · fbt_v2.4.4.bin</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button>
+    </div>
+    <div class="row">
+      <div class="dev"><span class="dot"></span>RPL02013</div>
+      <div class="mono">v2.4.5</div>
+      <button class="selBox"><div style="min-width:0"><span class="chip ota"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13v8"></path><path d="m8 17 4 4 4-4"></path><path d="M20.88 13.06A5 5 0 0 0 18 4h-1.26A8 8 0 1 0 4 11.25"></path></svg> Chung</span><div class="sub" style="margin-top:3px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="m8.5 12.5 2.5 2.5 4.5-5"></path></svg> Đúng bản · fbt_v2.4.5.bin</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button>
+    </div>
+    <div class="row">
+      <div class="dev"><span class="dot off"></span>RPL01001</div>
+      <div class="mono">v2.4.3</div>
+      <div class="selBox off"><div style="min-width:0"><span class="chip ota"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13v8"></path><path d="m8 17 4 4 4-4"></path><path d="M20.88 13.06A5 5 0 0 0 18 4h-1.26A8 8 0 1 0 4 11.25"></path></svg> Chung</span><div class="sub" style="margin-top:3px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg> Chờ nạp · fbt_v2.4.5.bin</div></div></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

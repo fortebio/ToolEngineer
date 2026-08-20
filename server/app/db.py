@@ -85,11 +85,22 @@ def insert_drive_session(data: dict, received_at: datetime | None = None):
 
 
 def list_devices() -> list[dict]:
-    """Danh sách thiết bị + số phiên + lần gửi cuối."""
+    """Danh sách thiết bị + số phiên + lần gửi cuối + version firmware.
+
+    `version` = version của phiên GẦN NHẤT CÓ ghi version (FILTER bỏ NULL —
+    payload thiếu field 'version' thì không xoá mất version đã biết trước đó).
+
+    ⚠️ Đây chỉ là bản máy chạy LÚC ĐO GẦN NHẤT — nạp firmware xong mà chưa ai chạy mẫu
+    thì cột này vẫn là bản CŨ. Từ v2.4.5 máy tự khai version ở `/ota/check?ver=` và
+    `main.devices()` ĐÈ giá trị đó lên; cột này là đường lui cho firmware cũ.
+    """
     with _conn() as conn, conn.cursor() as cur:
-        cur.execute("""SELECT id_device, count(*), max(received_at)
+        cur.execute("""SELECT id_device, count(*), max(received_at),
+                              (array_agg(version ORDER BY received_at DESC)
+                               FILTER (WHERE version IS NOT NULL))[1]
                        FROM sessions GROUP BY 1 ORDER BY 3 DESC""")
-        return [{"id_device": d, "sessions": n, "last_seen": t} for d, n, t in cur.fetchall()]
+        return [{"id_device": d, "sessions": n, "last_seen": t, "version": v}
+                for d, n, t, v in cur.fetchall()]
 
 
 def list_sessions(device, from_, to, page, limit) -> dict:
@@ -121,6 +132,70 @@ def get_session(sid: int) -> dict | None:
     i, d, t, p, v, u, m, payload = row
     return {"id": i, "id_device": d, "received_at": t, "posted_at": p, "version": v,
             "type_upload": u, "method": m, "payload": payload}
+
+
+def session_errors(sid: int) -> list[dict] | None:
+    """Lỗi cảm biến máy báo về TRONG lần đo này. None nếu không có phiên `sid`.
+
+    **Vì sao phải ghép chứ không đọc thẳng payload**: firmware gửi lỗi bằng một POST RIÊNG
+    (`{method:"error", error:[{Slot, error_code, error_msg}]}` — `errorCheck.cpp`), không
+    nhét vào payload kết quả. Nó vào cùng đường `/ingest` nên nằm trong `sessions` như một
+    hàng riêng, `CT_value` NULL.
+
+    **Luật ghép — HAI chặn, phải có cả hai**: bản ghi lỗi của CÙNG máy, nằm
+      * sau lần đo liền TRƯỚC (để không nuốt lỗi của run trước), **VÀ**
+      * trong vòng 2 GIỜ trước lần đo này (`postError_Googlesheet()` bắn ngay lúc lỗi phát
+        sinh, có thể sớm hơn kết quả gần một giờ: lysis 10 phút + khuếch đại tối đa ~43
+        phút + sấy),
+    và không muộn hơn lần đo này quá 15 phút (`postError_fullGoogleSheet()` xả cả sổ ở màn
+    kết thúc — cùng chỗ kết quả được gửi, mà TLS mất 30-90 s mỗi đích nên có thể tới SAU).
+
+    ⚠️ **Chặn 2 giờ KHÔNG thừa** — bỏ nó là lỗi thật đã dẫm phải 2026-08-20: máy RPL02007 báo
+    3 lỗi ngày **04/06**, lần đo kế tiếp của nó mãi **03/08** mới có, và luật "sau lần đo liền
+    trước" một mình gán tuốt 3 lỗi hai tháng tuổi vào lần đo tháng 8. Máy nằm im hàng tháng là
+    chuyện thường ngoài hiện trường, nên vế "liền trước" không tự chặn được gì.
+
+    ⚠️ Vẫn là SUY LUẬN theo thời gian, không phải khoá ngoại — payload lỗi không mang mã
+    lần đo nào cả. App phải nói rõ điều đó.
+    """
+    with _conn() as conn, conn.cursor() as cur:
+        cur.execute("SELECT id_device, received_at FROM sessions WHERE id = %s", (sid,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        dev, at = row
+        cur.execute("""
+            SELECT id, received_at, payload->'error'
+            FROM sessions
+            WHERE id_device = %s
+              AND payload->>'method' = 'error'
+              AND received_at <= %s + interval '15 minutes'
+              -- GREATEST của hai chặn: lấy cái CHẶT HƠN. Thiếu vế 2 giờ thì máy nằm im
+              -- hàng tháng sẽ kéo theo lỗi cũ mèm; thiếu vế "liền trước" thì hai run sát
+              -- nhau lẫn lỗi vào nhau.
+              AND received_at > GREATEST(
+                    %s - interval '2 hours',
+                    COALESCE((
+                      SELECT max(received_at) FROM sessions
+                      WHERE id_device = %s AND received_at < %s
+                        AND payload->>'method' IS DISTINCT FROM 'error'
+                    ), to_timestamp(0))
+                  )
+            ORDER BY received_at
+        """, (dev, at, at, dev, at))
+        out = []
+        for eid, eat, arr in cur.fetchall():
+            for e in (arr if isinstance(arr, list) else []):
+                if not isinstance(e, dict):
+                    continue
+                out.append({
+                    "at": eat,
+                    "session_id": eid,
+                    "slot": str(e.get("Slot") or ""),
+                    "code": str(e.get("error_code") or ""),
+                    "message": str(e.get("error_msg") or ""),
+                })
+        return out
 
 
 def get_amplification(sid: int) -> list[dict] | None:

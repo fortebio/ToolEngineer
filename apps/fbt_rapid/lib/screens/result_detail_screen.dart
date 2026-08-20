@@ -2,12 +2,16 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 import '../models/test_result.dart';
+import '../services/fbt_api.dart' show SensorError;
 import '../services/result_export.dart';
 import '../services/session_store.dart';
 import '../util/chart_capture.dart';
 import '../util/curve_processing.dart';
 import '../util/format.dart';
+import '../util/i18n.dart';
 import '../widgets/ct_chart.dart';
 import '../widgets/result_badge.dart';
 import 'curve_compare_screen.dart';
@@ -16,10 +20,18 @@ class ResultDetailScreen extends StatefulWidget {
   final TestResult result;
   final int readingIntervalSec;
 
+  /// Lỗi cảm biến máy báo về trong lần đo này. Rỗng = máy chạy sạch → KHÔNG hiện bảng.
+  ///
+  /// Truyền VÀO chứ không tự gọi API: màn này dùng chung cho **cả 4 nguồn** (Google Drive,
+  /// RAPID ERP, Engineer Server, máy trong LAN) mà chỉ Engineer Server có endpoint lỗi.
+  /// Nhét `FbtApi` vào đây là trói một màn dùng chung vào một nguồn.
+  final List<SensorError> errors;
+
   const ResultDetailScreen({
     super.key,
     required this.result,
     required this.readingIntervalSec,
+    this.errors = const [],
   });
 
   @override
@@ -36,7 +48,7 @@ class _ResultDetailScreenState extends State<ResultDetailScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(m),
-      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
+      backgroundColor: error ? kErrorSnackBg : null,
       duration: Duration(seconds: error ? 4 : 1),
     ));
   }
@@ -137,7 +149,16 @@ class _ResultDetailScreenState extends State<ResultDetailScreen> {
               for (final v in ordered)
                 RepaintBoundary(
                   key: keys[v],
-                  child: Container(
+                  // Theme SÁNG ghim cứng cho vùng chụp. Nền đã là `Colors.white`
+                  // từ trước, nhưng chữ (tiêu đề, chú giải, nhãn trục) lấy màu
+                  // theo theme đang chạy → ở chế độ tối là gần-trắng ⇒ trắng
+                  // trên trắng, ảnh xuất ra MẤT hết chữ mà không báo gì.
+                  child: AppExportTheme(
+                    // `Builder` để lấy được context NẰM TRONG vùng chụp. Không
+                    // có nó thì `Theme.of(context)` bên dưới vẫn trỏ về context
+                    // của State (ở NGOÀI) → hai tiêu đề vẫn mang màu theme tối
+                    // trên nền trắng, dù AppExportTheme đã lo phần còn lại.
+                    child: Builder(builder: (ctxChup) => Container(
                     width: 1240,
                     color: Colors.white,
                     padding: const EdgeInsets.all(12),
@@ -146,7 +167,7 @@ class _ResultDetailScreenState extends State<ResultDetailScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text('${v.label} — ${r.deviceId}',
-                            style: Theme.of(context).textTheme.titleMedium),
+                            style: Theme.of(ctxChup).textTheme.titleMedium),
                         const SizedBox(height: 4),
                         _MiniLegend(slots: r.slots, visible: _visible),
                         const SizedBox(height: 8),
@@ -176,7 +197,7 @@ class _ResultDetailScreenState extends State<ResultDetailScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text('Kết quả',
-                                      style: Theme.of(context)
+                                      style: Theme.of(ctxChup)
                                           .textTheme
                                           .titleMedium),
                                   const SizedBox(height: 6),
@@ -192,6 +213,7 @@ class _ResultDetailScreenState extends State<ResultDetailScreen> {
                         ),
                       ],
                     ),
+                  )),
                   ),
                 ),
             ],
@@ -382,6 +404,13 @@ class _ResultDetailScreenState extends State<ResultDetailScreen> {
                   else
                     _SlotGrid(
                         slots: r.slots, visible: _visible, onToggle: _toggle),
+                  // Bảng mã lỗi nằm NGAY DƯỚI kết quả, cùng cột với nó — lỗi cảm biến
+                  // giải thích chính mấy ô kết quả phía trên (slot mất dữ liệu, quá tối),
+                  // nên đọc rời hai chỗ là mất mối liên hệ.
+                  if (widget.errors.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    _ErrorTable(errors: widget.errors),
+                  ],
                 ],
               );
 
@@ -455,6 +484,7 @@ class _SlotGrid extends StatelessWidget {
   Widget _card(BuildContext context, SlotResult s) {
     // Màu = đúng màu đường của slot trong đồ thị CT (để đối chiếu nhanh).
     final color = kSlotColors[(s.index - 1) % kSlotColors.length];
+    final cs = Theme.of(context).colorScheme;
     final on = visible.contains(s.index);
     return Card(
       margin: EdgeInsets.zero,
@@ -476,12 +506,32 @@ class _SlotGrid extends StatelessWidget {
                   children: [
                     CircleAvatar(backgroundColor: color, radius: 6),
                     const SizedBox(width: 6),
-                    Text('Slot ${s.index}',
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const Spacer(),
+                    // Tên bệnh (firmware v2.4.3+) NẰM NGANG cạnh số slot:
+                    // "Slot 1 - PCV". Chưa đặt tên thì "N/A" (đúng chữ máy ghi)
+                    // chứ không bỏ trống — 10 ô phải đọc giống hệt nhau.
+                    // Tên dài (ASF I177L) cắt bằng ellipsis: ô trong lưới 2 cột
+                    // chỉ rộng ~150px, để tự xuống dòng là ô cao thấp so le.
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          text: 'Slot ${s.index} - ',
+                          children: [
+                            TextSpan(
+                              text: s.name.isEmpty ? 'N/A' : s.name,
+                              style: TextStyle(
+                                  color: s.name.isEmpty
+                                      ? cs.onSurfaceVariant
+                                      : cs.primary),
+                            ),
+                          ],
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
                     Icon(on ? Icons.visibility : Icons.visibility_off,
-                        size: 15,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        size: 15, color: cs.onSurfaceVariant),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -497,7 +547,8 @@ class _SlotGrid extends StatelessWidget {
   }
 }
 
-/// Chú thích gọn (chấm màu + Slot n) cho slot đang hiện — để ảnh PNG tự hiểu.
+/// Chú thích gọn (chấm màu + "Slot n · tên bệnh") cho slot đang hiện — để ảnh
+/// PNG tự hiểu.
 class _MiniLegend extends StatelessWidget {
   final List<SlotResult> slots;
   final Set<int> visible;
@@ -517,9 +568,89 @@ class _MiniLegend extends StatelessWidget {
                       kSlotColors[(s.index - 1) % kSlotColors.length],
                   radius: 4),
               const SizedBox(width: 3),
-              Text('Slot ${s.index}', style: const TextStyle(fontSize: 10)),
+              Text(s.label, style: const TextStyle(fontSize: 10)),
             ]),
       ],
+    );
+  }
+}
+
+/// Bảng **mã lỗi cảm biến** máy tự phát hiện và gửi về.
+///
+/// Chỉ dựng khi CÓ lỗi — khung rỗng kèm chữ "không có lỗi" là cấp giấy chứng nhận sạch cho
+/// một lần đo mà ta chỉ biết là *không nghe thấy gì*, và gần cả fleet hiện chưa gửi lỗi về
+/// server (trước firmware 2026-08-05 lỗi chỉ tới Google Sheet).
+class _ErrorTable extends StatelessWidget {
+  final List<SensorError> errors;
+  const _ErrorTable({required this.errors});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final head = TextStyle(
+        fontSize: 11.5, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.error.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(AppRadius.base),
+        border: Border.all(color: cs.error.withValues(alpha: 0.35)),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.error_outline, size: 17, color: cs.error),
+            const SizedBox(width: 6),
+            Text(tr('rd.errTitle').replaceFirst('{n}', '${errors.length}'),
+                style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w700, color: cs.error)),
+          ]),
+          const SizedBox(height: 8),
+          Row(children: [
+            SizedBox(width: 58, child: Text(tr('rd.errSlot'), style: head)),
+            SizedBox(width: 50, child: Text(tr('rd.errCode'), style: head)),
+            Expanded(child: Text(tr('rd.errMsg'), style: head)),
+          ]),
+          const Divider(height: 10),
+          for (final e in errors)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 58,
+                    child: Text(e.slot.isEmpty ? '—' : e.slot,
+                        style: TextStyle(fontSize: 12, color: cs.onSurface)),
+                  ),
+                  SizedBox(
+                    width: 50,
+                    // Mã in bằng font MONO và giữ nguyên 4 chữ số: đây đúng là mã hiện trên
+                    // màn TFT của máy, kỹ sư đọc chéo hai nơi.
+                    child: Text(e.code,
+                        style: TextStyle(
+                            fontFamily: 'JetBrains Mono',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: cs.error)),
+                  ),
+                  Expanded(
+                    child: Text(e.message,
+                        style: TextStyle(fontSize: 12, color: cs.onSurface)),
+                  ),
+                ],
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(tr('rd.errNote'),
+                style: TextStyle(
+                    fontSize: 11, height: 1.35, color: cs.onSurfaceVariant)),
+          ),
+        ],
+      ),
     );
   }
 }

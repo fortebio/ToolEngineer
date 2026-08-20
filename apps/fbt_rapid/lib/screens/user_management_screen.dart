@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../services/auth_api.dart';
 import '../services/session_store.dart';
+import '../theme/app_theme.dart';
 import '../util/i18n.dart';
+import '../widgets/app_tab_scaffold.dart';
 
 /// Màn **Quản lý User** (chỉ admin): tạo user, cấp/đổi mã máy được cấp,
 /// tắt/bật tài khoản, xóa. Mọi thao tác gọi Engineer Server (POST /auth) với
@@ -160,26 +162,36 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(tr('um.title')),
-        actions: [
-          if (_adminPass != null)
-            IconButton(
-              tooltip: tr('common.save'),
-              onPressed: _busy ? null : _reload,
-              icon: const Icon(Icons.refresh),
-            ),
+    // Cùng khuôn với mọi tab khác: tiêu đề + phụ đề do `AppTabScaffold` lo, một
+    // mục duy nhất nên dải chọn tự ẩn. "Tạo user" chuyển từ FAB lên hàng tiêu đề
+    // — FAB nổi ở góc phải dưới che mất dòng cuối danh sách, và app này không
+    // có cái FAB nào khác để nó thuộc về.
+    return AppTabScaffold(
+      title: tr('um.title'),
+      subtitle: tr('um.hint'),
+      index: 0,
+      onChanged: (_) {},
+      actions: [
+        if (_adminPass != null) ...[
+          IconButton(
+            tooltip: tr('common.refresh'),
+            onPressed: _busy ? null : _reload,
+            icon: const Icon(Icons.refresh),
+          ),
+          FilledButton.icon(
+            onPressed: _busy ? null : () => _openEditor(),
+            icon: const Icon(Icons.person_add),
+            label: Text(tr('um.create')),
+          ),
         ],
-      ),
-      floatingActionButton: _adminPass == null
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _busy ? null : () => _openEditor(),
-              icon: const Icon(Icons.person_add),
-              label: Text(tr('um.create')),
-            ),
-      body: _adminPass == null ? _passwordGate() : _list(),
+      ],
+      tabs: [
+        AppTab(
+          icon: Icons.manage_accounts_outlined,
+          label: tr('um.title'),
+          page: _adminPass == null ? _passwordGate() : _list(),
+        ),
+      ],
     );
   }
 
@@ -205,7 +217,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 decoration: InputDecoration(
                   labelText: tr('login.password'),
                   prefixIcon: const Icon(Icons.key_outlined),
-                  border: const OutlineInputBorder(),
                 ),
               ),
               if (_error != null) ...[
@@ -238,7 +249,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return Stack(
       children: [
         ListView.separated(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
+          // 88px dưới trước đây chừa cho FAB "Tạo user" — FAB đã chuyển
+          // lên hàng tiêu đề, chỗ trống đó giờ chỉ ăn mất một dòng tài khoản.
+          padding: const EdgeInsets.all(12),
           itemCount: _users.length,
           separatorBuilder: (_, __) => const SizedBox(height: 6),
           itemBuilder: (context, i) {
@@ -247,7 +260,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             // được cấp; "*" trong ids = được xem full.
             final idsText =
                 u.isRoot ? '*' : (u.ids.isEmpty ? '—' : u.ids.join(', '));
-            return Card(
+            return AppFadeIn(
+              index: i,
+              child: Card(
               margin: EdgeInsets.zero,
               child: ListTile(
                 leading: CircleAvatar(
@@ -269,7 +284,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  _chip(roleLabel(u.role), _roleColor(u.role)),
+                  _chip(roleLabel(u.role), _roleColor(context, u.role)),
                 ]),
                 subtitle: Text(
                   '@${u.username}'
@@ -300,6 +315,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 ),
                 onTap: _busy ? null : () => _openEditor(existing: u),
               ),
+              ),
             );
           },
         ),
@@ -308,22 +324,26 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  Color _roleColor(String role) {
+  /// Màu huy hiệu vai trò — lấy từ token, KHÔNG hardcode Colors.*.
+  /// Tránh amber cho CHỮ (tương phản kém trên nền sáng): root = primary,
+  /// admin = info, khách = onSurfaceVariant — đọc được ở cả light lẫn dark.
+  Color _roleColor(BuildContext c, String role) {
+    final cs = Theme.of(c).colorScheme;
     switch (role.toLowerCase()) {
       case 'root':
-        return Colors.deepPurple;
+        return cs.primary;
       case 'admin':
-        return Colors.indigo;
+        return AppSemantic.of(c).info;
       default:
-        return Colors.teal;
+        return cs.onSurfaceVariant;
     }
   }
 
   Widget _chip(String text, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(10),
+          color: color.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
         child: Text(text,
             style: TextStyle(
@@ -425,24 +445,19 @@ class _UserEditDialogState extends State<_UserEditDialog> {
             TextField(
               controller: _user,
               enabled: !_isEdit, // sửa: không đổi username (khoá khớp dòng)
-              decoration: InputDecoration(
-                  labelText: tr('us.username'),
-                  border: const OutlineInputBorder()),
+              decoration: InputDecoration(labelText: tr('us.username')),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: _pass,
               obscureText: true,
               decoration: InputDecoration(
-                  labelText: _isEdit ? tr('um.pwKeep') : tr('um.pwNew'),
-                  border: const OutlineInputBorder()),
+                  labelText: _isEdit ? tr('um.pwKeep') : tr('um.pwNew')),
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
               value: _role,
-              decoration: InputDecoration(
-                  labelText: tr('us.role'),
-                  border: const OutlineInputBorder()),
+              decoration: InputDecoration(labelText: tr('us.role')),
               items: [
                 DropdownMenuItem(value: 'user', child: Text(roleLabel('user'))),
                 DropdownMenuItem(
@@ -454,24 +469,18 @@ class _UserEditDialogState extends State<_UserEditDialog> {
             const SizedBox(height: 10),
             TextField(
               controller: _ids,
-              decoration: InputDecoration(
-                  labelText: tr('um.ids'),
-                  border: const OutlineInputBorder()),
+              decoration: InputDecoration(labelText: tr('um.ids')),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: _name,
-              decoration: InputDecoration(
-                  labelText: tr('us.name'),
-                  border: const OutlineInputBorder()),
+              decoration: InputDecoration(labelText: tr('us.name')),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: _email,
               keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                  labelText: tr('us.email'),
-                  border: const OutlineInputBorder()),
+              decoration: InputDecoration(labelText: tr('us.email')),
             ),
             const SizedBox(height: 4),
             SwitchListTile(

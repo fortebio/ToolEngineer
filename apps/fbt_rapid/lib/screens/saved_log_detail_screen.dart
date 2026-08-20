@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 import '../services/temperature_serial.dart';
 import '../services/temperature_store.dart';
 import '../util/chart_capture.dart';
@@ -42,7 +44,7 @@ class _SavedLogDetailScreenState extends State<SavedLogDetailScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(m),
-      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
+      backgroundColor: error ? kErrorSnackBg : null,
       duration: Duration(seconds: error ? 4 : 1),
     ));
   }
@@ -109,7 +111,9 @@ class _SavedLogDetailScreenState extends State<SavedLogDetailScreen> {
             Expanded(
               child: RepaintBoundary(
                 key: _repaintKey,
-                child: Container(
+                // Theme SÁNG ghim cứng cho đúng vùng chụp — xem [AppExportTheme].
+                child: AppExportTheme(
+                  child: Container(
                   color: Colors.white,
                   padding: const EdgeInsets.all(12),
                   child: Column(
@@ -121,6 +125,7 @@ class _SavedLogDetailScreenState extends State<SavedLogDetailScreen> {
                           child: TempChart(
                               samples: samples, visibleChannels: _visibleCh)),
                     ],
+                  ),
                   ),
                 ),
               ),

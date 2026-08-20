@@ -18,6 +18,13 @@ linux/
 web/*
 !web/index.html
 !web/esptool.js
+# Icon + manifest thương hiệu (2026-08-19). PHẢI trừ ra: `flutter build web` đọc
+# thẳng từ `web/`, mà chúng là file BINARY không sinh lại được — clone mới mà
+# thiếu là bản web quay về icon Flutter mặc định, im lặng. Đây đúng vết xe mà
+# CLAUDE.md ghi cho `app_icon.ico` ("phải copy tay khi đóng gói").
+!web/favicon.png
+!web/manifest.json
+!web/icons/
 
 # IDE
 .idea/

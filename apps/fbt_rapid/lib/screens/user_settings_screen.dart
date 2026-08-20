@@ -10,6 +10,7 @@ import '../services/auth_api.dart';
 import '../services/backup_service.dart';
 import '../services/session_store.dart';
 import '../services/storage_paths.dart';
+import '../theme/app_theme.dart';
 import '../util/i18n.dart';
 import '../util/platform_files.dart' as pf;
 
@@ -23,6 +24,12 @@ class UserSettingsScreen extends StatefulWidget {
   @override
   State<UserSettingsScreen> createState() => _UserSettingsScreenState();
 }
+
+/// Hiện mục **Engineer Server** (URL + token) trong Cài đặt.
+///
+/// `false` vì token nay cấp ngầm lúc đăng nhập theo vai trò. Đổi `true` khi cần
+/// trỏ tay sang host khác — xem chú thích ở chỗ dùng.
+const bool kShowEngineerSettings = false;
 
 class _UserSettingsScreenState extends State<UserSettingsScreen> {
   late final TextEditingController _interval = TextEditingController(
@@ -65,7 +72,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(m),
-      backgroundColor: error ? Colors.red.shade700 : null,
+      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
       duration: Duration(seconds: error ? 4 : 2),
     ));
   }
@@ -236,9 +243,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
           TextField(
               controller: email,
               keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                  labelText: tr('ce.new'),
-                  border: const OutlineInputBorder())),
+              decoration: InputDecoration(labelText: tr('ce.new'))),
           const SizedBox(height: 10),
           _pwField(pass, tr('login.password')),
         ]),
@@ -263,11 +268,11 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
     }
   }
 
+  // Ô mật khẩu — viền/bo lấy từ `inputDecorationTheme` (không đè OutlineInputBorder).
   Widget _pwField(TextEditingController c, String label) => TextField(
         controller: c,
         obscureText: true,
-        decoration:
-            InputDecoration(labelText: label, border: const OutlineInputBorder()),
+        decoration: InputDecoration(labelText: label),
       );
 
   @override
@@ -284,8 +289,9 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: AppFadeIn(
+        child: ListView(
+        padding: const EdgeInsets.all(20),
         children: [
           // --- Tài khoản (theo phiên đăng nhập) ---
           _section(tr('us.accountInfo')),
@@ -353,15 +359,6 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
           Card(
             margin: EdgeInsets.zero,
             child: Column(children: [
-              SwitchListTile(
-                secondary: Icon(AppPrefs.instance.isDark
-                    ? Icons.dark_mode
-                    : Icons.light_mode),
-                title: Text(tr('us.darkMode')),
-                value: AppPrefs.instance.isDark,
-                onChanged: (v) => AppPrefs.instance.setDark(v),
-              ),
-              const Divider(height: 1),
               ListTile(
                 leading: const Icon(Icons.language),
                 title: Text(tr('us.language')),
@@ -455,7 +452,6 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
                 labelText: tr('us.rapidErpUrl'),
                 hintText: kDefaultRapidErpUrl,
                 prefixIcon: const Icon(Icons.api_outlined),
-                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 8),
@@ -465,7 +461,6 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
               decoration: InputDecoration(
                 labelText: tr('us.rapidErpKey'),
                 prefixIcon: const Icon(Icons.vpn_key_outlined),
-                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 6),
@@ -480,23 +475,32 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
                 labelText: tr('us.rapidErpIds'),
                 hintText: 'RPL03010, RPL02013, …',
                 prefixIcon: const Icon(Icons.list_alt),
-                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 6),
             Text(tr('us.rapidErpIdsHint'),
                 style: Theme.of(context).textTheme.bodySmall),
 
-            // --- Engineer Server (server tự host server/) — CHỈ admin nhập ---
-            const SizedBox(height: 24),
-            _section(tr('us.engineer')),
+            // --- Engineer Server (server tự host server/) ---
+            //
+            // ẨN từ 2026-08-19 (yêu cầu chủ dự án). Token nay được cấp NGẦM lúc
+            // đăng nhập, theo vai trò (`server/app/auth.py::api_token_for`) —
+            // nhân sự nhận token ghi OTA, khách hàng nhận token đọc — nên không
+            // còn ai phải dán tay, và bày một ô token ra là mời người ta dán
+            // nhầm rồi hỏng cả quyền ghi.
+            //
+            // Giữ code + đổi cờ này thành `true` là hiện lại (cùng khuôn
+            // `kShowFolderTab`). Cần khi phải trỏ tay sang host khác, vd đổi về
+            // `fbt.basa-luma.ts.net` lúc Cloudflare có sự cố.
+            if (kShowEngineerSettings) ...[
+              const SizedBox(height: 24),
+              _section(tr('us.engineer')),
             TextField(
               controller: _engUrl,
               decoration: InputDecoration(
                 labelText: tr('us.engineerUrl'),
                 hintText: kDefaultEngineerUrl,
                 prefixIcon: const Icon(Icons.dns_outlined),
-                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 8),
@@ -506,12 +510,12 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
               decoration: InputDecoration(
                 labelText: tr('us.engineerToken'),
                 prefixIcon: const Icon(Icons.vpn_key_outlined),
-                border: const OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 6),
-            Text(tr('us.engineerHint'),
-                style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 6),
+              Text(tr('us.engineerHint'),
+                  style: Theme.of(context).textTheme.bodySmall),
+            ],
           ],
 
           // // --- Sao lưu & Khôi phục ---
@@ -531,20 +535,29 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
           // ]),
           // const SizedBox(height: 24),
         ],
+        ),
       ),
     );
   }
 
-  Widget _section(String title) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      );
+  Widget _section(String title) => AppSectionTitle(title);
 
-  Widget _row(IconData icon, String label, String value) => ListTile(
-        dense: true,
-        leading: Icon(icon, size: 20),
-        title: Text(label, style: const TextStyle(fontSize: 13)),
-        subtitle: Text(value, style: const TextStyle(fontSize: 15)),
+  Widget _row(IconData icon, String label, String value) => Builder(
+        builder: (context) {
+          final theme = Theme.of(context);
+          return ListTile(
+            dense: true,
+            leading: Icon(icon, size: 20, color: theme.colorScheme.primary),
+            title: Text(label,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            // Mã máy/ID: mono + tabular để cột không nhảy.
+            subtitle: Text(value,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontFamily: 'JetBrains Mono',
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                )),
+          );
+        },
       );
 }

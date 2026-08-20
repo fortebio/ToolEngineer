@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+_test.log
+scripts/_seed.generated.sql
+d1_export/
+# Bản build Flutter web copy vào đây lúc deploy — không version
+public/app/
+.dev.vars

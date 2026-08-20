@@ -5,6 +5,22 @@ import 'package:flutter/material.dart';
 import '../services/temperature_store.dart';
 
 /// Danh sách ảnh đồ thị đã lưu (PNG) → bấm để xem to.
+/// Tên phiên đo của một ảnh đồ thị đã lưu.
+///
+/// `TemperatureStore.listCharts()` quét từng thư mục con của `FBT_RAPID_templog`
+/// và chỉ lấy đúng file tên `chart.png` trong đó — nên **mọi ảnh đều trùng tên**.
+/// Thứ phân biệt các phiên là TÊN THƯ MỤC CHA (`<COM>_<yyyyMMdd_HHmmssSSS>`, đặt
+/// ở `saveBundle`). Dùng `pathSegments.last` như trước là in ra "chart.png" cho
+/// mọi dòng: danh sách 5 phiên thành 5 dòng chữ y hệt nhau.
+///
+/// Đi qua `uri` chứ không tách chuỗi theo dấu phân cách: dự án không có package
+/// `path`, và `uri.pathSegments` đúng trên cả Windows lẫn nơi khác. Thư mục cho
+/// phần tử cuối rỗng nên phải bỏ phần tử rỗng.
+String _tenPhien(FileSystemEntity f) {
+  final seg = f.parent.uri.pathSegments.where((e) => e.isNotEmpty);
+  return seg.isEmpty ? f.uri.pathSegments.last : seg.last;
+}
+
 class SavedChartsScreen extends StatefulWidget {
   const SavedChartsScreen({super.key});
 
@@ -28,7 +44,7 @@ class _SavedChartsScreenState extends State<SavedChartsScreen> {
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('Xoá ảnh này?'),
-        content: Text(f.uri.pathSegments.last),
+        content: Text(_tenPhien(f)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(c, false),
@@ -99,7 +115,7 @@ class _SavedChartsScreenState extends State<SavedChartsScreen> {
                       ),
                       ListTile(
                         dense: true,
-                        title: Text(f.uri.pathSegments.last,
+                        title: Text(_tenPhien(f),
                             style: const TextStyle(fontSize: 12)),
                         trailing: IconButton(
                           tooltip: 'Xoá',
@@ -128,7 +144,7 @@ class _ChartViewer extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text(file.uri.pathSegments.last),
+        title: Text(_tenPhien(file)),
       ),
       body: Center(
         child: InteractiveViewer(

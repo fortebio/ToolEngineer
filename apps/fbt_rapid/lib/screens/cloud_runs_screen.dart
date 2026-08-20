@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../models/test_result.dart';
 import '../services/app_settings.dart';
 import '../services/cloud_history_api.dart';
+import '../services/fbt_api.dart' show FbtApi, SensorError;
 import '../services/history_store.dart';
 import '../services/rapid_erp_api.dart';
 import '../services/session_store.dart';
+import '../theme/app_theme.dart';
 import '../util/format.dart';
 import 'result_detail_screen.dart';
 
@@ -95,6 +97,13 @@ class _CloudRunsScreenState extends State<CloudRunsScreen> {
     );
     try {
       final full = await _api.fetchRun(summary.id);
+      // Lỗi cảm biến chỉ có ở Engineer Server (Google Drive / RAPID ERP không có endpoint
+      // nào cho nó) → kiểm KIỂU thay vì thêm hàm vào `CloudHistoryClient`: một nguồn có,
+      // ba nguồn không, nhét vào interface là bắt ba lớp kia cài một hàm trả rỗng.
+      // `sessionErrors` tự nuốt lỗi nên hỏng cũng chỉ là không có bảng, không chặn mở màn.
+      final api = _api;
+      final errors =
+          api is FbtApi ? await api.sessionErrors(summary.id) : const <SensorError>[];
       if (!mounted) return;
       Navigator.pop(context); // đóng spinner
       Navigator.push(
@@ -102,6 +111,7 @@ class _CloudRunsScreenState extends State<CloudRunsScreen> {
         MaterialPageRoute(
           builder: (_) => ResultDetailScreen(
             result: full,
+            errors: errors,
             readingIntervalSec: widget.settings.readingIntervalSec,
           ),
         ),
@@ -111,7 +121,7 @@ class _CloudRunsScreenState extends State<CloudRunsScreen> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('$e'),
-        backgroundColor: Theme.of(context).colorScheme.error,
+        backgroundColor: kErrorSnackBg,
       ));
     }
   }
@@ -191,8 +201,11 @@ class _CloudRunsScreenState extends State<CloudRunsScreen> {
       appBar: AppBar(
         title: Text('Máy ${widget.device.id}'),
         actions: [
-          // User là read-only → ẩn nút đồng bộ về máy (chỉ admin).
-          if (SessionStore.canWrite)
+          // Tính năng Lịch sử cục bộ đang TẮT (`kLocalHistoryEnabled`) → giấu luôn
+          // nút ghi vào nó. Bày nút đồng bộ trong khi không có màn nào đọc ra là
+          // mời người ta tải dữ liệu về một chỗ không mở được.
+          // User read-only cũng không thấy nút này (chỉ admin).
+          if (kLocalHistoryEnabled && SessionStore.canWrite)
             IconButton(
               tooltip: 'Đồng bộ trang này về máy',
               onPressed: (_loading || _syncing || _runs.isEmpty) ? null : _sync,
@@ -250,31 +263,78 @@ class _CloudRunsScreenState extends State<CloudRunsScreen> {
           separatorBuilder: (_, __) => const SizedBox(height: 8),
           itemBuilder: (context, i) {
             final r = _runs[i];
-            final pos = r.countOf(Classification.positive);
-            final slight = r.countOf(Classification.slightPositive);
-            final neg = r.countOf(Classification.negative);
-            final err = r.countOf(Classification.error);
-            return Card(
-              child: ListTile(
-                leading:
-                    const CircleAvatar(child: Icon(Icons.science_outlined)),
-                title: Text(formatDateTime(r.timestamp)),
-                subtitle: Text(
-                  '${r.version.isNotEmpty ? 'FW ${r.version} · ' : ''}'
-                  'Dương $pos · Dương nhẹ $slight · Âm $neg · Lỗi $err',
-                ),
-                trailing: const Icon(Icons.show_chart),
+            final cs = Theme.of(context).colorScheme;
+            final tt = Theme.of(context).textTheme;
+            return AppFadeIn(
+              index: i,
+              child: AppCard(
+                hover: true,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 onTap: () => _openDetail(r),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: cs.primaryContainer,
+                      foregroundColor: cs.onPrimaryContainer,
+                      child: const Icon(Icons.science_outlined, size: 20),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            formatDateTime(r.timestamp),
+                            style: tt.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures()
+                              ],
+                            ),
+                          ),
+                          if (r.version.isNotEmpty)
+                            Text('FW ${r.version}',
+                                style: tt.bodySmall
+                                    ?.copyWith(color: cs.onSurfaceVariant)),
+                          const SizedBox(height: 6),
+                          // Chip đếm theo phân loại — chỉ hiện loại có kết quả.
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              for (final c in const [
+                                Classification.positive,
+                                Classification.slightPositive,
+                                Classification.negative,
+                                Classification.error,
+                              ])
+                                if (r.countOf(c) > 0)
+                                  _CountChip(
+                                      classification: c, count: r.countOf(c)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.show_chart, color: cs.onSurfaceVariant),
+                  ],
+                ),
               ),
             );
           },
         ),
         // Lớp mờ khi đang tải trang khác (giữ danh sách cũ phía dưới).
+        //
+        // Mờ về phía màu NỀN, không phải đen 20%: trên theme tối, đen-trên-tối
+        // gần như không đổi gì — người dùng không thấy tín hiệu "đang tải" nào
+        // ngoài cái spinner nhỏ xíu. Mờ về `surface` thì cả hai theme đều thấy
+        // rõ danh sách bị đẩy ra sau.
         if (_loading)
-          const Positioned.fill(
+          Positioned.fill(
             child: ColoredBox(
-              color: Color(0x33000000),
-              child: Center(child: CircularProgressIndicator()),
+              color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.65),
+              child: const Center(child: CircularProgressIndicator()),
             ),
           ),
       ],
@@ -300,7 +360,10 @@ class _CloudRunsScreenState extends State<CloudRunsScreen> {
               ),
               Text(
                 '$from–$to / $_total  ·  trang $_page/$_pageCount',
-                style: const TextStyle(fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
               ),
               OutlinedButton.icon(
                 onPressed: (_hasNext && !_loading) ? _nextPage : null,
@@ -309,6 +372,36 @@ class _CloudRunsScreenState extends State<CloudRunsScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Chip "<số> <nhãn>" theo phân loại kết quả. Màu lấy từ `Classification.color`
+/// — bảng màu DỮ LIỆU (giống palette đồ thị), cố tình không token-hoá theo theme.
+class _CountChip extends StatelessWidget {
+  final Classification classification;
+  final int count;
+  const _CountChip({required this.classification, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = classification.color;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: c.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        '$count ${classification.label}',
+        style: TextStyle(
+          color: c,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          fontFeatures: const [FontFeature.tabularFigures()],
         ),
       ),
     );

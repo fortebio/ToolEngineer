@@ -4,6 +4,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/test_result.dart';
 
+/// **CÔNG TẮC DUY NHẤT của tính năng "Lịch sử cục bộ"** (tắt 2026-08-20 theo yêu cầu chủ
+/// dự án). Đổi `true` để bật lại — code và import giữ nguyên, cùng khuôn `kShowFolderTab`
+/// (`home_shell.dart`) và `kShowEngineerSettings` (`user_settings_screen.dart`).
+///
+/// Nó gác **HAI** chỗ, và phải gác cả hai mới gọi là tắt:
+///  * mục **Cục bộ** trong tab Lịch sử (`history_combined_screen.dart`) — nơi ĐỌC;
+///  * nút **"Đồng bộ trang này về máy"** ở `cloud_runs_screen.dart` — nơi GHI.
+///
+/// ⚠️ Trước đó chỉ mục đọc bị ẩn, còn nút ghi vẫn nằm đó: người dùng bấm đồng bộ, app tải
+/// từng lần chạy về (mỗi lần một request có đường cong), lưu vào `shared_preferences` —
+/// rồi **không có màn nào mở ra xem được**. Tốn mạng, phình prefs, và không một dấu hiệu
+/// nào cho biết dữ liệu vừa rơi vào đâu.
+const bool kLocalHistoryEnabled = false;
+
 /// Lưu lịch sử xét nghiệm cục bộ trên máy tính (v1 chưa có cloud read).
 class HistoryStore {
   static const _key = 'history_v1';

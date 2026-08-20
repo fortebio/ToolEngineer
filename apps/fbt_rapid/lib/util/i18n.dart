@@ -31,6 +31,7 @@ const Map<String, Map<String, String>> _t = {
   'nav.settings': {'vi': 'Cài đặt', 'en': 'Settings', 'zh': '设置', 'th': 'ตั้งค่า'},
 
   // --- Kỹ Thuật (nhân sự): Log nhiệt | Đọc serial | Nạp code ---
+  'tech.comShared': {'vi': 'Ba công cụ dùng CHUNG một cổng COM — đóng cổng trước khi nạp.', 'en': 'All three tools share one COM port — close it before flashing.', 'zh': '三个工具共用一个 COM 端口——烧录前请先关闭。', 'th': 'ทั้งสามเครื่องมือใช้พอร์ต COM ร่วมกัน — ปิดพอร์ตก่อนแฟลช'},
   'tech.templog': {'vi': 'Log nhiệt', 'en': 'Temp log', 'zh': '温度记录', 'th': 'บันทึกอุณหภูมิ'},
   'tech.serial': {'vi': 'Đọc serial', 'en': 'Serial monitor', 'zh': '串口监视', 'th': 'มอนิเตอร์ซีเรียล'},
   'tech.flash': {'vi': 'Nạp code', 'en': 'Flash firmware', 'zh': '烧录固件', 'th': 'แฟลชเฟิร์มแวร์'},
@@ -71,6 +72,110 @@ const Map<String, Map<String, String>> _t = {
   'history.jsonRefresh': {'vi': 'Tải lại', 'en': 'Reload', 'zh': '重新加载', 'th': 'โหลดใหม่'},
   'history.jsonEmpty': {'vi': 'Chưa có file JSON nào trên server.', 'en': 'No JSON files on the server yet.', 'zh': '服务器上还没有 JSON 文件。', 'th': 'ยังไม่มีไฟล์ JSON บนเซิร์ฟเวอร์'},
   'history.jsonLoadMore': {'vi': 'Tải thêm', 'en': 'Load more', 'zh': '加载更多', 'th': 'โหลดเพิ่ม'},
+
+  // --- Tab Quản lý máy (OTA + trạng thái thiết bị) ---
+  'nav.manager': {'vi': 'Quản lý máy', 'en': 'Manage machines', 'zh': '设备管理', 'th': 'จัดการเครื่อง'},
+  'mm.shellHint': {'vi': 'Chọn bản firmware cho cả fleet hoặc ghim riêng từng máy. Máy nhận ở lần hỏi server kế tiếp.', 'en': 'Pick firmware for the whole fleet, or pin one machine. Machines see it at their next check.', 'zh': '为整个设备群选择固件，或单独指定某台设备。设备会在下次查询时看到。', 'th': 'เลือกเฟิร์มแวร์สำหรับทั้งกลุ่ม หรือปักหมุดเฉพาะเครื่อง เครื่องจะเห็นในการตรวจครั้งถัดไป'},
+  'mm.ota': {'vi': 'Cập nhật OTA', 'en': 'OTA update', 'zh': 'OTA 更新', 'th': 'อัปเดต OTA'},
+  'mm.status': {'vi': 'Trạng thái máy', 'en': 'Machine status', 'zh': '设备状态', 'th': 'สถานะเครื่อง'},
+  'mm.upload': {'vi': 'Tải firmware lên', 'en': 'Upload firmware', 'zh': '上传固件', 'th': 'อัปโหลดเฟิร์มแวร์'},
+  'mm.uploaded': {'vi': 'Đã tải firmware lên server.', 'en': 'Firmware uploaded.', 'zh': '固件已上传。', 'th': 'อัปโหลดเฟิร์มแวร์แล้ว'},
+  'mm.uploadedAs': {'vi': 'Đã tải lên: {name}', 'en': 'Uploaded as: {name}', 'zh': '已上传为：{name}', 'th': 'อัปโหลดเป็น: {name}'},
+
+  // Pop-up đặt tên phiên bản khi tải firmware lên
+  'mm.versionTitle': {'vi': 'Đặt tên phiên bản', 'en': 'Name this version', 'zh': '为此版本命名', 'th': 'ตั้งชื่อเวอร์ชัน'},
+  'mm.versionPickedFile': {'vi': 'File đã chọn: {name}', 'en': 'Selected file: {name}', 'zh': '已选文件：{name}', 'th': 'ไฟล์ที่เลือก: {name}'},
+  'mm.versionLabel': {'vi': 'Phiên bản', 'en': 'Version', 'zh': '版本', 'th': 'เวอร์ชัน'},
+  'mm.versionHint': {'vi': 'Nhập version dạng 2.4.4 (ít nhất 2 nhóm số).', 'en': 'Enter a version like 2.4.4 (at least two number groups).', 'zh': '请输入形如 2.4.4 的版本号（至少两组数字）。', 'th': 'ใส่เวอร์ชันแบบ 2.4.4 (อย่างน้อยสองกลุ่มตัวเลข)'},
+  'mm.versionInvalid': {'vi': 'Không hợp lệ. Ví dụ đúng: 2.4.4 · 2.4.4AT · 2.4.4_rc1', 'en': 'Invalid. Valid examples: 2.4.4 · 2.4.4AT · 2.4.4_rc1', 'zh': '无效。有效示例：2.4.4 · 2.4.4AT · 2.4.4_rc1', 'th': 'ไม่ถูกต้อง ตัวอย่างที่ใช้ได้: 2.4.4 · 2.4.4AT · 2.4.4_rc1'},
+  'mm.versionSavedAs': {'vi': 'Lưu trên server thành: {name}', 'en': 'Saved on the server as: {name}', 'zh': '在服务器上保存为：{name}', 'th': 'บันทึกบนเซิร์ฟเวอร์เป็น: {name}'},
+  'mm.versionOverwrite': {
+    'vi': '⚠ Server đã có bản cùng tên — tải lên sẽ GHI ĐÈ. Nếu muốn giữ bản cũ, đặt version khác.',
+    'en': '⚠ A build with this name already exists on the server — uploading will OVERWRITE it. Use a different version to keep the old one.',
+    'zh': '⚠ 服务器上已存在同名版本 — 上传将覆盖它。若要保留旧版本，请使用其他版本号。',
+    'th': '⚠ มีรุ่นชื่อนี้บนเซิร์ฟเวอร์แล้ว — การอัปโหลดจะเขียนทับ หากต้องการเก็บรุ่นเก่า ให้ใช้เวอร์ชันอื่น'
+  },
+  'mm.otaEmpty': {'vi': 'Chưa có bản firmware nào trên server.', 'en': 'No firmware on the server yet.', 'zh': '服务器上还没有固件。', 'th': 'ยังไม่มีเฟิร์มแวร์บนเซิร์ฟเวอร์'},
+  'mm.select': {'vi': 'Chọn bản này', 'en': 'Select', 'zh': '选择此版本', 'th': 'เลือกรุ่นนี้'},
+  'mm.selected': {'vi': 'Đang chọn', 'en': 'Selected', 'zh': '已选择', 'th': 'กำลังเลือก'},
+  'mm.noTarget': {'vi': 'Chưa chọn bản nào — máy không cập nhật.', 'en': 'No firmware selected — machines will not update.', 'zh': '未选择固件 — 设备不会更新。', 'th': 'ยังไม่ได้เลือกรุ่น — เครื่องจะไม่อัปเดต'},
+  'mm.targetIs': {'vi': 'Máy sẽ nạp: {name}', 'en': 'Machines will flash: {name}', 'zh': '设备将刷入：{name}', 'th': 'เครื่องจะแฟลช: {name}'},
+  'mm.clearTarget': {'vi': 'Huỷ chọn', 'en': 'Clear', 'zh': '取消选择', 'th': 'ยกเลิก'},
+  'mm.delete': {'vi': 'Xoá', 'en': 'Delete', 'zh': '删除', 'th': 'ลบ'},
+  'mm.deleteTitle': {'vi': 'Xoá bản firmware?', 'en': 'Delete firmware?', 'zh': '删除固件？', 'th': 'ลบเฟิร์มแวร์?'},
+  'mm.deleteBody': {'vi': 'Xoá "{name}" khỏi server? Không thể hoàn tác.', 'en': 'Delete "{name}" from the server? This cannot be undone.', 'zh': '从服务器删除“{name}”？此操作无法撤销。', 'th': 'ลบ "{name}" ออกจากเซิร์ฟเวอร์? ไม่สามารถย้อนกลับได้'},
+  'mm.firmware': {'vi': 'Firmware', 'en': 'Firmware', 'zh': '固件', 'th': 'เฟิร์มแวร์'},
+  // Pop-up xác nhận triển khai OTA
+  'mm.deployTitle': {'vi': 'Triển khai cho TOÀN BỘ máy?', 'en': 'Deploy to ALL machines?', 'zh': '向所有设备发布？', 'th': 'ติดตั้งให้เครื่องทั้งหมด?'},
+  'mm.deployFile': {'vi': 'Bản firmware', 'en': 'Firmware', 'zh': '固件', 'th': 'เฟิร์มแวร์'},
+  'mm.deployAffected': {'vi': 'Ảnh hưởng', 'en': 'Affects', 'zh': '影响范围', 'th': 'ผลกระทบ'},
+  'mm.deployNMachines': {'vi': '{n} máy', 'en': '{n} machines', 'zh': '{n} 台设备', 'th': '{n} เครื่อง'},
+  'mm.deployWarning': {
+    'vi': 'Server hiện CHƯA chọn được theo từng máy — mọi máy sẽ nhận bản này ở lần kiểm tra tới. Firmware lỗi = hỏng cả fleet ngoài hiện trường. Nên thử trên 1–2 máy trước khi có tính năng chọn theo máy.',
+    'en': 'The server cannot target individual machines yet — every machine will take this build on its next check. A bad firmware breaks the whole fleet in the field. Test on 1–2 machines first.',
+    'zh': '服务器暂不支持按设备选择 — 所有设备将在下次检查时安装此版本。固件有问题会导致整个机群故障。请先在 1–2 台设备上测试。',
+    'th': 'เซิร์ฟเวอร์ยังเลือกทีละเครื่องไม่ได้ — ทุกเครื่องจะรับรุ่นนี้ในการตรวจสอบครั้งถัดไป เฟิร์มแวร์ที่ผิดพลาดจะทำให้เครื่องทั้งหมดเสีย ควรทดสอบ 1–2 เครื่องก่อน'
+  },
+  'mm.deployNoVersion': {
+    'vi': '⚠ Tên file không chứa số version (vd fbt_v2.4.4.bin) → sau này KHÔNG tính được tiến độ triển khai.',
+    'en': '⚠ The file name has no version number (e.g. fbt_v2.4.4.bin) → rollout progress cannot be computed later.',
+    'zh': '⚠ 文件名不含版本号（如 fbt_v2.4.4.bin）→ 之后无法计算发布进度。',
+    'th': '⚠ ชื่อไฟล์ไม่มีเลขเวอร์ชัน (เช่น fbt_v2.4.4.bin) → จะคำนวณความคืบหน้าไม่ได้'
+  },
+  'mm.deployGo': {'vi': 'Triển khai', 'en': 'Deploy', 'zh': '发布', 'th': 'ติดตั้ง'},
+
+  // Pop-up tiến độ triển khai
+  'mm.progress': {'vi': 'Tiến độ', 'en': 'Progress', 'zh': '进度', 'th': 'ความคืบหน้า'},
+  'mm.progressTitle': {'vi': 'Triển khai: {name}', 'en': 'Rollout: {name}', 'zh': '发布：{name}', 'th': 'การติดตั้ง: {name}'},
+  'mm.progressCount': {'vi': '{done}/{total} máy đã lên v{ver}', 'en': '{done}/{total} machines on v{ver}', 'zh': '{done}/{total} 台设备已升级到 v{ver}', 'th': '{done}/{total} เครื่องอยู่บน v{ver}'},
+  'mm.progressNoVersion': {
+    'vi': 'Không tính được tiến độ: tên file không chứa số version. Đặt tên kiểu fbt_v2.4.4.bin thì app mới đối chiếu được với version máy báo về.',
+    'en': 'Cannot compute progress: the file name has no version number. Name it like fbt_v2.4.4.bin so it can be matched against what machines report.',
+    'zh': '无法计算进度：文件名不含版本号。请命名为 fbt_v2.4.4.bin 之类，才能与设备上报的版本比对。',
+    'th': 'คำนวณความคืบหน้าไม่ได้: ชื่อไฟล์ไม่มีเลขเวอร์ชัน ตั้งชื่อแบบ fbt_v2.4.4.bin จึงจะเทียบกับเวอร์ชันที่เครื่องรายงานได้'
+  },
+  'mm.progressCaveat': {
+    'vi': 'Suy ra từ version máy gửi kèm lần đo gần nhất — server không ghi nhận máy nào đã tải. Máy đã nạp xong nhưng chưa đo lại thì vẫn hiện bản cũ.',
+    'en': 'Inferred from the version each machine sent with its last run — the server does not record who downloaded. A machine that updated but has not measured since still shows the old build.',
+    'zh': '根据每台设备最近一次上传携带的版本推断 — 服务器不记录谁下载过。已升级但尚未再次测量的设备仍显示旧版本。',
+    'th': 'อนุมานจากเวอร์ชันที่เครื่องส่งมาพร้อมการวัดครั้งล่าสุด — เซิร์ฟเวอร์ไม่ได้บันทึกว่าใครดาวน์โหลด เครื่องที่อัปเดตแล้วแต่ยังไม่ได้วัดจะยังแสดงรุ่นเก่า'
+  },
+
+  // Tiêu đề cột bảng Trạng thái máy
+  'mm.colDevice': {'vi': 'Máy', 'en': 'Machine', 'zh': '设备', 'th': 'เครื่อง'},
+  'mm.colRuns': {'vi': 'Số phiên', 'en': 'Runs', 'zh': '运行次数', 'th': 'จำนวนครั้ง'},
+  'mm.colLastSeen': {'vi': 'Lần gửi cuối', 'en': 'Last upload', 'zh': '最后上传', 'th': 'อัปโหลดล่าสุด'},
+  'mm.fresh': {'vi': 'Có gửi dữ liệu trong 24 giờ qua', 'en': 'Sent data in the last 24h', 'zh': '过去 24 小时内有上传', 'th': 'ส่งข้อมูลใน 24 ชม. ที่ผ่านมา'},
+  'mm.stale': {'vi': 'Không gửi dữ liệu trong 24 giờ qua', 'en': 'No data in the last 24h', 'zh': '过去 24 小时内无上传', 'th': 'ไม่ได้ส่งข้อมูลใน 24 ชม. ที่ผ่านมา'},
+  'mm.statusEmpty': {'vi': 'Chưa có máy nào gửi dữ liệu.', 'en': 'No machine has sent data yet.', 'zh': '还没有设备上传数据。', 'th': 'ยังไม่มีเครื่องส่งข้อมูล'},
+  'mm.statusHint': {'vi': 'Version firmware lấy từ lần gửi dữ liệu gần nhất của máy.', 'en': 'Firmware version comes from each machine\'s most recent upload.', 'zh': '固件版本取自设备最近一次上传。', 'th': 'เวอร์ชันเฟิร์มแวร์มาจากการอัปโหลดล่าสุดของเครื่อง'},
+  'mm.searchOta': {'vi': 'Tìm bản firmware…', 'en': 'Search firmware…', 'zh': '搜索固件…', 'th': 'ค้นหาเฟิร์มแวร์…'},
+  'mm.searchStatus': {'vi': 'Tìm theo mã máy hoặc version…', 'en': 'Search by machine ID or version…', 'zh': '按设备编号或版本搜索…', 'th': 'ค้นหาด้วยรหัสเครื่องหรือเวอร์ชัน…'},
+  'mm.searchEmpty': {'vi': 'Không có kết quả khớp.', 'en': 'Nothing matches.', 'zh': '没有匹配项。', 'th': 'ไม่พบรายการที่ตรงกัน'},
+  'mm.pinSaved': {'vi': 'Đã ghim {id} vào {name}', 'en': 'Pinned {id} to {name}', 'zh': '已将 {id} 指定为 {name}', 'th': 'ปักหมุด {id} ไว้ที่ {name} แล้ว'},
+  'mm.pinCleared': {'vi': 'Đã gỡ ghim {id} — máy quay về theo bản chung', 'en': 'Unpinned {id} — it follows the fleet target again', 'zh': '已取消 {id} 的指定——恢复跟随统一版本', 'th': 'ยกเลิกการปักหมุด {id} — กลับไปตามเวอร์ชันรวม'},
+  'mm.pinFailed': {'vi': 'KHÔNG ghim được {id}: {err}', 'en': 'Could not pin {id}: {err}', 'zh': '无法指定 {id}：{err}', 'th': 'ปักหมุด {id} ไม่สำเร็จ: {err}'},
+  'mm.colPinnedBy': {'vi': 'Người thiết lập', 'en': 'Set by', 'zh': '设置人', 'th': 'ผู้ตั้งค่า'},
+  'mm.pinNoneHint': {'vi': 'Không ghim — máy đi theo bản chung, tự cập nhật qua OTA.', 'en': 'Not pinned — this machine follows the fleet target and updates over OTA.', 'zh': '未指定——此设备跟随统一版本，通过 OTA 自动更新。', 'th': 'ไม่ได้ปักหมุด — เครื่องนี้ตามเวอร์ชันรวมและอัปเดตผ่าน OTA'},
+  'mm.pinMenuHint': {'vi': 'Ghim thắng bản chung. Máy nhận ở lần hỏi kế tiếp, vẫn cần bấm nút ĐỎ.', 'en': 'A pin overrides the fleet target. The machine sees it at its next check and still needs the RED button.', 'zh': '指定版本优先于统一版本。设备下次查询时看到，仍需按红色按钮。', 'th': 'การปักหมุดแทนที่เวอร์ชันรวม เครื่องจะเห็นในการตรวจครั้งถัดไป และยังต้องกดปุ่มแดง'},
+  'mm.pinRunning': {
+    'vi': 'Máy đang chạy: {v}',
+    'en': 'Machine is running: {v}',
+    'zh': '设备当前运行：{v}',
+    'th': 'เครื่องกำลังใช้: {v}'
+  },
+  'mm.pinIsRunning': {
+    'vi': '· đang chạy',
+    'en': '· running',
+    'zh': '· 运行中',
+    'th': '· กำลังใช้'
+  },
+  'mm.pinNoTarget': {'vi': 'chưa chọn', 'en': 'none selected', 'zh': '未选择', 'th': 'ยังไม่ได้เลือก'},
+  'mm.pinFollowTarget': {'vi': 'Theo bản chung', 'en': 'Follow the fleet target', 'zh': '跟随统一版本', 'th': 'ตามเวอร์ชันรวม'},
+  'mm.pinSet': {'vi': 'Chọn bản riêng cho máy này', 'en': 'Pin a version for this machine', 'zh': '为此设备指定版本', 'th': 'ปักหมุดเวอร์ชันสำหรับเครื่องนี้'},
+  'mm.pinnedTo': {'vi': 'Đang ghim: {name}', 'en': 'Pinned to {name}', 'zh': '已指定：{name}', 'th': 'ปักหมุดไว้ที่ {name}'},
+  'mm.pinNeeds244': {'vi': 'Cần firmware v2.4.4 trở lên — bản cũ không hỏi server nên ghim sẽ không có tác dụng.', 'en': 'Needs firmware v2.4.4 or newer — older builds never ask the server, so a pin would do nothing.', 'zh': '需要 v2.4.4 或更新的固件——旧版本不会查询服务器，指定不会生效。', 'th': 'ต้องใช้เฟิร์มแวร์ v2.4.4 ขึ้นไป — รุ่นเก่าไม่ถามเซิร์ฟเวอร์ การปักหมุดจะไม่มีผล'},
+
 
   // --- Tab Thư Mục (duyệt dữ liệu dạng file) ---
   'nav.folder': {'vi': 'Thư Mục', 'en': 'Files', 'zh': '文件夹', 'th': 'โฟลเดอร์'},
@@ -176,15 +281,14 @@ const Map<String, Map<String, String>> _t = {
     'th': 'Admin token'
   },
   'us.engineerHint': {
-    'vi': 'URL gốc FBT Home Server qua Tailscale (mặc định '
-        'https://fbt.basa-luma.ts.net) + token (RECEIVER_TOKEN trên server; '
+    'vi': 'URL gốc FBT Home Server (mặc định '
+        'https://hub.fortebio.tech) + token (RECEIVER_TOKEN trên server; '
         'trống nếu server không đặt). Chỉ admin nhập.',
-    'en': 'FBT Home Server base URL over Tailscale (default '
-        'https://fbt.basa-luma.ts.net) + token (the server\'s RECEIVER_TOKEN; '
+    'en': 'FBT Home Server base URL (default '
+        'https://hub.fortebio.tech) + token (the server\'s RECEIVER_TOKEN; '
         'leave empty if the server has none). Admin only.'
   },
   'us.appearance': {'vi': 'Giao diện', 'en': 'Appearance'},
-  'us.darkMode': {'vi': 'Chế độ tối', 'en': 'Dark mode'},
   'us.language': {'vi': 'Ngôn ngữ', 'en': 'Language', 'zh': '语言', 'th': 'ภาษา'},
   'us.saveLocation': {'vi': 'Nơi lưu file', 'en': 'Save location'},
   'us.chooseFolder': {'vi': 'Chọn thư mục…', 'en': 'Choose folder…'},
@@ -205,6 +309,107 @@ const Map<String, Map<String, String>> _t = {
   'common.saved': {'vi': 'Đã lưu.', 'en': 'Saved.'},
   'common.delete': {'vi': 'Xóa', 'en': 'Delete'},
 
+  // --- Đại tu giao diện 2026-08-19: tiêu đề/phụ đề màn + nút chung ---
+  'history.hint': {'vi': 'Chọn một máy để xem các lần chạy và đồ thị CT.', 'en': 'Pick a machine to see its runs and CT curves.', 'zh': '选择一台设备查看其运行记录与 CT 曲线。', 'th': 'เลือกเครื่องเพื่อดูรอบการทำงานและกราฟ CT'},
+  'folder.hint': {'vi': 'Duyệt dữ liệu thiết bị đã đẩy lên server dưới dạng file.', 'en': 'Browse device data on the server as files.', 'zh': '以文件形式浏览设备上传到服务器的数据。', 'th': 'เรียกดูข้อมูลอุปกรณ์บนเซิร์ฟเวอร์ในรูปแบบไฟล์'},
+  'um.hint': {'vi': 'Tạo tài khoản, đặt vai trò và cấp mã máy được xem.', 'en': 'Create accounts, set roles, grant machine access.', 'zh': '创建账号、设置角色并授予设备访问权限。', 'th': 'สร้างบัญชี กำหนดบทบาท และให้สิทธิ์เข้าถึงเครื่อง'},
+  'common.refresh': {'vi': 'Làm mới', 'en': 'Refresh', 'zh': '刷新', 'th': 'รีเฟรช'},
+  'common.sort': {'vi': 'Sắp xếp', 'en': 'Sort', 'zh': '排序', 'th': 'เรียงลำดับ'},
+  'common.retry': {'vi': 'Thử lại', 'en': 'Retry', 'zh': '重试', 'th': 'ลองใหม่'},
+  'common.search': {'vi': 'Tìm…', 'en': 'Search…', 'zh': '搜索…', 'th': 'ค้นหา…'},
+
+  // --- Lịch sử cập nhật firmware của một máy (Trạng thái máy) ---
+  'mm.hist': {'vi': 'Lịch sử cập nhật', 'en': 'Update history', 'zh': '更新历史', 'th': 'ประวัติการอัปเดต'},
+  'mm.histFor': {'vi': 'Lịch sử cập nhật — {id}', 'en': 'Update history — {id}', 'zh': '更新历史 — {id}', 'th': 'ประวัติการอัปเดต — {id}'},
+  'mm.histVersion': {'vi': 'Phiên bản', 'en': 'Version', 'zh': '版本', 'th': 'เวอร์ชัน'},
+  'mm.histHow': {'vi': 'Cách cập nhật', 'en': 'Method', 'zh': '更新方式', 'th': 'วิธีอัปเดต'},
+  'mm.histWhen': {'vi': 'Ngày cập nhật', 'en': 'Updated on', 'zh': '更新日期', 'th': 'วันที่อัปเดต'},
+  'mm.histOta': {'vi': 'OTA', 'en': 'OTA', 'zh': 'OTA', 'th': 'OTA'},
+  'mm.histManual': {'vi': 'Nạp tay', 'en': 'Manual', 'zh': '手动烧录', 'th': 'แฟลชมือ'},
+  'mm.histFirst': {'vi': 'bản đầu tiên ghi nhận', 'en': 'first version on record', 'zh': '最早记录版本', 'th': 'เวอร์ชันแรกที่บันทึก'},
+  'mm.histRuns': {'vi': '{n} lần đo', 'en': '{n} runs', 'zh': '{n} 次测量', 'th': '{n} รอบ'},
+  'mm.histEmpty': {'vi': 'Máy chưa gửi lần đo nào có kèm version.', 'en': 'No run has reported a firmware version yet.', 'zh': '尚无带版本号的测量记录。', 'th': 'ยังไม่มีรอบใดที่รายงานเวอร์ชัน'},
+  // --- Bảng mã lỗi cảm biến (màn chi tiết kết quả) ---
+  'rd.errTitle': {
+    'vi': 'Máy báo {n} lỗi cảm biến',
+    'en': '{n} sensor error(s) reported',
+    'zh': '设备报告 {n} 个传感器错误',
+    'th': 'เครื่องรายงานข้อผิดพลาดเซนเซอร์ {n} รายการ'
+  },
+  'rd.errSlot': {'vi': 'Giếng', 'en': 'Slot', 'zh': '孔位', 'th': 'ช่อง'},
+  'rd.errCode': {'vi': 'Mã', 'en': 'Code', 'zh': '代码', 'th': 'รหัส'},
+  'rd.errMsg': {'vi': 'Mô tả', 'en': 'Description', 'zh': '说明', 'th': 'รายละเอียด'},
+  'rd.errNote': {
+    'vi': 'Máy gửi lỗi bằng bản tin RIÊNG, không kèm mã lần đo — server ghép theo thời gian (lỗi phát sinh giữa lần đo này). Mã 4 chữ số trùng mã hiện trên màn máy.',
+    'en': 'The machine reports errors in a SEPARATE message with no run id — the server matches them by time (errors raised during this run). The 4-digit code matches the one shown on the machine.'
+  },
+  'mm.delBlockedTarget': {
+    'vi': 'Không xoá được: đây là bản ĐANG CHỌN cho cả fleet. Bỏ chọn trước rồi mới xoá.',
+    'en': 'Cannot delete: this is the version currently selected for the whole fleet. Unselect it first.'
+  },
+  'mm.delBlockedPinned': {
+    'vi': 'Không xoá được: đang ghim riêng cho {n} máy. Gỡ ghim ở cột "Trạng thái update" trước.',
+    'en': 'Cannot delete: pinned to {n} machine(s). Unpin them in the "Update status" column first.'
+  },
+  'mm.fwFilter': {
+    'vi': 'Lọc theo firmware',
+    'en': 'Filter by firmware',
+    'zh': '按固件筛选',
+    'th': 'กรองตามเฟิร์มแวร์'
+  },
+  'mm.fwFilterAll': {
+    'vi': 'Tất cả ({n} máy)',
+    'en': 'All ({n} machines)',
+    'zh': '全部（{n} 台）',
+    'th': 'ทั้งหมด ({n} เครื่อง)'
+  },
+  // --- Cột "Trạng thái update" (Quản lý máy → Trạng thái máy) ---
+  'mm.colUpdate': {
+    'vi': 'Trạng thái update',
+    'en': 'Update status',
+    'zh': '更新状态',
+    'th': 'สถานะอัปเดต'
+  },
+  'mm.updOnTarget': {'vi': 'Đúng bản', 'en': 'Up to date', 'zh': '已是目标版本', 'th': 'ตรงเวอร์ชัน'},
+  'mm.updPending': {'vi': 'Chờ nạp', 'en': 'Pending', 'zh': '待安装', 'th': 'รอติดตั้ง'},
+  'mm.updNoTarget': {'vi': 'Chưa chọn bản', 'en': 'No version selected', 'zh': '未选版本', 'th': 'ยังไม่เลือกเวอร์ชัน'},
+  'mm.updUnknown': {'vi': 'Chưa rõ', 'en': 'Unknown', 'zh': '未知', 'th': 'ไม่ทราบ'},
+  'mm.updModeCommon': {'vi': 'Chung', 'en': 'Common', 'zh': '通用', 'th': 'ร่วม'},
+  'mm.updModePinned': {'vi': 'Riêng', 'en': 'Pinned', 'zh': '专用', 'th': 'เฉพาะ'},
+  'mm.updTipCommon': {
+    'vi': 'Máy đi theo BẢN CHUNG của cả fleet (OTA thường). Chọn bản khác ở đây để ghim riêng cho máy này.',
+    'en': 'This machine follows the fleet-wide version (normal OTA). Pick another here to pin it to this machine only.'
+  },
+  'mm.updTipPinned': {
+    'vi': 'Máy được GHIM RIÊNG, không đi theo bản chung. Đặt bởi {by}.',
+    'en': 'This machine is PINNED and ignores the fleet-wide version. Set by {by}.'
+  },
+  'mm.updTipUnknown': {
+    'vi': 'Không so được: tên file không mang version, hoặc máy chưa báo version lần nào.',
+    'en': 'Cannot compare: the file name carries no version, or the machine never reported one.'
+  },
+  'mm.fwAsOf': {
+    'vi': 'Bản của LẦN ĐO gần nhất ({when}) — không phải bản máy đang chạy lúc này. Nạp xong mà chưa chạy mẫu thì số này chưa đổi.',
+    'en': 'Version as of the LAST RUN ({when}) — not what the machine is running right now. Flash it and this stays put until someone runs a sample.'
+  },
+  'mm.fwNoRun': {
+    'vi': 'Máy chưa gửi lần đo nào — chưa biết bản đang chạy.',
+    'en': 'No run reported yet — the running version is unknown.'
+  },
+  'mm.histGuess': {
+    'vi': '≈ suy từ lần đo đầu',
+    'en': '≈ inferred from first run',
+    'zh': '≈ 由首次测量推算',
+    'th': '≈ ประมาณจากรอบแรก'
+  },
+  'mm.histNote': {
+    'vi': 'Từ v2.4.5 máy TỰ BÁO về server ngay khi nạp xong → dòng KHÔNG có dấu ≈ là ngày cập nhật THẬT của khách. Dòng có ≈ là suy ra từ version kèm mỗi lần đo: ngày đó là lần đo ĐẦU TIÊN báo bản ấy, lần nạp xảy ra trước nó. "Cách cập nhật" thì LUÔN là ước đoán, theo bản ĐANG CHẠY TRƯỚC ĐÓ: từ v2.4.0 firmware mới tự cập nhật được, nên máy đang chạy bản cũ hơn thì chỉ có thể nạp tay.',
+    'en': 'From v2.4.5 the machine REPORTS IN as soon as it reboots after flashing → a row without ≈ is the customer’s real update date. A row with ≈ is derived from the version each run carries: that date is the FIRST run reporting the version, so the flash happened before it. "Method" is ALWAYS inferred, from the PREVIOUS version: self-update exists only from v2.4.0, so a machine on an older build can only have been flashed by hand.'
+  },
+  'mm.histMore': {
+    'vi': 'Chỉ đọc {n} lần đo gần nhất — máy có {total}. Phần cũ hơn chưa hiện.',
+    'en': 'Read only the latest {n} runs of {total}. Older history not shown.'
+  },
   // --- Quản lý User (admin) ---
   'um.title': {'vi': 'Quản lý User', 'en': 'Manage users'},
   'um.adminPass': {

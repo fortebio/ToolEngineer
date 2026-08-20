@@ -57,7 +57,8 @@ class CtChart extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final bars = <LineChartBarData>[];
     final barSlots = <int>[]; // slot.index ứng với từng bar (cho tooltip)
-    double maxX = 1;
+    final barLabels = <String>[]; // "Slot n · tên bệnh" (v2.4.3+ mới có tên)
+    double dataMaxX = 1; // phút của điểm cuối cùng (chưa làm tròn)
     double? yMin, yMax;
 
     for (final slot in slots) {
@@ -70,7 +71,7 @@ class CtChart extends StatelessWidget {
         final xMin = i * readingIntervalSec / 60.0;
         final y = curve[i];
         spots.add(FlSpot(xMin, y));
-        if (xMin > maxX) maxX = xMin;
+        if (xMin > dataMaxX) dataMaxX = xMin;
         if (yMin == null || y < yMin) yMin = y;
         if (yMax == null || y > yMax) yMax = y;
       }
@@ -85,26 +86,54 @@ class CtChart extends StatelessWidget {
         ),
       );
       barSlots.add(slot.index);
+      barLabels.add(slot.label);
     }
 
     if (bars.isEmpty) {
       return const Center(child: Text('Không có dữ liệu đường cong để hiển thị.'));
     }
 
-    // Biên trục tung: nới đáy −50, đỉnh +200 rồi LÀM TRÒN VỀ BỘI SỐ CỦA 50
-    // (đáy làm tròn xuống, đỉnh làm tròn lên) → min/max luôn chia hết cho 50
-    // và bao trọn dữ liệu. Bước chia nhãn vẫn lấy "đẹp" để các mốc dễ đọc.
-    double? minY, maxY, yInterval;
-    if (yMin != null && yMax != null) {
-      var lo = ((yMin - 100) / 50).floorToDouble() * 50;
-      var hi = ((yMax + 150) / 50).ceilToDouble() * 50;
-      if (hi - lo < 50) hi = lo + 50;
-      minY = lo;
-      maxY = hi;
-      yInterval = _niceStep((hi - lo) / 5);
-    }
+    // Trục đọc được hay không nằm ở BA điều, cả ba đều từng sai ở bản trước:
+    //
+    // 1. **Số mốc theo KHUNG THẬT**, không phải hằng số. Bước 5 phút cố định cho ra 2 nhãn
+    //    ở lần chạy ngắn và 18 nhãn dính nhau ở lần chạy dài, trên điện thoại thì luôn dính.
+    // 2. **min/max phải NẰM ĐÚNG trên mốc chia.** fl_chart LUÔN vẽ thêm nhãn tại đúng min và
+    //    max (`iterateThroughAxis` mặc định `minIncluded/maxIncluded = true`) → biên lẻ như
+    //    39,67 phút đẻ ra một nhãn "39.7" dí sát "35". Làm tròn biên LÊN/XUỐNG theo bước
+    //    chia thì nhãn thừa đó trùng luôn với mốc, không còn chỗ nào chen chúc.
+    // 3. **Lưới phải TRÙNG nhãn.** Không truyền `verticalInterval` thì fl_chart tự chọn bước
+    //    riêng cho lưới (`getEfficientInterval`) → 13 đường dọc cho 9 nhãn, mắt không nối được
+    //    đường kẻ với con số nào. Nay lưới dùng đúng bước của nhãn.
+    return LayoutBuilder(builder: (context, box) {
+      // ~80px/nhãn ngang và ~60px/nhãn dọc: thưa hơn thì trục trống trải, dày hơn thì chữ dính.
+      final xInterval = _niceStep(
+          dataMaxX / math.max(3, box.maxWidth ~/ 80));
+      final maxX = (dataMaxX / xInterval).ceilToDouble() * xInterval;
 
-    return LineChart(
+      double? minY, maxY, yInterval;
+      if (yMin != null && yMax != null) {
+        // Nấc trục tung: bội số của 50 và KHÔNG BAO GIỜ nhỏ hơn 50 (chủ dự án chốt).
+        // Số đo huỳnh quang đọc theo hàng chục nghìn, mốc 20 hay 5 chỉ là nhiễu thị giác;
+        // và nấc luôn chia hết 50 thì mọi nhãn đọc cùng một nhịp bất kể lần chạy nào.
+        yInterval = math.max(
+                1,
+                (_niceStep((yMax - yMin) / math.max(3, box.maxHeight ~/ 60)) / 50)
+                    .ceilToDouble()) *
+            50;
+        // Biên bám nấc → nhãn thừa mà fl_chart vẽ tại min/max trùng luôn mốc (xem 2.).
+        minY = (yMin / yInterval).floorToDouble() * yInterval;
+        maxY = (yMax / yInterval).ceilToDouble() * yInterval;
+        // Đường cong THẤP không được phóng to lên hết khung: dưới 100 thì khung vẫn mở tới
+        // 200 (và tính từ 0). Phóng to một đường gần như phẳng chỉ biến nhiễu thành "sóng".
+        if (yMax <= 100) {
+          minY = math.min(minY, 0);
+          maxY = math.max(maxY, 200);
+        }
+        // Đường phẳng tuyệt đối: min == max thì fl_chart không vẽ được gì.
+        if (maxY <= minY) maxY = minY + yInterval;
+      }
+
+      return LineChart(
       LineChartData(
         minX: 0,
         maxX: maxX,
@@ -114,10 +143,12 @@ class CtChart extends StatelessWidget {
         gridData: FlGridData(
           show: true,
           horizontalInterval: yInterval,
+          verticalInterval: xInterval,
           getDrawingHorizontalLine: (_) =>
               FlLine(color: cs.outlineVariant, strokeWidth: 1),
-          getDrawingVerticalLine: (_) =>
-              FlLine(color: cs.outlineVariant, strokeWidth: 0.5),
+          // Dọc mảnh + mờ hơn ngang: nó chỉ để dóng thời gian, đọc giá trị là việc của ngang.
+          getDrawingVerticalLine: (_) => FlLine(
+              color: cs.outlineVariant.withValues(alpha: 0.6), strokeWidth: 1),
         ),
         borderData: FlBorderData(
           show: true,
@@ -128,20 +159,26 @@ class CtChart extends StatelessWidget {
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           rightTitles:
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: const AxisTitles(
-            axisNameWidget: Text('Thời gian (phút)'),
+          // KHÔNG có tên trục ("Thời gian (phút)" / "Huỳnh quang"): đơn vị đã cố định
+          // và người đọc màn này biết sẵn — chữ đó chỉ lấy chỗ của chính đường cong.
+          bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 28,
-              interval: 5,
+              reservedSize: 26,
+              interval: xInterval,
+              // Bước chia là số tròn nên phút cũng in tròn; bước < 1 phút mới cần 1 chữ số.
+              getTitlesWidget: (v, meta) => _tick(
+                  cs, meta, xInterval >= 1 ? v.round().toString() : v.toStringAsFixed(1)),
             ),
           ),
           leftTitles: AxisTitles(
-            axisNameWidget: const Text('Huỳnh quang'),
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 44,
+              reservedSize: 48,
               interval: yInterval,
+              // KHÔNG dùng nhãn mặc định: fl_chart rút gọn ≥1000 thành "1.3K" — đây là số đo
+              // huỳnh quang, làm tròn kiểu đó là đọc sai giá trị.
+              getTitlesWidget: (v, meta) => _tick(cs, meta, v.round().toString()),
             ),
           ),
         ),
@@ -160,7 +197,7 @@ class CtChart extends StatelessWidget {
             final color = barData.color ?? cs.onSurfaceVariant;
             return TouchedSpotIndicatorData(
               FlLine(
-                color: color.withOpacity(0.7),
+                color: color.withValues(alpha: 0.7),
                 strokeWidth: 0.1,
                 dashArray: const [5, 4],
               ),
@@ -174,7 +211,7 @@ class CtChart extends StatelessWidget {
           touchTooltipData: LineTouchTooltipData(
             maxContentWidth: 280, // đủ rộng để "Slot N : giá trị | phút" 1 hàng
             getTooltipColor: (_) =>
-                Colors.black.withOpacity(0.5), // nền tooltip mờ 50%
+                Colors.black.withValues(alpha: 0.5), // nền tooltip mờ 50%
             // Giữ tooltip nằm gọn TRÊN khung đồ thị CT (không tràn sang/khuất
             // sau panel kết quả bệnh).
             fitInsideHorizontally: true,
@@ -187,9 +224,9 @@ class CtChart extends StatelessWidget {
               return sorted.map((s) {
                 final slotNo = barSlots[s.barIndex];
                 final color = kSlotColors[(slotNo - 1) % kSlotColors.length];
-                // "Slot N : giá trị | phút" — tên kênh tô màu theo slot.
+                // "Slot N · PCV : giá trị | phút" — tên kênh tô màu theo slot.
                 return LineTooltipItem(
-                  'Slot $slotNo',
+                  barLabels[s.barIndex],
                   TextStyle(
                       color: color, fontWeight: FontWeight.bold, fontSize: 12),
                   children: [
@@ -209,5 +246,15 @@ class CtChart extends StatelessWidget {
         ),
       ),
     );
+    });
   }
+
+  /// Nhãn một mốc trên trục — chữ mờ, nhỏ, có khoảng thở với khung.
+  static Widget _tick(ColorScheme cs, TitleMeta meta, String text) =>
+      SideTitleWidget(
+        axisSide: meta.axisSide,
+        space: 6,
+        child: Text(text,
+            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+      );
 }

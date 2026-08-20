@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../util/i18n.dart';
 import '../util/web_serial.dart';
+import '../widgets/app_tab_scaffold.dart';
 import 'web_flasher_screen.dart';
 import 'web_serial_console_screen.dart';
 import 'web_temp_log_screen.dart';
@@ -46,52 +47,28 @@ class _TechScreenState extends State<TechScreen> {
         ),
       );
     }
-    return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: SegmentedButton<int>(
-                showSelectedIcon: false,
-                segments: [
-                  ButtonSegment(
-                    value: 0,
-                    icon: const Icon(Icons.thermostat_outlined),
-                    label: Text(tr('tech.templog')),
-                  ),
-                  ButtonSegment(
-                    value: 1,
-                    icon: const Icon(Icons.terminal_outlined),
-                    label: Text(tr('tech.serial')),
-                  ),
-                  ButtonSegment(
-                    value: 2,
-                    icon: const Icon(Icons.memory_outlined),
-                    label: Text(tr('tech.flash')),
-                  ),
-                ],
-                selected: {_seg},
-                onSelectionChanged: (sel) => setState(() => _seg = sel.first),
-              ),
-            ),
-            Expanded(
-              child: IndexedStack(
-                index: _seg,
-                // active=false → màn tự nhả cổng (Đọc serial đóng cổng giữ
-                // log; Nạp code dừng theo dõi) — cùng quy ước desktop. Log
-                // nhiệt CỐ TÌNH giữ đọc nền (dừng = mất mẫu).
-                children: [
-                  const WebTempLogScreen(),
-                  WebSerialConsoleScreen(active: _seg == 1),
-                  WebFlasherScreen(active: _seg == 2),
-                ],
-              ),
-            ),
-          ],
+    return AppTabScaffold(
+      title: tr('nav.tech'),
+      subtitle: tr('tech.comShared'),
+      index: _seg,
+      onChanged: (i) => setState(() => _seg = i),
+      tabs: [
+        AppTab(
+          icon: Icons.thermostat_outlined,
+          label: tr('tech.templog'),
+          page: const WebTempLogScreen(),
         ),
-      ),
+        AppTab(
+          icon: Icons.terminal_outlined,
+          label: tr('tech.serial'),
+          page: WebSerialConsoleScreen(active: _seg == 1),
+        ),
+        AppTab(
+          icon: Icons.memory_outlined,
+          label: tr('tech.flash'),
+          page: WebFlasherScreen(active: _seg == 2),
+        ),
+      ],
     );
   }
 }

@@ -6,6 +6,8 @@ import '../services/cloud_history_api.dart';
 import '../services/rapid_erp_api.dart';
 import '../services/session_store.dart';
 import '../theme/app_theme.dart';
+import '../util/i18n.dart';
+import '../widgets/app_search_box.dart';
 import '../util/format.dart';
 import 'cloud_runs_screen.dart';
 
@@ -188,6 +190,16 @@ class _CloudDevicesScreenState extends State<CloudDevicesScreen> {
     return am.compareTo(bm);
   }
 
+  /// Số máy phiên này ĐƯỢC PHÉP xem, trước khi lọc theo ô tìm — là mẫu số của
+  /// `<khớp>/<tổng>`. Dùng `_devices.length` ở đây là sai: nó gồm cả máy người
+  /// này không có quyền thấy.
+  int get _allowedCount {
+    final session = SessionStore.current;
+    if (session == null) return 0;
+    if (session.allowAll) return _devices.length;
+    return _devices.where((d) => session.canSee(d.id)).length;
+  }
+
   /// Lọc theo **quyền** (user chỉ thấy mã máy được cấp) → ô tìm kiếm → sắp xếp.
   List<CloudDevice> get _visibleDevices {
     final session = SessionStore.current;
@@ -221,38 +233,42 @@ class _CloudDevicesScreenState extends State<CloudDevicesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Lịch sử theo máy (Cloud)'),
-        actions: [
-          PopupMenuButton<_DeviceSort>(
-            tooltip: 'Sắp xếp',
-            icon: const Icon(Icons.sort),
-            onSelected: (s) => setState(() => _sort = s),
-            itemBuilder: (_) => _DeviceSort.values
-                .map((s) => CheckedPopupMenuItem<_DeviceSort>(
-                      value: s,
-                      checked: _sort == s,
-                      child: Text(s.label),
-                    ))
-                .toList(),
-          ),
-          IconButton(
-            tooltip: 'Làm mới (lấy dữ liệu mới nhất)',
-            onPressed: _refreshing ? null : () => _refresh(fresh: true),
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // RAPID ERP không liệt kê máy → cho gõ mã máy để xem thẳng.
-          if (widget.source == CloudSource.rapidErp) _manualEntryBar(),
-          Expanded(child: _buildBody()),
-        ],
-      ),
+    // KHÔNG Scaffold/AppBar ở đây. Màn này LUÔN nằm trong `AppTabScaffold` của
+    // tab Lịch sử, vốn đã có tiêu đề + dải chọn nguồn — thêm một AppBar nữa là
+    // tiêu đề thứ hai chồng lên tiêu đề thứ nhất (đúng lỗi của bản trước đại tu:
+    // dải chọn nguồn bị đẩy lên TRÊN cả tiêu đề). Sắp xếp/làm mới chuyển xuống
+    // cùng hàng với ô tìm.
+    return Column(
+      children: [
+        // RAPID ERP không liệt kê máy → cho gõ mã máy để xem thẳng.
+        if (widget.source == CloudSource.rapidErp) _manualEntryBar(),
+        Expanded(child: _buildBody()),
+      ],
     );
   }
+
+  /// Nút sắp xếp + làm mới, đặt trong khe `trailing` của ô tìm.
+  List<Widget> get _toolbar => [
+        const SizedBox(width: 6),
+        PopupMenuButton<_DeviceSort>(
+          tooltip: tr('common.sort'),
+          icon: const Icon(Icons.sort),
+          position: PopupMenuPosition.under,
+          onSelected: (s) => setState(() => _sort = s),
+          itemBuilder: (_) => _DeviceSort.values
+              .map((s) => CheckedPopupMenuItem<_DeviceSort>(
+                    value: s,
+                    checked: _sort == s,
+                    child: Text(s.label),
+                  ))
+              .toList(),
+        ),
+        IconButton(
+          tooltip: tr('common.refresh'),
+          onPressed: _refreshing ? null : () => _refresh(fresh: true),
+          icon: const Icon(Icons.refresh),
+        ),
+      ];
 
   Widget _buildBody() {
     if (_url.isEmpty) {
@@ -301,29 +317,28 @@ class _CloudDevicesScreenState extends State<CloudDevicesScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-          child: TextField(
-            decoration: const InputDecoration(
-              hintText: 'Tìm mã máy...',
-              prefixIcon: Icon(Icons.search),
-            ),
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+          child: AppSearchBox(
+            hint: 'Tìm mã máy…',
+            count: _query.trim().isEmpty
+                ? null
+                : '${list.length}/$_allowedCount',
             onChanged: (v) => setState(() => _query = v),
+            trailing: _toolbar,
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
           child: Row(
             children: [
               Expanded(
                 child: Text(
                   '${list.length} máy · sắp xếp: ${_sort.label}'
-                  '${_cachedAt != null ? ' · cập nhật ${formatTime(_cachedAt!)}' : ''}',
+                  '${_cachedAt != null ? ' · cập nhật ${formatTime(_cachedAt!)}' : ''}'
+                  '${_refreshing ? ' · đang làm mới…' : ''}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
-              if (_refreshing)
-                Text('đang làm mới…',
-                    style: Theme.of(context).textTheme.bodySmall),
             ],
           ),
         ),
@@ -334,48 +349,21 @@ class _CloudDevicesScreenState extends State<CloudDevicesScreen> {
               : RefreshIndicator(
                   onRefresh: () => _refresh(fresh: true),
                   child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
                     itemCount: list.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (context, i) {
                       final d = list[i];
                       final cs = Theme.of(context).colorScheme;
                       final tt = Theme.of(context).textTheme;
-                      return Card(
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 6),
-                          // Huy hiệu thiết bị: ô bo góc tông màu thương hiệu.
-                          leading: Container(
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              color: cs.primaryContainer,
-                              borderRadius: BorderRadius.circular(11),
-                            ),
-                            child: Icon(Icons.memory,
-                                color: cs.onPrimaryContainer, size: 22),
-                          ),
-                          title: Text(d.id,
-                              style: tt.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w600)),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              '${d.runCount} lần chạy'
-                              '${d.version.isNotEmpty ? ' · FW ${d.version}' : ''}'
-                              '${d.latest != null ? ' · mới nhất ${formatDateTime(d.latest!)}' : ''}',
-                              // Số liệu canh cột đều (tabular) → không nhảy chữ.
-                              style: tt.bodySmall?.copyWith(
-                                color: cs.onSurfaceVariant,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures()
-                                ],
-                              ),
-                            ),
-                          ),
-                          trailing:
-                              Icon(Icons.chevron_right, color: cs.outline),
+                      // Thẻ theo recipe design system: AppCard + hover nhấc 2px
+                      // (bản Flutter của `.card-hover`), vào màn theo stagger.
+                      return AppFadeIn(
+                        index: i,
+                        child: AppCard(
+                          hover: true,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 12),
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -385,6 +373,63 @@ class _CloudDevicesScreenState extends State<CloudDevicesScreen> {
                                 source: widget.source,
                               ),
                             ),
+                          ),
+                          child: Row(
+                            children: [
+                              // Huy hiệu thiết bị: ô bo góc tông màu thương hiệu.
+                              Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: cs.primaryContainer,
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.base),
+                                ),
+                                child: Icon(Icons.memory,
+                                    color: cs.onPrimaryContainer, size: 22),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Mã máy = mã định danh → mono cho dễ đối chiếu.
+                                    Text(d.id,
+                                        style: tt.titleMedium?.copyWith(
+                                          fontFamily: 'JetBrains Mono',
+                                          fontWeight: FontWeight.w600,
+                                        )),
+                                    const SizedBox(height: 2),
+                                    // Khổ điện thoại: cả cụm này dài ~50 ký tự trong
+                                    // ~240px nên nó tự xuống dòng GIỮA câu ("· mới
+                                    // nhất / 19/08/2026 14:12"), đọc như chữ tràn ra
+                                    // ngoài thẻ. Chia sẵn 2 dòng theo Ý NGHĨA: máy
+                                    // chạy gì / lần cuối khi nào. Cửa sổ rộng vẫn một
+                                    // dòng như cũ.
+                                    for (final line in [
+                                      '${d.runCount} lần chạy'
+                                          '${d.version.isNotEmpty ? ' · FW ${d.version}' : ''}'
+                                          '${!isMobileWidth(context) && d.latest != null ? ' · mới nhất ${formatDateTime(d.latest!)}' : ''}',
+                                      if (isMobileWidth(context) && d.latest != null)
+                                        'mới nhất ${formatDateTime(d.latest!)}',
+                                    ])
+                                      Text(
+                                        line,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        // Số liệu canh cột đều (tabular) → không nhảy chữ.
+                                        style: tt.bodySmall?.copyWith(
+                                          color: cs.onSurfaceVariant,
+                                          fontFeatures: const [
+                                            FontFeature.tabularFigures()
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+                            ],
                           ),
                         ),
                       );
@@ -405,15 +450,29 @@ class _CloudHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
-            const SizedBox(height: 16),
-            Text(text, textAlign: TextAlign.center),
+            // Icon đặt trong đĩa "lõm" (surfaceSunken) — mẫu empty-state template.
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppSemantic.of(context).surfaceSunken,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 48, color: cs.onSurfaceVariant),
+            ),
+            const SizedBox(height: 18),
+            Text(text,
+                textAlign: TextAlign.center,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: cs.onSurfaceVariant)),
             if (onRetry != null) ...[
               const SizedBox(height: 16),
               OutlinedButton.icon(

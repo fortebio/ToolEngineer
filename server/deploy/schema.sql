@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS users (
 );
 -- DELETE: màn Quản lý User trong app (action deleteUser qua POST /auth) xoá tài khoản
 GRANT SELECT, INSERT, UPDATE, DELETE ON users TO engineer;
+-- username KHÔNG phân biệt hoa/thường (mọi truy vấn db.py dùng lower(username), nhưng
+-- UNIQUE ở cột thì phân biệt → tạo được cả 'admin' lẫn 'Admin' rồi sửa/xoá trúng cả hai).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_lower ON users (lower(username));
 
 -- Kho BACKUP dữ liệu từ Google Drive (TÁCH khỏi 'sessions' của device POST).
 -- Dedup theo NỘI DUNG (body_sha256 UNIQUE) -> mỗi bản đo Drive 1 dòng, import lại an toàn.

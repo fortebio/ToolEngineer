@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 import '../models/test_result.dart';
 import '../services/app_settings.dart';
 import '../services/device_api.dart';
@@ -91,7 +93,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
-      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
+      backgroundColor: error ? kErrorSnackBg : null,
       duration: Duration(seconds: error ? 4 : 1),
     ));
   }
@@ -100,23 +102,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     // User là read-only: ẩn "Lấy kết quả từ máy", "Xóa".
     final canWrite = SessionStore.canWrite;
+    // Nền trong suốt + KHÔNG appBar: mục con của `AppTabScaffold` (tab Lịch sử,
+    // nhánh `_showLocal`) — tab đó đã có tiêu đề. Nút của AppBar cũ xuống hàng
+    // công cụ ngay đầu nội dung.
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Lịch sử xét nghiệm'),
-        actions: [
-          IconButton(
-            tooltip: 'Tải lại',
-            onPressed: _reload,
-            icon: const Icon(Icons.refresh),
-          ),
-          if (canWrite && _items.isNotEmpty)
-            IconButton(
-              tooltip: 'Xóa tất cả',
-              onPressed: _clearAll,
-              icon: const Icon(Icons.delete_sweep_outlined),
-            ),
-        ],
-      ),
+      backgroundColor: Colors.transparent,
       floatingActionButton: canWrite
           ? FloatingActionButton.extended(
               onPressed: _fetching ? null : _fetchFromDevice,
@@ -130,31 +120,57 @@ class _HistoryScreenState extends State<HistoryScreen> {
               label: Text(_fetching ? 'Đang lấy...' : 'Lấy kết quả từ máy'),
             )
           : null,
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _items.isEmpty
-              ? _EmptyState(
-                  deviceIp: widget.settings.deviceIp, canFetch: canWrite)
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
-                  itemCount: _items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, i) => _HistoryTile(
-                    result: _items[i],
-                    canDelete: canWrite,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ResultDetailScreen(
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+            child: Row(
+              children: [
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Tải lại',
+                  onPressed: _reload,
+                  icon: const Icon(Icons.refresh),
+                ),
+                if (canWrite && _items.isNotEmpty)
+                  IconButton(
+                    tooltip: 'Xóa tất cả',
+                    onPressed: _clearAll,
+                    icon: const Icon(Icons.delete_sweep_outlined),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _items.isEmpty
+                    ? _EmptyState(
+                        deviceIp: widget.settings.deviceIp,
+                        canFetch: canWrite)
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(8, 0, 8, 88),
+                        itemCount: _items.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, i) => _HistoryTile(
                           result: _items[i],
-                          readingIntervalSec:
-                              widget.settings.readingIntervalSec,
+                          canDelete: canWrite,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ResultDetailScreen(
+                                result: _items[i],
+                                readingIntervalSec:
+                                    widget.settings.readingIntervalSec,
+                              ),
+                            ),
+                          ),
+                          onDelete: () => _delete(_items[i]),
                         ),
                       ),
-                    ),
-                    onDelete: () => _delete(_items[i]),
-                  ),
-                ),
+          ),
+        ],
+      ),
     );
   }
 }

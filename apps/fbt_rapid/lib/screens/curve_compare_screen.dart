@@ -2,6 +2,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 import '../models/test_result.dart';
 import '../services/result_export.dart';
 import '../services/session_store.dart';
@@ -38,7 +40,7 @@ class _CurveCompareScreenState extends State<CurveCompareScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(m),
-      backgroundColor: error ? Theme.of(context).colorScheme.error : null,
+      backgroundColor: error ? kErrorSnackBg : null,
       duration: Duration(seconds: error ? 4 : 1),
     ));
   }
@@ -198,7 +200,7 @@ class _MiniLegend extends StatelessWidget {
                       kSlotColors[(s.index - 1) % kSlotColors.length],
                   radius: 4),
               const SizedBox(width: 3),
-              Text('Slot ${s.index}', style: const TextStyle(fontSize: 10)),
+              Text(s.label, style: const TextStyle(fontSize: 10)),
             ]),
       ],
     );
@@ -227,7 +229,7 @@ class _SlotLegend extends StatelessWidget {
           selected: visible.contains(s.index),
           onSelected: (_) => onToggle(s.index),
           avatar: CircleAvatar(backgroundColor: color, radius: 7),
-          label: Text('Slot ${s.index}'),
+          label: Text(s.label),
         );
       }).toList(),
     );

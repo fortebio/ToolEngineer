@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../services/app_settings.dart';
 import '../util/i18n.dart';
+import '../widgets/app_tab_scaffold.dart';
 import 'json_files_screen.dart';
 
 /// Tab **Thư Mục** (mọi vai trò) — gom các mục duyệt dữ liệu dạng file.
-/// Hiện có 1 mục con: **JSON data** (file JSON thiết bị đẩy lên Engineer
-/// Server, xem thô). Mẫu segmented giống tab Lịch sử/Kỹ Thuật — thêm mục con
-/// mới chỉ việc thêm ButtonSegment + màn vào IndexedStack.
+/// Hiện có 1 mục con: **JSON data**. Thêm mục mới = thêm một [AppTab];
+/// dải chọn tự hiện khi có từ 2 mục trở lên.
 class FolderScreen extends StatefulWidget {
   final AppSettings settings;
   const FolderScreen({super.key, required this.settings});
@@ -21,35 +21,18 @@ class _FolderScreenState extends State<FolderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-              child: SegmentedButton<int>(
-                showSelectedIcon: false,
-                segments: [
-                  ButtonSegment(
-                    value: 0,
-                    icon: const Icon(Icons.data_object_outlined),
-                    label: Text(tr('folder.jsonData')),
-                  ),
-                ],
-                selected: {_seg},
-                onSelectionChanged: (sel) => setState(() => _seg = sel.first),
-              ),
-            ),
-            Expanded(
-              child: IndexedStack(
-                index: _seg,
-                children: [JsonFilesScreen(settings: widget.settings)],
-              ),
-            ),
-          ],
+    return AppTabScaffold(
+      title: tr('nav.folder'),
+      subtitle: tr('folder.hint'),
+      index: _seg,
+      onChanged: (i) => setState(() => _seg = i),
+      tabs: [
+        AppTab(
+          icon: Icons.data_object_outlined,
+          label: tr('folder.jsonData'),
+          page: JsonFilesScreen(settings: widget.settings),
         ),
-      ),
+      ],
     );
   }
 }

@@ -132,7 +132,7 @@ class TempChart extends StatelessWidget {
           final color = barData.color ?? cs.onSurfaceVariant;
           return TouchedSpotIndicatorData(
             FlLine(
-              color: color.withOpacity(0.7),
+              color: color.withValues(alpha: 0.7),
               strokeWidth: 0.1,
               dashArray: const [5, 4],
             ),
@@ -146,7 +146,7 @@ class TempChart extends StatelessWidget {
         touchTooltipData: LineTouchTooltipData(
           maxContentWidth: 280, // đủ rộng để "Kênh : giá trị | phút" 1 hàng
           getTooltipColor: (_) =>
-              Colors.black.withOpacity(0.5), // nền tooltip mờ 50%
+              Colors.black.withValues(alpha: 0.5), // nền tooltip mờ 50%
           fitInsideHorizontally: true,
           fitInsideVertically: true,
           getTooltipItems: (spots) {
