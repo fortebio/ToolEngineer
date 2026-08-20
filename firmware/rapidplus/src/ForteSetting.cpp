@@ -1030,11 +1030,12 @@ bool ForteSetting::postReviewLast()
     return true;
 }
 
-bool ForteSetting::postOtaCheck()
+bool ForteSetting::postOtaCheck(bool promptOnDevice)
 {
     if (pendingKind != PEND_NONE)
         return false;
-    __sync_synchronize(); // no payload; publish the flag last
+    otaPromptOnDevice = promptOnDevice; // payload, so it must be written BEFORE the flag
+    __sync_synchronize();
     pendingKind = PEND_OTACHECK;
     return true;
 }
@@ -1175,13 +1176,31 @@ void ForteSetting::drainPending()
     }
     else if (kind == PEND_OTACHECK)
     {
-        // Blocking HTTPS GET against GitHub - must not run on AsyncTCP, hence the queue.
-        // promptOnDevice=false: the request came from a browser, so leave the machine's
-        // TFT alone (otherwise a remote click would hijack the screen of whoever is
-        // standing at the device). otaState / fwVer / fwVersion carry the answer back
-        // to GET /ota.
-        info_displayln("[ota] web-requested check");
-        checkFirmware(false);
+        // Blocking HTTPS GET against the ingest server - must not run on AsyncTCP, hence
+        // the queue. Two callers, and they disagree about the TFT: the web button passes
+        // false (a remote click must not hijack the screen of whoever is standing at the
+        // machine), the 6 h poll passes true (nobody is watching a browser, and the prompt
+        // is where RED means "install"). See postOtaCheck(). otaState / fwVer carry the
+        // answer back to GET /ota either way.
+        //
+        // Safe to prompt from here: drainPending() only runs while the machine is idle, so
+        // the takeover cannot land on a run in progress.
+        //
+        // Re-checked HERE too, not only where the poll queued it: drainPending() runs up to
+        // ~10 ms later and its own busy guard treats escreenFinished as idle. Taking the TFT
+        // in that window drops the operator's results screen, and because eUpdateOTA is itself
+        // on the idle allowlist the write unlocks the deferred-reboot gate in the middle of
+        // the end-of-run pipeline. Closing the TOCTOU costs one condition; the poll just
+        // retries at its next deadline.
+        if (_displayCLD.type_infor == escreenFinished)
+        {
+            info_displayln("[ota] check skipped: end-of-run pipeline is running");
+        }
+        else
+        {
+            info_displayf("[ota] check (prompt=%d)\n", (int)otaPromptOnDevice);
+            checkFirmware(otaPromptOnDevice);
+        }
     }
 
     cfgState = CFG_APPLIED; // written to EEPROM; the web can now trust a read-back

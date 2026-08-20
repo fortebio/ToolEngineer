@@ -20,7 +20,7 @@
     [ "tft:MISO", "esp:19", "gold", [] ],
     [ "tft:CS", "esp:22", "green", [] ],
     [ "tft:D/C", "esp:21", "purple", [] ],
-    [ "tft:RESET", "esp:17", "blue", [] ],
+    [ "tft:RST", "esp:17", "blue", [] ],
     [ "tft:LED", "esp:3V3", "red", [] ],
 
     [ "btnRed:1.l", "esp:VN", "red", [] ],

@@ -74,6 +74,14 @@ void PIDControl::begin()
     myPIDhotlid2->SetMode(AUTOMATIC);
     myPIDhotlid3->SetMode(AUTOMATIC);
 
+    // Cap the two lids at HOTLID_PWM_MAX. This has to be SetOutputLimits, NOT a clamp on the
+    // analogWrite argument: PID_v1 bounds outputSum by the same outMax (PID_v1.cpp:74-75), so the
+    // integral cannot wind up past a level the lid is never allowed to deliver and then have to
+    // unwind before the PWM comes back down - the overshoot a ceiling is meant to prevent.
+    // Only the lids are capped; the three bottom heaters keep the library default of 0..255.
+    myPIDhotlid2->SetOutputLimits(0, HOTLID_PWM_MAX);
+    myPIDhotlid3->SetOutputLimits(0, HOTLID_PWM_MAX);
+
     // Heater1
     pinMode(HEATER1IO, OUTPUT);
     analogWrite(HEATER1IO, PWM_OFF);

@@ -339,6 +339,19 @@ extern volatile bool gBtReleased;
 #define PWM_Heater23 150
 #define PWM_HOTLIDFULL 110
 
+// Duty ceiling for the two top hotlid PIDs (myPIDhotlid2/3). PID_v1 defaults to 0..255, i.e. no
+// ceiling at all, so the controller asks for full duty whenever it sits more than a few degrees
+// under the 75 C target - which is most of the heat-up. 128 halves the peak while staying clear
+// of the drive the lids actually need: the pre-PID design held this same target with a fixed HIGH
+// of 100 (hotlidPWM in parastructure, now unused).
+// Do NOT lower this without measuring. A ceiling too low does not merely heat slowly:
+// heatNewLid23() raises topHeater2Flag/topHeater3Flag only within 3 C of target, so a lid that
+// cannot reach it leaves the machine waiting forever instead of advancing to the amp-tube prompt.
+// Compile-time on purpose - a hardware protection limit, not an operating parameter. If it ever
+// needs field tuning, parameter.empty[0] is the spare slot (parastructure is at 400 of its 402 B,
+// so no new field can be added).
+#define HOTLID_PWM_MAX 128
+
 // GPIO used for LED driver
 #define LED_PWM_PORT 4 // control the pwm output for LED driver
 
@@ -387,7 +400,7 @@ extern volatile bool gBtReleased;
 // Quantity definition of temperature sensor
 #define HEATBLKQUANTITY 3 // 3 bottom temperature sensors
 #define HOTLIDQUANTITY 3  // 2 top temperature sensors plus 1 ambient temperature sensor located at
-                          // PCB
+                          // PC
 
 // Button definition
 #define NumberButton 3
@@ -404,7 +417,26 @@ extern volatile bool gBtReleased;
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "v2.4.3"; // add function calib
+static String FirmwareVer = "v2.4.4"; // OTA source -> server, base URL -> Cloudflare
+// This string is MATCHED AGAINST THE .bin FILE NAME the server offers (updateOTA.cpp
+// checkFirmware). Upload images named so they contain it - "fbt_v2.4.4.bin" - or the
+// machine will re-offer the build it is already running, every poll, forever.
+// ⚠ BUMPED 2026-08-20, and the bump is FUNCTIONAL, not cosmetic. Two things forced it:
+//
+// 1. The ambiguity this comment warned about ACTUALLY HAPPENED at v2.4.5. `fbt_v2.4.5.bin`
+//    on the server is a build made BEFORE ?ver= was added, while the source at v2.4.5 has
+//    it - two different images answering to one version string. Proof from the box, not from
+//    reading code: RPL02013 reported version v2.4.5 with its 18/08 17:10 run, then called
+//    `/ota/check?device=RPL02013` bare THREE MINUTES LATER. Across 3 days and 29 checks the
+//    whole fleet never sent `&ver=` once, so `fw_seen.json` / `fw_log.json` were never even
+//    created and the server-side history feature sat there as dead code.
+// 2. The match is EXACT (`name != "fbt_" + FirmwareVer + ".bin"`), so a rebuilt v2.4.5 can
+//    never reach a machine already reporting v2.4.5 - it would read "You have the lasted
+//    version" forever, silently. Shipping the fix REQUIRES a new version string.
+//
+// Rule this leaves behind: never rebuild under a version string that has already been handed
+// to a machine. `sessions.version` cannot tell two images apart, so the mistake is invisible
+// from every dashboard - the only tell is a behavioural one like the missing `&ver=` above.
 
 extern SemaphoreHandle_t gI2CMutex;
 extern SemaphoreHandle_t gSPIMutex;

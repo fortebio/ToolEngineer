@@ -356,7 +356,7 @@ bool checkJump(std::vector<double> &_array, double crossing, size_t index)
 
     // GUARD: jump phải vượt trội so với biên độ pre-window (8 điểm trước, x2.5)
     double pre_range = range_of(_array, index - 7, 8);
-    if (jump < pre_range * 2.5)
+    if (jump < pre_range * 2.2)
         return false;
 
     // Flatness measured AFTER the settling transient (skip JUMP_SETTLE_SKIP samples).

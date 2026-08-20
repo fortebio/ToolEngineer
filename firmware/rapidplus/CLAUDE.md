@@ -24,12 +24,18 @@ pio test -e esp32dev_test -v        # unit test on-device (FreeRTOS)
 
 Board `esp32dev`, framework arduino, filesystem **littlefs**, flash 8MB.
 
-**Lần đầu / máy mới**: `src/secrets.h` (endpoint upload + API token) **gitignored** — thiếu nó
-build fail. Copy template rồi điền: `cp src/secrets.example.h src/secrets.h`. `Bluetooth.cpp:22-27`
-nay lấy endpoint/token **từ macro `SECRET_*`** (trước đó hardcode literal, `secrets.h` là code chết).
-Token thật KHÔNG bao giờ commit (đã lộ trong history cũ **và trong `secrets.example.h` tới
-2026-07-29** → cần rotate server-side; xem
-[docs/history/2026-07-22-secrets-out-of-source.md](docs/history/2026-07-22-secrets-out-of-source.md)).
+**Lần đầu / máy mới**: `src/secrets.h` (endpoint upload + API token) **được commit trong repo**
+(dòng `src/secrets.h` trong `.gitignore` đang cố ý bị comment) → clone về là build được ngay,
+**không** phải copy `secrets.example.h`. Đây là **quyết định có chủ ý, chốt 2026-08-07**, đánh đổi
+được vì repo firmware `wuanpham/FBT-DXD` là **private**. `Bluetooth.cpp:22-27` lấy endpoint/token
+**từ macro `SECRET_*`** (trước đó hardcode literal, `secrets.h` là code chết).
+
+⚠ **Repo private KHÔNG gỡ được yêu cầu rotate trước khi phát hành OTA.** Đường rò là đường khác:
+`firmware.bin` mang ERP key @offset **3144** và ingest Bearer @**3251** — nằm trong 4 KB đầu, `strings`
+là ra — mà bản OTA phải đẩy lên **`FBTRapidplusOTA`, repo PUBLIC**. Token rò qua **file `.bin` trên
+repo công khai**, không qua repo firmware. Rotate + redeploy GAS vẫn là chặn cứng của đợt OTA. Xem
+[docs/history/2026-07-22-secrets-out-of-source.md](docs/history/2026-07-22-secrets-out-of-source.md)
+và [docs/plan/2026-07-28-ota-fleet-upgrade-243.md](docs/plan/2026-07-28-ota-fleet-upgrade-243.md).
 
 ## Kiến trúc RTOS (main.cpp)
 
@@ -60,7 +66,12 @@ Globals chính: `_displayCLD`, `_PIDControl`, `_sensor6035`, `_ForteSetting`,
   (`releaseBluetoothStack`, gọi sớm ở main.cpp — GOTCHA 1).
 - `displayCLD/displayLCD.cpp` — máy trạng thái UI: `type_infor` kiểu `e_statuslcd`.
 - `PIDControl.cpp` — nhiệt độ: `getBottomTemperature()` = {lysis, ampLeft, ampRight},
-  `getHotlidTemperature()` = {topLeft, topRight, ambient}.
+  `getHotlidTemperature()` = {topLeft, topRight, ambient}. **Hai PID nắp trên bị chặn duty ở
+  `HOTLID_PWM_MAX` (128)** bằng `SetOutputLimits` — **không** kẹp sau `Compute()` (kẹp sau thì
+  tích phân vẫn dồn tới 255 rồi phải xả mới hạ xung = vọt nhiệt). **Đừng hạ dưới 100**: nắp
+  không vào nổi 3 °C quanh mục tiêu thì `heatNewLid23()` không bật cờ, máy **treo ở màn chờ**
+  chứ không báo lỗi. Guard `python tools/test_hotlid_pwm_cap.py`. Chi tiết:
+  [docs/history/2026-08-07-hotlid-pwm-cap.md](docs/history/2026-08-07-hotlid-pwm-cap.md).
 - `sensor6035.cpp` — đo opto; đường cong `sensor67Value[10][130]`, chỉ số vòng `COUNTER`.
 - `button.cpp` — 3 nút `e_statusbutton {B_RED,B_BLUE,B_WHITE}`, short/long press.
 - `webDashboard.cpp` — web dashboard (xem dưới).
@@ -130,6 +141,16 @@ bộ từ EEPROM. Chi tiết: [docs/history/2026-07-21-result-chart-table-desync
 - **`waitamp`** (luồng Lysis): đặt tên **sau** heating như cũ, Confirm mở khoá Start.
 - `confirmed` sống xuyên heating (chỉ reset khi về `idle`), nên named-ở-waitname thì
   waitamp không hỏi lại.
+- **Nhãn slot thuộc về MỘT run — `dashboardLoop()` xoá `names` + `samples` (RAM **và** NVS)
+  khi `isBusy()` lên sườn** (idle/finished/review/QR/setting → run). Trước 2026-08-20 không ai
+  xoá: `slotNames[]` nạp từ NVS lúc boot, `/rename` ghi vào, `postData_GoogleSheet` đọc thẳng ra
+  `nameSlot`, nên **run không đặt tên vẫn upload tên bệnh của run trước** — kết quả nộp dưới nhãn
+  một xét nghiệm khác, im lặng. Bảng naming điền sẵn từ `/slots` càng che lỗi. Là **điều kiện**
+  chứ không hook vào nút: chu kỳ bắt đầu từ 4 đường (RED vật lý, BLUE lysis, `/control?btn=ampname`,
+  lệnh Serial `ForteSetting.cpp:148`). Xoá lúc **VÀO** run, không phải lúc ra — Result phải còn đọc
+  được nhãn của run vừa xong. Trống là fallback có sẵn (`"N/A"` khi upload, `#N` ở legend).
+  Đánh đổi: chạy lại cùng panel phải chọn lại dropdown. Guard `python tools/test_slot_label_reset.py`.
+  Chi tiết: [docs/history/2026-08-20-slot-label-reset-per-run.md](docs/history/2026-08-20-slot-label-reset-per-run.md).
 - **Tên = tập cố định bệnh tôm** `{PC,EHP,EMS,WSSV,TPD}` chọn bằng `<select>` (không gõ
   tự do). Ô trống → mặc định `#N`. `loadNamingSlots`/`loadResultSlots` build **1 lần** sau
   khi `/slots` về (bỏ pre-build rỗng) — pre-build 2 pha từng đè mất lựa chọn select.
@@ -381,14 +402,124 @@ calib bắt đầu ở máy phải kết thúc ở máy. Firmware/client vẫn c
    lại Nearby tới lần quét sau. Chi tiết:
    [docs/history/2026-08-02-setting-ui-a11y-va-wifi-trung-lap.md](docs/history/2026-08-02-setting-ui-a11y-va-wifi-trung-lap.md).
 
-**Cập nhật firmware từ web (`/ota`)**: `GET /ota` trả `{version, versionCode, state, hasUpdate,
-busy, checked, online, newVersion, notes}`; `POST /ota?action=check|update`. **Không đổi cơ chế
-OTA** — `checkFirmware()` vẫn đọc `updateOTA.json` trên GitHub, `updateFirmware()` vẫn chạy ở
-NetworkTask. Chỉ thêm đường vào:
+**Nguồn OTA = Engineer Server, KHÔNG còn GitHub (v2.4.4, 2026-08-17).** `checkFirmware()` gọi
+`GET /ota/check?device=<id>` với **cùng Bearer `SECRET_INGEST_TOKEN`** đang dùng để POST kết quả
+(không có credential thứ hai). Máy trạng thái, cổng busy, reboot hoãn, panel web, prompt TFT
+**giữ nguyên** — đây là đổi đường truyền, không phải tính năng mới.
+
+- **HAI host, thử theo thứ tự**: `SECRET_OTA_CHECK_URL` (`hub.fortebio.tech`, Cloudflare)
+  rồi `SECRET_OTA_CHECK_URL_FALLBACK` (`fbt.basa-luma.ts.net`, Funnel). OTA là **đường duy nhất**
+  tới máy ngoài hiện trường, nên firmware chỉ biết một host = một sự cố Cloudflare biến 109 máy
+  thành không ai với tới được. **Stateless cố ý**: không nhớ host nào thắng — nhớ thì tốn một lần
+  ghi NVS và đẻ ra trạng thái cũ có thể sai, đổi lại chỉ tiết kiệm **một request hỏng mỗi 6 h**.
+  `WiFiClientSecure` dựng **mới từng lần thử** (dùng lại qua hai host để lại socket nửa-đóng —
+  bẫy ở `Bluetooth.cpp:474`). `otaCheckFailed` **chỉ bật khi CẢ HAI cửa im**.
+- **`fwUrl` PHẢI lấy từ `json["url"]`, đừng ghép tay.** Server dựng URL từ **chính request**, nên
+  host nào trả lời `/ota/check` thì `.bin` tải về host đó — đó là thứ làm fallback tự đúng mà
+  không cần hằng số `.bin` thứ hai. Ghép tay là tải về primary dù fallback mới là cửa đang sống.
+- **Không ghim CA ở đâu trong firmware** (`setInsecure()` ở cả `Bluetooth.cpp:414` lẫn
+  `updateOTA.cpp`) — có chủ ý vì ràng buộc heap mbedTLS (GOTCHA 2). Nhờ vậy đổi domain (ISRG Root
+  X1 → Google Trust Services) **không đứt TLS**. Ghim CA vào là biến mọi lần đổi hạ tầng thành
+  rủi ro chết cả fleet, mà đường sửa duy nhất lại chính là OTA.
+- **`SECRET_INGEST_URL` cũng trỏ Cloudflare, nhưng KHÔNG có fallback** — cố ý: hỏng ingest là mất
+  một kết quả (đã có retry + 3 đích), hỏng OTA là mất đường sửa cả fleet. Lưới đặt ở chỗ
+  hỏng-không-cứu-được, không rải đều.
+- ⛔ **Cache Rule bypass `/ota/*` trên Cloudflare là CHẶN CỨNG.** `.bin` nằm trong extension cache
+  mặc định; upload trùng tên xong edge vẫn phát bản cũ, và **`x-MD5` không cứu** (header đi kèm
+  chính file cũ đang cache → firmware kiểm thấy "khớp" rồi nạp nhầm bản, im lặng hoàn toàn).
+
+- **Server trả TÊN FILE, không trả số build.** Luật so sánh là **KHỚP CHÍNH XÁC**:
+  `name != "fbt_" + FirmwareVer + ".bin"`. Vì vậy **`FirmwareVer` (`define.h`) nay là một nửa của
+  phép so sánh, không phải nhãn hiển thị**, và quy ước đặt tên là **ràng buộc chức năng**.
+  `currentVersion`/`fwVersion` (`versionCode`) và `fwCont` (notes) **đã xoá hẳn**.
+  ⚠️ **ĐỪNG quay lại `indexOf()`** (bản đầu dùng thế, soát đối kháng 2026-08-18 bắt được): mọi tên
+  **mở rộng** version đang chạy — `fbt_v2.4.4_rc1.bin`, `fbt_v2.4.4AT.bin`, mà hộp thoại upload của
+  app **gợi ý đúng những tên đó** — đều CHỨA version nên cả fleet **từ chối bản vá, im lặng, vĩnh
+  viễn**. Khớp chính xác hỏng theo hướng ngược lại (mời lặp lại) và hỏng-nhìn-thấy-được thắng.
+- **`200` CHƯA phải câu trả lời cho tới khi nó PARSE ĐƯỢC.** `otaCheckHost()` phải kiểm giá trị trả
+  về của `deserializeJson()` **và** `json["update"].is<bool>()`, không thì trang login Cloudflare
+  Access / WAF interstitial / captive portal (đều là 200 + HTML) rơi vào nhánh "up to date" **và
+  `return true`** → vòng hai host **dừng ở host 1**, Funnel dự phòng không bao giờ được gọi. Cả
+  fleet báo khoẻ trong khi đường sửa đã chết, không dấu vết ở đâu.
+- **Check hoàn tất GIỮA LÚC ĐANG TẢI không được ghi gì.** `otaState == OTA_UPDATING` là cờ DUY NHẤT
+  giữ `dashboardDeviceBusy()` true suốt ~2 phút ghi flash; xoá nó là mở lại `POST /wifi` và cổng
+  reboot hoãn lên một partition đang ghi dở. Nặng hơn: `fwUrl` bị gán lại **trong khi `httpUpdate`
+  giữ nó bằng `const String&`** = giải phóng buffer dưới chân người đọc. `checkFirmware()` chặn ở
+  đầu, `otaCheckHost()` kiểm lại trước khi publish (TOCTOU).
+- **Toàn vẹn ảnh nằm ở SERVER, không ở firmware**: `HTTPUpdate` tự đọc header **`x-MD5`** của
+  response rồi gọi `Update.setMD5()` (`HTTPUpdate.cpp:223,344`), nên `/ota/{file}` gửi header đó
+  là xong — **0 dòng firmware**. Đừng thay bằng vòng tải `Update.write()` tự viết để kiểm sha256:
+  `httpUpdate.update()` là **lời gọi duy nhất đã đo stack thật** (NetworkTask 6144 B ôm mbedTLS +
+  HTTPClient + Update; tràn là **panic**), và đó là go/no-go của cả đợt phát hành. Bearer gắn qua
+  tham số thứ 4 `HTTPUpdateRequestCB` (chạy ngay trước `http.GET()`, `HTTPUpdate.cpp:219`).
+  ⚠ md5 do chính server phục vụ file tính ra → bắt hỏng **đường truyền**, **KHÔNG** bắt được
+  **upload hỏng** (server băm đúng file cụt và tự đồng ý). `sha256` ở `/ota/check` cũng vậy. Muốn
+  bịt thì bịt ở đầu upload, đừng thêm hash ở đầu tải.
+- **Máy TỰ BÁO "vừa nạp xong" — `&updated=1`** (v2.4.6, 2026-08-20). `HTTP_UPDATE_OK` chốt một
+  cờ trong **NVS** (`otaMarkInstalled`), lượt `/ota/check` kế tiếp gửi kèm `&updated=1`, server ghi
+  thẳng một mốc vào `fw_log.json` kể cả khi version KHÔNG đổi (đánh dấu `how: "update"`).
+  Vì sao cần khi đã có `?ver=`: phép so "version đổi giữa hai lượt poll" **mù hẳn với lần nạp lại
+  CÙNG một bản**, và không phân biệt được "vừa cập nhật" với "vừa mất điện bật lại".
+  - **NVS chứ không RTC RAM**: reboot sau khi nạp là **hoãn** (`dashboardRequestRestart` chờ máy
+    rảnh) nên mất điện xen vào giữa là chuyện thường — RTC RAM mất đúng sự kiện đang cần.
+  - **Chốt cờ TRƯỚC khi xin reboot**: tới `HTTP_UPDATE_OK` thì ảnh đã nằm trong partition kia, máy
+    **sẽ** boot vào nó bằng đường này hay đường khác. Ghi muộn hơn là bỏ sót.
+  - **Xoá cờ CHỈ sau khi một host trả lời đúng hợp đồng** — 401 / trang login Cloudflare / tunnel
+    chết đều `return` trước đó, nên boot không mạng vẫn báo được ở lượt poll sau.
+- ⚠️ **`fbt_v2.4.5.bin` trên server là bản build TRƯỚC khi có `?ver=`** — đúng cái bẫy "hai ảnh một
+  version" mà `define.h` cảnh báo, và nó **vô hình từ mọi dashboard**. Đo được: 29 lượt `/ota/check`
+  trong 3 ngày **không lượt nào** có `&ver=`, `fw_seen.json` chưa từng tồn tại. Vì luật so là khớp
+  chính xác, bản vá **bắt buộc** mang version mới (**v2.4.6**) mới tới được máy. Chi tiết:
+  [docs/history/2026-08-20-bao-cap-nhat-thanh-cong.md](docs/history/2026-08-20-bao-cap-nhat-thanh-cong.md).
+- **Rollback tự động KHÔNG làm được** — `esp_ota_mark_app_valid_cancel_rollback()` cần bootloader
+  build với `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` (arduino-esp32 mặc định TẮT) mà bootloader
+  **nằm ngoài đường OTA**. Gọi hàm đó chỉ tạo cảm giác có lưới an toàn. Đường cứu vẫn là
+  `/otaupload` hoặc dây.
+- ⚠ **Fleet ≤ v2.4.3 KHÔNG với tới được bằng đường mới — đợt chuyển giao vẫn phải đi qua GitHub,
+  đúng một lần.** Firmware cũ chỉ biết `raw.githubusercontent.com/wuanpham/FBTRapidplusOTA/` +
+  **version nó đang chạy** + `/updateOTA.json`, và chỉ prompt khi `versionCode > currentVersion`
+  (v2.4.0→16, v2.4.2→17/18, v2.4.3→**19**). Nên bản 2.4.4 phải nằm trên branch của các version
+  **cũ hơn** — kể cả branch **`v2.4.3`**, cái mà đợt trước cố ý bỏ vì 2.4.3 chính là đích. Manifest
+  soạn sẵn + quy trình: [tools/ota-release/README.md](tools/ota-release/README.md), guard
+  `python tools/test_ota_release_manifest.py`.
+- ⛔ **Nhưng publish `.bin` v2.4.4 lên repo PUBLIC là trao quyền nạp firmware cho cả 109 máy**:
+  ảnh mang `SECRET_INGEST_TOKEN` ở 4 KB đầu, mà từ v2.4.4 token đó **cũng mở `/ota/*`**. Chặn này
+  gỡ ở **SERVER, không phải firmware**: tách scope để endpoint *engineer upload* đòi credential
+  không nằm trong firmware, còn Bearer của máy chỉ đọc `/ota/check` + tải `.bin` + POST kết quả —
+  rò về đúng mức rủi ro đã chấp nhận từ trước, không phải chiếm fleet. Chưa tách được thì đợt
+  chuyển giao đi bằng `/otaupload` (chỉ máy ≥ v2.4.3 có route, và UI 2.4.3 **không gửi `?md5=`**
+  → phải dùng curl) hoặc dây.
+- **Go/no-go của đợt này nằm ở firmware CŨ**: máy tự tải bằng code đang chạy, mà v2.4.3 có
+  `NetworkTask` **6144 B** (v2.4.2/v2.4.0 còn 8192) — tràn là **panic**, không phải
+  `HTTP_UPDATE_FAILED`. Đo `uxTaskGetStackHighWaterMark` trên một máy **v2.4.3** bench sau một lần
+  OTA thật trước khi mở cho fleet.
+
+**Cập nhật firmware từ web (`/ota`)**: `GET /ota` trả `{version, state, hasUpdate, busy, checked,
+checkFailed, online, newVersion}`; `POST /ota?action=check|update`.
 
 - **`check` phải qua `PEND_OTACHECK` (SettingTask)** — HTTPS **blocking** vài giây, chạy trên
   AsyncTCP là treo dashboard (GOTCHA 8/11). `drainPending()` vốn guard `dashboardDeviceBusy()`
-  nên tự động không hỏi GitHub giữa run.
+  nên tự động không hỏi server giữa run.
+- **Poll định kỳ 6 h** (`dashboardLoop()`): trước v2.4.4 `checkFirmware()` chạy **đúng 1 lần mỗi
+  boot** ở ~2 s sau khi bật — sát mức associate + DHCP (1–3 s), trượt là đứng bản cũ tới khi có
+  người tắt/bật. Đó là lý do lớn nhất OTA "im lặng" ngoài đồng. Poll đẩy vào **cùng hàng đợi
+  `PEND_OTACHECK`** (không gọi thẳng `checkFirmware()` trên NetworkTask), giữ **deadline riêng**
+  chứ không đọc `otaLastCheck` (biến đó chỉ nhích khi GET **hoàn tất** → máy mất mạng sẽ re-queue
+  mỗi tick), so sánh có dấu để sống qua wrap 49 ngày. Chỉ poll khi `OTA_IDLE`/`OTA_FAILED` —
+  `OTA_DISMISSED` cố ý im tới hết phiên.
+- **Poll phải mang cổng cấp-REBOOT, không phải cổng cấp-settings**: `!suspended` **và**
+  `type_infor != escreenFinished`. `dashboardDeviceBusy()` của `drainPending()` KHÔNG đủ —
+  `escreenFinished` là "rảnh" với settings nhưng chính là 30-90 s tính kết quả + upload TLS. Poll ở
+  đó mở phiên mbedTLS **thứ hai** (ngân sách 42 KB liền mạch, GOTCHA 2), và một check thành công ghi
+  `type_infor = eUpdateOTA` — mà `eUpdateOTA` nằm trong allowlist rảnh → **mở khoá `otaRestartAt`
+  ngay giữa `screen_Result()`**. `drainPending()` kiểm LẠI để đóng TOCTOU ~10 ms.
+- **`postOtaCheck(bool promptOnDevice)` — hai caller muốn hai đáp án NGƯỢC nhau.** Nút web truyền
+  `false` (bấm từ xa mà chiếm màn TFT là bỏ rơi người đang đứng ở máy); poll định kỳ truyền
+  **`true`** vì không ai đang xem browser, và `eUpdateOTA` là **chỗ duy nhất nút ĐỎ mang nghĩa
+  "cài"**. Để `false` cho poll thì máy tìm ra bản mới mà **không hiện gì** — chỉ ai tình cờ mở
+  dashboard mới thấy, tức không còn là cơ chế cập nhật fleet. Bool là **payload**, phải ghi TRƯỚC
+  `pendingKind` (cùng khuôn `pendingA`/`pendingB`). Chiếm màn an toàn vì `drainPending()` chỉ chạy
+  khi máy rảnh.
 - **`update` thì AsyncTCP ghi thẳng `otaState = OTA_USER_ACCEPTED`** — *một byte volatile*,
   NetworkTask tự nhặt; việc tải không đụng task web.
 - `checkFirmware(bool promptOnDevice = true)`: web gọi **`false`** để **không cướp màn TFT**
@@ -404,15 +535,30 @@ NetworkTask. Chỉ thêm đường vào:
 - Panel **không đợi "cài xong"**: thành công = reboot, trang chỉ mất kết nối rồi tự nối lại.
 
 **Nạp bằng file .bin** (`POST /otaupload[?md5=<32 hex>]`, multipart field `firmware`) — cho máy
-**không có internet** hoặc build chưa publish. `?md5=` **tuỳ chọn nhưng nên có**: không có nó thì
-**file .bin đứt giữa chừng vẫn boot** (`Update.end(true)` đặt `_size = progress()` → "bao nhiêu
-byte tới nơi" được tính là cả ảnh) — đây là **đường brick thật duy nhất** của hệ thống. Giá trị
-sai định dạng bị **từ chối** chứ không bỏ qua (ai đã xin verify thì không được im lặng bỏ verify). `onUpload` nhận body **theo chunk ~1-4KB** → `Update.write()`
-từng khúc (không giữ 2,3MB ở đâu). Ba điểm bắt buộc: chunk **đầu** (`index==0`) là chỗ duy nhất
-từ chối được (busy / không phải `.bin`); bị từ chối thì **vẫn phải đọc hết** các chunk sau (không
-rút cạn socket → browser thấy connection reset thay vì lỗi); và **hoãn `ESP.restart()`**
-(`otaRestartAt`, `dashboardLoop()` lo) — restart trong handler làm mất reply 200 nên bản cập nhật
-thành công lại báo lỗi mạng. UI dùng **XHR** (chỉ XHR có upload progress).
+**không có internet** hoặc build chưa có trên server. `?md5=` **tuỳ chọn nhưng nên có**: không có
+nó thì **file .bin đứt giữa chừng vẫn boot** (`Update.end(true)` đặt `_size = progress()` → "bao
+nhiêu byte tới nơi" được tính là cả ảnh) — đây là **đường brick thật duy nhất** của hệ thống.
+
+⚠️ **UI phải THẬT SỰ gửi `?md5=`, và phải TỰ TÍNH** (2026-08-18) — firmware nhận tham số này
+từ 2026-07-24 nhưng `script.js` **chưa bao giờ gửi**, nên suốt thời gian đó mọi lần nạp qua trình duyệt
+chạy **không kiểm gì cả** — trong khi guard vẫn xanh vì chỉ soi phía C++. **Xử lý một tham số không ai
+gửi thì không phải một phép kiểm** — guard 7 nay soi cả `data/script.js`.
+
+- **Trình duyệt tự tính digest, KHÔNG có ô nhập.** Bản đầu làm ô cho người dùng dán md5 vào — chủ dự
+  án bác đúng: *không thể bắt khách hàng ở xa nhập chuỗi 32 ký tự*. Đó là đẩy việc của máy sang cho
+  người, trên chính kịch bản tính năng phục vụ (khách ở xa, máy không internet). **Đừng thêm lại ô đó.**
+- **`md5Hex()` tự viết là bắt buộc**: `Update` của ESP32 chỉ kiểm MD5, còn `crypto.subtle` của trình duyệt
+  có SHA-1/SHA-256 và **không có MD5**. Không mượn được ở đâu.
+- **Bảng `K` là LITERAL**, không phải `Math.floor(abs(sin(i+1)) * 2^32)`: cách suy ra chuẩn giáo khoa
+  nhưng dựa vào những bit cuối của `sin` trong libm khớp nhau trên mọi trình duyệt/điện thoại. Một hằng
+  số lệch = **từ chối mọi lần nạp trên MỘT SỐ máy chứ không phải tất cả**.
+- **Đếm bit bằng phép chia float, không phải dịch bit**: ảnh 2.4 MB là ~19 triệu bit, và trong JS
+  `bits >>> 32` là **no-op** (trả lại chính `bits`), không phải 0. Chỉ lộ ra trên file lớn.
+- Test: **`node tools/test_ota_md5.js`** — **trích hàm TỪ `data/script.js`**, không chép (bản chép tự đồng ý
+  với chính nó trong khi bản ship đã hỏng). 7 vector RFC 1321 · mọi độ dài 0..200 vs `node crypto`
+  (biên padding 55/56, 63/64) · chính `firmware.bin` 2.4 MB vs `md5sum`.
+- ⚠️ **Không cứu được đợt nạp ĐẦU TIÊN**: 109 máy đang chạy UI cũ không có hàm này. Máy v2.4.3 thì
+  dùng `curl ... "?md5=<hash>"`; máy v2.4.2/v2.4.0 không có route `/otaupload` → cầm dây.
 
 Chi tiết: [docs/history/2026-07-24-web-ota-update.md](docs/history/2026-07-24-web-ota-update.md).
 
@@ -986,15 +1132,24 @@ node tools/test_wifi_e2e.js                 # E2E WiFi qua browser: list/pick/co
 python tools/test_no_method_branch.py       # guard: KHÔNG handler nào so req->method() (GOTCHA 3 làm POST rơi nhánh GET)
 python tools/test_phase0_guards.py          # guard: không strcpy(parameter.*), 4 field char[10] được validate, secrets không nằm trong source commit, **-Wformat còn bật**
 python tools/test_web_assets.py             # guard: UI nhúng đủ + có route + .gz không cũ + không serveStatic + KHÔNG LittleFS (GOTCHA 4)
-python tools/test_ota_guards.py             # guard: eUpdateOTA không "busy", rebootOnUpdate(false), ?md5= hạ chữ thường
+python tools/test_ota_release_manifest.py   # guard: manifest GitHub đủ branch + versionCode vượt currentVersion ngoài đồng
+python tools/test_ota_guards.py             # guard: OTA -> server (Bearer, so tên file), UI nạp gửi ?md5=, eUpdateOTA không "busy"
+node tools/test_ota_md5.js                  # md5Hex() trong script.js là MD5 ĐÚNG (RFC 1321 + mọi độ dài 0..200 + firmware.bin thật)
 python tools/test_upload_targets.py         # guard: mọi upload đi đủ 3 đích, từ MỘT danh sách
+g++ -O2 -std=c++17 -I.pio/libdeps/esp32dev/ArduinoJson/src tools/test_json_key_present.cpp -o t && ./t   # guard: POST /config chỉ áp key CÓ MẶT (cần -I, thiếu nó không build được)
 node tools/test_profile_minutes.js          # guard: card Profile nhập PHÚT nhưng lưu giây/vòng, clamp 130 giữ nguyên
 python tools/test_status_coverage.py        # guard: web không báo "Idle" khi máy đang chờ người; fillStatus/fillActions cùng tập state
+python tools/test_slot_label_reset.py       # guard: nhãn slot bị xoá khi vào run mới (không upload tên bệnh run trước)
 node tools/test_error_table.js              # guard: Error table thay chỗ chart, đủ 10 slot, mã trùng máy (cần mock --reboot)
 node tools/test_home_error_table.js         # guard: hết run bấm ĐỎ -> Home đổi chart sang bảng lỗi (cần mock --full)
 g++ -O2 -std=c++17 tools/test_wifi_bars.cpp -o t && ./t          # vach song WiFi tren TFT: nguong khop web + chong nhay
 python tools/test_qr_payload.py             # guard: payload QR ≤ 53B (encoder KHÔNG bounds-check → reset), SSID không lệch 2 nơi
+python tools/test_hotlid_pwm_cap.py         # guard: trần duty nắp nhiệt còn nguyên ở CẢ HAI PID, không đường ghi nào lách
 python tools/test_device_id.py               # guard: ID 1 giá trị qua 2 store + 4 giới hạn khớp, input touch 16px (iOS zoom)
+sh tools/test_break_trim.sh                # guard: cửa sổ cắt theo bậc thang phải bắt đầu SAU cú nhảy (A1)
+python tools/test_algo_accuracy.py         # guard: đồng thuận với 659 kênh người phán + verdict bất biến khi rescale quang học
+python tools/test_outcome_reset.py         # guard: mọi field của các class trong AlgoData.h phải được clear() reset (rò dữ liệu giữa 10 slot)
+python tools/audit_logs.py <thu-muc-log>   # kiểm định thuật toán chẩn đoán trên kho log thật -> docs/reports/algo-audit.md
 node tools/test_full_run.js                # E2E full quy trình (chạy với --full)
 node tools/test_review_reboot.js           # E2E xem lại run sau reboot (tự bật mock --reboot)
 node tools/ui_screenshot.js <outDir>       # chụp 9 trạng thái UI (mobile/landscape/desktop) để soát thiết kế
@@ -1002,6 +1157,172 @@ node tools/test_chart_ticks.js             # guard: trục Y chart LUÔN đúng 
 node tools/test_setting_a11y.js            # guard: tab Setting - nhãn gắn với ô, focus vào/ra panel, Nearby lọc, disabled không dùng opacity (cần mock chạy sẵn)
 node tools/test_no_hscroll.js              # guard: KHÔNG màn nào trượt ngang (320-412px × font 100-130%) + 2 cột Setting bằng nhau (cần mock)
 ```
+
+**Cắt cửa sổ theo bậc thang — `+ breakIndex + JUMP_SETTLE_SKIP`, KHÔNG phải `+ breakIndex`.**
+`check_breakData` đo `_array[i+1] - _array[i]` nên **`breakIndex` là mẫu ngay TRƯỚC cú nhảy**; cắt
+từ chính nó thì bậc thang vẫn nằm gọn ở hai phần tử đầu của cửa sổ. `differentiate` cho phần tử 0
+sai phân **tiến** (chia *một* khoảng, `Algo.cpp:233`) còn điểm giữa dùng sai phân trung tâm (*hai*
+khoảng) → bậc thang thành đạo hàm lớn nhất run, `argmax` bám vào, đỉnh ở chỉ số 0 **không thể có
+tay trái**, `detected_ea()` nổ, kết luận thành `Error`. Lưới cứu ở `sensor6035.cpp:492` chỉ bắt
+`'N'` nên `'E'` lọt qua — bậc thang thuần tuý cũng ra `E` thay vì `B`.
+
+- **`+3` chứ không `+1`**: `+1` rơi vào đúng vùng tín hiệu vọt lố sau bậc thang, cú vọt lại vào
+  phần tử 0 và lỗi tái hiện. `JUMP_SETTLE_SKIP` (nay ở **`Algo.h`**, không chép số vào
+  `sensor6035.cpp`) là hằng số `checkJump` vốn đã dùng để bỏ qua vùng đó.
+- **Chặn cửa sổ tối thiểu `2*sg_window+2` là bắt buộc**: `sg_smooth` trả **mảng toàn 0** dưới
+  ngưỡng đó và **dòng báo lỗi bị comment** (`sgsmooth.cpp:537-541`). Sau khi vá, cửa sổ ngắn nhất
+  có thể xảy ra là **đúng bằng ngưỡng** — biên an toàn bằng 0, mà `sg_window` sửa được từ
+  web/Serial không validate. Đặt chặn **sau** cả khối `if (breakIndex)` để che luôn nhánh end-trim.
+- **Không đụng nhánh end-trim** (`timeEnd = begin() + breakIndex`) — đó là biên loại trừ, vốn đã
+  dừng trước bậc thang.
+- Guard `sh tools/test_break_trim.sh` có **hai phần và phần thứ hai bắt buộc**: khối trim không
+  biên dịch được ngoài thiết bị nên phần kiểm hành vi tự mang bản sao của nó — revert
+  `sensor6035.cpp` thì phần đó **vẫn xanh** (đã kiểm bằng negative test). Vì vậy guard phải grep
+  thẳng `src/sensor6035.cpp`.
+
+**Khối phân tích slot chỉ có MỘT bản: `analyseSlotCurve()`.** Trước 2026-08-11 nó tồn tại hai bản
+55 dòng (`bResultGet` → TFT/dashboard, `bResultPutToGoogleSheet` → bản upload) và **chính việc chép
+đó đẻ ra lỗi đơn vị**: v2.4.1 đổi đơn vị `risingIndex` ở đúng một bản, nên cùng một kênh ra hai kết
+luận tuỳ nhìn ở đâu. Kèm theo, phép quy đổi phút→mẫu gom về **`marginSamples()`** (tính bằng
+`double` — `60000 / OPTO_INTERVAL` là chia số nguyên, ở vòng 25 s ra 2 thay vì 2.4, trên 60 s ra
+**0** — và có chặn chia-0 vì `timePerLoop` đặt được từ web lẫn Serial/BT). Guard ghim: **đúng 2**
+nơi gọi `analyseSlotCurve`, **đúng 1** nơi gọi `check_risingData`, **đúng 1** chỗ quy đổi.
+
+- **`mean()` và `find_crossing_lower_than_reversed()` nay chặn chỉ số âm.** `baseline()` đưa thẳng
+  `-1` vào `mean()` khi cửa sổ không chạm `baseline_start`, và `find_sigmoidal_feature` đưa
+  `discard_index - 1 = -1` vào phép quét ngược. **Lưu ý kiểu**: `find_crossing_higher_than(-1)`
+  **không** đọc ngoài mảng (so `int` với `size_t` biến −1 thành số khổng lồ → vòng lặp không chạy);
+  hai hàm kia thì so `int` với `int` nên **có** chạy. Kẹp biên chưa đủ cho `mean()` — dải rỗng phải
+  trả 0, không thì mẫu số bằng 0.
+- **`audit_logs.py` KHÔNG kiểm được thay đổi trong `sensor6035.cpp`** — nó chỉ link `Alg/Algo.cpp`
+  và tự mang bản sao khối trim, nên sửa `sensor6035.cpp` ra số y hệt dù đúng hay sai. Chứng minh
+  bằng so văn bản + guard đọc mã nguồn.
+- **Đừng thay khối code bằng regex quét toàn file** khi mẫu tìm cũng xuất hiện trong đoạn vừa thêm:
+  lần gộp đầu tiên regex khớp vào chính thân hàm mới và nuốt mất nó. Thay theo **dải dòng có neo
+  kiểm hai đầu**.
+
+Chi tiết: [docs/history/2026-08-11-break-trim-off-by-one.md](docs/history/2026-08-11-break-trim-off-by-one.md).
+
+**Ngưỡng break đo trên ĐƠN VỊ CẢM BIẾN THÔ, có chủ ý** — `BREAK_MIN_INCREASE_RAW` (`Alg/Algo.h`).
+Chỗ gọi chia nó cho slope, và phép chia đó **triệt tiêu** phép calibrate có sẵn trong `raw_data`
+(`raw[i+1]-raw[i] = (sensor[i+1]-sensor[i])/slope`), nên phép so cuối cùng nằm trên **đếm thô**.
+Break là hiện tượng **của máy** (ống bị va, bọt khí) nên độ lớn thuộc quang học chứ không thuộc
+sinh học; ép về thang calibrate đo được **647/659** so với **653/659**, và 7 kênh mất đều là Break
+thật **ở rìa phân bố slope**. **Đừng "sửa" phép chia này tưởng là lỗi** — nó từng bị báo là "chia
+hai lần" và không phải. Hằng số này **tách khỏi `min_increase`** từ 2026-08-07: trước đó một field
+gánh hai phép thử ở hai đơn vị, nên chỉnh độ nhạy khuếch đại từ web là âm thầm dời cổng break trên
+mọi máy. Cái giá đã đo và **chưa giải quyết**: 143/726 kênh đổi verdict khi rescale quang học, tức
+hai máy hiệu chuẩn đúng vẫn có thể bất đồng về cùng một đường cong. Chi tiết:
+[docs/history/2026-08-07-tach-nguong-break-khoi-min-increase.md](docs/history/2026-08-07-tach-nguong-break-khoi-min-increase.md).
+
+**Kế hoạch nâng độ chính xác đang mở**:
+[docs/plan/2026-08-07-nang-do-chinh-xac-thuat-toan.md](docs/plan/2026-08-07-nang-do-chinh-xac-thuat-toan.md)
+— Phase 0.2/0.3/1 đã xong; **Phase 1b (chuyển break sang thang calibrate) chờ quyết định lâm sàng**,
+không phải chờ code — sau bản tách hằng số nó chỉ còn là một dòng.
+
+**Đổi thuật toán chẩn đoán thì PHẢI có số, không được lập luận suông.** `tools/algo_labels.tsv`
+giữ **726 kênh quang do kỹ sư đọc từng đường cong và ghi kết luận ĐÚNG** (trích từ 3922 lần chạy,
+phủ mọi kênh mà logic bậc thang chạm vào). `python tools/test_algo_accuracy.py` phát lại chúng qua
+**chính `src/Alg/Algo.cpp`** và đỏ khi mức đồng thuận tụt.
+
+Ghim bốn thứ, mỗi thứ có lý do riêng: **tổng số kênh đúng** (≥ **653**/659 = 99.09%) để không đánh
+đổi nhiều thắng nhỏ lấy một thua lớn · **dương tính giả** (≤ 2) vì đó là con số người vận hành hành
+động theo · **bỏ sót dương tính** (≤ **3**) vì phép kiểm một-mẫu mua được việc giảm dương tính giả
+**bằng đúng một** ca này · **`RPL03008-2026-08-12#9`** đích danh — kênh kỹ sư phán tận tay sau khi
+máy báo Dương tính cho một bậc thang, và là lý do hệ số break là 2.2 chứ không phải 2.5.
+
+**Vì sao guard này tồn tại:** ba thay đổi trông hiển nhiên đúng đã bị chính bộ nhãn này bác —
+khử trôi khi ước lượng nhiễu (+1 ròng), lấy nhiễu phía yên hơn (0 ròng), và đưa phép thử pha lag
+về theo cửa sổ đã cắt (**−6 dương tính thật**). Suy luận bằng hình dạng đường cong **không đáng
+tin** ở đây.
+
+- **Kênh nhiễu (`Z`) chấm riêng, chỉ báo cáo không assert** — máy không có nhãn "nhiễu" nên `B` là
+  câu trả lời hợp lý duy nhất.
+- **Điểm đồng thuận KHÔNG thấy được lỗi phụ thuộc slope** — mỗi kênh phát lại bằng đúng slope của
+  nó nên thứ gì scale theo slope bị nướng vào cả hai vế và triệt tiêu. Vì vậy có phép kiểm thứ 5:
+  nhân **cả** mẫu thô **và** slope với `k` (chỉ dùng **lũy thừa của 2** để phép nhân `double` chính
+  xác tuyệt đối) → đường cong đã calibrate không đổi một bit, verdict phải không đổi theo. Hiện
+  **143/726 kênh (19.7%) vẫn đổi** vì `min_increase` bị chia cho slope **lần thứ hai** ở
+  `sensor6035.cpp:269` trong khi `raw_data` đã chia rồi (`:415`) và `Algo.cpp:656` so **không**
+  chia. `MAX_SLOPE_FLIPS` là **chốt bánh cóc**, phải về 0 chứ không được nâng lên. Chi tiết + bảng
+  quét ngưỡng: [docs/history/2026-08-07-calibration-invariance-check.md](docs/history/2026-08-07-calibration-invariance-check.md).
+- **Ngưỡng trong phép kiểm một-mẫu KHÔNG phải tham số dò trúng**: mọi giá trị từ **0.25 đến 0.70**
+  cho điểm y hệt trên 659 kênh. Nếu ai đó phải chỉnh nó để thay đổi của mình lọt qua, thay đổi đó
+  sai chứ không phải ngưỡng sai.
+- **Chỉ áp cho cửa sổ đã bị cắt** (`time_data.front() > 0`). Áp cho mọi kênh thì điểm tụt xuống
+  96.51% và xáo trộn ~1200 kênh thay vì 27.
+
+**Ba phép sửa của B2 — cả ba đều nhắm vào việc CHỌN NHÁNH CẮT, không nhắm vào ngưỡng kết luận**
+(2026-08-14, 98.03% → **99.09%**). Cùng một gốc: `analyseSlotCurve` chọn nhánh bằng cách so
+`risingIndex` với `breakIndex`, nên **một `risingIndex` sai làm cả run bị vứt** dù mọi ngưỡng P/S/N
+đều đúng.
+
+1. **`is_rising_trend` phải so độ tăng ròng với dao động** (`Algo.cpp`, tổng tăng ≥ ⅓ tổng quãng
+   đường đi). Trước đó nó chỉ đòi "5 trên 6 sai phân dương và tổng > 0" — **không có yêu cầu biên độ
+   nào**, nên một đoạn phẳng có nhiễu ±4 trên nền 830 báo "đang tăng" ở vòng 20, hai mươi vòng
+   trước khi có gì xảy ra. Vì `risingIndex` khi đó **nhỏ hơn** bậc thang thật, `breakIndex >
+   risingIndex` thành đúng → nhánh cắt-cuối giữ đoạn phẳng đầu và **vứt sạch phần khuếch đại**:
+   5 kênh báo Break chỉ vì phân tích 13-32% đường cong. So tỷ lệ thì **không cần ngưỡng theo đơn vị
+   máy**: đường lên sạch có `tổng tăng == tổng dao động`, nhiễu tình cờ kết thúc cao hơn thì tỷ lệ
+   rất thấp. Mọi tỷ lệ từ **⅛ đến ⅖** cho kết quả y hệt (+5/−0, đúng 5 kênh đổi trên **cả kho
+   39 220 kênh**) → ⅓ là **tính chất hình dạng**, không phải hằng số dò trúng. Đòi hơn cả tổng dao
+   động thì loại gần hết đoạn tăng thật và kho sập còn 72.99%.
+2. **Lưới cứu break bắt cả `'E'`, không chỉ `'N'`** (`sensor6035.cpp`). Lưới có đó vì **bậc thang
+   làm kết luận mất tin cậy**, mà `Error` còn kém tin cậy hơn `Negative` — nó nghĩa là phân tích bỏ
+   cuộc. Báo thứ ta **đã đo được** (một bậc thang) hơn là báo rằng không đo được gì. Khoảng hở này
+   đã ghi từ 2026-08-11 ("bậc thang thuần tuý cũng ra `E` thay vì `B`"). 3 kênh đổi toàn kho.
+   **Không liên quan** tới override `/E` lỗi cảm biến ở `Bluetooth.cpp`.
+3. **Nhánh cắt-cuối chỉ chạy khi `breakIndex > risingIndex + RISING_WINDOW`** (`sensor6035.cpp`).
+   `check_risingData` trả về chỗ **BẮT ĐẦU** một cửa sổ dài `RISING_WINDOW` đang lên, nên bậc thang
+   rơi **trong chính cửa sổ đó** là cùng một sự kiện — không phải một đợt khuếch đại xảy ra trước
+   nó. Lấy nhánh cắt-cuối ở đó là **lật ngược tiền đề của chính nó** ("khuếch đại rồi mới gãy").
+   Không thêm hằng số mới: dùng lại đúng cửa sổ ở dòng trên. Mọi offset từ 2 đến 12 cho kết quả y
+   hệt; từ 20 trở lên bắt đầu mất kênh.
+
+**5 kênh còn sai KHÔNG nên đuổi tiếp — dữ liệu tự mâu thuẫn.** Xếp theo "độ tăng sau bậc thang chia
+cho chính bậc thang": **0.98 (đúng là P) · 2.25 (đúng là B) · 2.47 (P) · 9.03 (P)** — ca `B` nằm
+**giữa hai ca `P`**, nên không ngưỡng nào trên trục này tách được chúng. Kỹ sư phán bằng thông tin
+không có trong đường cong (nạp mẫu gì, nhìn thấy gì ở máy). Ca thứ 5 khác loại: `RPL02014#4` là
+khuếch đại sạch mà `find_sigmoidal_feature` trả `-1` — lỗi **dò đỉnh**, không phải lỗi cắt cửa sổ.
+
+Chi tiết: [docs/history/2026-08-14-b2-chon-nhanh-cat-cua-so.md](docs/history/2026-08-14-b2-chon-nhanh-cat-cua-so.md).
+
+**`audit_logs.py` — kiểm định thuật toán chẩn đoán trên kho log thật.** Đọc thư mục payload đã
+upload, phát lại từng run qua **chính `src/Alg/Algo.cpp`** rồi xuất
+`docs/reports/algo-audit.md`: bảng những kênh có vấn đề (lỗi cắt cửa sổ ở bậc thang, đọc ngoài
+mảng, màn hình lệch bản upload, kết luận sát vách ngưỡng, replay không tái hiện được).
+
+- **Liên kết thẳng `Algo.cpp`, KHÔNG chép công thức sang Python.** Bản chép sẽ tự đồng ý với chính
+  nó trong khi thuật toán đang hỏng — đúng thứ tool này sinh ra để bắt. Vì `Algo.cpp` include
+  `"../ForteSetting.h"` (kéo Arduino vào, không build được trên PC), driver **copy `src/Alg/` sang
+  `.audit-build/`** cạnh một stub, rồi **hash các bản copy và in vào báo cáo** để người đọc biết
+  đã chạy thuật toán nào.
+- **Tham số đọc thẳng từ `src/define.h`**, không hardcode trong tool — hardcode là báo cáo âm thầm
+  trôi khỏi firmware sau mỗi lần chỉnh tham số.
+- **Khối cổng break/rise + cắt cửa sổ của `sensor6035.cpp` là bản SAO** (đặt một chỗ duy nhất trong
+  `tools/replay_algo.cpp`, có đánh dấu) vì `bResultPutToGoogleSheet` cần cả firmware. Sửa
+  `sensor6035.cpp` mà quên chỗ này thì báo cáo sai.
+- Mỗi run phát lại **3 lượt** để tách ba câu hỏi khác nhau: máy đã **upload** gì
+  (`sensor6035.cpp:441`), máy đã **hiện trên TFT** gì (`:288` — đơn vị khác), và **sau khi vá** thì
+  ra gì.
+- **Log bản cũ lệch là dự kiến** (thuật toán đã đổi qua các version) — báo cáo tách tỷ lệ tái hiện
+  **theo từng phiên bản**, chỉ dòng v2.4.x mới dùng để kết luận đúng/sai. Giới hạn lớn nhất:
+  payload **không mang tham số thuật toán** của máy (chỉ có `slopes`/`origins`/`LED_power`), nên
+  máy nào đã chỉnh EEPROM sẽ lệch mà tool không thể biết.
+- Bảng dài bị cắt theo `--cap` nhưng **phần thống kê phân bố tính trên TOÀN BỘ** hàng — cắt rồi
+  thống kê sẽ mô tả 60 hàng đầu mà đọc như mô tả tất cả.
+- **`shape_of()` là ý kiến thứ hai, cố ý KHÔNG dùng gì của `Algo.cpp`** (chỉ median + sai phân
+  bậc một). Suy từ chính thuật toán thì nó luôn đồng ý với thuật toán và không bao giờ bắt được
+  kết luận sai. Gán nhãn `amp`/`step`/`staircase`/`drift`/`flat`/`descending`/`dead` rồi đối
+  chiếu với kết luận của máy.
+  - **Chiều tin được: `P`/`S` mà đường cong là `step`/`flat`.** Một cú nhảy đơn lẻ hoặc một đường
+    phẳng **không thể** là phản ứng — đó là sự thật về hình dạng, không phải phán đoán ngưỡng.
+  - **Chiều KHÔNG tin được: `N` mà đường cong là `amp`.** Bộ mô tả không tách được trôi quang chậm
+    khỏi khuếch đại chậm-nhưng-thật. Đã thử 5 bộ ngưỡng: số ca nhảy **22 → 97 → 36 → 744 → 136**,
+    và phép thử "phải phẳng trước khi tăng" loại nhầm cả dương tính đã biết chắc (khuếch đại sớm
+    thì cửa sổ đầu đã nằm trên đoạn dốc). Mục này đã siết chặt và chỉ là **danh sách cần người
+    xem lại**. Đừng nới ngưỡng để "tìm được nhiều hơn".
+  - Sửa `shape_of` thì **phải chấm điểm lại trên 4 run đã biết đáp án** trước khi tin số liệu.
 
 **Wokwi (mô phỏng TFT, không cần máy)**: `wokwi.toml` + `diagram.json` ở repo root — build
 `pio run -e esp32dev` rồi mở bằng extension "Wokwi for VS Code" (F1 → *Wokwi: Start Simulator*;

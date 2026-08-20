@@ -240,6 +240,13 @@ def press(btn):
     global _amp_start, _run_start, _naming, _amp_flow, _lysis_start, _err_table
     PRESSED[btn] = time.monotonic() + 2.0
     phase, _ = run_state()
+    # Leaving the idle screen INTO a run starts a new cycle, and the device wipes the slot
+    # labels there (dashboardLoop -> dashboardClearSlotLabels): they belong to one run, and a
+    # run nobody named must not upload under the previous run's disease names. Mirrored here
+    # so the mock does not hide the bug it was written to reproduce. WHITE (QR) is not a run.
+    if phase == "idle" and btn in ("ampname", "red", "green"):
+        SLOT_NAMES[:] = [""] * 10
+        SLOT_SAMPLES[:] = [""] * 10
     if btn == "ampname" and phase == "idle":
         _naming = True                  # web Amplification --> ewaitname (name first)
     elif btn == "red" and phase == "idle":

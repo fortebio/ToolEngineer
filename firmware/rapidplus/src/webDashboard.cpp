@@ -780,6 +780,33 @@ static void saveSlotLabels(const char *key, const String *src)
   p.end();
 }
 
+// Drop every slot label, RAM and NVS. Called when a new run cycle starts (dashboardLoop).
+//
+// The labels belong to ONE run. Nothing used to clear them, so a run the operator never
+// named was uploaded under the PREVIOUS run's disease names - postData_GoogleSheet reads
+// slotNames[] straight into "nameSlot", so the result was filed against the wrong assay,
+// silently. Blank is the designed fallback ("N/A" in the payload, "#N" in the chart legend).
+//
+// NVS too, not just RAM: dashboardBegin() reloads from NVS, so clearing only RAM would put
+// the stale names right back after a reboot.
+static void dashboardClearSlotLabels()
+{
+  bool any = false;
+  for (int i = 0; i < 10; i++)
+    if (slotNames[i].length() || slotSamples[i].length())
+      any = true;
+  if (!any)
+    return; // already blank - don't spend an NVS write on every run cycle
+  for (int i = 0; i < 10; i++)
+  {
+    slotNames[i] = "";
+    slotSamples[i] = "";
+  }
+  saveSlotLabels("names", slotNames);
+  saveSlotLabels("samples", slotSamples);
+  Serial.println("[dash] new run cycle - slot labels cleared");
+}
+
 // Called from screen_Result() when a run's results are computed.
 void dashboardSetResults(const float *ct, const char *result)
 {
@@ -1113,8 +1140,16 @@ static bool validateConfig(JsonObjectConst o, String &err)
           if (!p.value().is<bool>())
             return err = "detect shape must be true/false", false;
         }
-        else if (pk == "sg order" || pk == "sg window" || pk == "baseline start" ||
-                 pk == "baseline range")
+        else if (pk == "sg window")
+        {
+          // sg_smooth() returns an all-zero vector when the analysed window is shorter than
+          // 2*sg_window+2, and its error report is commented out (Alg/sgsmooth.cpp:537-541), so a
+          // large value here silently turns every verdict into an accident. A window trimmed to a
+          // late break can be as short as 10 samples, which is already the limit at the default 4.
+          if (!numInRange(p.value(), 1, 10))
+            return err = pk + " must be 1..10", false;
+        }
+        else if (pk == "sg order" || pk == "baseline start" || pk == "baseline range")
         {
           if (!numInRange(p.value(), 0, 255))
             return err = pk + " must be 0..255", false;
@@ -1188,19 +1223,14 @@ static void handleOtaStatus(AsyncWebServerRequest *req)
   OtaState st = otaState;
 
   JsonDocument doc;
-  doc["version"] = FirmwareVer;        // human-readable build, e.g. "v2.4.3"
-  doc["versionCode"] = currentVersion; // the integer checkFirmware() compares
+  doc["version"] = FirmwareVer; // human-readable build, e.g. "v2.4.4"
   doc["state"] = NAMES[st <= OTA_DISMISSED ? st : 0];
   doc["hasUpdate"] = (st == OTA_AVAILABLE);
   doc["busy"] = (st == OTA_UPDATING);
   doc["checked"] = otaLastCheck != 0;  // false = not checked since boot
   doc["checkFailed"] = otaCheckFailed; // checked, but the server GET errored
-  if (fwVersion > 0)
-  {
-    doc["newVersion"] = fwVer; // version string from updateOTA.json
-    doc["newVersionCode"] = fwVersion;
-    doc["notes"] = fwCont; // release notes field of updateOTA.json
-  }
+  if (fwVer.length())
+    doc["newVersion"] = fwVer; // the .bin file name the server is offering
   // Without WiFi neither the check nor the download can work; let the UI say so
   // instead of offering a button that silently does nothing.
   doc["online"] = (WiFi.status() == WL_CONNECTED);
@@ -1275,7 +1305,7 @@ static void handleOtaAction(AsyncWebServerRequest *req)
 
 // ---- OTA from a local .bin -------------------------------------------------------
 // Second way in, for a machine with no internet (SoftAP) or a build that is not on
-// GitHub yet: the browser POSTs the firmware image and we stream it straight into the
+// on the server yet: the browser POSTs the firmware image and we stream it straight into the
 // OTA partition. AsyncWebServer hands us the body in ~1-4 KB chunks, which is what makes
 // this safe to do from the web task - we never hold the whole 2.3 MB anywhere.
 static bool otaUpFail = false; // refused/aborted: swallow the remaining chunks
@@ -1376,7 +1406,7 @@ static void handleOtaUpload(AsyncWebServerRequest *req, const String &filename,
   }
 }
 
-// Also called from updateFirmware() (NetworkTask) after a successful GitHub OTA: same
+// Also called from updateFirmware() (NetworkTask) after a successful server OTA: same
 // rule, one implementation.
 void dashboardRequestRestart(uint32_t delayMs)
 {
@@ -2061,6 +2091,26 @@ void dashboardBegin()
 
 void dashboardLoop()
 {
+  // A new run cycle began -> the previous run's slot labels must not carry into it.
+  //
+  // Watched as a CONDITION here rather than hooked onto the transitions, for the same reason
+  // as the QR block below: a cycle starts from the physical RED (button.cpp), the physical
+  // BLUE lysis path, the web naming gate (/control?btn=ampname) AND a Serial command
+  // (ForteSetting.cpp) - enumerating them leaves holes, and a hole here means a result
+  // uploaded under the wrong disease name.
+  //
+  // isBusy() is exactly the not-running allowlist wanted: idle/finished/review/QR/setting/OTA
+  // prompt are all false, everything that is part of a run (tube waits, naming gate, heating,
+  // amplification, calib) is true. Clearing on the way INTO a run, not on the way out, is what
+  // keeps the labels readable while the operator reviews the finished run on the Result tab.
+  {
+    static bool wasBusy = false; // boot lands on escreenStart -> no spurious wipe of a stored run
+    bool busyNow = isBusy(_displayCLD.type_infor);
+    if (!wasBusy && busyNow)
+      dashboardClearSlotLabels();
+    wasBusy = busyNow;
+  }
+
   // A .bin was flashed via POST /otaupload. Reboot only now, so the 200 reply has had
   // time to leave the socket - restarting inside the handler drops it and the browser
   // reports a network error on a perfectly good update. But NOT if a run started in the
@@ -2147,6 +2197,46 @@ void dashboardLoop()
       // display to paint it again now that dashboardIsAP() answers differently.
       if (_displayCLD.type_infor == eShowQR)
         _displayCLD.changeScreen = true;
+    }
+  }
+
+  // Ask the server for a new build every OTA_POLL_MS. Before v2.4.4 checkFirmware() ran
+  // exactly ONCE per boot (main.cpp, ~2 s after power-on) and never again, so a machine
+  // that missed its DHCP lease in that window stayed on an old build until someone
+  // power-cycled it - the single biggest reason OTA "went quiet" in the field.
+  //
+  // Deliberately NOT calling checkFirmware() here: it blocks for seconds inside mbedTLS
+  // and this is NetworkTask, which also pumps the dashboard. It goes through the SAME
+  // queue the web Setting button uses (PEND_OTACHECK -> SettingTask), whose drainPending()
+  // already refuses to run while a run is in progress.
+  //
+  // Own deadline rather than reading otaLastCheck: that only advances when a GET actually
+  // COMPLETES, so a machine with no route to the server would re-queue on every tick.
+  {
+    static const uint32_t OTA_POLL_MS = 6UL * 60 * 60 * 1000; // 6 h
+    static uint32_t nextOtaPoll = OTA_POLL_MS;                // first poll 6 h after boot
+    // Gated with the REBOOT-grade predicate, not the settings one. drainPending()'s
+    // dashboardDeviceBusy() is not enough here: escreenFinished counts as IDLE there, but it
+    // is the state the whole end-of-run pipeline runs under (screen_Result('f') spends ~8 s in
+    // getDataAmplificationEEPROM + ~1.2 s dumping CSV before dashboardSuspend() is even
+    // called, then 30-90 s of TLS). Two ways that bites: a second mbedTLS session opens
+    // against the ~42 KB contiguous budget of GOTCHA 2, and - worse - a successful check
+    // writes type_infor = eUpdateOTA, which is on the idle allowlist, so an armed otaRestartAt
+    // passes the stricter gate above and reboots into the middle of the result computation.
+    // The deadline stays expired, so nothing is skipped; the poll just fires a tick later.
+    if (!apActive && WiFi.status() == WL_CONNECTED && !suspended &&
+        _displayCLD.type_infor != escreenFinished &&
+        (int32_t)(millis() - nextOtaPoll) >= 0) // signed: survives the millis() wrap
+    {
+      nextOtaPoll = millis() + OTA_POLL_MS; // re-arm even if the queue is full
+      if (!nextOtaPoll)
+        nextOtaPoll = 1;
+      // prompt=true: this is the ONLY thing that puts the eUpdateOTA screen up outside of
+      // boot, and that screen is where RED means "install". Queue it without and the poll
+      // is invisible to everyone except whoever happens to open the dashboard.
+      // drainPending() runs it only while idle, so the takeover cannot land on a run.
+      if (otaState == OTA_IDLE || otaState == OTA_FAILED)
+        _ForteSetting.postOtaCheck(true); // AVAILABLE/UPDATING/ACCEPTED: already in flight
     }
   }
 

@@ -70,7 +70,7 @@ public:
         PEND_WIFI,   // ssid + password -> saveSettingDevice() + restart
         PEND_ID,     // device id -> parameter.device_id (the one and only store)
         PEND_REVIEW,   // reload the last run from EEPROM -> recompute -> cache for the web
-        PEND_OTACHECK, // ask GitHub whether a newer firmware exists (blocking HTTPS)
+        PEND_OTACHECK, // ask the server whether a newer firmware exists (blocking HTTPS)
     };
 
     // Return false if a request is already queued (caller should answer 429/503).
@@ -81,8 +81,16 @@ public:
     // Result tab can review it even after a reboot (the RAM cache is gone by then).
     bool postReviewLast();
     // Run checkFirmware() off the web task: it does a blocking HTTPS GET, which must never
-    // happen on AsyncTCP. Result lands in otaState / fwVer / fwVersion for GET /ota.
-    bool postOtaCheck();
+    // happen on AsyncTCP. Result lands in otaState / fwVer for GET /ota.
+    //
+    // promptOnDevice decides whether finding a build also takes over the TFT with the
+    // eUpdateOTA prompt, and the two callers want OPPOSITE answers. The web button passes
+    // false: someone is looking at a browser, and grabbing the screen from a remote click
+    // strands whoever is standing at the machine. The 6 h poll in dashboardLoop() passes
+    // TRUE - nobody is watching a browser, and the prompt IS the only place the RED button
+    // means "install". Without it the poll can only ever be seen by someone who happens to
+    // open the dashboard, which is not a fleet update mechanism.
+    bool postOtaCheck(bool promptOnDevice = false);
 
     // ---- Outcome of the last web-queued request --------------------------------
     // The POST can only ACK that it QUEUED: the handler must not block waiting for
@@ -106,6 +114,7 @@ private:
     volatile e_pending pendingKind = PEND_NONE; // written LAST by the poster
     String pendingA;                            // config json | ssid | id
     String pendingB;                            // password
+    bool otaPromptOnDevice = false;             // PEND_OTACHECK payload; see postOtaCheck()
     uint32_t restartAt = 0;                     // millis() to reboot after a WiFi save
 
     void drainPending(); // called at the top of loop(), on SettingTask

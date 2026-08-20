@@ -2418,9 +2418,10 @@ void displayCLD::display_UpdateOTA(void)
   this->display->setTextSize(1);
   this->display->setTextColor(WHITE);
   this->display->setCursor(40, 120);
+  // fwVer is the .bin file name the server offers (e.g. "fbt_v2.4.4.bin"). The release-notes
+  // line that used to sit below it went away with GitHub's updateOTA.json - the server stores
+  // firmware files, not descriptions of them, so there is nothing honest to print there.
   this->display->println("Version: " + fwVer);
-  this->display->setCursor(40, 150);
-  this->display->println("Detail: " + fwCont);
 
   this->display->setTextSize(1);
   this->display->setTextColor(RED);

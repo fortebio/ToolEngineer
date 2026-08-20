@@ -1,6 +1,6 @@
 {
-    "versionCode" : 19,
-    "fileName" : "firmware.bin",
-    "version" : "2.4.3",
-    "content" : "Web dashboard, QR access, saved WiFi, web update"
+    "versionCode": 19,
+    "fileName": "firmware.bin",
+    "version": "2.4.3",
+    "content": "Web dashboard, QR access, saved WiFi, web update"
 }

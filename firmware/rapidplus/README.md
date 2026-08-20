@@ -88,8 +88,14 @@ curl -F "firmware=@.pio/build/esp32dev/firmware.bin" \
 được** — đây là đường brick thật duy nhất của hệ thống. Nhận cả chữ hoa (PowerShell
 `Get-FileHash`). Máy tự reboot sau khi nạp xong, và **hoãn reboot nếu đang chạy run**.
 
-**Từ GitHub (OTA)** — `baseUrl` gắn version **đang chạy**, nên bản mới phải publish lên branch
-của các version **cũ hơn**. Quy trình và ma trận branch: [tools/ota-release/](tools/ota-release/).
+**Từ Engineer Server (OTA)** — từ **v2.4.4** máy hỏi `GET /ota/check?device=<id>` (Bearer =
+`SECRET_INGEST_TOKEN`); admin chọn bản trong tab "Quản lý máy" của app. Thử **hai host theo thứ
+tự**: `hub.fortebio.tech` (Cloudflare) rồi `fbt.basa-luma.ts.net` (Funnel, lưới an toàn — OTA là
+đường duy nhất tới máy ngoài hiện trường). Server trả **tên file**, firmware so với `FirmwareVer`
+→ **đặt tên `fbt_v<version>.bin` là bắt buộc**. Chi tiết + vì sao không tự viết vòng tải:
+[docs/history/2026-08-17-ota-github-to-server.md](docs/history/2026-08-17-ota-github-to-server.md).
+Đường GitHub cũ (`tools/ota-release/`, `baseUrl` theo branch version) **đã bỏ** — giữ thư mục đó
+làm hồ sơ các đợt phát hành trước, đừng dùng lại.
 
 ---
 
@@ -110,7 +116,8 @@ python tools/sse_test_server.py selftest   # tự kiểm các hàm thuần
 ```bash
 python tools/test_phase0_guards.py          # không strcpy vào parameter.*, 4 field char[10] được validate, secrets sạch
 python tools/test_web_assets.py             # UI nhúng đủ + có route + .gz không cũ + không serveStatic + không LittleFS
-python tools/test_ota_guards.py             # eUpdateOTA không "busy", rebootOnUpdate(false), md5 hạ chữ thường
+python tools/test_ota_guards.py             # OTA -> server (Bearer, so tên file), UI nạp gửi ?md5=, eUpdateOTA không "busy"
+node tools/test_ota_md5.js                  # md5Hex() trong script.js là MD5 ĐÚNG (RFC 1321 + firmware.bin thật)
 python tools/test_no_method_branch.py       # không handler nào so req->method()  (số học GOTCHA 3)
 python tools/test_no_runtime_wifi_begin.py  # WiFi.begin() chỉ ở setup()
 g++ -O2 -std=c++17 tools/test_readcmd_overflow.cpp -o t && ./t   # readCommand không tràn buffer

@@ -275,67 +275,67 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         /* ----------------------------- */
 
         // --------------------------------------------------
-        auto timeBegin = recordIn.time_data.begin();
-        auto timeEnd = recordIn.time_data.end();
-        auto rawBegin = recordIn.raw_data.begin();
-        auto rawEnd = recordIn.raw_data.end();
+    auto timeBegin = recordIn.time_data.begin();
+    auto timeEnd = recordIn.time_data.end();
+    auto rawBegin = recordIn.raw_data.begin();
+    auto rawEnd = recordIn.raw_data.end();
 
-        bool validForDetection = true;
+    bool validForDetection = true;
 
-        /*  Check if there is a valid break and rising data
-            If a BREAK is detected in POSITIVE data, process the data array to exclude the BREAK.*/
+    /*  Check if there is a valid break and rising data
+        If a BREAK is detected in POSITIVE data, process the data array to exclude the BREAK.*/
         size_t breakIndex = check_breakData(recordIn.raw_data, recordIn.parameters.min_increase / FORTE_SLOPES[i], BREAKING_START_INDEX);
         size_t risingIndex = check_risingData(recordIn.raw_data, recordIn.parameters.detection_margin_time, RISING_WINDOW);
-        if (breakIndex)
+    if (breakIndex)
+    {
+        if (risingIndex)
         {
-            if (risingIndex)
-            {
                 if (breakIndex > risingIndex)
-                {
-                    timeEnd = recordIn.time_data.begin() + breakIndex;
-                    rawEnd = recordIn.raw_data.begin() + breakIndex;
-                }
-                else
-                {
-                    timeBegin = recordIn.time_data.begin() + breakIndex;
-                    rawBegin = recordIn.raw_data.begin() + breakIndex;
-                }
+            {
+                timeEnd = recordIn.time_data.begin() + breakIndex;
+                rawEnd = recordIn.raw_data.begin() + breakIndex;
             }
             else
             {
-                /* No valid rising data found */
-                validForDetection = false;
+                    timeBegin = recordIn.time_data.begin() + breakIndex;
+                    rawBegin = recordIn.raw_data.begin() + breakIndex;
             }
         }
+        else
+        {
+            /* No valid rising data found */
+            validForDetection = false;
+        }
+    }
 
         // --------------------------------------------------
-        if (validForDetection)
-        {
-            recordOut.time_data.assign(timeBegin, timeEnd);
-            recordOut.raw_data.assign(rawBegin, rawEnd);
+    if (validForDetection)
+    {
+        recordOut.time_data.assign(timeBegin, timeEnd);
+        recordOut.raw_data.assign(rawBegin, rawEnd);
 
-            post_process_curve(recordOut,
-                               recordIn.parameters.baseline_start,
-                               recordIn.parameters.baseline_range,
-                               recordIn.parameters.sg_window,
-                               recordIn.parameters.sg_order);
+        post_process_curve(recordOut,
+                           recordIn.parameters.baseline_start,
+                           recordIn.parameters.baseline_range,
+                           recordIn.parameters.sg_window,
+                           recordIn.parameters.sg_order);
 
-            differentiate(recordOut.time_data,
-                          recordOut.processed_data,
-                          recordOut.differential_data);
+        differentiate(recordOut.time_data,
+                      recordOut.processed_data,
+                      recordOut.differential_data);
 
-            find_sigmoidal_feature(recordOut, recordIn.parameters);
-            predict_outcome(recordOut, recordIn.parameters);
-        }
+        find_sigmoidal_feature(recordOut, recordIn.parameters);
+        predict_outcome(recordOut, recordIn.parameters);
+    }
 
-        if (!validForDetection ||
+    if (!validForDetection ||
             (breakIndex && risingIndex && recordOut.outcome.outcome[0] == 'N'))
-        {
-            recordOut.peak_features.clear();
-            recordOut.outcome.transition_time.clear();
-            recordOut.outcome.plateau_point.clear();
-            strcpy(recordOut.outcome.outcome, "Break");
-        }
+    {
+        recordOut.peak_features.clear();
+        recordOut.outcome.transition_time.clear();
+        recordOut.outcome.plateau_point.clear();
+        strcpy(recordOut.outcome.outcome, "Break");
+    }
 
         // --------------------------------------------------
         // Luôn post-process toàn bộ dữ liệu gốc (giữ logic cũ)
