@@ -637,7 +637,7 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
 
     for (int i = 0; i < OPTOCHANNELS; i++)
     {
-      char resultConfig[20] = {0};
+      char resultConfig[30] = {0};
       /* Check Sensor Errors */
       // Serial.printf("[up] slot %d name=%s result=%c CT=%.1f\n", i + 1, (slotNames[i].length() == 0) ? "N/A" : slotNames[i].c_str(), result[i], CT_value[i]);
       // Serial.printf("[up] length of slot name=%d\n", slotNames[i].length());

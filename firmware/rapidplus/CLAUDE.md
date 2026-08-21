@@ -56,6 +56,14 @@ Globals chính: `_displayCLD`, `_PIDControl`, `_sensor6035`, `_ForteSetting`,
 
 ## Module chính
 
+- **Chuỗi `result` upload = `"<bệnh> | <CT> | <kết luận>"`, buffer cỡ theo CAP CỦA `/rename`
+  (32), không theo danh sách bệnh hiện có.** `char resultConfig[20]` vừa khít hồi `DISEASES` còn
+  là mã 4 chữ; danh sách lên 12 mục thì `"ASF I177L | 04.7 | P"` **đúng 20 ký tự** → `snprintf`
+  giữ 19 + NUL và **nuốt mất chữ kết luận**, im lặng (TFT vẫn đúng, `nameSlot` trong payload đang
+  bị comment nên không có trường nào để đối chiếu). Nay `[64]` + cả 4 format dùng **`%.32s`** cho
+  tên — lỡ có nhãn dài hơn thì cắt TÊN (nhìn thấy) chứ không cắt kết luận. Guard
+  `python tools/test_result_string_fits.py`. Chi tiết:
+  [docs/history/2026-08-20-result-string-mat-chu-ket-luan.md](docs/history/2026-08-20-result-string-mat-chu-ket-luan.md).
 - `Bluetooth.cpp` — BLE config (dead — nhả BT), EEPROM settings,
   upload TLS: **`postJsonToAllTargets(payload, what)` là NƠI DUY NHẤT biết danh sách 3 đích**
   (GAS/Google Sheet · ingest `fbt.basa-luma` Bearer · ERP `api.fortebio` **X-API-Key**), gọi
@@ -1136,6 +1144,7 @@ python tools/test_ota_release_manifest.py   # guard: manifest GitHub đủ branc
 python tools/test_ota_guards.py             # guard: OTA -> server (Bearer, so tên file), UI nạp gửi ?md5=, eUpdateOTA không "busy"
 node tools/test_ota_md5.js                  # md5Hex() trong script.js là MD5 ĐÚNG (RFC 1321 + mọi độ dài 0..200 + firmware.bin thật)
 python tools/test_upload_targets.py         # guard: mọi upload đi đủ 3 đích, từ MỘT danh sách
+python tools/test_result_string_fits.py     # guard: chuỗi result upload không bị cắt mất chữ kết luận (tên bệnh dài)
 g++ -O2 -std=c++17 -I.pio/libdeps/esp32dev/ArduinoJson/src tools/test_json_key_present.cpp -o t && ./t   # guard: POST /config chỉ áp key CÓ MẶT (cần -I, thiếu nó không build được)
 node tools/test_profile_minutes.js          # guard: card Profile nhập PHÚT nhưng lưu giây/vòng, clamp 130 giữ nguyên
 python tools/test_status_coverage.py        # guard: web không báo "Idle" khi máy đang chờ người; fillStatus/fillActions cùng tập state
