@@ -1,6 +1,7 @@
 #include "sensor6035.h"
 #include "LED.h"
 #include "define.h"
+#include "webDashboard.h" // dashboardSetShape(): published from bResultGet, see the call site
 #include "PIDControl.h"
 #include "Bluetooth.h"
 #include "errorCheck.h"
@@ -235,6 +236,18 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
     // Define a vector of integers
     DataIn recordIn = DataIn();
     Record recordOut = Record();
+    // Shape measurements for the web table, published once at the end of the loop below.
+    // Seeded to -1 ("not measurable") so a slot that never gets scored - an early return in the
+    // per-slot body, a curve too short - reports null rather than a stale or zero-looking number.
+    double shapeRate[10];
+    double shapeRise[10];
+    uint8_t shapeFlag[10];
+    for (int k = 0; k < 10; k++)
+    {
+        shapeRate[k] = -1.0;
+        shapeRise[k] = -1.0;
+        shapeFlag[k] = 0;
+    }
 
     char JsonData[3 * 1024] = {0};
     {
@@ -282,9 +295,30 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
 
     bool validForDetection = true;
 
-    /*  Check if there is a valid break and rising data
-        If a BREAK is detected in POSITIVE data, process the data array to exclude the BREAK.*/
-        size_t breakIndex = check_breakData(recordIn.raw_data, recordIn.parameters.min_increase / FORTE_SLOPES[i], BREAKING_START_INDEX);
+        /*  Check if there is a valid break and rising data
+            If a BREAK is detected in POSITIVE data, process the data array to exclude the BREAK.*/
+        // v2.4.3a: no second division by FORTE_SLOPES[i]. raw_data was already calibrated above,
+        // so dividing the threshold too made the effective jump threshold slope-dependent: it
+        // ranged 40 down to 5.7 across the fleet and varied twofold inside one machine (15.5 in
+        // slot 1 of RPL02001 against 7.6 in slot 6). The same electrical spike was rejected in
+        // one well and accepted in the next.
+        //
+        // v2.4.3a: the jump threshold is BREAK_JUMP_THRESHOLD, no longer parameters.min_increase.
+        // The two were the same number doing two unrelated jobs, so moving the size gate retuned
+        // the break detector as a side effect. See the note on BREAK_JUMP_THRESHOLD in Algo.h.
+        //
+        // Repair electrical steps BEFORE the break test and before the scorer sees the curve.
+        // Order matters: neutralisation must run on CALIBRATED data (the loop above), and it must
+        // run first, because a step that survives to the scorer is smoothed into a shoulder and
+        // read as an amplification. Pinning BREAK_JUMP_THRESHOLD at 20.0 left a gap at 8-20 units
+        // on high-slope slots - 36 breaks that shipped v2.4.3 caught are missed - and CLIMB_MIN_STEP
+        // of 8.0 is slope-independent, so this is what closes it. See CLIMB_* in Algo.h.
+        uint8_t climbsFixed = 0;
+        neutralise_climbs(recordIn.raw_data, &climbsFixed);
+        if (climbsFixed)
+            Serial.printf("Slot %d: neutralised %u vertical climb(s)\n", (int)(i + 1),
+                          (unsigned)climbsFixed);
+        size_t breakIndex = check_breakData(recordIn.raw_data, BREAK_JUMP_THRESHOLD, BREAKING_START_INDEX);
         size_t risingIndex = check_risingData(recordIn.raw_data, recordIn.parameters.detection_margin_time, RISING_WINDOW);
     if (breakIndex)
     {
@@ -372,10 +406,19 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
 
         CT_value[i] = float(recordOut.outcome.transition_time.x);
         result[i] = recordOut.outcome.outcome[0];
+        shapeRate[i] = recordOut.outcome.window_rate;
+        shapeRise[i] = recordOut.outcome.rise_width;
+        shapeFlag[i] = recordOut.outcome.shape_flag;
 
         // reset records
         recordOut.clear();
     }
+
+    // Publish the shape numbers from HERE, not from the three callers. screen_Result(), the
+    // Bluetooth path and POST /reviewlast all run this one function, so this is the only place
+    // where the shape data cannot end up describing a different run than the CT/outcome table
+    // those callers publish. Same reasoning as gErrRec being snapshotted in dashboardSetResults.
+    dashboardSetShape(shapeRate, shapeRise, shapeFlag);
 
     return true;
 }
@@ -437,7 +480,19 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
         }
 
         /* ----------------------------- */
-        size_t breakIndex = check_breakData(recordIn.raw_data, recordIn.parameters.min_increase / FORTE_SLOPES[i], BREAKING_START_INDEX);
+        // v2.4.3a: no second division by FORTE_SLOPES[i] - see bResultGet() above.
+        // v2.4.3a: BREAK_JUMP_THRESHOLD, not parameters.min_increase - see bResultGet() above.
+        // Climb neutralisation runs here too, on the same calibrated data and in the same position
+        // relative to the break test. The two paths have diverged before (see the check_risingData
+        // note below); this one must not be another instance of that.
+        uint8_t climbsFixed = 0;
+        neutralise_climbs(recordIn.raw_data, &climbsFixed);
+        size_t breakIndex = check_breakData(recordIn.raw_data, BREAK_JUMP_THRESHOLD, BREAKING_START_INDEX);
+        // NOTE (v2.4.3a, NOT changed): this call converts detection_margin_time to a sample index,
+        // the sibling call in bResultGet() does not - check_risingData() takes an index, so the
+        // two paths begin their rising-trend scan at different points (sample 12 = 4.0 min here,
+        // sample 4 = 1.3 min there). Left alone pending measurement; changing it moves results on
+        // the display path. See docs/history/2026-08-13-thuat-toan-goi-ket-qua-v2.4.3a.md.
         size_t risingIndex = check_risingData(recordIn.raw_data, recordIn.parameters.detection_margin_time * (60000 / OPTO_INTERVAL), RISING_WINDOW);
 
         // --------------------------------------------------

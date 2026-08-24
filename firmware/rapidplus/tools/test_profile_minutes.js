@@ -54,8 +54,13 @@ function liftFields(cardId) {
 }
 
 // perLoopMs() normally reads the device config; here it is injected so the test controls it.
+// TX() is the i18n lookup added in 2026-08. The labels it returns are not what this
+// guard measures - it checks units and clamps - so it is stubbed to hand back the key.
 const build = (perLoop) =>
-  new Function("perLoopMs", "return " + liftFields("profile"))(() => perLoop);
+  new Function("perLoopMs", "TX", "return " + liftFields("profile"))(
+    () => perLoop,
+    (k) => k
+  );
 
 const fields = build(20000);
 const by = (p) => fields.find((f) => f.p === p);
@@ -139,8 +144,11 @@ check(by("opto preheat time").toDev(by("opto preheat time").max) <= 3600, "prehe
 // straight past it: the read was still in the source, just no longer connected to the result.
 // Calling it cannot be fooled that way. getPath is stubbed because its dotted-path handling is
 // not what is under test here, and none of these keys are dotted.
+// Was pinned to a CRLF terminator and swallowed the whole file once script.js
+// changed to LF, turning this guard into a syntax error nobody saw.
+const BRACE = String.fromCharCode(10) + "}";
 const plmAt = src.indexOf("function perLoopMs(");
-const plm = plmAt < 0 ? "" : src.slice(plmAt, src.indexOf("\r\n}", plmAt));
+const plm = plmAt < 0 ? "" : src.slice(plmAt, src.indexOf(BRACE, plmAt));
 const realPerLoop = (cfg) =>
   new Function("cfgCache", "getPath", plm + "\n}\nreturn perLoopMs();")(cfg, (o, p) => o && o[p]);
 

@@ -650,7 +650,9 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
         // snprintf, not sprintf: resultConfig is 20 bytes and "%04.01f" of a large or garbage
         // CT_value (a slot with no usable curve) prints far more than that - straight over the
         // rest of this stack frame. The bound truncates instead of corrupting.
-        if (result[i] == 'P' || result[i] == 'S')
+        // 'F' (v2.4.3AT, shape-flagged) joins P and S: it has a CT, and /E is an OPTICS fault on
+        // the slot rather than a verdict on the amplification, so the CT still belongs here.
+        if (result[i] == 'P' || result[i] == 'S' || result[i] == 'F')
         {
           snprintf(resultConfig, sizeof(resultConfig), "%s | %2.0f | /E", (slotNames[i].length() == 0) ? "N/A" : slotNames[i].c_str(), CT_value[i]);
         }

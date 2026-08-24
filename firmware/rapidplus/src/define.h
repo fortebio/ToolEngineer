@@ -56,6 +56,27 @@
 #define ADDR_CHECK_BT 224
 #define ADDR_CHECK_UPDATE 228
 
+// Which set of compiled parameter defaults has already been forced into a SAVED config.
+// Free slot: ADDR_CHECK_UPDATE holds 4 bytes (228..231) and ADDR_ERROR_NUMBER_UNIT starts at 244.
+//
+// Why this exists at all: ForteSetting::begin() overwrites the compiled parastructure with the
+// EEPROM copy whenever the stored length matches, and sizeof(parastructure) has not changed since
+// v2.4.2. So on every unit that has ever been configured, editing a default in this file changes
+// NOTHING - the machine keeps 120 rounds / min_increase 20 / min_sharpness 5. That is not a
+// cosmetic drift: removed_by_new_gate() compares the legacy thresholds against the RUNTIME ones,
+// so with the old values loaded the two sides are equal and the review gate can never fire. Both
+// builds would run silently with the feature inert.
+//
+// Bump CONFIG_REV_THRESHOLDS to force a later set. Do NOT reuse this byte for anything else.
+//
+// rev 1  first v2.4.3a set - 30 min, min_increase 25, min_sharpness 11, baseline 2-4
+// rev 2  min_sharpness 11 -> 8. REQUIRED, not cosmetic: rev 1 shipped to RPL03001 and RPL03002
+//        on 15 Aug and the stamp is what stops a migration re-running, so those two units would
+//        have kept 11.0 forever - and configSelfCheck would have reported PASS while grading
+//        against a yardstick nobody was using.
+#define ADDR_CONFIG_REV 236
+#define CONFIG_REV_THRESHOLDS 2
+
 #define ADDR_ERROR_NUMBER_UNIT 244 // the size of the error record, used to check if the error record is valid or not. If the value read from EEPROM is not equal to it, then it's not valid, and need to be cleared.
 #define ADDR_ERROR_FLAG 250
 #define ADDR_ERROR_RECORD (ADDR_ERROR_FLAG + 1) // record the error type and times, used for error process
@@ -148,18 +169,83 @@ struct parastructure
                                   // "led_power"
 
   // Alg parameter
-  double min_increase = 20.0;             // fluorescence level threshold
-  double min_sharpness = 5.0;             // amplification steepnes level
+  // This is the ONLY min_increase that reaches a call - DataIn::fromEEPROM() always runs
+  // parameters.fromEEPROM(), which copies from here, so the value in AlgoData::clear() and the
+  // one in Algo.h's strJson fixture are both overwritten before any curve is scored. They have
+  // been aligned anyway so the next reader is not misled.
+  //
+  // 20.0 -> 25.0. A DELIBERATELY MODEST floor. An earlier revision set this to 30 on the strength
+  // of a duplicate-agreement analysis that assumed slot k pairs with slot k+5. That pairing does
+  // NOT exist - every slot is an independent assay - so the analysis and its "61% fleet baseline"
+  // were both withdrawn. Do not reintroduce either.
+  //
+  // What replaced it: 68 curves labelled by eye (real / suspect / non-specific), scored blind.
+  // Counted increase orders 9 of 88 real-vs-non-specific pairs backwards; steepness orders 2.
+  // Size is the weaker signal, so it is kept as a low floor and min_sharpness carries the rule.
+  // Measured over 25,219 wells on a 30-minute run: 25 removes 79 Positives (2.2%), and no well
+  // labelled real or suspect is among them.
+  //
+  // NOT the break threshold. check_breakData() used to be handed this same value; it now takes
+  // BREAK_JUMP_THRESHOLD (Algo.h), pinned at 20.0, so moving this cannot retune the jump detector.
+  double min_increase = 25.0;             // fluorescence level threshold
+  // 5.0 -> 8.0. At 5.0 this test never fired: the classifier reaches it only on curves that
+  // already have a peak, and essentially all of them exceed 5. It was inert, not lenient - it
+  // removed 1 of 37 labelled non-specific curves.
+  //
+  // An earlier revision set this to 11.0 on the 68 eye-labelled curves alone. That was too high.
+  // On 15 Aug two lab plates with a KNOWN layout (RPL03001/RPL03002, positive control + positive
+  // TPD + negative TPD + blanks) put a confirmed positive TPD at steepness 8.6 - RPL03002 slot 2,
+  // increase 73.0, larger than either positive control on its own plate, with a clean plateau. At
+  // 11.0 the machine called it Negative. A missed detection on a confirmed positive.
+  //
+  // The mechanism matters more than the number: steepness measures how FAST a reaction runs, and
+  // that is mostly template concentration. Raising this gate always removes the weak end of the
+  // positives first - the samples the assay exists to catch. Keep it a floor, not the rule.
+  //
+  // Where 8.0 comes from, against every labelled curve and every lab-confirmed well:
+  //     threshold   labelled REAL kept   labelled NSA removed   15 Aug confirmed
+  //        6.5          18/18                 21/37                 no errors
+  //        8.0          18/18                 27/37                 no errors
+  //        8.5          18/18                 28/37                 no errors
+  //        9.0          18/18                 28/37                 MISSES RPL03002 s2
+  //       11.0          16/18                 31/37                 MISSES RPL03002 s2
+  // Removal saturates around 8.5; past it the cost is paid in real curves for nothing. 8.0 sits
+  // 0.6 below the weakest confirmed positive and 4.0 above the strongest confirmed negative.
+  //
+  // Caveats worth keeping. That 8.6 is n=1 - more weak positives should set this, not arithmetic
+  // on one well. Steepness is dF/dt on CALIBRATED units, so a drifting per-slot slope moves it;
+  // machine removal rates run 0-46% and correlate 0.45 with the machine's median slope, so
+  // calibration contributes but does not drive it. Anything landing between 8 and 12 is exactly
+  // what the F state in v2.4.3AT is for - flag it, repeat it, do not silently drop it.
+  //
+  // Also tested and REJECTED, do not reintroduce without new evidence:
+  //   settle ratio (final rate / peak rate) - 174 of 666 ranking errors against 23 for steepness,
+  //     where chance is 333. It cannot tell a finished reaction from a decaying one: 12 of 37
+  //     non-specific curves peak then photobleach, which reads identically to "the reaction ended".
+  //   steepness OR settle (pass either to be Positive) - strictly dominated. Every variant removes
+  //     FEWER non-specific curves than simply lowering this threshold, and still loses a real one.
+  double min_sharpness = 8.0;             // amplification steepnes level
   double min_slight_positive_time = 22.0; /*threshold for calling Slight Positive from Positive*/
   bool detect_shape = true;               // lag phase detection On/Off
   double detection_margin_time = 4.0;     // minimum main peak position to consider Ct value as positive
-  double arm_percentile = 0.9;            // percentile used for calculating lag phase
+  // v2.4.3a: 0.9 -> 0.5. At 0.9 the arm search measured a sliver just below the peak: across
+  // 4,000 calibrated curves the resulting width took only 15 distinct values, so the shape test
+  // separated nothing. At 0.5 it spans the actual exponential phase, and the width becomes
+  // diagnostic - under 1 min is a sensor transient, over 8 min is a slow non-specific rise.
+  double arm_percentile = 0.5;            // percentile used for calculating lag phase
   double transition_percentile = 0.4;     // percentile used for calcuating transition time (Ct) &
                                           // fluorescence increase
   uint8_t sg_order = 2;                   // interpolation smoothing order
   uint8_t sg_window = 4;                  // smoothing window size for algorithm
-  uint8_t baseline_start = 3;             // start of baselining (minutes)
-  uint8_t baseline_range = 4;             // range of baselining (minutes)
+  // v2.4.3a: 3-7 min -> 2-4 min. The old window ran three minutes past the earliest Ct the
+  // algorithm will accept, so an early amplifier had its zero measured against its own rise:
+  // baseline noise read 10.90 on early positives against 1.63 on late ones, a 6.7x difference
+  // caused by the window and not by the sample. The window must END where the earliest legitimate
+  // Ct begins, so baseline_start + baseline_range == detection_margin_time (2 + 2 == 4.0).
+  // The start of 2 min matches the web chart, where optical warm-up was measured to complete
+  // by ~2 min - see docs/history/2026-08-02-chart-baseline-start-window.md.
+  uint8_t baseline_start = 2;             // start of baselining (minutes)
+  uint8_t baseline_range = 2;             // range of baselining (minutes)
 
   // Device info
   char units[10] = "nM FAM";  // Units, "units"
@@ -198,7 +284,18 @@ struct parastructure
   uint LEDDuration = 2 * 100;       // LED(time in ms) is on for 0.2s before sensor
                                     // reading###"LED Duration"
   ulong timePerLoop = 20 * 1000;    // Duration(ms) of 1 loop ###"time per loop"
-  uint8_t amplification_time = 120; // quantity to measure during the amplification, "amplification_time"
+  // v2.4.3a: 120 -> 90 rounds. At timePerLoop = 20 s that is 40 min -> 30 min, and every derived
+  // timer follows from it (AMPLIFICATION_DURATION, OPTO_DURATION_2, the TFT countdown, the
+  // uploaded metadata) so there is no second place to change.
+  //
+  // Cost, measured over 25,219 wells: 62 Positives stop being Positive. The large majority are
+  // slow drifts whose entire rise happens in the last ten minutes and never resolves into a step.
+  // Six across eight months were genuine late amplifications - and at the 30-minute mark those
+  // six had reached increases of 4 to 19, all below even the old threshold of 20, so nothing
+  // visible on screen is being cut off.
+  //
+  // Ceiling is 130 (sensor67Value[10][130]); handleConfigPost and the Profile card both clamp.
+  uint8_t amplification_time = 90; // quantity to measure during the amplification, "amplification_time"
 
   // heater configuration
   float lysisTemp = 82.0;                           //"lysis temperature"
@@ -417,26 +514,28 @@ extern volatile bool gBtReleased;
 #define ONE_WIRE1 15 // temperature sensor used for hot lid and PCB
 
 static String ip = "";
-static String FirmwareVer = "v2.4.4"; // OTA source -> server, base URL -> Cloudflare
-// This string is MATCHED AGAINST THE .bin FILE NAME the server offers (updateOTA.cpp
-// checkFirmware). Upload images named so they contain it - "fbt_v2.4.4.bin" - or the
-// machine will re-offer the build it is already running, every poll, forever.
-// ⚠ BUMPED 2026-08-20, and the bump is FUNCTIONAL, not cosmetic. Two things forced it:
+// MERGE v2.4.4 + v2.4.3AT. Two axes kept independent, as on v2.4.3AT: the shape rule is a
+// -D switch, the version string can be overridden per PlatformIO env.
+//   <name>AT  default                 a shape-flagged Positive is REPORTED as F, call stands
+//   <name>a   -DSHAPE_RULE_NEGATIVE   a shape-flagged Positive is called NEGATIVE
 //
-// 1. The ambiguity this comment warned about ACTUALLY HAPPENED at v2.4.5. `fbt_v2.4.5.bin`
-//    on the server is a build made BEFORE ?ver= was added, while the source at v2.4.5 has
-//    it - two different images answering to one version string. Proof from the box, not from
-//    reading code: RPL02013 reported version v2.4.5 with its 18/08 17:10 run, then called
-//    `/ota/check?device=RPL02013` bare THREE MINUTES LATER. Across 3 days and 29 checks the
-//    whole fleet never sent `&ver=` once, so `fw_seen.json` / `fw_log.json` were never even
-//    created and the server-side history feature sat there as dead code.
-// 2. The match is EXACT (`name != "fbt_" + FirmwareVer + ".bin"`), so a rebuilt v2.4.5 can
-//    never reach a machine already reporting v2.4.5 - it would read "You have the lasted
-//    version" forever, silently. Shipping the fix REQUIRES a new version string.
-//
-// Rule this leaves behind: never rebuild under a version string that has already been handed
-// to a machine. `sessions.version` cannot tell two images apart, so the mistake is invisible
-// from every dashboard - the only tell is a behavioural one like the missing `&ver=` above.
+// FirmwareVer is MATCHED AGAINST THE .bin FILE NAME the server offers (updateOTA.cpp
+// checkFirmware, v2.4.4): `name != "fbt_" + FirmwareVer + ".bin"`, an EXACT match. Two
+// consequences for this merged build:
+//  1. Never rebuild under a version string already handed to a machine - the fleet would read
+//     "You have the lasted version" forever, silently. That already happened at v2.4.5.
+//  2. ⚠ A trial machine running this build POLLS every 6 h (v2.4.4 dashboardLoop) and the
+//     server's plain "fbt_<ver>.bin" will not match this name -> the machine is offered the
+//     NON-AT build and an operator pressing RED replaces the trial firmware. Either keep these
+//     units off the network, or give the server a file named for this exact string.
+#ifndef FIRMWARE_VERSION
+#ifdef SHAPE_RULE_NEGATIVE
+#define FIRMWARE_VERSION "v2.4.4a"
+#else
+#define FIRMWARE_VERSION "v2.4.4AT"
+#endif
+#endif
+static String FirmwareVer = FIRMWARE_VERSION;
 
 extern SemaphoreHandle_t gI2CMutex;
 extern SemaphoreHandle_t gSPIMutex;

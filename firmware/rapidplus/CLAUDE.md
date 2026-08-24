@@ -4,6 +4,40 @@ Hướng dẫn cho Claude khi làm việc trong repo này. (Docs tiếng Việt;
 
 **Kiến trúc chi tiết + sơ đồ:** [docs/architecture/](docs/architecture/) (state machine, nhiệt/sensor, dashboard, mạng/upload).
 
+## Quy tắc làm việc (BẮT BUỘC — đọc trước khi sửa bất cứ thứ gì)
+
+Yêu cầu của Kane (FBT Engineer), 21/08/2026, sau khi nhận v2.4.3AT: *"source được giao mà
+không có log, không có lịch sử sửa đổi"*. Nguyên văn cách anh muốn làm việc:
+
+> *"Giúp tôi giữ lịch sử và ghi tài liệu cho từng tính năng trong thư mục docs mỗi khi
+> phát triển một chức năng mới."*
+
+Đây không phải chuyện gọn gàng. Firmware này gọi kết quả y tế; sáu tháng nữa phải trả lời
+được *tại sao giếng này ra Positive* mà không cần hỏi người viết. Và người merge phải
+review được từng phần, không phải một khối 20 file.
+
+1. **Mỗi chức năng mới / mỗi thay đổi hành vi → một file
+   `docs/history/YYYY-MM-DD-slug.md`, viết NGAY trong cùng lần thay đổi đó** — không dồn
+   tới lúc bàn giao. Nội dung: trước thế nào, nay thế nào, **bằng chứng nào** dẫn tới, đã
+   loại bỏ phương án nào. Tiếng Việt (code/comment tiếng Anh). **Rồi link nó vào CLAUDE.md**
+   — một tài liệu không có đường dẫn tới thì coi như không tồn tại; đúng lỗi đã xảy ra với
+   4 tài liệu của chính bản v2.4.3AT.
+
+2. **Một commit cho một thay đổi.** Không gộp nhiều ngày, không gộp nhiều chủ đề.
+   `7243cff` gộp 20 file / 2 242 dòng: nay không tách được phần di trú EEPROM khỏi phần
+   thuật toán, không bisect được cả hai.
+
+3. **Subject commit trả lời *tại sao*; diff đã nói *cái gì*.** Không `up`, `final`, `fix`,
+   `wip`.
+
+4. **Không bàn giao source ngoài git.** Bàn giao = tên branch + commit hash + sha256 của
+   `.bin`, kèm `.elf`. Gửi file zip hoặc `.bin` rời là cách đã tạo ra chính vấn đề này —
+   và `.elf` bị ghi đè là lý do backtrace của máy reset ở Vietnam (17/08) không giải mã được.
+
+5. **Trước khi giao cho ai: `python tools/check.py` phải xanh.**
+
+Bàn giao bản này: [docs/BAN_GIAO_v2.4.3AT.md](docs/BAN_GIAO_v2.4.3AT.md).
+
 ## Tổng quan
 
 Firmware ESP32 (PlatformIO / Arduino) cho máy **FBT RAPID** — xét nghiệm LAMP-PCR.
@@ -742,6 +776,36 @@ endpoint đã khoẻ; reload thì `OPENED after 0 errors` ngay. Hệ quả cho U
 `request->isSSE()` = header `Accept: text/event-stream` — browser luôn gửi, curl thì phải
 thêm tay; **đây không phải lỗi**.
 
+## Thuật toán gọi kết quả (`src/Alg/`)
+
+Chữ kết quả: **P** Positive · **N** Negative · **S** Slight positive · **E** Error ·
+**B** Break · **F** Flagged (**chỉ có trên v2.4.3AT**).
+
+Đường đi của một đường cong: hiệu chuẩn `(raw − origin) / slope` → trừ baseline (trung bình
+các điểm trong khoảng `baseline_start` … `+baseline_range` phút) → làm mượt Savitzky-Golay
+9 điểm bậc 2 → đạo hàm → `sharpness` là đỉnh đạo hàm sau mốc `detection_margin_time`, `Ct`
+là lúc tốc độ tụt còn 40% của đỉnh khi đi ngược lại, `increase` là mức plateau trừ mức tại
+điểm chuyển.
+
+| Tham số | v2.4.3 | v2.4.3AT |
+| --- | --- | --- |
+| Số vòng | 120 (40 phút) | **90 (30 phút)** |
+| `min_increase` | 20 | **25** |
+| `min_sharpness` | 5 | **8** |
+| baseline | 3 + 4 | **2 + 2** |
+| Chữ `F` | không có | **có** |
+
+⚠️ Sửa giá trị mặc định trong `define.h` **KHÔNG** tới được máy đã cấu hình — phải qua di
+trú EEPROM, xem `ADDR_CONFIG_REV`. Máy nào `GET /selfcheck` báo 40 phút là chưa di trú.
+
+Tài liệu (đọc theo thứ tự này):
+
+1. [docs/history/2026-08-13-thuat-toan-goi-ket-qua-v2.4.3a.md](docs/history/2026-08-13-thuat-toan-goi-ket-qua-v2.4.3a.md) — thuật toán hoạt động thế nào
+2. [docs/history/2026-08-15-quy-tac-hinh-dang-va-tach-nguong-jump.md](docs/history/2026-08-15-quy-tac-hinh-dang-va-tach-nguong-jump.md) — quy tắc hình dạng, chữ `F` từ đâu ra
+3. [docs/history/2026-08-16-min-sharpness-8-tail-climb-window-rate.md](docs/history/2026-08-16-min-sharpness-8-tail-climb-window-rate.md) — vì sao ngưỡng 8.0, và TAIL climb repair
+4. [docs/history/2026-08-15-di-tru-cau-hinh-va-tu-kiem-tra.md](docs/history/2026-08-15-di-tru-cau-hinh-va-tu-kiem-tra.md) — di trú cấu hình + tự kiểm tra
+5. ⚠️ [docs/history/2026-08-21-asf-va-quy-tac-hinh-dang.md](docs/history/2026-08-21-asf-va-quy-tac-hinh-dang.md) — **KHÔNG cài bản này lên máy chạy ASF**
+
 ## GOTCHAS (quan trọng)
 
 0. **`-Wformat` PHẢI ở trong `build_flags`** (`platformio.ini`). `Print::printf` có sẵn
@@ -1123,6 +1187,16 @@ Chi tiết: [docs/history/2026-07-23-ui-contrast-a11y-review.md](docs/history/20
 - Ưu tiên dùng `codebase-memory` MCP tools để khám phá code (nhanh hơn grep).
 
 ## Test
+
+### Chạy TOÀN BỘ guard bằng một lệnh
+
+```bash
+python tools/check.py            # mọi guard không cần mock/phần cứng, ~2 s
+python tools/check.py --list     # guard nào tồn tại, bảo vệ cái gì; không chạy
+python tools/check.py --mock     # thêm các guard cần tools/sse_test_server.py
+```
+
+`check.py` **tự tìm** `tools/test_*` chứ không giữ danh sách cứng, và báo riêng guard nào được ghi ở đây nhưng **không có** trong repo — một guard mà cả team tin là có mà thực ra không tồn tại thì tệ hơn không có guard. Exit code khác 0 khi có guard fail, nên dùng được để chặn merge.
 
 ### Không cần phần cứng
 

@@ -662,8 +662,17 @@ function isVisible(i) {
 }
 
 // Cache names from a /slots response into slotNames; return the raw slot list.
+/* Which build the device is running: "negative" = a shape-flagged Positive was already turned
+ * Negative on the device; "flag" = the flag is advisory and the call stands. Read from /slots
+ * rather than assumed, because the two builds are otherwise indistinguishable from the browser -
+ * in the "negative" build a flagged well arrives as a plain "N" with nothing in that letter to
+ * say why. Defaults to "flag" so an older device, which sends no shapeMode at all, is described
+ * as annotating rather than overturning - the claim that is true of it. */
+var shapeMode = "flag";
+
 function ingestSlots(data) {
     var slots = (data && data.slots) || [];
+    if (data && data.shapeMode) shapeMode = data.shapeMode;
     for (var i = 0; i < SLOTS; i++) {
         if (slots[i] && slots[i].name !== undefined)
             slotNames[i] = slots[i].name || "";
@@ -671,6 +680,30 @@ function ingestSlots(data) {
             slotSamples[i] = slots[i].sample || "";
     }
     return slots;
+}
+
+/* The shape rule, described for a human. Arm A is a small step riding on a slow ramp; arm B is a
+ * rise that never makes a step. The text names the arm AND quotes the two numbers behind it, so
+ * an operator disputing a result can see what the machine measured rather than just that it
+ * disapproved. Returns null when the well was not flagged. */
+/* The note behind an F. The flag now means one thing - the well amplified, but too weakly or too
+ * gradually to stand as a detection - so the text says that and quotes the numbers rather than
+ * naming an arm of a rule that no longer exists.
+ *
+ * In the v2.4.3a build the same well arrives as "N" with the flag still set; no note is shown
+ * there, because it would invite the operator to question a Negative that is already settled. */
+function shapeNote(s) {
+  if (!s || !s.shape || shapeMode === "negative") return null;
+  var bits = [];
+  if (s.rise !== null && s.rise !== undefined)
+    bits.push("the rise took " + s.rise + " min");
+  if (s.rate !== null && s.rate !== undefined)
+    bits.push("fastest sustained climb " + s.rate + " RFU/min");
+  return (
+    "Flagged: this well did rise, but not steeply or strongly enough to report as a detection" +
+    (bits.length ? " (" + bits.join("; ") + ")" : "") +
+    ". Repeat this sample."
+  );
 }
 
 /* Build the table ONCE, after /slots resolves - no empty pre-build. The old two-phase
@@ -890,14 +923,28 @@ function buildTable(tbodyId, slots, withResults) {
             var resTd = document.createElement("td");
             resTd.className = "res";
             var r = s.result || "";
-            if (r && "PNSEB".indexOf(r) >= 0) {
+            // F = Flagged (v2.4.3AT): the well amplified but its shape does not match a real
+            // reaction. It is its own letter from the firmware, not a P wearing a decoration,
+            // so it belongs in this list rather than in a marker beside the badge.
+            if (r && "PNSEBF".indexOf(r) >= 0) {
                 var badge = document.createElement("span");
                 badge.className = "res-badge res-" + r;
                 badge.textContent = r;
+                // A letter alone says "F", not what F means. The explanation names the arm that
+                // fired and quotes the two numbers behind it, so an operator disputing the call
+                // can see what was measured rather than only that the machine disapproved.
+                var note = shapeNote(s);
+                if (note) {
+                    badge.title = note;
+                    badge.setAttribute("aria-label", note);
+                    badge.setAttribute("role", "img");
+                }
                 resTd.appendChild(badge);
                 // The rows that carry a detection are the ones the operator is looking for;
-                // give them a quiet tint so they read first instead of every row shouting equally.
-                if (r === "P" || r === "S") tr.classList.add("hit");
+                // give them a quiet tint so they read first. F belongs here too - it is a well
+                // that rose, and the whole point of the state is that it wants a human to look.
+                if (r === "P" || r === "S" || r === "F") tr.classList.add("hit");
+                if (r === "F") tr.classList.add("shaped");
             } else {
                 resTd.innerHTML = '<span class="res-empty">-</span>';
             }

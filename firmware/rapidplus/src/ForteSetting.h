@@ -92,6 +92,19 @@ public:
     // open the dashboard, which is not a fleet update mechanism.
     bool postOtaCheck(bool promptOnDevice = false);
 
+    // ---- Commissioning self-check ----------------------------------------------
+    // Answers "is this machine actually RUNNING the v2.4.3a timings and thresholds?"
+    // from the LIVE parameter struct - the one begin() left behind after loading the
+    // EEPROM copy and applying the migration - never from the compiled defaults. Reading
+    // the defaults is exactly the mistake this check exists to catch: they are what the
+    // source says, not what the machine uses.
+    //
+    // Reports lysis time and calling (amplification) time in MINUTES, because that is the
+    // unit the operator and the run sheet speak; the struct stores seconds and rounds.
+    // Logged once at the end of begin() and served by GET /selfcheck.
+    String configSelfCheckJson();
+    void configSelfCheckLog();
+
     // ---- Outcome of the last web-queued request --------------------------------
     // The POST can only ACK that it QUEUED: the handler must not block waiting for
     // the apply (blocking the AsyncTCP task is what trips the task watchdog). But

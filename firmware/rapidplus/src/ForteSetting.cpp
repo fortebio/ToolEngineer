@@ -8,6 +8,7 @@ To receive the full command, here will wait 10ms after receiving, if there is no
 #include "webDashboard.h" // dashboardDeviceBusy(): re-checked before applying web settings
 #include "updateOTA.h"    // checkFirmware(): run off AsyncTCP via PEND_OTACHECK
 #include "wifiStore.h"    // wifiStoreAdd(): remember each saved WiFi in /wifi.json
+#include "Alg/Algo.h"     // LEGACY_MIN_*: the pair removed_by_new_gate() measures against
 
 /// @brief Buzzer control
 /// "Buzzer", beep one time for 1 seond
@@ -760,6 +761,21 @@ ForteSetting::~ForteSetting()
 // never readBool(): a virgin 0xFF reads as TRUE and would skip the migration on every fresh unit.
 static const uint8_t kIdMigrated = 0xA5;
 
+// What v2.4.3a expects to find in a SAVED config, in the units an operator speaks. These are the
+// yardstick for configSelfCheckJson(); the migration below writes the struct fields they describe.
+// Kept as one list so the check and the migration cannot drift apart into disagreeing about what
+// "correct" is.
+static const double kExpectLysisMin = 10.0;      // parameter.lysisDuration 600 s
+static const double kExpectCallingMin = 30.0;    // amplification_time 90 x timePerLoop 20 s
+static const double kExpectMinIncrease = 25.0;   //
+static const double kExpectMinSharpness = 8.0;    // see define.h for why not 11.0
+static const double kExpectDetectMargin = 4.0;   // == baseline_start + baseline_range
+static const double kTimingTolMin = 0.02;        // ~1 s: these are exact values, not measurements
+
+// ADDR_CONFIG_REV as begin() last saw it, cached in RAM because the self-check is served from
+// AsyncTCP and that task must never open EEPROM (CLAUDE.md Setting #2). 0 = never stamped.
+static uint8_t gConfigRevSeen = 0;
+
 // Strings no operator ever typed. Two are compiled defaults (this build's, and v2.4.2's
 // "proto 0"); the third is the one that makes this list load-bearing:
 //
@@ -853,6 +869,67 @@ void ForteSetting::begin()
             EEPROM.commit();
             info_displayln("kpid3 seeded to defaults and saved");
         }
+
+        // ---- one-time migration: v2.4.3a timings and analysis thresholds ---------------------
+        // See ADDR_CONFIG_REV (define.h) for why editing a compiled default is not enough. This
+        // is a one-shot STAMP, not a value compare, so an operator who deliberately retunes a
+        // value afterwards is not overruled on the next boot - the rule the slot-170 ID migration
+        // follows. A value compare is what kpid3 above can afford: {0,0,0} is impossible for a
+        // real PID, whereas 120 rounds is a perfectly legitimate setting someone may have chosen.
+        uint8_t cfgRev = EEPROM.read(ADDR_CONFIG_REV);
+        if (cfgRev == 0xFF)
+            cfgRev = 0; // virgin byte reads 255 - that is "never stamped", NOT revision 255
+        if (cfgRev < CONFIG_REV_THRESHOLDS)
+        {
+            // CALIBRATION IS NOT OURS TO TOUCH. slopes and origins are measured per machine
+            // (slopes run 0.50-3.50 across the fleet) and led_power is set per slot at
+            // commissioning. Resetting either to the compiled placeholder is worse than not
+            // migrating at all: the machine keeps working and every reported number is wrong.
+            // Copied out before the edit, compared after, and any difference abandons the whole
+            // write - a half-correct config saved to EEPROM is the one state with no easy way back.
+            float keepSlopes[10];
+            float keepOrigins[10];
+            uint8_t keepLed[10];
+            memcpy(keepSlopes, parameter.slopes, sizeof(keepSlopes));
+            memcpy(keepOrigins, parameter.origins, sizeof(keepOrigins));
+            memcpy(keepLed, parameter.led_power, sizeof(keepLed));
+
+            parameter.lysisDuration = 600;         // 10 min
+            parameter.amplification_time = 90;     // 90 rounds x 20 s = 30 min (was 120 = 40 min)
+            parameter.min_increase = 25.0;         //
+            parameter.min_sharpness = 8.0;         // the gate removed_by_new_gate() needs to differ
+            parameter.detection_margin_time = 4.0; //   from LEGACY_MIN_* or it can never fire
+            parameter.baseline_start = 2;          // baseline_start + baseline_range
+            parameter.baseline_range = 2;          //   MUST equal detection_margin_time
+            parameter.arm_percentile = 0.5;
+
+            const bool calibIntact =
+                memcmp(keepSlopes, parameter.slopes, sizeof(keepSlopes)) == 0 &&
+                memcmp(keepOrigins, parameter.origins, sizeof(keepOrigins)) == 0 &&
+                memcmp(keepLed, parameter.led_power, sizeof(keepLed)) == 0;
+
+            if (calibIntact)
+            {
+                parameter.length = sizeof(parameter);
+                EEPROM.put(PARAMETERPOS, parameter);
+                EEPROM.write(ADDR_CONFIG_REV, CONFIG_REV_THRESHOLDS);
+                EEPROM.commit();
+                info_displayf("[cfg] migrated to rev %d: lysis 10 min, calling 30 min,"
+                              " min_increase 25.0, min_sharpness 8.0"
+                              " - slopes/origins/LED power untouched\n",
+                              CONFIG_REV_THRESHOLDS);
+            }
+            else
+            {
+                // Unreachable through the assignments above. It becomes reachable the moment
+                // someone adds a field to this block, which is exactly when it needs to fire.
+                memcpy(parameter.slopes, keepSlopes, sizeof(keepSlopes));
+                memcpy(parameter.origins, keepOrigins, sizeof(keepOrigins));
+                memcpy(parameter.led_power, keepLed, sizeof(keepLed));
+                info_displayln("[cfg] MIGRATION ABANDONED - it would have altered calibration."
+                               " Nothing written; the machine keeps its saved config.");
+            }
+        }
         paraDisplay(parameter);
     }
     else
@@ -927,7 +1004,164 @@ void ForteSetting::begin()
         }
     }
     // OpticalUnits = parameter.units;//"counts";
+    gConfigRevSeen = EEPROM.read(ADDR_CONFIG_REV);
+    if (gConfigRevSeen == 0xFF)
+        gConfigRevSeen = 0;
     EEPROM.end();
+
+    configSelfCheckLog();
+}
+
+/***********************************************************************
+ * Function: configSelfCheckJson()
+ * Description: Reports what this machine is ACTUALLY set to run - lysis time and
+ *  calling (amplification) time in minutes, the two analysis gates, and the
+ *  baseline window - each beside the value v2.4.3a expects, plus one overall
+ *  pass/fail. Everything is read from the live parameter struct, so it describes
+ *  the machine and not the source; reading the compiled defaults is precisely the
+ *  mistake this exists to catch, because begin() has already replaced them with
+ *  the EEPROM copy by the time anything runs.
+ *
+ *  Timings come out in MINUTES because that is the unit the operator and the run
+ *  sheet speak. The struct stores seconds (lysis) and rounds (calling), and the
+ *  conversion for calling uses the machine's OWN timePerLoop rather than a
+ *  hardcoded 20 s - a unit set to a different round length would otherwise be
+ *  told it is fine when it is running a different protocol entirely.
+ *
+ *  CALIBRATION IS REPORTED, NOT GRADED. slopes, origins and led_power are
+ *  per-machine; there is no correct fleet-wide value to check them against. What
+ *  can be said is whether they are still the compiled placeholders (every slope
+ *  1.0), which is what a wiped or never-calibrated unit looks like - and that is
+ *  the state this migration had to be written carefully to avoid producing.
+ * pramameter: none
+ *  return: String - JSON, the same document GET /selfcheck serves
+ */
+String ForteSetting::configSelfCheckJson()
+{
+    JsonDocument doc;
+
+    const double lysisMin = parameter.lysisDuration / 60.0;
+    const double callingMin =
+        parameter.amplification_time * (double)parameter.timePerLoop / 60000.0;
+    const double baselineEnd = (double)parameter.baseline_start + (double)parameter.baseline_range;
+
+    const bool okRev = gConfigRevSeen >= CONFIG_REV_THRESHOLDS;
+    const bool okLysis = fabs(lysisMin - kExpectLysisMin) < kTimingTolMin;
+    const bool okCalling = fabs(callingMin - kExpectCallingMin) < kTimingTolMin;
+    const bool okIncrease = fabs(parameter.min_increase - kExpectMinIncrease) < 0.001;
+    const bool okSharpness = fabs(parameter.min_sharpness - kExpectMinSharpness) < 0.001;
+    const bool okMargin = fabs(parameter.detection_margin_time - kExpectDetectMargin) < 0.001;
+    // The baseline window must CLOSE where the earliest legitimate Ct opens, or an early
+    // amplifier has its zero measured against its own rise (define.h, baseline_start).
+    const bool okBaseline = fabs(baselineEnd - parameter.detection_margin_time) < 0.001;
+    // The one check that is about behaviour rather than values: removed_by_new_gate() compares
+    // the runtime pair against LEGACY_MIN_*, so if the runtime pair still EQUALS the legacy pair
+    // the review gate is inert and no well can ever be called F or flipped to N. A machine can
+    // pass every other line here and still have the feature silently switched off.
+    const bool okGateLive = (parameter.min_increase > LEGACY_MIN_INCREASE) ||
+                            (parameter.min_sharpness > LEGACY_MIN_SHARPNESS);
+
+    bool slopesDefault = true;
+    for (uint8_t i = 0; i < 10; i++)
+        if (fabs(parameter.slopes[i] - 1.0f) > 0.0001f)
+            slopesDefault = false;
+
+    doc["firmware"] = FirmwareVer;
+    doc["config rev"] = gConfigRevSeen;
+    doc["expected rev"] = CONFIG_REV_THRESHOLDS;
+
+    JsonObject t = doc["timings"].to<JsonObject>();
+    t["lysis min"] = lysisMin;
+    t["lysis expected min"] = kExpectLysisMin;
+    t["lysis ok"] = okLysis;
+    t["calling min"] = callingMin;
+    t["calling expected min"] = kExpectCallingMin;
+    t["calling ok"] = okCalling;
+    t["rounds"] = parameter.amplification_time;
+    t["ms per round"] = (uint32_t)parameter.timePerLoop;
+
+    JsonObject g = doc["gates"].to<JsonObject>();
+    g["min increase"] = parameter.min_increase;
+    g["min increase expected"] = kExpectMinIncrease;
+    g["min increase ok"] = okIncrease;
+    g["min sharpness"] = parameter.min_sharpness;
+    g["min sharpness expected"] = kExpectMinSharpness;
+    g["min sharpness ok"] = okSharpness;
+    g["detection margin time"] = parameter.detection_margin_time;
+    g["detection margin ok"] = okMargin;
+    g["baseline window closes"] = baselineEnd;
+    g["baseline window ok"] = okBaseline;
+    g["review gate live"] = okGateLive;
+
+    // Reported so the operator can compare against the calibration sheet before and after a
+    // flash. This is the data the migration promises not to touch.
+    JsonObject c = doc["calibration"].to<JsonObject>();
+    c["still compiled defaults"] = slopesDefault;
+    JsonArray sl = c["slopes"].to<JsonArray>();
+    JsonArray og = c["origins"].to<JsonArray>();
+    JsonArray lp = c["led power"].to<JsonArray>();
+    for (uint8_t i = 0; i < 10; i++)
+    {
+        sl.add(parameter.slopes[i]);
+        og.add(parameter.origins[i]);
+        lp.add(parameter.led_power[i]);
+    }
+
+    // slopesDefault is NOT part of pass/fail: a genuinely uncalibrated new machine is not a
+    // failed migration, and folding it in here would make this check cry wolf on the bench.
+    doc["pass"] = okRev && okLysis && okCalling && okIncrease && okSharpness && okMargin &&
+                  okBaseline && okGateLive;
+
+    String out;
+    serializeJson(doc, out);
+    return out;
+}
+
+/***********************************************************************
+ * Function: configSelfCheckLog()
+ * Description: Prints the self-check as four readable lines at the end of begin(),
+ *  so a unit being commissioned over USB shows whether the migration landed without
+ *  anyone needing to reach the web route. Deliberately louder on failure than on
+ *  success: a PASS is one line, a FAIL names what is wrong.
+ * pramameter: none
+ *  return: none
+ */
+void ForteSetting::configSelfCheckLog()
+{
+    const double lysisMin = parameter.lysisDuration / 60.0;
+    const double callingMin =
+        parameter.amplification_time * (double)parameter.timePerLoop / 60000.0;
+    const bool gateLive = (parameter.min_increase > LEGACY_MIN_INCREASE) ||
+                          (parameter.min_sharpness > LEGACY_MIN_SHARPNESS);
+
+    info_displayf("[chk] lysis %.1f min (want %.1f) | calling %.1f min (want %.1f)"
+                  " | %d rounds x %lu ms\n",
+                  lysisMin, kExpectLysisMin, callingMin, kExpectCallingMin,
+                  (int)parameter.amplification_time, (unsigned long)parameter.timePerLoop);
+    info_displayf("[chk] min_increase %.1f (want %.1f) | min_sharpness %.1f (want %.1f)"
+                  " | review gate %s\n",
+                  parameter.min_increase, kExpectMinIncrease,
+                  parameter.min_sharpness, kExpectMinSharpness,
+                  gateLive ? "LIVE" : "INERT");
+    info_displayf("[chk] baseline [%d,%d) closes at %d, detection margin %.1f\n",
+                  (int)parameter.baseline_start,
+                  (int)(parameter.baseline_start + parameter.baseline_range),
+                  (int)(parameter.baseline_start + parameter.baseline_range),
+                  parameter.detection_margin_time);
+
+    // Braces are load-bearing: info_display* expands to an unbraced `if (!gBtReleased) ...`
+    // (define.h), so an unbraced arm here swallows the else.
+    String js = configSelfCheckJson();
+    if (js.indexOf("\"pass\":true") >= 0)
+    {
+        info_displayf("[chk] PASS - config rev %d\n", (int)gConfigRevSeen);
+    }
+    else
+    {
+        info_displayf("[chk] FAIL - config rev %d, expected %d."
+                      " Machine is NOT running the v2.4.3a settings: %s\n",
+                      (int)gConfigRevSeen, CONFIG_REV_THRESHOLDS, js.c_str());
+    }
 }
 
 /// @brief loop to receive the command from serial port and BT

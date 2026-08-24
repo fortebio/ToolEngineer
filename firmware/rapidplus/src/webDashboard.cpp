@@ -729,6 +729,11 @@ String slotNames[10];          // disease per slot (fixed shrimp-disease list)
 static String slotSamples[10]; // free-text sample label per slot
 static float gCT[10] = {0};
 static char gResult[10] = {0};
+// Shape measurements, published from bResultGet() alongside the CT/outcome cache above.
+// -1 = not measurable on that curve, which the route reports as null rather than as a number.
+static double gWindowRate[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+static double gRiseWidth[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+static uint8_t gShapeFlag[10] = {0};
 
 // Per-slot sensor-error snapshot for GET /errors - the same table the machine draws on
 // screen_errorResult() (RED on the finished/review screens).
@@ -825,6 +830,16 @@ void dashboardSetResults(const float *ct, const char *result)
   gResultsReady = true;
 }
 
+void dashboardSetShape(const double *window_rate, const double *rise_width, const uint8_t *flag)
+{
+  for (int i = 0; i < 10; i++)
+  {
+    gWindowRate[i] = window_rate[i];
+    gRiseWidth[i] = rise_width[i];
+    gShapeFlag[i] = flag[i];
+  }
+}
+
 // Invalidate the cached results (see header). Pairs with _sensor6035.clear() at run
 // start so the table and the chart share one lifecycle: both go empty together, then
 // both come back together from EEPROM on the next Result view (POST /reviewlast).
@@ -850,12 +865,35 @@ static void handleSlots(AsyncWebServerRequest *req)
     JsonObject s = arr.add<JsonObject>();
     s["name"] = slotNames[i];
     s["sample"] = slotSamples[i];
-    if (ready && (gResult[i] == 'P' || gResult[i] == 'S'))
+    // 'F' (v2.4.3AT, shape-flagged) carries a CT like P and S do. Withholding it would leave the
+    // operator disputing the call with nothing to dispute it WITH - the time the well rose is the
+    // most useful single number on that row.
+    if (ready && (gResult[i] == 'P' || gResult[i] == 'S' || gResult[i] == 'F'))
       s["ct"] = r1(gCT[i]);
     else
       s["ct"] = nullptr;
     s["result"] = ready ? String(gResult[i]) : String("");
+    // Shape rule. Reported on every well, not only flagged ones: the point of emitting these is
+    // to accumulate the labelled data that would let the thresholds be set from measurement.
+    // null, not -1, when the curve gave nothing measurable - the client must not plot a "-1".
+    if (ready && gWindowRate[i] >= 0)
+      s["rate"] = r1(gWindowRate[i]);
+    else
+      s["rate"] = nullptr;
+    if (ready && gRiseWidth[i] >= 0)
+      s["rise"] = r1(gRiseWidth[i]);
+    else
+      s["rise"] = nullptr;
+    s["shape"] = ready ? gShapeFlag[i] : 0;
   }
+  // Which build this is, so the Result tab can say whether a flag overturned the call or merely
+  // annotates it. The client must not infer this from the outcome letters: in the v2.4.3a build a
+  // flagged well reads "N" with no trace of the flag in that letter alone.
+#ifdef SHAPE_RULE_NEGATIVE
+  doc["shapeMode"] = "negative";
+#else
+  doc["shapeMode"] = "flag";
+#endif
   String out;
   serializeJson(doc, out);
   req->send(200, "application/json", out);
@@ -2028,6 +2066,11 @@ void dashboardBegin()
     // Setting tab
     dashServer.on("/config", HTTP_GET, handleConfigGet);
     dashServer.on("/config", HTTP_POST, [](AsyncWebServerRequest *r) {}, NULL, handleConfigPost);
+    // Commissioning check: is this machine actually RUNNING the v2.4.3a timings and thresholds,
+    // or did the EEPROM copy quietly keep the old ones? Read-only and RAM-only - the config
+    // revision byte is cached at boot precisely so this handler never opens EEPROM on AsyncTCP.
+    dashServer.on("/selfcheck", HTTP_GET, [](AsyncWebServerRequest *req)
+                  { req->send(200, "application/json", _ForteSetting.configSelfCheckJson()); });
     dashServer.on("/wifiscan", HTTP_GET, handleWifiScan);
     dashServer.on("/wifi", HTTP_POST, handleWifiSave);
     // HTTP_ANY (single handler), NOT separate GET+POST: see handleWifiList / GOTCHA 3 -

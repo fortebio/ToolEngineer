@@ -363,7 +363,10 @@ bool checkJump(std::vector<double> &_array, double crossing, size_t index)
     double slope = mean_slope(_array, index + JUMP_SETTLE_SKIP, JUMP_FLAT_WINDOW);
     if (fabs(slope) > 1.0)
         return false;
-    int total_rise = _array[index + 6] - _array[index + 1];
+    // v2.4.3a: was int. The operands are double and the comparison is against a double
+    // threshold, so truncating toward zero let a rise of e.g. 20.9 test as 20 and pass a
+    // crossing of 20 - the guard rejected genuine breaks it was meant to catch.
+    double total_rise = _array[index + 6] - _array[index + 1];
     if (total_rise > crossing)
         return false;
 
@@ -430,6 +433,258 @@ size_t check_breakData(std::vector<double> &_array, double crossing, int start_i
         }
     }
     return 0;
+}
+
+/***********************************************************************
+ * Function: window_median()
+ * Description: Median of _array over the half-open index range [lo, hi).
+ *  Median, not mean, because the thing being measured is the level on either
+ *  side of a discontinuity and a mean would drag that level toward the very
+ *  step it is trying to measure across. Copies at most 8 values and insertion
+ *  sorts them - at this call rate that is cheaper on an ESP32 than anything
+ *  cleverer, and it allocates nothing.
+ * pramameter: _array = data; lo = first index; hi = one past the last
+ *  return: median, or 0.0 for an empty or out-of-range span
+ */
+static double window_median(const std::vector<double> &_array, size_t lo, size_t hi)
+{
+    if (hi > _array.size())
+        hi = _array.size();
+    if (lo >= hi)
+        return 0.0;
+    double buf[8];
+    size_t n = 0;
+    for (size_t i = lo; i < hi && n < 8; i++)
+        buf[n++] = _array[i];
+    for (size_t i = 1; i < n; i++)
+    {
+        double v = buf[i];
+        size_t j = i;
+        while (j > 0 && buf[j - 1] > v)
+        {
+            buf[j] = buf[j - 1];
+            j--;
+        }
+        buf[j] = v;
+    }
+    return (n & 1) ? buf[n / 2] : 0.5 * (buf[n / 2 - 1] + buf[n / 2]);
+}
+
+/***********************************************************************
+ * Function: max_abs_step()
+ * Description: The largest single-reading change anywhere in the curve. Used
+ *  as the safety invariant: a repair must never leave a bigger discontinuity
+ *  than it found.
+ *
+ *  Deliberately NOT the curve's range. Removing a downward artefact legitimately
+ *  INCREASES range - RPL02019 slot 2 rises 212 to 251, drops 43, then keeps
+ *  rising, and taking the drop out reveals one continuous 82-unit rise. A range
+ *  check flags that correct repair as a failure; the step check does not.
+ * pramameter: _array = data
+ *  return: max |a[i+1] - a[i]|, or 0.0 for fewer than two points
+ */
+static double max_abs_step(const std::vector<double> &_array)
+{
+    double m = 0.0;
+    for (size_t i = 0; i + 1 < _array.size(); i++)
+    {
+        double d = _array[i + 1] - _array[i];
+        if (d < 0)
+            d = -d;
+        if (d > m)
+            m = d;
+    }
+    return m;
+}
+
+/***********************************************************************
+ * Function: find_first_climb()
+ * Description: Scans for the first vertical climb - a single-reading change
+ *  that is both large in absolute terms and large against the local noise -
+ *  and classifies it as a level shift or a transient.
+ * pramameter: _array = data to scan; index = receives the position;
+ *  amount = receives the MEASURED level shift for an offset (the raw step for
+ *  a spike or a tail step); kind = receives the classification
+ *  return: true if a climb was found
+ */
+enum ClimbKind
+{
+    CLIMB_KIND_OFFSET = 0, /* a level shift - correct by the measured amount */
+    CLIMB_KIND_SPIKE,      /* a transient - interpolate across the excursion */
+    CLIMB_KIND_TAIL        /* too close to the end to classify - hold the level */
+};
+
+static bool find_first_climb(const std::vector<double> &_array, size_t *index,
+                             double *amount, uint8_t *kind)
+{
+    if (_array.size() < (size_t)CLIMB_START_INDEX + 10)
+        return false;
+
+    /* Scan to the LAST transition, not to size-5. See CLIMB_TAIL_MIN in Algo.h: stopping short
+     * left the final four transitions unreachable, and at a 30-minute run that is the end of the
+     * assay rather than dead time. */
+    for (size_t i = CLIMB_START_INDEX; i + 1 < _array.size(); i++)
+    {
+        double step = _array[i + 1] - _array[i];
+        double mag = (step < 0) ? -step : step;
+        if (mag < CLIMB_MIN_STEP)
+            continue;
+        /* range_of takes a non-const reference, so measure the local spread here rather than
+         * casting the constness away. Same window checkJump uses: the 8 readings ending at i. */
+        double mn = _array[i - CLIMB_START_INDEX], mx = mn;
+        for (size_t k = i - CLIMB_START_INDEX; k <= i; k++)
+        {
+            if (_array[k] < mn) mn = _array[k];
+            if (_array[k] > mx) mx = _array[k];
+        }
+        if (mag < CLIMB_NOISE_MULT * (mx - mn))
+            continue;
+
+        *index = i;
+
+        /* Not enough readings after the step to measure a settled level or to watch an excursion
+         * come back. Classifying anyway would be guessing on two or three noisy points. */
+        if (i + CLIMB_TAIL_MIN >= _array.size())
+        {
+            *kind = CLIMB_KIND_TAIL;
+            *amount = step;
+            return true;
+        }
+
+        /* How much of the move is still there once things settle? b0 is the level before,
+         * b1 the level after the settling transient. */
+        double b0 = window_median(_array, i - 5, i + 1);
+        double b1 = window_median(_array, i + 3, i + 9);
+        double lvl = b1 - b0;
+        double lvlMag = (lvl < 0) ? -lvl : lvl;
+
+        if (lvlMag >= CLIMB_PERSIST_LO * mag)
+        {
+            *kind = CLIMB_KIND_OFFSET;
+            *amount = lvl; /* correct by the MEASURED shift, never by the raw step */
+        }
+        else
+        {
+            *kind = CLIMB_KIND_SPIKE;
+            *amount = step;
+        }
+        return true;
+    }
+    return false;
+}
+
+/***********************************************************************
+ * Function: neutralise_climbs()
+ * Description: Repairs vertical climbs in place, one at a time, re-detecting
+ *  on the repaired curve after each. See the note on CLIMB_* in Algo.h for what
+ *  this is for and why it is a repair rather than a truncation.
+ *
+ *  Re-detection matters: level shifts for later climbs must be measured on the
+ *  curve as it now stands. Reusing values computed on the original made
+ *  multi-climb curves worse, not better - RPL02019 slot 2 went from range 46
+ *  to 84.
+ *
+ *  The whole pass is reverted if it would leave a bigger single-reading
+ *  discontinuity than it found. That cannot happen on any curve in the 2026
+ *  dataset (0 of 237), but the check costs one array copy and the alternative
+ *  is a silent corruption of a sample.
+ * pramameter: _array = calibrated curve, repaired in place; applied = receives
+ *  how many climbs were repaired (may be NULL)
+ *  return: none
+ */
+void neutralise_climbs(std::vector<double> &_array, uint8_t *applied)
+{
+    if (applied)
+        *applied = 0;
+    if (_array.size() < (size_t)CLIMB_START_INDEX + 10)
+        return;
+
+    const std::vector<double> original = _array;
+    const double stepBefore = max_abs_step(original);
+    uint8_t n = 0;
+
+    for (uint8_t pass = 0; pass < CLIMB_MAX_PASSES; pass++)
+    {
+        size_t i = 0;
+        double amount = 0.0;
+        uint8_t kind = CLIMB_KIND_OFFSET;
+        if (!find_first_climb(_array, &i, &amount, &kind))
+            break;
+
+        if (kind == CLIMB_KIND_TAIL)
+        {
+            /* TAIL. Hold the last level the curve was known to be at. Whatever this step is -
+             * offset, transient, or a reaction starting far too late to be callable - there is
+             * no measurement left in the readings after it, and leaving it in place hands the
+             * derivative search a peak that outranks the real one. */
+            for (size_t k = i + 1; k < _array.size(); k++)
+                _array[k] = _array[i];
+        }
+        else if (kind == CLIMB_KIND_OFFSET)
+        {
+            /* OFFSET. Do NOT shift from i+1: the readings between the old level and the settled
+             * new one are a transient, possibly a dropout, and applying the correction to them
+             * invents an excursion that was never recorded. RPL02020 slot 1 goes 133 -> 35 -> 265;
+             * applying the +132 correction from the dropout drove it to -97. Same idea as the
+             * existing JUMP_SETTLE_SKIP. */
+            double b1 = window_median(_array, i + 3, i + 9);
+            double lvlMag = (amount < 0) ? -amount : amount;
+            size_t j = i + 1;
+            while (j < _array.size())
+            {
+                double d = _array[j] - b1;
+                if (d < 0) d = -d;
+                if (d <= CLIMB_SETTLE_TOL * lvlMag)
+                    break;
+                j++;
+            }
+            if (j >= _array.size())
+                break; /* never settles - not a level shift after all; leave the curve alone */
+
+            for (size_t k = j; k < _array.size(); k++)
+                _array[k] -= amount;
+
+            /* bridge the settling transient linearly between the two now-aligned endpoints */
+            if (j > i + 1)
+            {
+                double y0 = _array[i], y1 = _array[j];
+                size_t span = j - i;
+                for (size_t k = i + 1; k < j; k++)
+                    _array[k] = y0 + (y1 - y0) * (double)(k - i) / (double)span;
+            }
+        }
+        else
+        {
+            /* SPIKE. Walk forward while the curve is still displaced by more than half the step,
+             * so the whole excursion is spanned rather than just its first reading. */
+            double mag = (amount < 0) ? -amount : amount;
+            size_t k = i + 1;
+            while (k < _array.size())
+            {
+                double d = _array[k] - _array[i];
+                if (d < 0) d = -d;
+                if (d <= 0.5 * mag)
+                    break;
+                k++;
+            }
+            if (k >= _array.size())
+                break; /* runs to the end - a level shift misread as a spike; leave it */
+
+            double y0 = _array[i], y1 = _array[k];
+            size_t span = k - i;
+            for (size_t m = i + 1; m < k; m++)
+                _array[m] = y0 + (y1 - y0) * (double)(m - i) / (double)span;
+        }
+        n++;
+    }
+
+    if (n && max_abs_step(_array) > stepBefore)
+    {
+        _array = original; /* a repair must never make the discontinuity worse */
+        n = 0;
+    }
+    if (applied)
+        *applied = n;
 }
 
 /***********************************************************************
@@ -528,7 +783,7 @@ void find_sigmoidal_feature(Record &record, DiagnosticParameters &parameters)
  *  amplification detection
  *  return: none (record.outcome populated with the predicted result)
  */
-void predict_outcome(Record &record, DiagnosticParameters &parameters)
+static void predict_outcome_core(Record &record, DiagnosticParameters &parameters)
 {
     /*
     function calculating whether an amplification curve has amplified or not
@@ -624,5 +879,255 @@ void predict_outcome(Record &record, DiagnosticParameters &parameters)
             strcpy(record.outcome.outcome, OutcomeSlightPositive);
         }
         return;
+    }
+}
+
+/***********************************************************************
+ * Function: arm_width_minutes()
+ * Description: Width of the rise in minutes, measured between the two points
+ *  where dF/dt falls to arm_percentile of the main peak. ADVISORY ONLY - the
+ *  value is reported, never tested against a threshold, so it cannot change a
+ *  call. Interpretation from 29,015 calibrated curves (Jan-Aug 2026): under
+ *  1 min is a sensor transient rather than a reaction; over 8 min is a slow
+ *  non-specific rise. Meaningful only at arm_percentile 0.5 - at 0.9 the
+ *  measurement took just 15 distinct values across 4,000 curves.
+ * pramameter: record = record whose peak features have been detected
+ *  return: width in minutes, or -1.0 if either arm was not found
+ */
+double arm_width_minutes(const Record &record)
+{
+    const FeatureDetection &pk = record.peak_features;
+    if (pk.left_arm.i == -1 || pk.right_arm.i == -1)
+        return -1.0;
+    return pk.right_arm.x - pk.left_arm.x;
+}
+
+/***********************************************************************
+ * Function: nsa_score()
+ * Description: Counts how many of six non-specific-amplification traits a
+ *  curve shows. ADVISORY ONLY - nothing in predict_outcome() reads it, so it
+ *  cannot change a call. A score of NSA_REVIEW_SCORE or more marks a Positive
+ *  as worth a second look; measured on 4,354 in-scope Positives it flags 9.5%
+ *  and misfires on 0.24% of the strongest results. Returns 0 when no peak was
+ *  detected, because the outcome fields it reads are unset in that case and a
+ *  Negative needs no review flag.
+ * pramameter: record = record with outcome and peak features populated;
+ *  parameters = thresholding parameters (reserved for per-site thresholds)
+ *  return: 0-6
+ */
+uint8_t nsa_score(Record &record, DiagnosticParameters &parameters)
+{
+    (void)parameters; /* reserved: per-site thresholds will be read from here */
+    const FeatureDetection &pk = record.peak_features;
+    const DiagnosticOutcome &oc = record.outcome;
+
+    if (pk.main_peak.i == -1)
+        return 0;
+
+    uint8_t score = 0;
+    if (pk.main_peak.y < NSA_MIN_SHARPNESS)                             score++; // shallow rise
+    if (oc.transition_time.x >= NSA_LATE_CT)                            score++; // late onset
+    if (oc.increase < NSA_LOW_INCREASE)                                 score++; // small gain
+    if ((pk.main_peak.x - oc.transition_time.x) > NSA_LONG_LAG)         score++; // drawn-out lag
+    if ((oc.plateau_point.x - oc.transition_time.x) > NSA_SLOW_PLATEAU) score++; // slow to level off
+    if (pk.right_arm.i == -1)                                           score++; // never came off the peak
+    return score;
+}
+
+/***********************************************************************
+ * Function: window_rate()
+ * Description: The fastest sustained climb the curve manages - the largest mean
+ *  gain across any WINDOW_RATE_MIN-minute window after the detection margin,
+ *  expressed in calibrated units per minute.
+ *
+ *  This is the same quantity min_sharpness measures, read over a window instead
+ *  of at a single point, and it ranks better: against the 68 eye-labelled curves
+ *  it orders 14 of 666 real-vs-non-specific comparisons backwards, where the
+ *  instantaneous peak derivative orders 23 and chance is 333. A slow reaction
+ *  with a large total gain scores here where an instantaneous peak under-reads
+ *  it, which is exactly the population min_sharpness is most likely to cut.
+ *
+ *  ADVISORY. Nothing reads it. It replaced `share` (counted gain / total climb),
+ *  which was emitted for the same reason and turned out to rank at chance - see
+ *  the note in Algo.h. Reported on every well so the next revision of
+ *  min_sharpness can be set from measurement rather than from one labelled well.
+ * pramameter: record = record with processed and time data populated;
+ *  parameters = thresholding parameters (detection_margin_time)
+ *  return: RFU per minute, or -1.0 when the curve is too short to measure
+ */
+double window_rate(const Record &record, DiagnosticParameters &parameters)
+{
+    const std::vector<double> &p = record.processed_data;
+    const std::vector<double> &t = record.time_data;
+    if (p.size() < 4 || t.size() != p.size())
+        return -1.0;
+
+    /* Readings per window, taken from the curve's own sampling interval rather than assumed:
+     * timePerLoop is a runtime parameter and a unit set to a different round length must not
+     * silently report a rate over a different span. */
+    double dt = t[1] - t[0];
+    if (dt <= 0.0)
+        return -1.0;
+    size_t n = (size_t)(WINDOW_RATE_MIN / dt + 0.5);
+    if (n == 0 || n >= p.size())
+        return -1.0;
+
+    size_t di = 0;
+    while (di < t.size() && t[di] < parameters.detection_margin_time)
+        di++;
+    if (di + n >= p.size())
+        return -1.0;
+
+    double best = 0.0;
+    for (size_t i = di; i + n < p.size(); i++)
+    {
+        double r = (p[i + n] - p[i]) / WINDOW_RATE_MIN;
+        if (r > best)
+            best = r;
+    }
+    return best;
+}
+
+/***********************************************************************
+ * Function: rise_width_minutes()
+ * Description: How long the curve keeps climbing FAST - the total time the
+ *  smoothed derivative spends at or above SHAPE_DERIV_FRACTION of its own peak,
+ *  measured after the detection margin. Scaling to the curve's own peak rather
+ *  than an absolute rate is what makes this comparable between a bright well and
+ *  a dim one. A real reaction runs out of reagent and holds that band for two to
+ *  three minutes; a well that never makes a step holds it for ten or more.
+ * pramameter: record = record with differential data populated; parameters =
+ *  thresholding parameters (detection_margin_time)
+ *  return: width in minutes, or -1.0 when no positive peak exists
+ */
+double rise_width_minutes(const Record &record, DiagnosticParameters &parameters)
+{
+    const std::vector<double> &d = record.differential_data;
+    if (d.size() < 2 || record.time_data.size() != d.size())
+        return -1.0;
+
+    size_t di = 0;
+    while (di < record.time_data.size() && record.time_data[di] < parameters.detection_margin_time)
+        di++;
+    if (di >= d.size())
+        return -1.0;
+
+    double peak = d[di];
+    for (size_t i = di; i < d.size(); i++)
+        if (d[i] > peak)
+            peak = d[i];
+    if (peak <= 0.0)
+        return -1.0;
+
+    /* Sum of sample intervals rather than (last - first): a shoulder can dip below the band and
+     * come back, and counting the gap would report one long rise where there were two short ones. */
+    const double cut = peak * SHAPE_DERIV_FRACTION;
+    double width = 0.0;
+    for (size_t i = di; i < d.size(); i++)
+    {
+        if (d[i] < cut)
+            continue;
+        double step = (i + 1 < record.time_data.size())
+                          ? (record.time_data[i + 1] - record.time_data[i])
+                          : (record.time_data[i] - record.time_data[i - 1]);
+        width += step;
+    }
+    return width;
+}
+
+/***********************************************************************
+ * Function: removed_by_new_gate()
+ * Description: Would this well have been Positive under the thresholds v2.4.3
+ *  shipped with, but fails them as they now stand? That set is what gets marked
+ *  for review rather than silently dropped.
+ *
+ *  Asks the question the other way round from the classifier: the classifier has
+ *  already run with the CURRENT thresholds and left its verdict in the record, so
+ *  here we only re-test the two gates that moved, against the legacy values, and
+ *  compare. Every other condition - the detection margin, the shape test, the
+ *  slight-positive time - is unchanged between the two, so re-testing them would
+ *  only be a chance to disagree with the classifier about something neither
+ *  threshold touches.
+ * pramameter: record = record already classified; parameters = current thresholds
+ *  return: true if the well was a Positive before these thresholds moved
+ */
+bool removed_by_new_gate(const Record &record, DiagnosticParameters &parameters)
+{
+    const DiagnosticOutcome &oc = record.outcome;
+
+    /* Already Positive under the current thresholds - nothing was removed. */
+    if (strcmp(oc.outcome, OutcomePositive) == 0 ||
+        strcmp(oc.outcome, OutcomeSlightPositive) == 0)
+        return false;
+
+    /* An Error or a Break failed for a reason that has nothing to do with these two gates;
+     * relabelling it would hide the real fault behind a review flag. */
+    if (oc.outcome[0] != '\0' && strcmp(oc.outcome, OutcomeNegative) != 0)
+        return false;
+
+    /* No peak was found, so neither gate is what stopped it. */
+    if (record.peak_features.main_peak.i == -1 || oc.increase < 0)
+        return false;
+
+    const bool passedLegacy = (oc.increase > LEGACY_MIN_INCREASE) &&
+                              (record.peak_features.main_peak.y > LEGACY_MIN_SHARPNESS);
+    const bool passesNow    = (oc.increase > parameters.min_increase) &&
+                              (record.peak_features.main_peak.y > parameters.min_sharpness);
+    /* The lag-phase test sits inside the same branch in the classifier and is unchanged, so a
+     * well that would have been called Error for rising too soon must not be called Flagged. */
+    const bool lagOk        = (oc.transition_time.x >= parameters.detection_margin_time);
+
+    return passedLegacy && !passesNow && lagOk;
+}
+
+/***********************************************************************
+ * Function: predict_outcome()
+ * Description: Runs the classifier, then attaches the advisory fields and
+ *  applies the shape rule. The split exists so the advisory values are
+ *  populated on EVERY exit path of the classifier (no peak, increase below
+ *  threshold, and the main branch) without threading the calls through each
+ *  return.
+ *
+ *  Two builds differ HERE and nowhere else:
+ *    v2.4.3AT (default)             - the gated well is reported Flagged (F)
+ *    v2.4.3a  (SHAPE_RULE_NEGATIVE) - a flagged Positive becomes Negative
+ *  Both compute and report identical numbers, so a run from either build can be
+ *  compared against the other.
+ * pramameter: record = record to classify; parameters = thresholding parameters
+ *  return: none (record.outcome populated)
+ */
+void predict_outcome(Record &record, DiagnosticParameters &parameters)
+{
+    predict_outcome_core(record, parameters);
+
+    /* ADVISORY ONLY - reported, never tested. Must stay AFTER the classifier. */
+    record.outcome.arm_width = arm_width_minutes(record);
+    record.outcome.suspect_score = nsa_score(record, parameters);
+
+    /* Measured on EVERY curve and reported, flagged or not - they cost nothing to emit and they
+     * are the labelled data needed to set thresholds from measurement later. Neither decides
+     * anything: the two-arm shape rule they used to feed was withdrawn (see Algo.h). */
+    record.outcome.window_rate = window_rate(record, parameters);
+    record.outcome.rise_width = rise_width_minutes(record, parameters);
+
+    /* The review gate. shape_flag now carries one bit of meaning - "the new thresholds took this
+     * well" - rather than which arm of a shape rule fired. */
+    record.outcome.shape_flag = removed_by_new_gate(record, parameters) ? 1 : 0;
+
+    if (record.outcome.shape_flag)
+    {
+        /* Every measurement behind the call is left standing either way: Ct, increase, steepness,
+         * window rate and rise_width still describe what the curve did. An operator asking "why is this
+         * not Positive when it clearly rose?" must be able to read the answer off the same record
+         * rather than be told to trust the machine. */
+#ifdef SHAPE_RULE_NEGATIVE
+        strcpy(record.outcome.outcome, OutcomeNegative);
+#else
+        /* Flagged is its own state, not a Positive wearing a mark. Leaving it as P with a flag
+         * beside it puts the burden on every downstream reader to notice a second field; a well
+         * the machine cannot vouch for should not be counted as a detection by anything that
+         * only reads the letter. */
+        strcpy(record.outcome.outcome, OutcomeFlagged);
+#endif
     }
 }

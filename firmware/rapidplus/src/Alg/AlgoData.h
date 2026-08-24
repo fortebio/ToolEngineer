@@ -41,6 +41,16 @@ const char OutcomePositive[] = "Positive";
 const char OutcomeNegative[] = "Negative";
 const char OutcomeSlightPositive[] = "Slight Positive";
 const char OutcomeError[] = "Error";
+// v2.4.3AT only. A well that amplified but whose curve shape does not match a real reaction.
+// It is a THIRD state, not a decorated Positive: the operator is being told the machine cannot
+// stand behind this one, which is a different message from "Positive" and from "Negative" alike.
+// The v2.4.3a build does not use it - there a flagged well is reported OutcomeNegative outright.
+//
+// Every consumer of the outcome INITIAL must know this letter. The letter is what travels:
+// result[i] = outcome[0] feeds the TFT table (displayLCD screen_Result), GET /slots, and the
+// uploaded payload. displayLCD's chain has no else branch, so an unknown letter prints an empty
+// cell rather than anything visible - adding a state without adding its branch loses it silently.
+const char OutcomeFlagged[] = "Flagged";
 
 // Define FeatureDetection class
 class FeatureDetection
@@ -127,6 +137,27 @@ public:
     Point transition_time = Point();
     Point plateau_point = Point();
     double increase = -1.0;
+    // v2.4.3a, ADVISORY ONLY - neither field is read by predict_outcome(), so neither can
+    // change a call. suspect_score counts how many of six non-specific-amplification traits a
+    // curve shows (0-6); arm_width is the width of the rise in minutes at arm_percentile, or
+    // -1 when no arm was found. Not persisted to EEPROM and not part of parastructure.
+    uint8_t suspect_score = 0;
+    double arm_width = -1.0;
+    // v2.4.3a shape measurements. window_rate = largest mean climb over any 4-minute window after
+    // the detection margin, in calibrated units per minute; rise_width = minutes the smoothed
+    // derivative holds at or above 35% of its own peak (a real reaction holds it 2-3 min);
+    // shape_flag = 1 when the review gate took this well (it would have been Positive under the
+    // v2.4.3 thresholds), 0 otherwise.
+    // Both numbers are reported for EVERY well, flagged or not - they cost nothing to emit and
+    // they are the labelled data needed to set these thresholds from measurement later.
+    // What shape_flag BECOMES depends on the build: "Flagged" (F) in v2.4.3AT, "Negative" (N)
+    // in v2.4.3a (SHAPE_RULE_NEGATIVE). -1 means "not measurable here".
+    // NOTE: neither decides anything - the two-arm shape rule they fed was withdrawn (Algo.h).
+    // window_rate REPLACED `share` on 2026-08-16: share ranked at chance against the 68-curve
+    // label set, so it was collecting noise. Do not reinstate it.
+    double window_rate = -1.0;
+    double rise_width = -1.0;
+    uint8_t shape_flag = 0;
     DiagnosticOutcome()
     {
         clear();
@@ -139,6 +170,11 @@ public:
         _json["transition_time"] = transition_time.toJSON();
         _json["plateau_point"] = plateau_point.toJSON();
         _json["increase"] = increase;
+        _json["suspect_score"] = suspect_score;
+        _json["arm_width"] = arm_width;
+        _json["window_rate"] = window_rate;
+        _json["rise_width"] = rise_width;
+        _json["shape_flag"] = shape_flag;
         return _json;
     }
     void fromJSON(JsonObject &_json)
@@ -149,13 +185,28 @@ public:
         JsonObject _plateau_json = _json["plateau_point"];
         plateau_point.fromJSON(_plateau_json);
         increase = _json["increase"];
+        suspect_score = _json["suspect_score"] | 0;
+        arm_width = _json["arm_width"] | -1.0;
+        window_rate = _json["window_rate"] | -1.0;
+        rise_width = _json["rise_width"] | -1.0;
+        shape_flag = _json["shape_flag"] | 0;
     }
 
     void clear()
     {
         memset(outcome, '\0', sizeof(outcome));
         transition_time.clear();
+        // v2.4.3a: plateau_point was never reset here while every other member was, so a
+        // recycled DiagnosticOutcome carried the previous curve's plateau into the next slot.
+        plateau_point.clear();
         increase = -1.0;
+        suspect_score = 0;
+        arm_width = -1.0;
+        // Every new field resets here. This is the defect that left plateau_point stale across
+        // slots in v2.4.3 - a recycled DiagnosticOutcome carrying the previous curve's numbers.
+        window_rate = -1.0;
+        rise_width = -1.0;
+        shape_flag = 0;
     }
 };
 

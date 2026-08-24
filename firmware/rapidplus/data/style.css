@@ -487,6 +487,21 @@ body { --chart-h: calc(100vh - var(--header-h) - var(--nav-h) - 6rem); }
 .res-B { background: #d9f2f4; color: #0d6f78; } /* 5.04 */
 .res-empty { color: var(--muted); }
 
+/* F = Flagged (v2.4.3AT): amplified, but the shape does not match a real reaction. A SIXTH
+   badge alongside P/N/S/E/B rather than a decoration on P - the firmware reports it as its own
+   outcome letter, so the web must not re-describe it as a Positive with a caveat.
+   Purple because the five existing hues are each already spoken for and this state must not be
+   read as any of them: red is a detection, green clear, yellow a weak detection, orange a fault,
+   teal an invalid curve. Measured 5.06:1 on its own tint, in line with the other five, and the
+   letter carries the meaning so no colour-blind reader depends on the hue. cursor:help because
+   the badge holds its explanation in title + aria-label. */
+.res-F { background: #ece0f6; color: #6a3fa0; cursor: help; } /* 5.06 */
+
+/* Deliberately NO extra row tint for .shaped. tr.hit already tints every row that carries a
+   detection and F is in that set, so a second background here would either fight it or be
+   mistaken for it. The class exists so a future Result-tab filter ("show only flagged") has
+   something to select on. */
+
 /* CT column: tabular figures so the decimal points line up down the column, and a
    detected row gets the value in full ink. Everything else stays quiet. */
 .slot-table td.ct { font-variant-numeric: tabular-nums; letter-spacing: -.01em; }

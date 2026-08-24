@@ -49,6 +49,13 @@ void dashboardStartAP();
 // Call from screen_Result() once results are computed. Served via GET /slots.
 void dashboardSetResults(const float *ct, const char *result);
 
+// Cache the per-slot shape measurements for GET /slots: share, rise width (minutes) and the
+// shape flag (0 none, 1 arm A, 2 arm B, 3 both). Called from bResultGet() itself rather than
+// from its three callers - screen_Result, the Bluetooth path and POST /reviewlast all run that
+// one function, so publishing from inside it is the only arrangement in which the shape numbers
+// and the CT/outcome table cannot end up describing different runs. -1 means "not measurable".
+void dashboardSetShape(const double *window_rate, const double *rise_width, const uint8_t *flag);
+
 // Drop the cached results so GET /slots reports ready=false. Call when a new run
 // starts (alongside _sensor6035.clear(), which zeroes lastRunLoops/sensor67Value):
 // the table cache (gResultsReady) otherwise outlives the chart data, so /slots would
