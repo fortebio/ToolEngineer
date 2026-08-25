@@ -355,8 +355,19 @@ bool checkJump(std::vector<double> &_array, double crossing, size_t index)
         return false;
 
     // GUARD: jump phải vượt trội so với biên độ pre-window (8 điểm trước, x2.5)
+    //
+    // MERGE 2.4.4 + 2.4.3AT: this factor is 2.5, the v2.4.3AT value, NOT the 2.2 that v2.4.4
+    // carries. The two numbers were tuned against two different break pipelines and are not
+    // interchangeable. v2.4.4's 2.2 was picked to rescue RPL03008#9 on the OLD path, where the
+    // threshold was still divided by FORTE_SLOPES[i] and no climb repair ran; v2.4.3AT then
+    // removed that division, pinned the size gate at BREAK_JUMP_THRESHOLD and put
+    // neutralise_climbs() upstream of check_breakData - so the curve this factor now judges is
+    // not the curve 2.2 was measured on, and the case it was lowered for no longer arrives here
+    // the same way. Keeping 2.2 would ship a combination neither branch ever measured.
+    // Re-measure before changing it: tools/test_algo_accuracy.py plus the 726-channel label set
+    // are the only thing that can settle it, and both are currently missing from the repo.
     double pre_range = range_of(_array, index - 7, 8);
-    if (jump < pre_range * 2.2)
+    if (jump < pre_range * 2.5)
         return false;
 
     // Flatness measured AFTER the settling transient (skip JUMP_SETTLE_SKIP samples).
