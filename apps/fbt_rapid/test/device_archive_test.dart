@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:RapidPlusApp/models/test_result.dart';
 import 'package:RapidPlusApp/services/result_export.dart';
+import 'package:RapidPlusApp/util/curve_processing.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Kho "tải toàn bộ dữ liệu của 1 máy" (nút tải trên thẻ máy ở tab Lịch sử):
@@ -90,6 +92,53 @@ void main() {
       final a = ResultExport.runFileName(_run());
       final b = ResultExport.runFileName(_run(at: DateTime(2026, 8, 26, 13, 54)));
       expect(a, isNot(b));
+    });
+  });
+
+  group('cây file ảnh đồ thị trong mẻ', () {
+    final png = Uint8List.fromList(const [0x89, 0x50, 0x4E, 0x47]);
+    Map<CurveView, Uint8List> _pngs() => {
+          CurveView.rawDraw: png,
+          CurveView.calibratedDraw: png,
+          CurveView.baseline: png,
+          CurveView.baselineSmoothed: png,
+        };
+
+    test('mọi file của MỘT lần đo nằm trong THƯ MỤC RIÊNG của lần đo đó', () {
+      final entries = ResultExport.chartEntries(_run(), _pngs());
+
+      expect(entries.keys.toSet(), {
+        '2026-08-26_135300_v2.4.4/raw.png',
+        '2026-08-26_135300_v2.4.4/calib.png',
+        '2026-08-26_135300_v2.4.4/baseline.png',
+        '2026-08-26_135300_v2.4.4/baseline_sg.png',
+        '2026-08-26_135300_v2.4.4/data.json',
+      });
+    });
+
+    test('ngăn bằng "/" — dùng chung cho .zip (web) lẫn thư mục (desktop)', () {
+      final entries = ResultExport.chartEntries(_run(), _pngs());
+      expect(entries.keys.any((k) => k.contains(r'\')), isFalse,
+          reason: r'dùng \ thì đường dẫn trong zip hỏng trên mọi hệ');
+    });
+
+    test('hai lần đo → hai thư mục khác nhau, không đè file của nhau', () {
+      final a = ResultExport.chartEntries(_run(), _pngs()).keys.toSet();
+      final b = ResultExport
+          .chartEntries(_run(at: DateTime(2026, 8, 26, 14, 20)), _pngs())
+          .keys
+          .toSet();
+      expect(a.intersection(b), isEmpty);
+    });
+
+    test('data.json trong cây ảnh vẫn là dữ liệu đo đầy đủ', () {
+      final entries = ResultExport.chartEntries(_run(), const {});
+      expect(entries.keys.single, '2026-08-26_135300_v2.4.4/data.json');
+
+      final r = jsonDecode(utf8.decode(entries.values.single))
+          as Map<String, dynamic>;
+      expect((r['slots'] as List).length, 10);
+      expect(((r['slots'] as List).first as Map)['ct'], 22.3);
     });
   });
 

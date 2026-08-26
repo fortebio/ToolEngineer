@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../models/test_result.dart';
 import '../services/app_settings.dart';
 import '../services/cloud_history_api.dart';
+import '../services/fbt_api.dart' show FbtApi;
 import '../services/rapid_erp_api.dart' show buildCloudClient;
 import '../services/result_export.dart';
 import '../theme/app_theme.dart';
@@ -112,6 +115,28 @@ class _DownloadDeviceDialogState extends State<DownloadDeviceDialog> {
     }
   }
 
+  /// JSON của MỘT lần đo = **log NGUYÊN BẢN máy gửi lên server**
+  /// (`GET /sessions/{id}`), chỉ in thụt lề cho dễ đọc chứ không nắn nội dung.
+  ///
+  /// Chỉ **Engineer Server** có endpoint trả payload thô; nguồn Google / RAPID ERP
+  /// chỉ trả dữ liệu ĐÃ nắn về "app shape" nên đành lấy bản app dựng lại — không
+  /// có log gốc ở đâu mà lấy. Lỗi giữa chừng thì rơi về bản tóm tắt (còn CT +
+  /// kết quả) và đếm vào `_failed`, để một lần đo hỏng không làm hỏng cả mẻ.
+  Future<String> _rawJson(TestResult summary) async {
+    const pretty = JsonEncoder.withIndent('  ');
+    final api = _api;
+    try {
+      if (api is FbtApi) {
+        return pretty.convert(await api.fetchSessionJson(summary.id));
+      }
+      return pretty
+          .convert(ResultExport.runToJson(await api.fetchRun(summary.id)));
+    } catch (_) {
+      _failed++;
+      return pretty.convert(ResultExport.runToJson(summary));
+    }
+  }
+
   /// Giai đoạn 3: tải chi tiết + xuất theo định dạng đã chọn.
   Future<void> _download() async {
     final chosen = _summaries.where((e) => _picked.contains(e.id)).toList();
@@ -122,41 +147,50 @@ class _DownloadDeviceDialogState extends State<DownloadDeviceDialog> {
       _error = null;
     });
 
-    final full = <TestResult>[];
+    // Cả mẻ đi vào MỘT nơi: desktop là một thư mục, web là một file .zip.
+    final bulk = BulkExport(widget.device.id);
+    var done = 0;
     String? dir;
     try {
       for (final s in chosen) {
         if (_stopping) break;
-        TestResult run;
-        try {
-          run = await _api.fetchRun(s.id);
-        } catch (_) {
-          // Một lần đo hỏng KHÔNG được làm hỏng cả mẻ. Giữ bản tóm tắt (còn CT
-          // + kết quả, thiếu đường cong) và ĐẾM vào _failed để báo cho người dùng.
-          run = s;
-          _failed++;
-        }
-        full.add(run);
 
-        if (_kind == DownloadKind.charts && mounted) {
+        if (_kind == DownloadKind.json) {
+          // JSON = LOG NGUYÊN BẢN máy đẩy lên server, không phải bản app dựng lại.
+          await bulk.addText(ResultExport.runFileName(s), await _rawJson(s));
+        } else {
+          TestResult run;
+          try {
+            run = await _api.fetchRun(s.id);
+          } catch (_) {
+            // Một lần đo hỏng KHÔNG được làm hỏng cả mẻ. Giữ bản tóm tắt (còn CT
+            // + kết quả, thiếu đường cong) và ĐẾM vào _failed để báo cho người dùng.
+            run = s;
+            _failed++;
+          }
+          if (!mounted) return;
           // Ảnh đồ thị: render y hệt nút "Lưu" ở màn chi tiết (dùng chung
-          // widgets/run_chart_export.dart) rồi lưu 4 PNG + data.json mỗi lần đo.
+          // widgets/run_chart_export.dart); 4 PNG + data.json nằm trong THƯ MỤC
+          // RIÊNG của lần đo đó.
           final pngs = await captureRunCharts(
             context,
             run: run,
             views: CurveView.values,
             readingIntervalSec: widget.readingIntervalSec,
           );
-          if (pngs.isNotEmpty) dir = await ResultExport.saveRun(run, pngs);
+          if (pngs.isNotEmpty) {
+            for (final e in ResultExport.chartEntries(run, pngs).entries) {
+              await bulk.addBytes(e.key, e.value);
+            }
+          }
         }
+
+        done++;
         if (!mounted) return;
-        setState(() => _done = full.length);
+        setState(() => _done = done);
       }
 
-      if (_kind == DownloadKind.json && full.isNotEmpty) {
-        // Mỗi lần đo một file, gom trong MỘT thư mục (không phải một file gộp).
-        dir = await ResultExport.saveDeviceRunsJson(widget.device.id, full);
-      }
+      dir = await bulk.finish();
     } catch (e) {
       if (mounted) setState(() => _error = '${tr('dl.saveError')}: $e');
     }

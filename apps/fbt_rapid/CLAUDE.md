@@ -142,12 +142,20 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
 - **Lưu file**: gốc = `StoragePaths.parent` (static, set từ Cài đặt, mặc định `Documents`).
   Kết quả CT → `FBT_RAPID_ketqua\`; log nhiệt → `FBT_RAPID_templog\`; log đọc serial → `FBT_RAPID_seriallog\`
   (`<COM>_<thời gian>.txt`). Mở thư mục/chọn file = `Process.run('explorer.exe', ['/select,', path])`.
-  **Tải hàng loạt theo máy** (nút ⤓ trên thẻ máy, `download_device_dialog.dart`): **MỘT thư mục
-  `FBT_RAPID_ketqua\<MãMáy>\<MãMáy>_toanbo_<ngày>\`, MỖI lần đo MỘT file `<Ngày>_<Giờ>_<Firmware>.json`**
-  — chủ dự án đã bác kiểu dồn hết vào 1 file gộp (2026-08-26). Tên đặt theo giờ có pad 2 chữ số để
-  **sắp theo tên = sắp theo thời gian**, và trùng tên thì thêm `_2/_3` (trùng giây + trùng firmware
-  là ĐÈ MẤT bản ghi mà không báo gì). Web không có thư mục → tải từng file, ghép tên kho vào ĐẦU tên
-  file (giống nhánh ảnh đồ thị đã làm) — đừng "sửa" thành 1 file cho gọn.
+  **Tải hàng loạt theo máy** (nút ⤓ trên thẻ máy, `download_device_dialog.dart` + `BulkExport`
+  trong `result_export.dart`) — cả mẻ đi vào **MỘT nơi** tên `<MãMáy>_toanbo_<ngày>`:
+  desktop là **thư mục** `FBT_RAPID_ketqua\<MãMáy>\<MãMáy>_toanbo_<ngày>\`, web là **MỘT file
+  `.zip`** cùng tên (`package:archive`, thêm 2026-08-26 — trước đó mỗi file một lượt tải, chọn 50
+  lần đo là trình duyệt hỏi 50 lần). Cây bên trong GIỐNG NHAU ở hai nền tảng:
+  **JSON** → mỗi lần đo một file `<Ngày>_<Giờ>_<Firmware>.json` (chủ dự án đã bác kiểu dồn 1 file
+  gộp); **Ảnh đồ thị** → mỗi lần đo một **thư mục con** `<Ngày>_<Giờ>_<Firmware>\` chứa 4 PNG +
+  `data.json`. Đường dẫn trong `ResultExport.chartEntries` ngăn bằng **`/`** (bản desktop tự đổi
+  sang `\`) — dùng `\` là hỏng zip. Tên giờ pad 2 chữ số để **sắp theo tên = sắp theo thời gian**;
+  trùng tên thì thêm `_2/_3` (trùng giây + trùng firmware là ĐÈ MẤT bản ghi mà không báo gì).
+  ⚠️ **File JSON tải về là LOG NGUYÊN BẢN máy đẩy lên server** (`GET /sessions/{id}` =
+  `FbtApi.fetchSessionJson`), KHÔNG phải `runToJson` app tự dựng — chỉ in thụt lề. Nguồn Google /
+  RAPID ERP không có endpoint trả payload thô nên đành rơi về bản app dựng; đừng "thống nhất" hai
+  đường này. Nút "Lưu" ở màn chi tiết (`saveRun`) vẫn giữ chỗ cũ `<MãMáy>\<Ngày_Giờ_Fw>\`.
 - **Đồ thị** (`fl_chart`): `widgets/ct_chart.dart` (CT), `widgets/temp_chart.dart` (nhiệt). Lưu ảnh =
   bọc `RepaintBoundary` rồi `util/chart_capture.dart::captureBoundaryPng` (chụp off-screen qua Overlay).
 
