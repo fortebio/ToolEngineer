@@ -1707,7 +1707,8 @@ class _FirmwareHistoryDialogState extends State<_FirmwareHistoryDialog> {
         offset += _pageSize;
         if (page.runs.length < _pageSize || runs.length >= total) break;
       }
-      final hist = mergeFirmwareLog(await logF, buildFirmwareHistory(runs));
+      final hist =
+          mergeFirmwareLog(await logF, buildFirmwareHistory(runs), lanDo: runs);
       if (!mounted) return;
       setState(() {
         _hist = hist;

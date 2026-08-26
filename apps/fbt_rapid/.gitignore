@@ -30,3 +30,13 @@ web/*
 .idea/
 *.iml
 .vscode/
+
+# Ảnh do golden test sinh ra KHI FAIL (masterImage/testImage/*Diff) — chỉ là bằng
+# chứng của lần chạy hỏng, không phải golden gốc. Golden gốc nằm ở test/goldens/.
+test/failures/
+
+# Ảnh chụp màn hình của skill run-fbt-rapid (driver.ps1 ghi đè mỗi lần chạy)
+_smoke.png
+
+# Log của công cụ, không phải mã nguồn
+.hallmark/log.json

@@ -155,6 +155,31 @@ class FwLogEntry {
   });
 }
 
+/// Đếm lần đo THUỘC VỀ dòng [i]: cùng version VÀ rơi vào khoảng từ lúc dòng này
+/// bắt đầu tới lúc dòng kế tiếp bắt đầu.
+///
+/// Vì sao không dùng thẳng `runs` của quãng suy đoán: [buildFirmwareHistory] gộp
+/// các lần đo LIỀN NHAU cùng version thành MỘT quãng, nên nạp lại đúng bản đang
+/// chạy (v2.4.5 → v2.4.5) chỉ có một quãng cho HAI dòng nhật ký. Gả cả cụm cho
+/// dòng khớp đầu tiên ⇒ dòng CŨ ôm hết số lần đo, còn dòng của bản MÁY ĐANG CHẠY
+/// hiện "0 lần đo" — đúng lỗi báo về 2026-08-20. Cắt theo mốc nạp thì mỗi dòng
+/// nhận đúng phần của nó.
+///
+/// Vẫn bắt buộc khớp version (không chỉ khoảng thời gian): giờ trong phiên là giờ
+/// MÁY tự khai còn mốc nhật ký là giờ SERVER, lệch đồng hồ thì thà không đếm còn
+/// hơn đếm nhầm sang bản khác.
+int _demLanDo(List<TestResult> lanDo, List<FirmwareStint> rows, int i) {
+  final v = rows[i].version.trim();
+  final tu = rows[i].updatedAt;
+  final den = i + 1 < rows.length ? rows[i + 1].updatedAt : null;
+  return lanDo
+      .where((r) =>
+          r.version.trim() == v &&
+          !r.timestamp.isBefore(tu) &&
+          (den == null || r.timestamp.isBefore(den)))
+      .length;
+}
+
 /// Ghép **mốc thật** (máy tự khai) lên trên **phần suy đoán** (từ các lần đo).
 ///
 /// Vì sao phải ghép chứ không chọn một:
@@ -170,14 +195,17 @@ class FwLogEntry {
 /// nhau, đúng thứ khiến người vận hành hết tin cả bảng.
 ///
 /// Số lần đo thì vẫn lấy từ phiên: nhật ký không đếm lần đo, bỏ qua là mọi dòng
-/// mới hiện "0 lần đo" trong khi máy chạy cả trăm mẫu.
+/// mới hiện "0 lần đo" trong khi máy chạy cả trăm mẫu. Nhưng đếm theo **khoảng
+/// thời gian của từng dòng** ([lanDo]), KHÔNG gả nguyên cụm phiên cho một dòng —
+/// xem [_demLanDo].
 ///
 /// Trả về **mới nhất trước**. `fromVersion` tính lại trên danh sách ĐÃ ghép, nên
 /// phép suy OTA/tay đúng cả ở chỗ giáp ranh hai nguồn.
 List<FirmwareStint> mergeFirmwareLog(
   List<FwLogEntry> log,
-  List<FirmwareStint> stints,
-) {
+  List<FirmwareStint> stints, {
+  List<TestResult> lanDo = const [],
+}) {
   if (log.isEmpty) return stints;
 
   final logAsc = [...log]..sort((a, b) => a.at.compareTo(b.at));
@@ -229,7 +257,7 @@ List<FirmwareStint> mergeFirmwareLog(
         lastSeen: gon[i].lastSeen,
         installedAt: gon[i].installedAt,
         confirmed: gon[i].confirmed,
-        runs: gon[i].runs,
+        runs: lanDo.isEmpty ? gon[i].runs : _demLanDo(lanDo, gon, i),
         isFirstKnown: i == 0,
         fromVersion: i == 0 ? '' : gon[i - 1].version,
       ),
