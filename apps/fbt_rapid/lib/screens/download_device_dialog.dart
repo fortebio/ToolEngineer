@@ -154,7 +154,8 @@ class _DownloadDeviceDialogState extends State<DownloadDeviceDialog> {
       }
 
       if (_kind == DownloadKind.json && full.isNotEmpty) {
-        dir = await ResultExport.saveDeviceArchive(widget.device.id, full);
+        // Mỗi lần đo một file, gom trong MỘT thư mục (không phải một file gộp).
+        dir = await ResultExport.saveDeviceRunsJson(widget.device.id, full);
       }
     } catch (e) {
       if (mounted) setState(() => _error = '${tr('dl.saveError')}: $e');

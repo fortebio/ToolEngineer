@@ -142,6 +142,12 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
 - **Lưu file**: gốc = `StoragePaths.parent` (static, set từ Cài đặt, mặc định `Documents`).
   Kết quả CT → `FBT_RAPID_ketqua\`; log nhiệt → `FBT_RAPID_templog\`; log đọc serial → `FBT_RAPID_seriallog\`
   (`<COM>_<thời gian>.txt`). Mở thư mục/chọn file = `Process.run('explorer.exe', ['/select,', path])`.
+  **Tải hàng loạt theo máy** (nút ⤓ trên thẻ máy, `download_device_dialog.dart`): **MỘT thư mục
+  `FBT_RAPID_ketqua\<MãMáy>\<MãMáy>_toanbo_<ngày>\`, MỖI lần đo MỘT file `<Ngày>_<Giờ>_<Firmware>.json`**
+  — chủ dự án đã bác kiểu dồn hết vào 1 file gộp (2026-08-26). Tên đặt theo giờ có pad 2 chữ số để
+  **sắp theo tên = sắp theo thời gian**, và trùng tên thì thêm `_2/_3` (trùng giây + trùng firmware
+  là ĐÈ MẤT bản ghi mà không báo gì). Web không có thư mục → tải từng file, ghép tên kho vào ĐẦU tên
+  file (giống nhánh ảnh đồ thị đã làm) — đừng "sửa" thành 1 file cho gọn.
 - **Đồ thị** (`fl_chart`): `widgets/ct_chart.dart` (CT), `widgets/temp_chart.dart` (nhiệt). Lưu ảnh =
   bọc `RepaintBoundary` rồi `util/chart_capture.dart::captureBoundaryPng` (chụp off-screen qua Overlay).
 

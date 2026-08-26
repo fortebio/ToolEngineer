@@ -61,44 +61,56 @@ class ResultExport {
         ],
       };
 
-  /// Gói TOÀN BỘ lần chạy của một máy thành một map JSON.
+  /// Tên thư mục kho: `<MãMáy>_toanbo_<ngày>`.
   ///
-  /// Có `exportedAt` + `count` ở đầu vì file này rời khỏi app đi vào tay người
-  /// khác: mở ra phải biết ngay xuất lúc nào và có đủ bao nhiêu bản ghi, khỏi
-  /// phải đếm tay để đoán file có bị cắt giữa chừng không.
-  static Map<String, dynamic> buildDeviceArchive(
-    String deviceId,
-    List<TestResult> runs, {
-    DateTime? exportedAt,
-  }) =>
-      {
-        'deviceId': deviceId,
-        'exportedAt': (exportedAt ?? DateTime.now()).toIso8601String(),
-        'count': runs.length,
-        'runs': [for (final r in runs) runToJson(r)],
-      };
+  /// MỘT thư mục, trong đó MỖI lần đo là MỘT file JSON riêng — cố ý không dồn
+  /// hết vào một file: file gộp thì muốn xem/gửi một lần đo phải kéo theo cả mớ,
+  /// còn thư mục thì tự nó là danh sách, sắp theo tên là sắp theo thời gian.
+  static String archiveDirName(String deviceId, DateTime at) =>
+      '${_safe(deviceId.isEmpty ? "May" : deviceId)}_toanbo_${_date(at)}';
 
-  /// Tên file kho: `<MãMáy>_toanbo_<ngày>.json`.
-  static String archiveFileName(String deviceId, DateTime at) =>
-      '${_safe(deviceId.isEmpty ? "May" : deviceId)}_toanbo_${_date(at)}.json';
+  /// Tên file của MỘT lần đo trong kho: `<Ngày>_<Giờ>_<Firmware>.json`.
+  /// Cùng quy ước với tên thư mục con của [saveRun] → hai đường xuất đọc giống nhau.
+  static String runFileName(TestResult run) =>
+      '${_date(run.timestamp)}_${_time(run.timestamp)}'
+      '_${_safe(run.version.isEmpty ? "NA" : run.version)}.json';
 
-  /// Lưu kho toàn bộ dữ liệu của 1 máy. Desktop: vào `FBT_RAPID_ketqua\<MãMáy>\`
-  /// (trả đường dẫn để caller mời "Mở"). Web: tải xuống Downloads, trả ''.
-  static Future<String> saveDeviceArchive(
+  /// Lưu MỖI lần đo thành MỘT file JSON, gom hết vào MỘT thư mục.
+  ///
+  /// Desktop: `FBT_RAPID_ketqua\<MãMáy>\<MãMáy>_toanbo_<ngày>\` (trả đường dẫn
+  /// để caller mời "Mở"). Web: không có thư mục → tải từng file, tên kho ghép
+  /// vào đầu tên file, trả ''.
+  static Future<String> saveDeviceRunsJson(
     String deviceId,
     List<TestResult> runs,
   ) async {
-    final at = DateTime.now();
-    final name = archiveFileName(deviceId, at);
-    final text = jsonEncode(buildDeviceArchive(deviceId, runs, exportedAt: at));
+    final folder = archiveDirName(deviceId, DateTime.now());
+
+    // Trùng giây + trùng firmware thì trùng tên file. Gần như không xảy ra (một
+    // lần đo mất hàng chục phút) nhưng trùng là MẤT bản ghi mà không báo gì.
+    final seen = <String>{};
+    String uniq(TestResult r) {
+      final base = runFileName(r);
+      if (seen.add(base)) return base;
+      for (var i = 2;; i++) {
+        final alt = base.replaceFirst('.json', '_$i.json');
+        if (seen.add(alt)) return alt;
+      }
+    }
 
     if (kIsWeb) {
-      pf.downloadBytes(name, utf8.encode(text));
+      for (final r in runs) {
+        pf.downloadBytes(
+            '${folder}_${uniq(r)}', utf8.encode(jsonEncode(runToJson(r))));
+      }
       return '';
     }
-    final dir = '$baseDir\\${_safe(deviceId.isEmpty ? "May" : deviceId)}';
+    final dir =
+        '$baseDir\\${_safe(deviceId.isEmpty ? "May" : deviceId)}\\$folder';
     pf.ensureDir(dir);
-    await pf.writeFileText('$dir\\$name', text);
+    for (final r in runs) {
+      await pf.writeFileText('$dir\\${uniq(r)}', jsonEncode(runToJson(r)));
+    }
     return dir;
   }
 
