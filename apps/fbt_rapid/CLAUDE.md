@@ -362,6 +362,19 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   dart:io|Platform\.` trong file tính năng, (2) `grep` chuỗi nhãn trong `main.dart.js` ĐANG HOST
   (bundle cũ hay không), (3) gọi thẳng endpoint xem 401 hay 405. Lần 2026-08-26 cả (1) và (2) đều
   sạch, thủ phạm là (3) — và nó hỏng ở CẢ hai nền tảng chứ không riêng web.
+  ⚠️ **Bước (2) phải dò bằng chuỗi ASCII, ĐỪNG dò bằng tiếng Việt**: dart2js escape ký tự
+  non-ASCII nên `grep -F "Đang đếm số lần chạy" main.dart.js` LUÔN ra 0 kể cả khi tính năng có
+  trong bundle — âm tính giả, suýt kết luận sai 2026-08-26. Dò bằng **khoá i18n** (`dl.tooltip`)
+  hoặc bản tiếng Anh. Đối chứng nhanh: grep một chuỗi tiếng Việt CŨ chắc chắn có; ra 0 nghĩa là
+  phép grep sai chứ không phải bundle thiếu.
+- **"Deploy rồi mà web chưa thấy tính năng" — dò theo CHUỖI THAM CHIẾU, đừng đoán cache**:
+  `curl /app/` xem `index.html` trỏ bootstrap nào → `curl` bootstrap đó lấy `mainJsPath` →
+  `curl` file `main.<hash>.dart.js` đó rồi so **md5 với `build/web/main.dart.js`** và grep khoá
+  i18n. Khớp hết = server đúng, lỗi ở TRÌNH DUYỆT người dùng: `index.html` được trả **KHÔNG kèm
+  `Cache-Control`** (chỉ `Last-Modified`) nên tab đang mở giữ JS cũ vô thời hạn → Ctrl+Shift+R,
+  hoặc thử **cửa sổ ẩn danh** (phép thử dứt điểm). Service worker KHÔNG phải thủ phạm: Flutter đời
+  này sinh bản "tự huỷ" (815 B, `unregister()` + reload) nên không cache app; nó giống nhau mọi
+  lần build, deploy script bỏ qua là ĐÚNG.
 - **Engineer Server trả 500 = tầng Postgres trên box chưa sẵn sàng** (đúng token vẫn 500): bảng
   `sessions`/role chưa tạo (chưa chạy `deploy/schema.sql`) hoặc Postgres/psycopg thiếu — KHÔNG phải
   lỗi app. `/ingest` vẫn 200 (file-first, catch lỗi DB) nên thiết bị đẩy được mà app không đọc được.
