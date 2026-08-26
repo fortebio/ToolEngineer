@@ -41,6 +41,15 @@ PS `SetForegroundWindow` → `GetWindowRect` → `SetCursorPos(rect + offset-the
 GetWindowRect). Click có thể TRƯỢT im lặng (không lỗi) → sau mỗi click phải chụp lại xác nhận;
 kết quả bấm-mở-màn có khi tới CHẬM (fetch mạng) — chụp thấy chưa đổi thì chờ rồi chụp lại
 trước khi kết luận hỏng.
+⚠️ **Click "trượt" hoài thường KHÔNG phải sai toạ độ mà là app đang NẰM DƯỚI cửa sổ khác**
+(VS Code…): Windows chặn cướp focus nên `SetForegroundWindow` im lặng không nâng app lên, và
+click rơi vào **app khác** đang phủ lên. `driver.ps1` chụp theo HWND nên ảnh vẫn ra y hệt dù
+click chẳng tới đâu → nhìn ảnh không phát hiện được. Dấu hiệu: bấm 2–3 lần vẫn không đổi gì.
+Cách chẩn: chụp **CẢ MÀN HÌNH** (`[System.Windows.Forms.SystemInformation]::VirtualScreen` +
+`Graphics.CopyFromScreen`) sẽ thấy ngay ai đang che. Cách nâng app lên thật:
+`(New-Object -ComObject WScript.Shell).AppActivate($pid)` rồi mới click.
+Hộp thoại **native** (chọn/lưu file) cũng là cửa sổ RIÊNG → chụp theo HWND app không thấy nó;
+lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nhận bằng ảnh cả màn hình.
 
 ## Kiến trúc
 - **Entry**: `lib/main.dart` → `_AuthGate` khôi phục phiên đã lưu → `LoginScreen` (chưa đăng nhập)
@@ -325,6 +334,24 @@ trước khi kết luận hỏng.
   khi thiếu token). Lưu ý gốc rễ: **URL đã lưu trong `shared_preferences` KHÔNG tự đổi khi đổi hằng
   default** (`_orDefaultUrl` chỉ áp khi ô TRỐNG) — đổi hợp đồng/URL mặc định thì user phải xóa trống
   ô URL cũ (áp cho cả `cloudApiUrl`/`rapidErpUrl`).
+  **Nguyên nhân 405 THỨ HAI (2026-08-26): route CÓ trong file nhưng SERVICE CHƯA RESTART.**
+  `md5sum` main.py trên box KHỚP repo vẫn không có nghĩa route đã sống — uvicorn giữ code nạp lúc
+  khởi động. Phân biệt: `GET /sessions/1` → 401 (route sống) nhưng `GET /sessions/1/errors` → 405
+  (route chưa nạp). Kiểm đúng chỗ: so `stat -c %y app/main.py` với
+  `systemctl show fbt-receiver -p ActiveEnterTimestamp`, hoặc đếm route trong TIẾN TRÌNH:
+  `curl -s localhost:8080/openapi.json | grep -c '<route>'`.
+  ⚠️ **Chạy lệnh kiểm NGAY SAU `systemctl restart` cho kết quả 0 GIẢ** (2026-08-26): uvicorn mất
+  ~1 s mới `Application startup complete`, curl trong khoảng đó không nối được → `grep -c` ra 0,
+  trông y như restart không ăn. Trước khi kết luận: `systemctl is-active` phải `active` VÀ
+  `curl -w '%{http_code}'` phải 200 — ra `000`/0 byte là service chưa lên chứ không phải thiếu route.
+- **Client CỐ Ý nuốt lỗi → route server thiếu trông y hệt "app không có tính năng"**:
+  `FbtApi.sessionErrors`/`fwLog` bọc `try/catch` trả **rỗng** (lý do đúng: rỗng là kết quả bình
+  thường, và không nên vỡ cả màn chi tiết vì một bảng phụ). Hệ quả: 405/401/CORS đều biểu hiện
+  thành bảng KHÔNG hiện, không một thông báo nào. Gặp "tính năng X không có trên bản web/desktop"
+  thì **đừng đi tìm code bị gate theo nền tảng trước** — kiểm 3 bước rẻ hơn nhiều: (1) `grep kIsWeb|
+  dart:io|Platform\.` trong file tính năng, (2) `grep` chuỗi nhãn trong `main.dart.js` ĐANG HOST
+  (bundle cũ hay không), (3) gọi thẳng endpoint xem 401 hay 405. Lần 2026-08-26 cả (1) và (2) đều
+  sạch, thủ phạm là (3) — và nó hỏng ở CẢ hai nền tảng chứ không riêng web.
 - **Engineer Server trả 500 = tầng Postgres trên box chưa sẵn sàng** (đúng token vẫn 500): bảng
   `sessions`/role chưa tạo (chưa chạy `deploy/schema.sql`) hoặc Postgres/psycopg thiếu — KHÔNG phải
   lỗi app. `/ingest` vẫn 200 (file-first, catch lỗi DB) nên thiết bị đẩy được mà app không đọc được.

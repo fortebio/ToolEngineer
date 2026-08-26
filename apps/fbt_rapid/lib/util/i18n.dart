@@ -73,6 +73,52 @@ const Map<String, Map<String, String>> _t = {
   'history.jsonEmpty': {'vi': 'Chưa có file JSON nào trên server.', 'en': 'No JSON files on the server yet.', 'zh': '服务器上还没有 JSON 文件。', 'th': 'ยังไม่มีไฟล์ JSON บนเซิร์ฟเวอร์'},
   'history.jsonLoadMore': {'vi': 'Tải thêm', 'en': 'Load more', 'zh': '加载更多', 'th': 'โหลดเพิ่ม'},
 
+  // --- Tải toàn bộ dữ liệu của 1 máy (thẻ máy ở tab Lịch sử) ---
+  'dl.tooltip': {'vi': 'Tải toàn bộ dữ liệu của máy này', 'en': 'Download all data for this machine', 'zh': '下载此设备的全部数据', 'th': 'ดาวน์โหลดข้อมูลทั้งหมดของเครื่องนี้'},
+  'dl.title': {'vi': 'Tải dữ liệu: {id}', 'en': 'Download data: {id}', 'zh': '下载数据：{id}', 'th': 'ดาวน์โหลดข้อมูล: {id}'},
+  'dl.counting': {'vi': 'Đang đếm số lần chạy…', 'en': 'Counting runs…', 'zh': '正在统计运行次数…', 'th': 'กำลังนับจำนวนครั้ง…'},
+  'dl.listing': {'vi': 'Đang liệt kê {done}/{total} lần chạy…', 'en': 'Listing {done}/{total} runs…', 'zh': '正在列出 {done}/{total} 次运行…', 'th': 'กำลังแสดง {done}/{total} ครั้ง…'},
+  'dl.progress': {'vi': 'Đã tải {done}/{total} lần chạy', 'en': 'Fetched {done}/{total} runs', 'zh': '已获取 {done}/{total} 次运行', 'th': 'ดึงแล้ว {done}/{total} ครั้ง'},
+  'dl.kindJson': {'vi': 'JSON', 'en': 'JSON', 'zh': 'JSON', 'th': 'JSON'},
+  'dl.kindCharts': {'vi': 'Ảnh đồ thị', 'en': 'Chart images', 'zh': '图表图片', 'th': 'ภาพกราฟ'},
+  'dl.colTime': {'vi': 'Thời gian đo', 'en': 'Measured at', 'zh': '测量时间', 'th': 'เวลาที่วัด'},
+  'dl.colFw': {'vi': 'Firmware', 'en': 'Firmware', 'zh': '固件', 'th': 'เฟิร์มแวร์'},
+  'dl.colResult': {'vi': 'Kết quả', 'en': 'Result', 'zh': '结果', 'th': 'ผลลัพธ์'},
+  'dl.nPositive': {'vi': '{n} slot dương', 'en': '{n} positive', 'zh': '{n} 个阳性', 'th': '{n} ช่องบวก'},
+  'dl.allNegative': {'vi': 'Âm tính', 'en': 'All negative', 'zh': '全部阴性', 'th': 'ลบทั้งหมด'},
+  'dl.downloadN': {'vi': 'Tải {n} lần đo', 'en': 'Download {n} runs', 'zh': '下载 {n} 次运行', 'th': 'ดาวน์โหลด {n} ครั้ง'},
+  'dl.slowCharts': {
+    'vi': 'Mỗi lần đo phải render 4 ảnh đồ thị — chậm hơn JSON nhiều. Bấm Dừng vẫn giữ những ảnh đã lưu.',
+    'en': 'Each run renders 4 chart images — much slower than JSON. Stopping keeps whatever was already saved.',
+    'zh': '每次运行需渲染 4 张图表 — 比 JSON 慢得多。停止后已保存的图片仍保留。',
+    'th': 'แต่ละครั้งต้องเรนเดอร์กราฟ 4 ภาพ — ช้ากว่า JSON มาก หยุดแล้วภาพที่บันทึกไว้ยังอยู่'
+  },
+  'dl.noCurve': {
+    'vi': '⚠ {n} lần đo không lấy được đường cong — chỉ còn CT và kết quả.',
+    'en': '⚠ {n} runs had no curves fetched — only CT and result were kept.',
+    'zh': '⚠ {n} 次运行未能获取曲线 — 仅保留 CT 与结果。',
+    'th': '⚠ {n} ครั้งดึงกราฟไม่ได้ — เหลือเพียง CT และผลลัพธ์'
+  },
+  'dl.slowHint': {
+    'vi': 'Mỗi lần chạy là một request để lấy đường cong — máy chạy nhiều thì việc này mất vài phút. Bấm Dừng vẫn lưu được phần đã tải.',
+    'en': 'Each run needs its own request to fetch the curves — this takes a few minutes for busy machines. Stopping still saves what was fetched.',
+    'zh': '每次运行都需单独请求以获取曲线 — 数据多时需要几分钟。中途停止仍会保存已获取的部分。',
+    'th': 'แต่ละครั้งต้องเรียกแยกเพื่อดึงกราฟ — เครื่องที่ใช้งานมากจะใช้เวลาหลายนาที หยุดกลางคันก็ยังบันทึกส่วนที่ดึงมาแล้ว'
+  },
+  'dl.stop': {'vi': 'Dừng', 'en': 'Stop', 'zh': '停止', 'th': 'หยุด'},
+  'dl.stopping': {'vi': 'Đang dừng…', 'en': 'Stopping…', 'zh': '正在停止…', 'th': 'กำลังหยุด…'},
+  'dl.done': {'vi': 'Đã lưu {n} lần chạy.', 'en': 'Saved {n} runs.', 'zh': '已保存 {n} 次运行。', 'th': 'บันทึก {n} ครั้งแล้ว'},
+  'dl.partial': {
+    'vi': '⚠ Mới lấy {n}/{total} lần chạy — file này CHƯA đủ dữ liệu của máy.',
+    'en': '⚠ Only {n}/{total} runs fetched — this file is NOT the machine\'s complete data.',
+    'zh': '⚠ 仅获取 {n}/{total} 次运行 — 此文件并非该设备的完整数据。',
+    'th': '⚠ ดึงมาเพียง {n}/{total} ครั้ง — ไฟล์นี้ยังไม่ใช่ข้อมูลครบของเครื่อง'
+  },
+  'dl.empty': {'vi': 'Máy này chưa có lần chạy nào để tải.', 'en': 'This machine has no runs to download.', 'zh': '此设备没有可下载的运行记录。', 'th': 'เครื่องนี้ยังไม่มีข้อมูลให้ดาวน์โหลด'},
+  'dl.webSaved': {'vi': 'File đã tải xuống thư mục Downloads của trình duyệt.', 'en': 'The file was downloaded to your browser\'s Downloads folder.', 'zh': '文件已下载到浏览器的下载文件夹。', 'th': 'ไฟล์ถูกดาวน์โหลดไปยังโฟลเดอร์ Downloads ของเบราว์เซอร์'},
+  'dl.saveError': {'vi': 'Lỗi lưu file', 'en': 'Failed to save file', 'zh': '保存文件失败', 'th': 'บันทึกไฟล์ไม่สำเร็จ'},
+  'dl.open': {'vi': 'Mở thư mục', 'en': 'Open folder', 'zh': '打开文件夹', 'th': 'เปิดโฟลเดอร์'},
+
   // --- Tab Quản lý máy (OTA + trạng thái thiết bị) ---
   'nav.manager': {'vi': 'Quản lý máy', 'en': 'Manage machines', 'zh': '设备管理', 'th': 'จัดการเครื่อง'},
   'mm.shellHint': {'vi': 'Chọn bản firmware cho cả fleet hoặc ghim riêng từng máy. Máy nhận ở lần hỏi server kế tiếp.', 'en': 'Pick firmware for the whole fleet, or pin one machine. Machines see it at their next check.', 'zh': '为整个设备群选择固件，或单独指定某台设备。设备会在下次查询时看到。', 'th': 'เลือกเฟิร์มแวร์สำหรับทั้งกลุ่ม หรือปักหมุดเฉพาะเครื่อง เครื่องจะเห็นในการตรวจครั้งถัดไป'},

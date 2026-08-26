@@ -41,6 +41,67 @@ class ResultExport {
     CurveView.baselineSmoothed: 'baseline_sg.png',
   };
 
+  /// Một lần chạy → map JSON. Dùng CHUNG cho `data.json` của một lần chạy và cho
+  /// kho tải-tất-cả, để hai đường xuất không trôi khỏi nhau theo thời gian.
+  static Map<String, dynamic> runToJson(TestResult run) => {
+        'deviceId': run.deviceId,
+        'version': run.version,
+        'time': run.timestamp.toIso8601String(),
+        'slopes': [for (final s in run.slots) s.slope],
+        'slots': [
+          for (final s in run.slots)
+            {
+              'index': s.index,
+              'name': s.name, // tên bệnh (firmware v2.4.3+), '' nếu máy cũ
+              'result': s.classification.label,
+              'ct': s.ct,
+              'slope': s.slope,
+              'data': s.curve, // raw draw
+            },
+        ],
+      };
+
+  /// Gói TOÀN BỘ lần chạy của một máy thành một map JSON.
+  ///
+  /// Có `exportedAt` + `count` ở đầu vì file này rời khỏi app đi vào tay người
+  /// khác: mở ra phải biết ngay xuất lúc nào và có đủ bao nhiêu bản ghi, khỏi
+  /// phải đếm tay để đoán file có bị cắt giữa chừng không.
+  static Map<String, dynamic> buildDeviceArchive(
+    String deviceId,
+    List<TestResult> runs, {
+    DateTime? exportedAt,
+  }) =>
+      {
+        'deviceId': deviceId,
+        'exportedAt': (exportedAt ?? DateTime.now()).toIso8601String(),
+        'count': runs.length,
+        'runs': [for (final r in runs) runToJson(r)],
+      };
+
+  /// Tên file kho: `<MãMáy>_toanbo_<ngày>.json`.
+  static String archiveFileName(String deviceId, DateTime at) =>
+      '${_safe(deviceId.isEmpty ? "May" : deviceId)}_toanbo_${_date(at)}.json';
+
+  /// Lưu kho toàn bộ dữ liệu của 1 máy. Desktop: vào `FBT_RAPID_ketqua\<MãMáy>\`
+  /// (trả đường dẫn để caller mời "Mở"). Web: tải xuống Downloads, trả ''.
+  static Future<String> saveDeviceArchive(
+    String deviceId,
+    List<TestResult> runs,
+  ) async {
+    final at = DateTime.now();
+    final name = archiveFileName(deviceId, at);
+    final text = jsonEncode(buildDeviceArchive(deviceId, runs, exportedAt: at));
+
+    if (kIsWeb) {
+      pf.downloadBytes(name, utf8.encode(text));
+      return '';
+    }
+    final dir = '$baseDir\\${_safe(deviceId.isEmpty ? "May" : deviceId)}';
+    pf.ensureDir(dir);
+    await pf.writeFileText('$dir\\$name', text);
+    return dir;
+  }
+
   /// Lưu các ảnh đồ thị (theo CurveView) + data.json. Trả về đường dẫn folder
   /// (web: tải xuống Downloads và trả '').
   static Future<String> saveRun(
@@ -52,23 +113,7 @@ class ResultExport {
     final sub = '${_date(run.timestamp)}_${_time(run.timestamp)}'
         '_${_safe(run.version.isEmpty ? "NA" : run.version)}';
 
-    final data = {
-      'deviceId': run.deviceId,
-      'version': run.version,
-      'time': run.timestamp.toIso8601String(),
-      'slopes': [for (final s in run.slots) s.slope],
-      'slots': [
-        for (final s in run.slots)
-          {
-            'index': s.index,
-            'name': s.name, // tên bệnh (firmware v2.4.3+), '' nếu máy cũ
-            'result': s.classification.label,
-            'ct': s.ct,
-            'slope': s.slope,
-            'data': s.curve, // raw draw
-          },
-      ],
-    };
+    final data = runToJson(run);
 
     if (kIsWeb) {
       // Không có thư mục trên web → mã máy + thời gian vào TÊN từng file.
