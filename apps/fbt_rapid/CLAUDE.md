@@ -173,6 +173,16 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   `tech_screen.dart if (dart.library.html) tech_screen_web.dart` (home_shell) — bản web cùng tên
   class + constructor. Màn nào chỉ HTTP thì KHÔNG cần bản `_web`. File web-only (`web_*.dart`,
   `util/web_serial.dart`, `util/esptool_js.dart`) import trực tiếp `platform_files_web.dart` được.
+- **DEPLOY WEB giờ chạy `deploy-web.ps1`** (gốc repo), ĐỪNG gõ scp tay nữa: mặc định là **chạy thử**
+  (in danh sách file khác md5, không đụng server), thêm `-Go` mới chép. Script tự lo hết những chỗ
+  từng hỏng: chỉ chép file THẬT SỰ khác (6 MB thay vì 43 MB), `scp -O` từng file, sao lưu
+  `web.bak.<stamp>` trước, kiểm quyền ghi TRƯỚC khi đụng gì, gắn vân tay tên file
+  (`main.<hash>.dart.js`) để qua cache Cloudflare 4 tiếng, và md5 lại sau khi chép.
+  Chạy xong nhớ 2 việc script in ra: nhờ **purge Cloudflare** `https://hub.fortebio.tech/app/*`
+  (chưa purge thì người dùng vẫn thấy bản CŨ, không báo lỗi gì) và dọn file vân tay cũ trên box.
+  ⚠️ **Build web PHẢI chạy bằng PowerShell hoặc `MSYS_NO_PATHCONV=1`**: qua Bash (Git Bash) thì
+  `--base-href /app/` bị MSYS dịch thành `C:/Program Files/Git/app/` → lỗi
+  "*--base-href should start and end with /*".
 - **HOST bản web trên chính Engineer Server (2026-07-14)**: build
   `flutter build web --release --base-href /app/` (KHÔNG `--dart-define=FBT_TOKEN` — token nhúng
   vào JS public là LỘ) rồi scp nguyên `build\web\*` vào `~/fbt_server/web/` trên box → server mount
