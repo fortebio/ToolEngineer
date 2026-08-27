@@ -1474,24 +1474,24 @@ void displayCLD::screen_Result(char key)
           this->display->setTextColor(CYAN);
           this->display->print("| ---|");
         }
-        else if (result[i] == 'F')
-        {
+        //else if (result[i] == 'F')
+        //{
           // F = Flagged (v2.4.3AT): the well amplified, but the shape rule does not accept the
           // curve as a real reaction. The CT stays on screen - it was measured, and hiding it
           // would make F read as "nothing happened", which is the opposite of what it means.
           // "/F" mirrors the "/E" suffix above so the two qualified cells look alike.
-          this->display->setTextColor(MAGENTA);
-          this->display->printf("|%2.0f/F|", CT_value[i]);
-        }
-        else
-        {
+          //this->display->setTextColor(MAGENTA);
+          //this->display->printf("|%2.0f/F|", CT_value[i]);
+        //}
+        //else
+        //{
           // Every branch above tests one letter, so an outcome nobody taught this screen about
           // used to draw NOTHING - the cell kept whatever pixels were under it and the operator
           // read a blank as a result. That is how F would have shipped invisible. Print a mark
           // instead: a cell that says "unknown" is recoverable, a blank one is not.
-          this->display->setTextColor(WHITE);
-          this->display->print("| ?? |");
-        }
+          //this->display->setTextColor(WHITE);
+          //this->display->print("| ?? |");
+        //}
       }
     }
 
