@@ -22,8 +22,13 @@ flutter run -d windows                 # chạy có hot reload
 flutter build windows --debug          # build nhanh để test  → build\windows\x64\runner\Debug\fbt_dxd_app.exe
 flutter build windows --release        # build phát hành      → ...\Release\
 flutter analyze lib/<file>...          # lint nhanh vài file (đừng analyze cả repo nếu không cần)
+flutter analyze lib/ 2>&1 | grep -E "error|warning"   # ĐỌC KẾT QUẢ KIỂU NÀY, đừng | tail
 flutter build web --release            # build WEB → build\web (host tĩnh ở đâu cũng được)
 ```
+⚠️ **`flutter analyze | tail -N` GIẤU MẤT lỗi biên dịch**: repo có sẵn ~11 dòng `info`
+(deprecated_member_use…) nên `error` bị đẩy lên đầu, `tail` chỉ thấy lint vô hại và dòng tổng
+"N issues found" — đọc thành "sạch". Đã suýt commit code không biên dịch được vì cái này
+(2026-08-28). Luôn lọc `grep -E "error|warning"` rồi mới xem tổng số.
 Đóng gói installer (Inno Setup) — **phải `--release` TRƯỚC** vì script trỏ vào thư mục Release.
 `installer.iss` nằm ở **gốc repo app** (source/icon/vendor dùng path tương đối `AddBackslash(SourcePath)`
 — đừng hardcode đường dẫn tuyệt đối); mỗi lần phát hành nhớ nâng `MyAppVersion` trong file.
@@ -55,8 +60,20 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
 - **Entry**: `lib/main.dart` → `_AuthGate` khôi phục phiên đã lưu → `LoginScreen` (chưa đăng nhập)
   hoặc `HomeShell` (đã đăng nhập).
 - **`HomeShell`** (`NavigationRail` dọc + `IndexedStack`): thanh dọc chỉ chứa **tab nội dung** theo vai
-  trò — khách hàng (`user`): **Lịch sử**; nhân sự (`admin`/`root`): **+ Kỹ Thuật**; **`root`**: **+ Quản lý
-  User**. Tab **Kỹ Thuật** (`tech_screen.dart`, mẫu segmented giống Lịch sử) GỘP 3 công cụ: **Log nhiệt**
+  trò — khách hàng (`user`): **Lịch sử**; nhân sự (`admin`/`root`): **+ Kỹ Thuật**; **`root`**: **+ Giám sát
+  + Quản lý User**. Tab **Giám sát** (`monitor_screen.dart`, root-only, thêm 2026-08-28) đọc
+  `GET /monitor` của Engineer Server: uptime dịch vụ · Postgres sống không · CPU/RAM/đĩa · phiên đo
+  24h/7 ngày + biểu đồ 7 cột. Bố cục: **băng phán quyết** (một dòng, mức xấu nhất + LÝ DO) → thanh
+  tài nguyên | chấm trạng thái → **biểu đồ CPU/RAM realtime** → luồng dữ liệu. (Danh sách "máy im
+  lặng >7 ngày" ĐÃ GỠ 2026-08-28 theo yêu cầu chủ dự án — nó đầy máy đã ngừng dùng nên giữ lại là
+  băng phán quyết vàng vĩnh viễn, che mất cảnh báo thật; muốn biết máy nào lâu không gửi thì xem cột
+  "Lần cuối" ở tab Quản lý máy.) Lấy mẫu **5 giây/lần, CHỈ khi tab đang mở** (`TickerMode` — xem gotcha `IndexedStack`), vòng
+  đệm 60 mẫu trong RAM; vòng đó gọi **`GET /monitor?flow=0`** để KHÔNG kéo theo 3 truy vấn quét bảng
+  `sessions` mỗi 5 giây (server cũ chưa biết tham số này thì bỏ qua, vẫn trả đủ). Gác **hai tầng**:
+  server `/monitor` dùng `Depends(ota_admin)` = chỉ token NHÂN SỰ
+  (token thiết bị nằm trong 4 KB đầu mọi `.bin` nên KHÔNG được đọc `disk.free` rồi bơm `/ingest` cho
+  đầy đĩa); còn "chỉ root" là quy ước GIAO DIỆN vì server không phân biệt root với admin (chung
+  token) → đừng thêm dữ liệu nhạy cảm vào endpoint rồi tưởng "chỉ root" che được. Tab **Kỹ Thuật** (`tech_screen.dart`, mẫu segmented giống Lịch sử) GỘP 3 công cụ: **Log nhiệt**
   (`temperature_log_screen.dart`) | **Đọc serial** (`serial_console_screen.dart`) | **Nạp code**
   (`flasher_screen.dart`). **Thiết lập + Đăng xuất** KHÔNG còn là tab mà nằm trong **menu của icon tài khoản**
   (shield = nhân sự root/admin · person = khách hàng) ở `trailing`. Tab **Lịch sử**
@@ -430,6 +447,14 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
 - **Chụp màn hình app GUI (Flutter) bằng Win32 `PrintWindow` PHẢI dùng flag `2`**
   (`PW_RENDERFULLCONTENT`); flag `0` ra ảnh **đen** vì Flutter render qua DWM composition. Chụp theo
   **HWND** nên KHÔNG cần đưa cửa sổ lên foreground (xem `driver.ps1` trong skill `run-fbt-rapid`).
+- **Xuất CSV cho người dùng VIỆT mở bằng Excel — thiếu 2 thứ là hỏng IM LẶNG** (2026-08-26,
+  `services/rollout_csv.dart`): (1) **BOM UTF-8** ở đầu file, không có thì Excel đọc UTF-8 thành
+  ký tự rác, tiếng Việt hỏng sạch; (2) dòng **`sep=,`** đầu file, vì Windows tiếng Việt lấy dấu
+  phẩy làm dấu THẬP PHÂN nên list separator là `;` → mở file phẩy ra là dồn hết vào **MỘT cột**.
+  Đánh đổi: công cụ đọc CSV nghiêm ngặt phải bỏ dòng đầu (`skiprows=1`) — ghi rõ trong doc hàm.
+  Và **luôn escape ô** theo RFC 4180 (bọc nháy khi có `,`/`"`/xuống dòng, nháy trong nhân đôi):
+  mã máy thật có dấu cách (`proto 1`) và cột trạng thái là tiếng Việt có dấu phẩy — không escape
+  là lệch cột mà không ai báo lại.
 - **Xuất PNG đồ thị KHÔNG đồng nhất giữa các màn** (quan trọng khi đổi nền/theme đồ thị): `result_detail`
   chụp 1 layer **off-screen RIÊNG nền trắng** (Overlay `left:-10000`) → PNG **luôn trắng** dù app dark.
   NHƯNG `curve_compare`/`temperature_log` có `RepaintBoundary` **bọc thẳng widget ĐANG hiển thị**
@@ -489,6 +514,22 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   `& .claude\skills\run-fbt-rapid\webshot.ps1 -Out web.png` (tự serve `build\web` bằng
   `web-server.js` node tĩnh cùng thư mục — không cần `flutter run -d web-server`; build web trước).
   Chụp bản web đang HOST THẬT: thêm `-Url https://fbt.basa-luma.ts.net/app/` (bỏ bước serve cục bộ).
+- **`IndexedStack` DỰNG MỌI TAB ngay khi đăng nhập — `initState` của màn chưa ai mở VẪN chạy**:
+  `HomeShell` (và mẫu segmented của tab con) đặt tất cả trang vào `IndexedStack`, nó build hết,
+  chỉ vẽ một cái. Nên mọi tác dụng phụ trong `initState` — `Timer.periodic`, fetch, mở cổng —
+  chạy suốt phiên cho màn KHÔNG ai xem. Bắt được 2026-08-28: tab Giám sát tự làm mới 30 giây
+  → 3 truy vấn gom nhóm mỗi 30 giây vào uvicorn 1 worker, cho trang chưa từng được bấm vào.
+  **Cách xử lý CHUẨN (từ 2026-08-28)**: `HomeShell` bọc mỗi tab trong
+  **`TickerMode(enabled: i == _index)`**, màn nào cần biết mình có đang hiển thị thì đọc
+  `TickerMode.valuesOf(context).enabled` trong `didChangeDependencies` rồi bật/tắt timer.
+  ⚠️ **`IndexedStack` KHÔNG tự tắt ticker** — đã đo bằng probe test: con bị ẩn vẫn
+  `tickerMode=true`, nên phải bọc tay. (`TickerMode.of` đã deprecated, dùng `valuesOf`.)
+  Cách khác tuỳ ca: cờ `lazy: true` của `AppTabScaffold` (chỉ dựng mục ĐANG chọn — Lịch sử
+  dùng vì 3 nguồn cloud sẽ bắn 3 request cùng lúc) · cờ `active:` như `tech_screen` truyền
+  xuống khi màn nắm PHẦN CỨNG và phải nhả (cổng COM) · hoặc bỏ hẳn việc định kỳ.
+  Kèm theo: đừng gọi mạng trong `initState` của màn-là-tab (chạy ngay lúc đăng nhập), và
+  `setState` gọi thẳng trong `didChangeDependencies` là "setState() during build" → hoãn
+  bằng `Future.microtask`.
 - **Lịch sử firmware — số lần đo phải cắt theo MỐC NẠP, không gả nguyên cụm** (`services/firmware_history.dart`):
   `buildFirmwareHistory` gộp các lần đo LIỀN NHAU cùng version thành MỘT quãng, nên **nạp lại đúng bản
   đang chạy** (v2.4.5 → v2.4.5) chỉ có 1 quãng cho **2** mốc nhật ký `fw-log`. `mergeFirmwareLog` bản đầu

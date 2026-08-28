@@ -18,7 +18,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from app import auth as accounts, config, db, ratelimit
+from app import auth as accounts, config, db, monitor as monitor_mod, ratelimit
 from app.logic import canonical_sha256, check_auth, payload_time, safe_name, validate, verify_password
 
 app = FastAPI(title="FBT Home Server", version="1.0")
@@ -196,6 +196,27 @@ async def ingest(request: Request):
     print(f"saved {name} ({len(raw)} bytes, db={'ok' if db_ok else 'FAIL'}, "
           f"file={'ok' if file_ok else 'FAIL'})", flush=True)
     return {"ok": True, "file": name, "db": db_ok, "id": sid}
+
+
+@app.get("/monitor", dependencies=[Depends(ota_admin)])
+def monitor(flow: bool = Query(True, description="False = bỏ phần đếm phiên đo (vòng vẽ realtime)")):
+    """Số liệu giám sát cho tab **Giám sát** của app: dịch vụ, tài nguyên box, luồng dữ liệu.
+
+    `def` chứ KHÔNG `async def`: hàm này đọc `/proc` và **chặn** ở truy vấn
+    Postgres. FastAPI đẩy handler `def` sang threadpool, còn `async def` thì chạy
+    THẲNG trên event loop — unit chạy `--workers 1` nên một lần bấm Làm mới lúc
+    DB chậm sẽ treo cả server (kể cả POST của thiết bị).
+
+    Gác bằng **`ota_admin`** (token nhân sự), KHÔNG phải `auth()`: token thiết bị
+    nằm trong 4 KB đầu mọi file `.bin`, mà `disk.free` cộng với `/ingest` 16 MB
+    mỗi POST là công thức làm đầy đĩa — đĩa đầy thì mất dữ liệu đo (xem docstring
+    `app/monitor.py`). `OTA_ADMIN_TOKEN` chưa đặt thì `ota_admin` rơi về `auth()`,
+    nên deploy file này một mình không đổi hành vi của box hiện tại.
+
+    Server chỉ phân biệt nhân sự/khách hàng (root và admin dùng CHUNG token), nên
+    "chỉ root" vẫn là gác ở giao diện app.
+    """
+    return monitor_mod.snapshot(with_flow=flow)
 
 
 @app.get("/devices", dependencies=[Depends(auth)])

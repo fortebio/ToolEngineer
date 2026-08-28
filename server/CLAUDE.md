@@ -10,13 +10,15 @@ app/                   # Package service (FastAPI) — chạy: uvicorn app.main:
   logic.py             #   Hàm thuần: safe_name, check_auth, validate, hash (scrypt + sha256$ legacy Sheet), parse_*
   db.py                #   Truy cập PostgreSQL: insert_session + query đọc + CRUD bảng users
   auth.py              #   Tài khoản app: dispatch action HỢP ĐỒNG userAuth.js (login/saveUser/...) cho POST /auth
-  main.py              #   FastAPI app + routes (/auth + ingest POST catch-all + /devices /sessions...)
+  monitor.py           #   Số liệu giám sát (/proc, statvfs, đếm phiên) cho GET /monitor — chỉ stdlib
+  main.py              #   FastAPI app + routes (/auth + ingest POST catch-all + /devices /sessions /monitor...)
 scripts/               # CLI dùng lại logic của app/
   reconcile.py         #   Nạp bù file data_plus/ vào DB (idempotent qua dedup nội dung)
   import_accounts.py   #   Di cư tài khoản từ CSV (export Google Sheet Accounts) vào bảng users
   import_drive_backup.py #  Nạp log Drive vào kho backup `drive_sessions` (TÁCH khỏi sessions)
-tests/                 # test_logic.py (thuần) + test_api.py (smoke, TestClient) — chạy được không cần pytest
+tests/                 # test_logic.py + test_monitor.py (thuần) + test_api.py (smoke, TestClient) — chạy được không cần pytest
 deploy/                # schema.sql + fbt-receiver.service (deploy lên server)
+                       # ⚠️ unit nào chạy python PHẢI trỏ venv/bin/python — python3 hệ thống KHÔNG có psycopg
 legacy/                # receiver.py (stdlib cũ) + import_drive_logs.py (Drive — đã bỏ) — giữ tham khảo
 requirements.txt       # fastapi, uvicorn, psycopg (pin version)
 .gitignore             # loại secret (.ssh, note.md, *.env) + data + venv

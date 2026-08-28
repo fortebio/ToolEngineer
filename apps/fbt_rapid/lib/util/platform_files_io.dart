@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
@@ -29,15 +30,22 @@ void openFolder(String path) {
 }
 
 /// Hộp thoại "Save as" rồi ghi [text]. Trả đường dẫn đã lưu, null nếu hủy.
-Future<String?> saveTextFileDialog(String suggestedName, String text) async {
+Future<String?> saveTextFileDialog(
+  String suggestedName,
+  String text, {
+  List<String> extensions = const ['json'],
+}) async {
   final loc = await getSaveLocation(
     suggestedName: suggestedName,
-    acceptedTypeGroups: const [
-      XTypeGroup(label: 'JSON', extensions: ['json'])
+    acceptedTypeGroups: [
+      XTypeGroup(label: extensions.join('/').toUpperCase(), extensions: extensions)
     ],
   );
   if (loc == null) return null;
-  await File(loc.path).writeAsString(text);
+  // Ghi BYTES chứ không writeAsString: caller có thể đã gắn sẵn BOM UTF-8 ở đầu
+  // (CSV cho Excel), mà writeAsString mã hoá lại theo utf8 thì BOM vẫn giữ —
+  // nhưng dùng encode tường minh cho khỏi phụ thuộc mặc định của Dart đổi về sau.
+  await File(loc.path).writeAsBytes(utf8.encode(text));
   return loc.path;
 }
 

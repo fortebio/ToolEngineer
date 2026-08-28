@@ -8,9 +8,12 @@ import '../models/test_result.dart';
 import '../services/firmware_history.dart';
 import '../services/session_store.dart';
 import '../theme/app_theme.dart';
+import '../util/format.dart';
 import '../util/i18n.dart';
 import '../widgets/app_search_box.dart';
 import '../widgets/app_tab_scaffold.dart';
+import '../services/rollout_csv.dart';
+import '../util/platform_files.dart' as pf;
 
 /// Tab **Quản lý máy** (nhân sự) — mẫu segmented giống tab Kỹ Thuật, gộp 2 mục:
 /// **Cập nhật OTA** | **Trạng thái máy**.
@@ -421,7 +424,7 @@ class _OtaTabState extends State<_OtaTab> {
                 fontWeight: FontWeight.w600)),
         const SizedBox(height: 2),
         Text(
-          '${_size(f.size)}'
+          '${formatBytes(f.size)}'
           '${f.modified == null ? '' : ' · ${_date(f.modified!)}'}',
           style: TextStyle(
             fontSize: 12,
@@ -1388,7 +1391,7 @@ class _ConfirmDeployDialogState extends State<_ConfirmDeployDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _kv(context, tr('mm.deployFile'),
-                '${widget.file.name}  ·  ${_size(widget.file.size)}'),
+                '${widget.file.name}  ·  ${formatBytes(widget.file.size)}'),
             _kv(
               context,
               tr('mm.deployAffected'),
@@ -1591,12 +1594,52 @@ class _RolloutDialogState extends State<_RolloutDialog> {
         ),
       ),
       actions: [
+        TextButton.icon(
+          // Chỉ cho xuất khi ĐÃ có danh sách — xuất lúc đang tải ra file rỗng,
+          // trông như "máy nào cũng chưa cập nhật".
+          onPressed: (_devices?.isEmpty ?? true) ? null : _exportCsv,
+          icon: const Icon(Icons.table_view_outlined, size: 18),
+          label: Text(tr('mm.progressCsv')),
+        ),
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: Text(tr('common.close')),
         ),
       ],
     );
+  }
+
+  /// Xuất bảng tiến độ ra CSV. Desktop: hộp thoại "Lưu thành". Web: tải xuống.
+  Future<void> _exportCsv() async {
+    final devices = _devices;
+    if (devices == null || devices.isEmpty) return;
+    final at = DateTime.now();
+    final csv = buildRolloutCsv(
+      target: widget.target,
+      devices: devices,
+      // Dùng lại ĐÚNG phép so version của bảng trên màn hình — nếu tự tính lại
+      // ở đây thì file và bảng có ngày sẽ nói khác nhau.
+      onTarget: (d) => isDeviceOnTarget(d.version, widget.target),
+      exportedAt: at,
+    );
+    try {
+      final path = await pf.saveTextFileDialog(
+        rolloutCsvFileName(widget.target, at),
+        csv,
+        extensions: const ['csv'],
+      );
+      if (!mounted || path == null) return; // null = người dùng bấm Huỷ
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('mm.progressCsvSaved')
+            .replaceFirst('{n}', '${devices.length}')),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('$e'),
+        backgroundColor: Theme.of(context).colorScheme.error,
+      ));
+    }
   }
 
   Widget _row(BuildContext context, CloudDevice d) {
@@ -1951,12 +1994,6 @@ bool? isDeviceOnTarget(String deviceVersion, String targetFileName) {
 }
 
 // --- Helper dùng chung 2 mục -------------------------------------------------
-
-String _size(int bytes) {
-  if (bytes < 1024) return '$bytes B';
-  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  return '${(bytes / 1024 / 1024).toStringAsFixed(2)} MB';
-}
 
 String _date(DateTime t) => '${t.day.toString().padLeft(2, '0')}/'
     '${t.month.toString().padLeft(2, '0')}/${t.year} '
