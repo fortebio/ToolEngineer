@@ -523,16 +523,21 @@ static String ip = "";
 // checkFirmware, v2.4.4): `name != "fbt_" + FirmwareVer + ".bin"`, an EXACT match. Two
 // consequences for this merged build:
 //  1. Never rebuild under a version string already handed to a machine - the fleet would read
-//     "You have the lasted version" forever, silently. That already happened at v2.4.5.
+//     "You have the lasted version" forever, silently. That already happened at v2.4.5, and it
+//     is why NEITHER string below may ever be the bare "v2.4.5": a stale pre-?ver= image is
+//     already published as "fbt_v2.4.5.bin", so a build calling itself "v2.4.5" would match
+//     that file exactly and be un-updatable over the air for the life of the unit. The suffix
+//     is load-bearing here, not decoration - and the #ifndef above lets a PlatformIO env
+//     override it, so the rule has to be stated, not just implemented.
 //  2. ⚠ A trial machine running this build POLLS every 6 h (v2.4.4 dashboardLoop) and the
 //     server's plain "fbt_<ver>.bin" will not match this name -> the machine is offered the
 //     NON-AT build and an operator pressing RED replaces the trial firmware. Either keep these
 //     units off the network, or give the server a file named for this exact string.
 #ifndef FIRMWARE_VERSION
 #ifdef SHAPE_RULE_NEGATIVE
-#define FIRMWARE_VERSION "v2.4.4a"
+#define FIRMWARE_VERSION "v2.4.5a"
 #else
-#define FIRMWARE_VERSION "v2.4.4AT"
+#define FIRMWARE_VERSION "v2.4.5AT"
 #endif
 #endif
 static String FirmwareVer = FIRMWARE_VERSION;

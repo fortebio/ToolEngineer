@@ -511,8 +511,17 @@ calib bắt đầu ở máy phải kết thúc ở máy. Firmware/client vẫn c
 - ⚠️ **`fbt_v2.4.5.bin` trên server là bản build TRƯỚC khi có `?ver=`** — đúng cái bẫy "hai ảnh một
   version" mà `define.h` cảnh báo, và nó **vô hình từ mọi dashboard**. Đo được: 29 lượt `/ota/check`
   trong 3 ngày **không lượt nào** có `&ver=`, `fw_seen.json` chưa từng tồn tại. Vì luật so là khớp
-  chính xác, bản vá **bắt buộc** mang version mới (**v2.4.6**) mới tới được máy. Chi tiết:
+  chính xác, bản vá **bắt buộc** mang version mới mới tới được máy. Chi tiết:
   [docs/history/2026-08-20-bao-cap-nhat-thanh-cong.md](docs/history/2026-08-20-bao-cap-nhat-thanh-cong.md).
+- **Bản đang phát triển là `v2.4.5AT` / `v2.4.5a` (2026-09-09)** — hai chuỗi này chưa từng tới máy
+  nào nên OTA tới được, còn **`"v2.4.5"` TRẦN thì cấm vĩnh viễn**: nó khớp đúng file cũ ở gạch đầu
+  dòng trên, nên máy nạp bản đó đọc "đã mới nhất" và **không bao giờ nhận thêm bản vá nào**. Hậu tố
+  `AT`/`a` ở bản này gánh **hai** việc — trục quy tắc hình dạng, và né chuỗi đã cháy; `#ifndef` cho
+  phép override từ env PlatformIO nên luật phải được **phát biểu** chứ không chỉ được hiện thực.
+  Khoảng hở còn lại nằm ở **SERVER**: máy v2.4.5 poll mỗi 6 h, server còn phục vụ `fbt_v2.4.5.bin`
+  thì tên **không khớp** → máy báo có bản mới → người vận hành bấm ĐỎ là **cài đè bản cũ
+  tiền-`?ver=`**. Đặt đúng `fbt_v2.4.5AT.bin` lên server, hoặc giữ máy thử **ngoài mạng**. Chi tiết:
+  [docs/history/2026-09-09-bump-version-v2.4.5.md](docs/history/2026-09-09-bump-version-v2.4.5.md).
 - **Rollback tự động KHÔNG làm được** — `esp_ota_mark_app_valid_cancel_rollback()` cần bootloader
   build với `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` (arduino-esp32 mặc định TẮT) mà bootloader
   **nằm ngoài đường OTA**. Gọi hàm đó chỉ tạo cảm giác có lưới an toàn. Đường cứu vẫn là
