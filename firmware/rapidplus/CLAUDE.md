@@ -38,6 +38,12 @@ review được từng phần, không phải một khối 20 file.
 
 Bàn giao bản này: [docs/BAN_GIAO_v2.4.3AT.md](docs/BAN_GIAO_v2.4.3AT.md).
 
+⚠ **Đo 2026-09-07: 12/40 guard và 10/52 link tài liệu viện dẫn trong chính file này KHÔNG TỒN TẠI** (chưa
+từng có trong git history, mọi nhánh) — tức ~25% lớp bảo vệ mà tài liệu tuyên bố là thật sự chạy, và
+`check.py` phát hiện được 8 cái nhưng vẫn **exit 0**. Danh sách đầy đủ + kế hoạch đóng khoảng cách (CI
+GitHub Actions, `.claude/skills/`, harness gtest host-side):
+[docs/plan/2026-09-07-rang-buoc-phat-trien-firmware-voi-claude.md](docs/plan/2026-09-07-rang-buoc-phat-trien-firmware-voi-claude.md).
+
 ## Tổng quan
 
 Firmware ESP32 (PlatformIO / Arduino) cho máy **FBT RAPID** — xét nghiệm LAMP-PCR.
@@ -1536,6 +1542,35 @@ dashboard ngừng trả lời và có hồi hay không. Chạy nó rồi **kích
 WiFi chập chờn, hoặc rút nguồn AP vài giây). Verdict: *stayed ALIVE* (không treo) /
 *DEAD rồi RECOVERED* (transient, đúng với fix gốc rễ) / *DEAD không hồi* (deadlock tái hiện,
 phải tắt/bật nguồn = còn bug).
+
+### Debug `http://<id>.local/` vào không được (bán tự động)
+
+```bash
+python tools/probe_mdns.py rpl03003                       # chạy tới khi Ctrl+C
+python tools/probe_mdns.py rpl03003 30                    # dừng sau 30 vòng
+python tools/probe_mdns.py rpl03003 --ip 192.168.0.103    # biết IP: test HTTP cả khi mDNS câm
+python tools/probe_mdns.py rpl03003 --iface 192.168.0.50  # PC nhiều NIC: chỉ định card WiFi
+```
+
+**Một triệu chứng (trang trắng + spinner), BỐN nguyên nhân** — probe đo ba thứ độc lập mỗi
+vòng để tách chúng: truy vấn **mDNS thô** (máy có đáp không), **`getaddrinfo()` của OS**
+(đường trình duyệt đi — hỏng được trong khi truy vấn thô vẫn chạy), và **`GET /home` theo IP**
+(tách "tên hỏng" khỏi "máy hỏng"). Verdict gọi thẳng tên ca: **1** máy không trên LAN (rơi về
+SoftAP — chế độ đó **cố ý không announce mDNS**, nên `.local` không tồn tại) · **2/2b** mDNS
+câm hoặc chập chờn trong khi HTTP vẫn tốt (responder chết, hoặc AP chặn multicast) · **3**
+tên phân giải ra **nhiều IP** = DHCP đổi IP + client cache bản ghi cũ → treo trên IP chết ·
+**4** PC xanh hết = lỗi ở điện thoại. Chạy trên PC **cùng WiFi**, **tắt VPN** (mDNS là
+link-local, khác subnet thì luôn ra ca 1 và sai).
+
+⚠ **`MDNS.begin()` chạy ĐÚNG MỘT LẦN trong đời máy, không retry, không quan sát được từ
+ngoài.** `dashboardBegin()` mở đầu bằng `if (started) return;` và `started` **không bao giờ**
+về false (từ 2026-07-27 `dashboardSuspend()` chỉ đặt `suspended`, không hạ server) → khối
+mDNS nằm sau `started = true` chỉ được đánh giá một lần. `MDNS.begin()` trả `false` lần đó là
+`.local` **chết tới khi tắt/bật nguồn**, dấu hiệu duy nhất là **thiếu** dòng serial
+`[dash] mDNS up ->`. Comment ở `webDashboard.cpp:2114` ("dashboardBegin re-runs after every
+suspend/resume") **đã sai từ 2026-07-27**. Đường thoát có sẵn: màn **QR** in **IP** ngay dưới
+mã — đó chính là lý do 2026-08-04 giữ cả hai dạng địa chỉ. Chẩn đoán + đề xuất sửa:
+[docs/history/2026-09-07-mdns-local-vao-khong-duoc.md](docs/history/2026-09-07-mdns-local-vao-khong-duoc.md).
 
 Mock **được web điều khiển** như máy thật: `waitamp` **đứng chờ** tới khi bấm Start (đỏ),
 `finished` đứng chờ tới khi bấm White. Nhờ vậy gate đặt tên + chart sau run mới test được.
