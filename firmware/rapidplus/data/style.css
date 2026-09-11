@@ -39,6 +39,9 @@
   --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 4px 14px rgba(16, 24, 40, .06);
   --nav-h: 62px;
   --header-h: 80px; /* matches .header min-height; desktop sidebar starts below it */
+  /* The chart's own control row (the pan slider), which sits between the card head
+     and the plot. --chart-h subtracts it, so the chart card still ends where it used to. */
+  --chart-nav-h: 40px;
   --maxw: 480px;
 }
 
@@ -288,12 +291,17 @@ body {
    reach it and every run lost 62px of chart while the nav was hidden. Declared here, --chart-h
    resolves against body's own --nav-h, so .nonav reclaims the strip exactly as it did when the
    formula lived on .chart-container. */
-body { --chart-h: calc(100vh - var(--header-h) - var(--nav-h) - 6rem); }
+body { --chart-h: calc(100vh - var(--header-h) - var(--nav-h) - var(--chart-nav-h) - 6rem); }
 /* Phones reached by the QR code shrink the viewport when the address bar retracts; dvh
    tracks that, vh does not. */
 @supports (height: 100dvh) {
-  body { --chart-h: calc(100dvh - var(--header-h) - var(--nav-h) - 6rem); }
+  body { --chart-h: calc(100dvh - var(--header-h) - var(--nav-h) - var(--chart-nav-h) - 6rem); }
 }
+/* --chart-h is only the height of an EMPTY chart - the card before any curve exists, where
+   there is no run length to derive a height from. As soon as there is data, script.js writes
+   an inline height derived from the reading scale (CHART_MIN_PER_STEP) and never gives it
+   back, and an inline style wins over both of these: one owner of the height, never two
+   fighting. (It used to be the height of the "Fit run" mode, which no longer exists.) */
 .chart-container {
   width: 100%;
   height: var(--chart-h);
@@ -390,6 +398,49 @@ body { --chart-h: calc(100vh - var(--header-h) - var(--nav-h) - 6rem); }
    settled states. :indeterminate cannot be expressed by .checked, which is the whole reason
    the native property is used instead of a third class. */
 .vis-all:indeterminate { background: transparent; box-shadow: inset 0 0 0 3px var(--card), inset 0 0 0 9px var(--blue); }
+
+/* ---------- Chart pan slider ----------
+ * Above the plot, not below it. On a landscape phone the card is taller than the ~272px the
+ * viewport leaves after the header and the bottom nav, so a control under the curve is off
+ * screen exactly when the run is too long to fit and the slider is the thing you need.
+ * There is no scale control beside it, on purpose: the reading scale is fixed, so the only
+ * thing there is to adjust is WHICH stretch of the run is on screen. */
+.chart-nav {
+  display: flex; align-items: center; gap: 0.6rem;
+  min-height: var(--chart-nav-h); margin-bottom: 0.2rem;
+}
+/* min-width: 0 is load-bearing, not defensive: a flex item's automatic minimum size is its
+   content, so without it the slider refuses to shrink below its intrinsic width and pushes
+   the readout - and the page - sideways on a 320px phone. Same trap as `1fr` in a grid. */
+.chart-pan { flex: 1 1 auto; min-width: 0; height: 30px; margin: 0; }
+.chart-win {
+  flex: none; font-size: 0.72rem; font-weight: 600; color: var(--muted);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+/* Disabled = drained of colour, NEVER faded. opacity dims ink and ground together so the
+   ratio collapses from both sides; grayscale is a luminance matrix, so contrast cannot drop.
+   (`cursor: not-allowed` does not exist on a touch screen, which is where this ships.) */
+.chart-pan:disabled { filter: grayscale(1); cursor: default; }
+
+/* The native track/thumb are ~4px and 12px - unusable with gloves on. Both vendor pseudo
+   elements have to be written out: a selector list containing an unknown pseudo element is
+   dropped WHOLE by every engine, so these cannot be merged into one rule. */
+.chart-pan::-webkit-slider-runnable-track {
+  height: 6px; border-radius: 999px; background: var(--hairline);
+}
+.chart-pan::-moz-range-track { height: 6px; border-radius: 999px; background: var(--hairline); }
+.chart-pan::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 24px; height: 24px; margin-top: -9px; border-radius: 50%;
+  background: var(--blue); border: 3px solid var(--card);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .3);
+}
+.chart-pan::-moz-range-thumb {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--blue); border: 3px solid var(--card);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .3);
+}
+.chart-pan { -webkit-appearance: none; appearance: none; background: transparent; }
 .slot-name {
   width: 100%; box-sizing: border-box; font: inherit; font-size: 0.85rem;
   padding: 0.38rem 0.5rem; border: 1px solid var(--hairline); border-radius: 7px;
@@ -958,17 +1009,18 @@ body.nonav .bottom-nav { display: none; }
      curve. Scoped to "chart is showing": with #resultChartCard.hide the layout collapses to
      one column (rule below) and a table pinned to viewport height would be a tall box with a
      short table in it. */
-  #screen-result.active:not(:has(#resultChartCard.hide)) > .card {
-    height: var(--chart-h);
-    min-height: 210px;
-  }
+  /* The chart card now sizes to its CONTENT (head + control row + the height the reading
+     scale derives), and the table card follows that measured height through
+     --chart-card-h, which applyChartScale writes after every rescale. The chart stays the
+     single source - exactly the role --chart-h played before the height became derived -
+     so there is still no second formula to drift. The fallback keeps the old behaviour if
+     the token has not been written yet (chart card still hidden). */
   #screen-result.active:not(:has(#resultChartCard.hide)) > .card:not(#resultChartCard) {
+    height: var(--chart-card-h, var(--chart-h));
+    min-height: 210px;
     overflow-y: auto;
   }
   #resultChartCard { display: flex; flex-direction: column; }
-  /* height:auto undoes the container's own --chart-h here: inside a card that is already
-     that tall it would overflow by exactly the card's padding and head. */
-  #resultChartCard .chart-container { height: auto; flex: 1; min-height: 0; }
   /* The chart card is .hide until "View chart" is pressed. With it gone the 2fr column
      would sit empty and push the table off to the right, so collapse to a single
      comfortable column until there is actually a chart to show. */
@@ -1087,6 +1139,12 @@ body.nonav .bottom-nav { display: none; }
      --header-h: the header shrinks below, and the chart height subtracts this token. */
   :root { --maxw: 700px; --header-h: 56px; }
   .header { min-height: 56px; padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  /* Let the header scroll away here. A landscape phone is ~390px tall and the sticky header
+     plus the fixed bottom nav permanently held 118px of that - 30% - leaving 272px for a
+     chart the reading scale wants ~478px for. The header is branding and the device name;
+     the bottom nav (which actually navigates) stays fixed. Measured: +56px of usable height,
+     and the page was already scrolling here anyway (scrollHeight 991 vs 390). */
+  .header { position: static; }
   .brand-mark img { height: 38px; }
   .device-name { font-size: 1.2rem; }
   .banner { min-height: 64px; padding: 0.6rem 0.9rem; }

@@ -110,6 +110,15 @@
               <label class="chart-vis" title="Show or hide every slot on the chart"><input type="checkbox" class="vis-dot vis-all" checked><span>All slots</span></label>
             </span>
           </div>
+          <!-- The window onto the run. The reading scale itself is fixed (CHART_MIN_PER_STEP),
+               so this row only MOVES the window, it never rescales the curve. ABOVE the chart
+               on purpose: on a landscape phone the card is taller than the 272px the viewport
+               leaves, so anything below the curve is off-screen exactly when it is needed. -->
+          <div class="chart-nav hide" id="homeChartNav">
+            <input type="range" class="chart-pan" id="homeChartPan" min="0" max="0" step="1" value="0"
+                   aria-label="Scroll the chart through the run">
+            <span class="chart-win" id="homeChartWin" aria-live="polite"></span>
+          </div>
           <div id="homeChart" class="chart-container"></div>
         </div>
 
@@ -152,6 +161,11 @@
           <div class="card-head">
             <p class="card-title">Stored run curve</p>
             <label class="chart-vis" title="Show or hide every slot on the chart"><input type="checkbox" class="vis-dot vis-all" checked><span>All slots</span></label>
+          </div>
+          <div class="chart-nav hide" id="resultChartNav">
+            <input type="range" class="chart-pan" id="resultChartPan" min="0" max="0" step="1" value="0"
+                   aria-label="Scroll the chart through the run">
+            <span class="chart-win" id="resultChartWin" aria-live="polite"></span>
           </div>
           <div id="resultChart" class="chart-container"></div>
         </div>

@@ -309,8 +309,21 @@ function setHomeMode(naming, chartMode, curveReady, errorTable) {
     var wantCurve = chartMode && !errorTable && curveReady;
     if (wantCurve && !homeCurveOn) loadCurve(homeView); // just became loadable
     homeCurveOn = wantCurve;
-    homeChartOn = chartMode && !errorTable;
-    if (homeChartOn && homeView.chart) homeView.chart.reflow();
+    var chartOn = chartMode && !errorTable;
+    // The live chart's scale comes from the run's planned length in /config. Re-read it on
+    // the edge the card comes up (a new run may follow a Profile change), not every frame.
+    if (chartOn && !homeChartOn)
+        loadConfig().then(function() {
+            applyChartScale(homeView);
+        });
+    homeChartOn = chartOn;
+    if (homeChartOn && homeView.chart) {
+        homeView.chart.reflow();
+        // The card can become visible without any new curve data (leaving the error table,
+        // or a reload mid-run), and a chart that was display:none measured 0 and skipped its
+        // rescale. Cheap: applyChartScale only writes when a number actually changed.
+        applyChartScale(homeView);
+    }
 }
 
 function show(id, on) {
@@ -374,13 +387,28 @@ function buildSeries() {
     });
 }
 
-function makeChart(divId) {
+/* `legend` is NOT a style choice: on Home the slot table is hidden underneath the chart on a
+   phone (see the mobile rule in style.css), and Highcharts' own "#1..#10" legend is what
+   replaces it. Result keeps its slot table with the colour dots, so a legend there is the
+   same information twice - and in landscape it cost 42 of the 210px the chart had. */
+function makeChart(divId, withLegend) {
     return window.Highcharts ?
         new Highcharts.Chart({
-            chart: { renderTo: divId },
+            chart: {
+                renderTo: divId,
+                // Chrome is the scarcest thing on a landscape phone: measured 117 of 210px
+                // going to axis title + legend + spacing, leaving 93px of curve. Trimmed, but
+                // spacingTop still has to clear HALF THE TOP AXIS LABEL, which is drawn
+                // centred on the topmost gridline - at 2px the "200" was sliced in half.
+                spacingTop: 10,
+                spacingBottom: 2,
+            },
             title: { text: undefined },
             credits: { enabled: false },
-            xAxis: { title: { text: "Time (min)" }, labels: { enabled: true } },
+            legend: { enabled: !!withLegend },
+            // No axis title: the unit and the position in the run are printed beside the pan
+            // slider instead, where they also say WHICH stretch of the run is on screen.
+            xAxis: { title: { text: null }, labels: { enabled: true } },
             yAxis: {
                 title: { text: null },
                 min: 0,
@@ -421,10 +449,21 @@ function makeChart(divId) {
 
 // A chart plus its per-run baseline state. The chart plots value - baseline, so every curve
 // starts at zero and only real amplification lifts it off.
-function makeView(divId, lastUpdateId) {
+function makeView(divId, lastUpdateId, withLegend, live) {
     return {
-        chart: makeChart(divId),
+        chart: makeChart(divId, withLegend),
         luId: lastUpdateId,
+        divId: divId,
+        // live: this view shows the run the machine is producing NOW, so the reading scale
+        // is derived from the run's PLANNED length (see applyChartScale). A stored run is
+        // measured instead: the config may have changed since it was recorded.
+        live: !!live,
+        // Reading-scale state. The scale itself never moves (see CHART_MIN_PER_STEP), so the
+        // only thing that does is the window onto the run: `panStart` is the first visible
+        // minute, `follow` keeps it pinned to the newest data during a live run until the user
+        // drags away.
+        panStart: 0,
+        follow: true,
         baseSum: new Array(10).fill(0),
         baseCount: new Array(10).fill(0),
         baseline: new Array(10).fill(0),
@@ -446,8 +485,10 @@ function makeView(divId, lastUpdateId) {
         nextIdx: 0,
     };
 }
-var homeView = makeView("homeChart", "lastUpdateHome");
-var resultView = makeView("resultChart", null);
+// Home keeps the legend (the slot table is hidden under the chart on a phone); Result does
+// not (its slot table, with the matching colour dots, is right there).
+var homeView = makeView("homeChart", "lastUpdateHome", true, true);
+var resultView = makeView("resultChart", null, false, false);
 
 /* ---------- Baseline window - THE TUNING KNOBS ----------
  * The optics and the solution take a couple of minutes to settle: the first readings climb
@@ -474,6 +515,198 @@ function baselineWindow(total) {
     if (total !== undefined && start >= total) start = 0;
     return { start: start, len: len };
 }
+
+/* ---------- Reading scale - THE OTHER TUNING KNOB ----------
+ * The operator reads the SHAPE of the curve (real sigmoid vs optical drift vs staircase).
+ * With both axes stretched to fit whatever box the viewport gives, that shape was a property
+ * of how the phone was being held: measured on one and the same stored run, one Y gridline
+ * step was worth 0.64 min in landscape (844x390, plot only 93px tall) and 7.28 min in
+ * portrait (412x915) - an 11.4x spread - and the same lift-off drew at 38.1 deg or 83.6 deg.
+ *
+ * So the scale is pinned instead, graph-paper style:
+ *
+ *     ONE Y GRIDLINE STEP IS ALWAYS WORTH CHART_MIN_PER_STEP MINUTES OF X.
+ *
+ * The Y axis already guarantees exactly ten steps whatever the data reaches (see the
+ * tickPositioner), so stating the invariant per STEP - rather than per unit - makes it
+ * independent of the run's amplitude. A bigger screen just zooms both axes together; it
+ * never restretches one against the other. When the run no longer fits at that scale the
+ * chart shows a WINDOW of it and the pan slider moves the window - that is the whole reason
+ * the slider exists. Measured after: 2.5 min/step on every size, lift-off 71.9 deg.
+ *
+ * THERE IS DELIBERATELY NO WAY BACK to the stretch-to-the-box view. A "Fit run" toggle was
+ * built and then removed: two reading scales in one product means the operator has to check
+ * which one is on before believing a slope, and the whole point of this feature is that a
+ * slope means the same thing on every screen without anyone checking anything. The slider
+ * shows the same run one window at a time, at the one scale.
+ *
+ * 2.5 is what desktop already rendered (measured 2.43), i.e. the scale engineers are used to
+ * reading, not a new one invented here. Changing it changes how every curve in the fleet
+ * looks - re-measure with `node tools/probe_chart_scale.js --after` if you touch it. */
+var CHART_MIN_PER_STEP = 2.5; // one Y gridline step == this many minutes of X (THE SHAPE)
+var CHART_PX_PER_MIN_MIN = 10.4; // and never draw the run tighter than this
+
+// Longest channel decides the run length: rawY is indexed by device round, so a channel that
+// dropped a round must not shorten the axis for the others.
+function runLengthMin(v) {
+    var n = 0;
+    for (var i = 0; i < SLOTS; i++)
+        if (v.rawY[i] && v.rawY[i].length > n) n = v.rawY[i].length;
+    return n > 1 ? (n - 1) * minPerRound : 0;
+}
+
+/* The length a LIVE run is going to have, in axis minutes: (rounds - 1) x time per loop,
+ * both from /config - the same parameters the device runs the acquisition from, so the
+ * last live point lands exactly where the stored run's last point does.
+ *
+ * The scale of a live run MUST come from this, never from the rounds received so far.
+ * Deriving it from the data length made the plot a different height on every frame:
+ * measured on a 390x844 phone, 3472px tall at round 3, 4142px at round 6, then shrinking
+ * every 20 seconds until it settled at 261px around round 79 - a curve whose slope changed
+ * with every reading, which is exactly what pinning the scale exists to prevent. 0 when the
+ * config has not been read yet; applyChartScale then falls back to the data length. */
+function plannedRunMin() {
+    var rounds = Number(getPath(cfgCache, "amplification time"));
+    return rounds > 1 ? ((rounds - 1) * perLoopMs()) / 60000 : 0;
+}
+
+function chartNavEls(v) {
+    return {
+        nav: document.getElementById(v.divId + "Nav"),
+        pan: document.getElementById(v.divId + "Pan"),
+        win: document.getElementById(v.divId + "Win"),
+    };
+}
+
+/* Pin the scale, size the plot from it, and put the window where it belongs.
+ * Cheap enough to call on every SSE frame: it only writes to the DOM when a number actually
+ * changed, so it does not fight Highcharts' own redraw. */
+function applyChartScale(v) {
+    if (!v.chart) return;
+    var el = document.getElementById(v.divId),
+        els = chartNavEls(v),
+        // Two lengths, on purpose. The SCALE (px per minute, and the plot height derived
+        // from it) comes from the length the run is going to have - planned while live,
+        // measured once stored. The SLIDER and the tail-follow only reach the rounds that
+        // exist: a live run's window starts at minute 0 and fills in, then slides once the
+        // data outgrows it. Same scale from the first round to the last.
+        dataLen = runLengthMin(v),
+        scaleLen = v.live ? Math.max(dataLen, plannedRunMin()) : dataLen;
+    if (!el) return;
+    // The card is .hide until there is something to show; a hidden element measures 0 and
+    // would bake a nonsense scale in until the next frame.
+    if (!el.clientWidth) return;
+    if (els.nav) els.nav.classList.toggle("hide", scaleLen <= 0);
+    if (scaleLen <= 0) return;
+
+    // Chrome (axis labels, legend, spacing) is whatever the current render says it is,
+    // not a constant: it moves with the font size and with the legend wrapping.
+    var chromeH = v.chart.chartHeight - v.chart.plotHeight,
+        chromeW = v.chart.chartWidth - v.chart.plotWidth,
+        // max(), never min(): capping this by the height that happens to be available
+        // was tried and it BREAKS THE INVARIANT. Shortening the plot does not shorten the
+        // X axis, so the run just stretches across the full width again - measured on a
+        // landscape phone, min/step fell from 2.50 to 1.76 while the chart looked fine.
+        // Height has to follow the scale, never the other way round; a wide-and-short
+        // screen therefore gets a card taller than itself and the page scrolls (see Q2 in
+        // the plan doc). 16:9 screens above ~870px tall fit without scrolling.
+        pxMin = Math.max(CHART_PX_PER_MIN_MIN, (el.clientWidth - chromeW) / scaleLen),
+        wantH = Math.round(pxMin * CHART_MIN_PER_STEP * 10 + chromeH);
+    if (Math.abs(el.clientHeight - wantH) > 1) {
+        el.style.height = wantH + "px";
+        v.chart.reflow(); // chrome is stable once set, so this converges in one pass
+    }
+    var oneRound = minPerRound > 0 ? minPerRound : 1,
+        win = Math.min(v.chart.plotWidth / pxMin, scaleLen);
+    // A window within one round of the whole run IS the whole run: show it entire rather
+    // than clip the last fraction of a round off the end.
+    if (scaleLen - win < oneRound) win = scaleLen;
+    // The slider reaches the data that exists, not the plan. Dead zone of one acquisition
+    // round: a slider whose whole travel is less than the gap between two samples is a
+    // control that cannot change what you see, so it stays parked until the data has
+    // genuinely outgrown the window.
+    var maxStart = Math.max(0, dataLen - win);
+    if (maxStart < oneRound) maxStart = 0;
+    // Live run: stay on the newest data unless the user has dragged away from the end.
+    if (v.follow) v.panStart = maxStart;
+    v.panStart = Math.min(Math.max(0, v.panStart), maxStart);
+    v.chart.xAxis[0].setExtremes(v.panStart, v.panStart + win, true, false);
+    if (els.pan) {
+        // The step must DIVIDE the range exactly. A range input only accepts values of the
+        // form min + n*step and its top end is min + floor((max-min)/step)*step, so a step
+        // of one round (0.333 min) against a max of 13.9 stops the slider at 13.65 - the
+        // end of the run is unreachable, and tail-follow (which re-arms on "slider is at
+        // max") could then never re-arm. So: one notch PER ROUND, and the range is divided
+        // by that whole number of notches.
+        // FLOOR the step and derive max FROM it. Rounding to 6 places can round UP, and a
+        // step even a hair too big makes notches*step exceed max, which drops the top
+        // notch and reproduces the original bug one decimal further down.
+        var notches = Math.max(1, Math.round(maxStart / oneRound)),
+            notch = Math.floor((maxStart / notches) * 1e6) / 1e6;
+        els.pan.step = notch.toFixed(6);
+        els.pan.max = (notch * notches).toFixed(6); // <= maxStart, by at most ~4e-5 min
+        els.pan.value = v.panStart.toFixed(6); // clamped to max by the browser
+        // Disabled, not hidden: the row must not change height when a run grows past one
+        // screenful, and a control that vanishes is harder to find than a dull one.
+        els.pan.disabled = maxStart <= 0;
+    }
+    updateChartWin(v, dataLen);
+    // The Result table card matches the CHART's real height on a wide screen. It reads this
+    // token, so there is no second height formula to drift out of step - the chart is the
+    // one source, exactly as --chart-h was before the height became derived.
+    if (v.divId === "resultChart") {
+        var card = document.getElementById("resultChartCard");
+        if (card && !card.classList.contains("hide"))
+            document.body.style.setProperty("--chart-card-h",
+                Math.round(card.getBoundingClientRect().height) + "px");
+    }
+}
+
+// "12.4 - 38.2 of 39.7 min". Replaces the axis title: it carries the unit AND says which
+// stretch of the run is on screen, which the title never did.
+function updateChartWin(v, runLen) {
+    var els = chartNavEls(v);
+    if (!els.win || !v.chart) return;
+    var ex = v.chart.xAxis[0].getExtremes(),
+        lo = Math.max(0, ex.min || 0),
+        hi = Math.min(runLen, ex.max || runLen),
+        whole = hi - lo >= runLen - 0.05;
+    els.win.textContent = whole ?
+        runLen.toFixed(1) + " min" :
+        lo.toFixed(1) + "–" + hi.toFixed(1) + " of " + runLen.toFixed(1) + " min";
+    if (els.pan)
+        els.pan.setAttribute("aria-valuetext",
+            "Showing minute " + lo.toFixed(1) + " to " + hi.toFixed(1) +
+            " of " + runLen.toFixed(1));
+}
+
+function wireChartNav(v) {
+    var els = chartNavEls(v);
+    if (els.pan)
+        els.pan.addEventListener("input", function() {
+            v.panStart = Number(els.pan.value) || 0;
+            // Re-arm the live tail-follow when the user slides back to the end, so watching a
+            // run does not need a page reload to start tracking again. Half a notch of slack:
+            // the value is snapped to the step and `max` is written rounded, so an exact
+            // equality test here would depend on decimal rounding going the right way.
+            v.follow = v.panStart >= Number(els.pan.max) - Number(els.pan.step) * 0.5;
+            applyChartScale(v);
+        });
+}
+wireChartNav(homeView);
+wireChartNav(resultView);
+
+/* Orientation change is the whole point of this feature, so recompute on it. Highcharts
+ * reflows itself on resize, but the derived height has to be recomputed AFTER that reflow -
+ * hence the timeout rather than doing it inline. */
+var chartScaleTimer = null;
+window.addEventListener("resize", function() {
+    clearTimeout(chartScaleTimer);
+    chartScaleTimer = setTimeout(function() {
+        applyChartScale(homeView);
+        applyChartScale(resultView);
+    }, 150);
+});
 
 /* ---------- Savitzky-Golay smoothing (quadratic, order 2) ----------
  * SG fits a low-degree polynomial to a sliding window and takes the fitted centre,
@@ -552,11 +785,16 @@ function resetView(v) {
         v.rawY[i] = [];
     }
     v.nextIdx = 0;
+    // A new run starts at the newest data again; the pan position of the old run means
+    // nothing here. There is no other view state to keep: the scale is fixed.
+    v.panStart = 0;
+    v.follow = true;
     if (v.chart) {
         v.chart.series.forEach(function(s) {
             s.setData([], false);
         });
         v.chart.redraw();
+        applyChartScale(v);
     }
 }
 
@@ -593,6 +831,7 @@ function loadCurve(v) {
             applyNamesTo(v);
             applyVisTo(v);
             v.chart.redraw();
+            applyChartScale(v); // after the redraw: the scale is derived from the run length
             // A review takes ~8 s on the device, and until it lands /curve returns 0 points. Show
             // Highcharts' loading label instead of a blank chart so the user waits for the redraw
             // (reviewStoredRun's poll calls loadCurve again when ready) instead of assuming it is
@@ -631,6 +870,9 @@ function plotPoint(v, jsonValue) {
     });
     v.nextIdx = idx + 1;
     v.chart.redraw();
+    // The run just got longer: re-pin the scale and, unless the user has panned away, keep
+    // the window on the newest rounds.
+    applyChartScale(v);
     if (v.luId) {
         var lu = document.getElementById(v.luId);
         if (lu) lu.textContent = new Date().toLocaleTimeString();
@@ -1136,7 +1378,10 @@ function showResultPane(which) {
         resultShown = true;
         loadCurve(resultView); // draw the whole stored run
         // Highcharts sizes to a container that was display:none until a moment ago.
-        if (resultView.chart) resultView.chart.reflow();
+        if (resultView.chart) {
+            resultView.chart.reflow();
+            applyChartScale(resultView); // and the derived height comes from that reflow
+        }
     } else {
         loadErrors();
     }
@@ -3001,6 +3246,9 @@ function applySettingLock(busy, cstep) {
 }
 
 /* ---------- SSE wiring ---------- */
+// Before the stream opens: a page loaded mid-run gets its first live rounds from /curve
+// within a second, and the scale for them (plannedRunMin) needs the config to be here first.
+loadConfig();
 if (!!window.EventSource) {
     var source = new EventSource("/events");
 

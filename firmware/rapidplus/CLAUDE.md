@@ -821,6 +821,47 @@ Tài liệu (đọc theo thứ tự này):
 4. [docs/history/2026-08-15-di-tru-cau-hinh-va-tu-kiem-tra.md](docs/history/2026-08-15-di-tru-cau-hinh-va-tu-kiem-tra.md) — di trú cấu hình + tự kiểm tra
 5. ⚠️ [docs/history/2026-08-21-asf-va-quy-tac-hinh-dang.md](docs/history/2026-08-21-asf-va-quy-tac-hinh-dang.md) — **KHÔNG cài bản này lên máy chạy ASF**
 
+**Kế hoạch đang mở (2026-09-10) — chưa có dòng code nào, cả hai đều chờ số:**
+
+- [docs/plan/2026-09-10-dieu-kien-tra-error-tang-som.md](docs/plan/2026-09-10-dieu-kien-tra-error-tang-som.md)
+  — thiết kế lại điều kiện trả **`!`** (outcome `Error`), nhánh *"tăng quá sớm"*
+  (`Ct < detection_margin_time`). Phát hiện trung tâm: **`baseline()` trừ một HẰNG SỐ**, nên cửa sổ
+  baseline **không ảnh hưởng một phép so nào** trong `predict_outcome_core()` — tức lập luận
+  `baseline_start + baseline_range == detection_margin_time` (`define.h:241-245`) **không đứng được**,
+  và ngưỡng 4.0 là quyết định lâm sàng tự do di chuyển. Kèm: nhánh này chặn **trước** bằng chứng hình
+  dạng nên phủ quyết cả sigmoid có pha lag hợp lệ.
+- [docs/plan/2026-09-10-auto-gain-auto-origin.md](docs/plan/2026-09-10-auto-gain-auto-origin.md)
+  — chất lượng đọc cảm biến quang. **Bản sửa 2026-09-10 sau khi ĐO** (`python
+  tools/probe_sensor_noise.py sheet/test.json` tái lập mọi con số): nhiễu là **CỘNG TÍNH**, không
+  đổi theo mức tín hiệu (`σ = −0.0001·mean + 2.06`, r = −0.03 trên dải 1.8×) ⇒ gain `k` cho SNR
+  **`k` lần chứ không phải `√k`**, và quan trọng hơn: nhiễu cộng tính là **mỗi LẦN CHUYỂN ĐỔI**.
+  ⇒ **Đòn bẩy lớn nhất KHÔNG cần đụng gain**: giữ nguyên tích `N × IT` (8×100ms → **4×200ms** →
+  2×400ms) thì **thang lưu không đổi một đơn vị nào** — `slopes`/`origins`/`min_increase`/
+  `min_sharpness` giữ nguyên nghĩa, **không phải recalibrate** — mà nhiễu giảm `√N` (**×1.41 →
+  ×2.0**). Ba điều bản đầu nói sai, nay đã sửa trong file: (1) *"auto-origin không đổi được
+  verdict"* chỉ đúng với origin **hằng số**; đo nền tối **mỗi vòng** là chuỗi thời gian và nó kéo
+  trung vị `sharpness` **4.41 → 2.30**; (2) trần gain **×4** có nửa là ảo vì `DG` là digital
+  (nhân cả tín hiệu lẫn nhiễu lượng tử) — `SENS`/`GAIN` đã kịch trần, trục analog duy nhất còn lại
+  là `ALS_IT`; (3) chênh mức **1.80×** giữa các khe trong khi `slopes` chỉ chênh **1.19×** ⇒ đó là
+  **OFFSET (ánh sáng tạp)** chứ không phải độ nhạy, nên **không** có thiên lệch hệ thống giữa các
+  khe. ⚠ **`min_sharpness = 8.0` an toàn** (`P(>8.0)` từ nhiễu thuần = **0.000%**, cực đại 6.11 trên
+  4000 lượt) — **nhưng 4.0 thì chưa**: dương tính ASF qPCR-xác-nhận nằm ở **4.0–8.4**, mà ở mức nhiễu
+  hôm nay `P(sharpness>4.0)` là **1.6%/kênh = 14.9%/run** — cứ **7 run thì 1 run có một giếng vượt
+  4.0 chỉ bằng nhiễu**. Ở mức **nhẹ hơn 2×** con số đó về **0.00%** — và nhẹ hơn 2× đúng bằng thứ
+  `2 × 400 ms` cho. (Điều kiện **cần**, không đủ: bộ nhãn `tools/algo_labels.tsv` trả lời câu "đường
+  không đặc hiệu có vượt 4.0 không" **không tồn tại trong branch này**.) Chặn cứng: C1 trần **~8191 count/lần đọc** (tổng-8 trong `uint16_t`), C2 không
+  có phép kiểm cận trên lúc chạy, C3 `filterOdds` ngưỡng **tuyệt đối 3 count** — và nó đang gánh
+  **hai** việc, cổng "đã chiếu sáng đủ chưa" là việc thứ hai (xem C10), C4 reconfig giữa run ghi đè
+  bằng `Config_*`, C5 `VEML6035_SET_ALS_IT()` chỉ ghi nửa trường 4 bit, **C6 khoảng cách hai lần
+  đọc là hằng số 100 ms không suy từ `ALS_IT`** (nâng IT mà quên → sai thang 8 lần, im lặng),
+  **C7 `LED_DELAY_TIME` phải ≥ 2×`ALS_IT`** (nay 200 vs 100 — đúng bằng biên, không ai ghi),
+  **C8 `store()` là mệnh đề luôn đúng** (`value != 0 || value < 1000`) — đừng sửa thành `&&`,
+  **C9 `fixValuesErrors()` deref NULL khi `filterOdds` xoá sạch vector**, **C10 `calib_sensor()`
+  không chờ LED ổn định** nên `slopes` đang dựa vào tác dụng phụ của C3, **C11 đọc ngoài mảng
+  `sensor67Value[i][COUNTER-1]` ở vòng đầu**. Ứng viên nguồn nhiễu chung: **heater ĐÁY không kiểm
+  `bSensorReadingGet()`** trong khi hotlid thì có (`PIDControl.cpp:1657`, comment ghi thẳng *"stop
+  heating hotlid, to make sure the power is stable"*).
+
 ## GOTCHAS (quan trọng)
 
 0. **`-Wformat` PHẢI ở trong `build_flags`** (`platformio.ini`). `Print::printf` có sẵn
@@ -1078,13 +1119,60 @@ script hợp nhất alpha xuống nền thật):
   Fallback `vh`/`dvh` giữ bằng **`@supports (height: 100dvh)`** chứ không bằng thứ tự khai báo:
   custom property nhận `100dvh` như token lạ trên trình duyệt cũ và **chỉ hỏng lúc DÙNG**, nên hai
   dòng `--chart-h` liền nhau sẽ không tự rơi về bản `vh`.
+  ⚠ **`--chart-h` nay CHỈ là chiều cao của chart RỖNG** (chưa có run thì không có độ dài để suy
+  chiều cao ra). Có dữ liệu là chiều cao **suy ra từ thang đọc**, `script.js` ghi inline và
+  **không bao giờ nhả lại cho CSS** — xem mục dưới.
+- **HÌNH DẠNG đường cong KHÔNG được đổi theo màn hình — một nấc lưới Y luôn = `CHART_MIN_PER_STEP`
+  (2.5) phút của trục X** (2026-09-10). Trước đó cả hai trục kéo giãn cho vừa khung nên "một nấc
+  đáng bao nhiêu phút" đi từ **0.64** (ngang 844×390, plot chỉ cao **93px**) tới **7.28** (dọc
+  412×915) — **lệch 11.4 lần**, cùng một cú lift-off vẽ ra **38.1°** hay **83.6°**. Nay **1.00×**.
+  - `pxMin = max(CHART_PX_PER_MIN_MIN, plotWidth/scaleLen)`; **`plotHeight` SUY RA từ `pxMin`**;
+    `window = min(plotWidth/pxMin, scaleLen)` → không đủ chỗ thì hiện **thanh trượt** (`.chart-pan`,
+    **TRÊN** chart vì landscape card cao hơn viewport). `tickPositioner` giữ đúng 10 nấc nên phát
+    biểu theo *nấc* độc lập với biên độ dữ liệu.
+  - ⛔ **`scaleLen` của run LIVE = độ dài run DỰ KIẾN (`plannedRunMin()` = `(amplification time − 1)
+    × time per loop`, từ `/config`), KHÔNG phải số vòng đã về** (2026-09-11). Bản 10/09 lấy
+    `runLengthMin(v)` cho cả hai → ở Home, vòng 3 chart cao **3 472 px**, vòng 6 **4 142 px**, co dần
+    mỗi 20 s tới vòng ~79 mới về 383 px — mà `min/step` **vẫn đọc 2.5 suốt**, nên guard cũ xanh (bất
+    biến phát biểu theo *nấc* không nói gì về việc px/phút có đứng yên). `homeView.live = true`,
+    `resultView.live = false` (run lưu vẫn **đo**: config có thể đã đổi sau khi ghi). Hai độ dài
+    cố ý tách: thang từ `scaleLen`, **thanh trượt + bám đuôi từ `dataLen`** (`maxStart = dataLen −
+    win`) — trục hiện sẵn 0..window từ vòng đầu, đường cong điền dần, tới khi data vượt cửa sổ thì
+    thanh trượt bật. `/config` đọc **lúc boot** (trước SSE) và **ở sườn lên của thẻ chart**; chưa có
+    thì rơi về `dataLen`. Guard section 6 chạy run thật trên mock và so chart Home vòng 3/6 với run
+    lưu cùng kích thước; mock có **`POST /__reset`** (test hook) để guard trả nó về idle. Chi tiết:
+    [docs/history/2026-09-11-chart-scale-run-live-theo-do-dai-du-kien.md](docs/history/2026-09-11-chart-scale-run-live-theo-do-dai-du-kien.md).
+  - ⛔ **ĐỪNG kẹp `plotHeight` theo chỗ trống của viewport** — đã thử, **phá bất biến**: rút ngắn
+    plot không rút ngắn trục X, run lại giãn lấp hết bề rộng, `min/step` tụt **2.50 → 1.76** mà
+    chart trông vẫn bình thường. Chiều cao suy ra từ scale, **không bao giờ ngược lại**.
+  - **Thanh trượt: nấc phải CHIA HẾT dải.** `<input type=range>` chỉ nhận `min + n*step` và trần
+    thật là `floor((max-min)/step)*step` → step = một vòng (0.333) với max 13.9 dừng ở **13.65**,
+    hụt một vòng, và tail-follow (tái vũ trang khi "đang ở max") **không bao giờ** tái vũ trang.
+    Chia dải cho `round(maxStart/minPerRound)` nấc, **`floor` cái nấc rồi suy `max` TỪ nó** —
+    `toFixed` làm tròn lên là `notches*step > max` và lỗi tái hiện.
+  - **Legend tắt ở Result, GIỮ ở Home**: trên điện thoại Home **ẩn bảng slot** khi chart lên, và
+    legend `#1..#10` chính là thứ thay thế nó. `spacingTop` phải **10**, không phải 2 — nhãn trục
+    trên cùng vẽ căn giữa đường lưới nên 2px cắt đôi chữ `200`.
+  - ⛔ **KHÔNG có chế độ thứ hai, và đừng thêm lại.** Nút **`Fit run`** (kéo giãn cho vừa khung,
+    `aria-pressed`) đã làm xong rồi **gỡ bỏ trong cùng ngày**: hai thang đọc nghĩa là độ dốc của
+    một đường cong **chỉ có nghĩa sau khi đã kiểm chế độ nào đang bật** — đúng điều kiện mà tính
+    năng này sinh ra để xoá; ảnh chụp gửi cho nhau lại **không mang theo** trạng thái nút. Cái
+    "tổng quan" không mất: thanh trượt cho xem đúng run đó, từng cửa sổ một. Guard ghim **sự vắng
+    mặt**: `querySelectorAll('.chart-fit, [id$=ChartFit]')` phải rỗng **và** chiều cao chart phải
+    còn là inline `<số>px` (nhả về CSS = hành vi cũ đi vòng).
+  - Cái giá đã chốt: điện thoại **ngang** phải cuộn (card ~530px trong 272px khả dụng; header bỏ
+    `sticky` dưới `max-height: 599px` để lấy lại 56px). Guard `node tools/test_chart_scale.js`.
+    Chi tiết + đường đổi ý:
+    [docs/history/2026-09-10-chart-thang-doc-bat-bien-va-thanh-truot.md](docs/history/2026-09-10-chart-thang-doc-bat-bien-va-thanh-truot.md).
 - **Desktop: hai thẻ ở tab Result cao bằng nhau.** `#screen-result.active:not(:has(#resultChartCard.hide))
-  > .card { height: var(--chart-h) }` — cùng token với chart, không có công thức thứ hai để lệch.
-  `#resultChartCard` thành flex column và `.chart-container` bỏ chiều cao riêng (`height: auto; flex: 1;
-  min-height: 0`) để lấp phần còn lại sau card head; thẻ bảng `overflow-y: auto` cuộn 10 hàng bên trong.
+  > .card:not(#resultChartCard) { height: var(--chart-card-h, var(--chart-h)) }` — `--chart-card-h`
+  do `applyChartScale` ghi từ chiều cao **thật** của thẻ chart. Trước 2026-09-10 cả hai thẻ ghim vào
+  `--chart-h`; nay chiều cao chart là **suy ra** nên token đó không còn là sự thật. Vẫn **một nguồn
+  duy nhất** (chart), không có công thức thứ hai để lệch — và thẻ chart **bị loại khỏi rule** (nó tự
+  co theo nội dung), nếu không thì vòng tròn: bảng theo chart, chart theo bảng.
+  `#resultChartCard` vẫn là flex column; thẻ bảng `overflow-y: auto` cuộn 10 hàng bên trong.
   **Phải gác bằng `:not(:has(.hide))`**: khi chưa bấm "View chart" thì layout co về một cột, mà bảng bị
-  ghim theo chiều cao viewport sẽ thành một hộp cao lêu nghêu chứa một bảng ngắn. Đo: 662 vs 662 px,
-  cùng mép trên, chart vẫn được 602/662.
+  ghim theo chiều cao viewport sẽ thành một hộp cao lêu nghêu chứa một bảng ngắn.
 - **Dải 481–819px phải nới `--maxw: 100%`** (media riêng, đặt **TRÊN** rule landscape). `--maxw`
   mặc định 480px viết cho điện thoại, mà **không có gì nới nó lại cho tới 820px** → tablet dọc hoặc
   cửa sổ trình duyệt nửa màn hình render một dải 480px với nền trang hai bên: đo được **170px mỗi
@@ -1248,10 +1336,13 @@ sh tools/test_break_trim.sh                # guard: cửa sổ cắt theo bậc 
 python tools/test_algo_accuracy.py         # guard: đồng thuận với 659 kênh người phán + verdict bất biến khi rescale quang học
 python tools/test_outcome_reset.py         # guard: mọi field của các class trong AlgoData.h phải được clear() reset (rò dữ liệu giữa 10 slot)
 python tools/audit_logs.py <thu-muc-log>   # kiểm định thuật toán chẩn đoán trên kho log thật -> docs/reports/algo-audit.md
+python tools/probe_sensor_noise.py sheet/test.json   # chất lượng đọc quang của một run: luật nhiễu, thành phần chung, sàn sharpness
 node tools/test_full_run.js                # E2E full quy trình (chạy với --full)
 node tools/test_review_reboot.js           # E2E xem lại run sau reboot (tự bật mock --reboot)
 node tools/ui_screenshot.js <outDir>       # chụp 9 trạng thái UI (mobile/landscape/desktop) để soát thiết kế
 node tools/test_chart_ticks.js             # guard: trục Y chart LUÔN đúng 10 nấc, sàn 200 (cần mock chạy sẵn)
+node tools/test_chart_scale.js             # guard: hình dạng đường cong KHÔNG đổi theo màn/hướng cầm, kể cả run LIVE từ vòng đầu (cần mock --slots --reboot; tự POST /__reset)
+node tools/probe_chart_scale.js            # đo thang đọc trên 7 kích thước; --after áp thử bộ hằng số khác
 node tools/test_setting_a11y.js            # guard: tab Setting - nhãn gắn với ô, focus vào/ra panel, Nearby lọc, disabled không dùng opacity (cần mock chạy sẵn)
 node tools/test_no_hscroll.js              # guard: KHÔNG màn nào trượt ngang (320-412px × font 100-130%) + 2 cột Setting bằng nhau (cần mock)
 ```
@@ -1529,6 +1620,29 @@ portal đã xoá 2026-07-29 nhưng cặp EEPROM vẫn là "preferred" mà `conne
 nay có `_wifi_live()` dùng chung cho `/home` + `/wifilist` và hook `POST /wifilist?current=` để
 tái hiện trạng thái fallback. Chi tiết:
 [docs/history/2026-07-27-wifi-connected-badge-and-connect-gate.md](docs/history/2026-07-27-wifi-connected-badge-and-connect-gate.md).
+
+### Đo chất lượng đọc quang từ payload thật (`probe_sensor_noise.py`)
+
+```bash
+python tools/probe_sensor_noise.py sheet/test.json              # payload đã upload
+python tools/probe_sensor_noise.py tools/slots.txt --calibrated # file đã calibrate
+```
+
+Bảy mục: mức + biên tràn · **luật nhiễu** (hồi quy σ theo mức → cộng tính / bắn / nhân) ·
+**bậc thang đồng bộ** (và nó cộng tính hay nhân — quyết định đo nền tối có bắt được không) ·
+**thành phần chung giữa 10 kênh** · `sharpness` trước/sau khi bỏ thành phần chung ·
+**sàn `sharpness` của đường PHẲNG + nhiễu** (thứ `min_sharpness` phải vượt qua) · bảng ngân sách
+`N × IT`.
+
+- **Nó KHÔNG chép công thức từ firmware** — nó mô tả *dữ liệu firmware đã sinh ra*. Chỗ duy nhất
+  soi gương `Alg/Algo.cpp` là chuỗi baseline → SG → đạo hàm → đỉnh, **đánh dấu `MIRROR`**, vì một
+  con số nhiễu tính bằng count thô thì tự nó không nói gì; `min_sharpness` so với `sharpness`, nên
+  phải quy về đúng đại lượng đó. Đó cũng là chỗ duy nhất có thể trôi khỏi firmware.
+- **Stdlib thuần** (tự dựng hệ số Savitzky-Golay kể cả hàng biên bất đối xứng) vì nó phải chạy
+  được trên máy nào đang giữ log, không phải máy có numpy.
+- **Chạy trên NHIỀU run trước khi tin một con số**: thành phần chung đo được **64%** trên
+  RPL250701 nhưng chỉ **9%** trên `tools/slots.txt`. Đó là **một tình trạng của máy**, không phải
+  hằng số của thiết kế.
 
 ### Debug treo dashboard trên máy thật (bán tự động)
 

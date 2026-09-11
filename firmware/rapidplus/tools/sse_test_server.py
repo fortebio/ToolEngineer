@@ -25,6 +25,8 @@ makes the slot-naming gate and the post-run chart actually testable.
                                                        # immediately in the Result tab
   Self-check: python tools/sse_test_server.py selftest
   E2E:        node tools/test_full_run.js              # against --full
+  Test hook:  POST /__reset                            # abandon the run, back to idle
+                                                       # (no device counterpart)
 
 The new_readings payload is the scalar-per-channel form because the client does
 Number(jsonValue[key]) per series. The firmware events.send() must push these same
@@ -94,6 +96,13 @@ CONFIG = json.loads((Path(__file__).resolve().parent.parent /
                      "JsonPara" / "pass_file_initial_Full.json")
                     .read_text(encoding="utf-8").rstrip("@"))
 CONFIG.setdefault("top heater PWM", [[40, 100], [40, 100]])
+# The device derives BOTH /curve intervalMs and "time per loop" from one parameter
+# (parameter.timePerLoop), and runs exactly "amplification time" rounds. The client sizes
+# the LIVE chart from those two keys (plannedRunMin), so the mock must describe its own
+# run here or the live chart is scaled to a 40-minute run while the fast mock plays 44
+# rounds of 1.2 s.
+CONFIG["amplification time"] = AMP_ROUNDS
+CONFIG["time per loop"] = REPORT_INTERVAL_MS
 
 FAKE_WIFI = [
     {"ssid": "FBT-Office", "rssi": -48, "open": False},
@@ -658,7 +667,26 @@ class Handler(SimpleHTTPRequestHandler):
             return self._otaupload()
         if self.path.startswith("/ota"):
             return self._ota_post()
+        if self.path == "/__reset":
+            return self._reset()
         self.send_error(404)
+
+    def _reset(self):
+        """TEST HOOK, no device counterpart: abandon any run in progress and go back to the
+        idle screen of the current mode. A guard that drives a real run through /control
+        (test_chart_scale.js, section 6) leaves the mock mid-amplification for the next
+        two minutes otherwise, and every guard run after it against the same mock then sees
+        a busy device. The stored run (--reboot) and its review state are kept, exactly as
+        the EEPROM record survives a power cycle."""
+        global _naming, _run_start, _amp_start, _lysis_start, _err_table
+        _naming = False
+        _run_start = None
+        _amp_start = None
+        _lysis_start = None
+        _err_table = False
+        PRESSED.clear()
+        print("[reset] back to idle (test hook)")
+        return self._json({"ok": True, "phase": run_state()[0]})
 
     def _otaupload(self):
         """Mirror POST /otaupload: swallow the multipart body, then report success.

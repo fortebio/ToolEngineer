@@ -34,6 +34,7 @@ TOOLS = os.path.join(ROOT, "tools")
 #   "device" - needs real hardware; never run here
 NEEDS = {
     "test_chart_ticks.js":      "mock",
+    "test_chart_scale.js":      "mock",
     "test_setting_a11y.js":     "mock",
     "test_no_hscroll.js":       "mock",
     "test_wifi_e2e.js":         "mock",
@@ -64,6 +65,7 @@ WHAT = {
     "test_wifi_bars.cpp":            "WiFi bars: thresholds match web, bitmaps nest",
     "test_json_key_present.cpp":     "JSON keys present in the upload payload",
     "test_chart_ticks.js":           "chart Y axis always 10 ticks, floor 200",
+    "test_chart_scale.js":           "curve shape does not change with screen/orientation",
     "test_setting_a11y.js":          "Setting tab labels, focus, disabled styling",
     "test_no_hscroll.js":            "no screen scrolls sideways, 320-412 px",
     "test_wifi_e2e.js":              "WiFi list/pick/connect/forget end to end",
