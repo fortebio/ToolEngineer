@@ -146,8 +146,11 @@ public:
     // v2.4.3a shape measurements. window_rate = largest mean climb over any 4-minute window after
     // the detection margin, in calibrated units per minute; rise_width = minutes the smoothed
     // derivative holds at or above 35% of its own peak (a real reaction holds it 2-3 min);
-    // shape_flag = 1 when the review gate took this well (it would have been Positive under the
-    // v2.4.3 thresholds), 0 otherwise.
+    // shape_flag is a REASON CODE, not a bit (v2.4.5at). 0 = not flagged; 1 = the review gate
+    // took this well (Positive under the v2.4.3 thresholds, Negative now); 2 = early rise, the
+    // well amplified with a recognisable shape but Ct < MIN_CALLABLE_CT so the number is not
+    // reportable. See SHAPE_FLAG_* in Algo.h. Only reason 1 is downgradable by
+    // SHAPE_RULE_NEGATIVE - reason 2 cleared both size gates and is not a negative.
     // Both numbers are reported for EVERY well, flagged or not - they cost nothing to emit and
     // they are the labelled data needed to set these thresholds from measurement later.
     // What shape_flag BECOMES depends on the build: "Flagged" (F) in v2.4.3AT, "Negative" (N)

@@ -864,13 +864,17 @@ static void predict_outcome_core(Record &record, DiagnosticParameters &parameter
         // test 3: Test for min sharpness
         if (record.peak_features.main_peak.y > parameters.min_sharpness)
         { // check for main peak having min steepness
-            // Test 4: Test for lag pahse (if applicable)
-            if (record.outcome.transition_time.x < parameters.detection_margin_time)
-            {
-                /* Transition time is too short  => Rising to soon */
-                strcpy(record.outcome.outcome, OutcomeError);
-            }
-            else if (parameters.detect_shape == false)
+            /* v2.4.5at (plan Doi 2): shape evidence is weighed BEFORE the early-Ct gate.
+             *
+             * The early-Ct test used to sit at the top of this chain, so it vetoed wells the
+             * shape test would have accepted. find_sigmoidal_feature() already forces the peak
+             * past discard_index and clamps the left arm there, but transition_time is found by
+             * find_crossing_lower_than_reversed() with NO lower bound - so a wide, early rise can
+             * hold a valid left_arm (detected_shape() true) while its 40%-of-peak crossing lands
+             * just before the margin. That well has a recognisable lag phase, enough increase and
+             * enough steepness, and was still called '!'. Shape evidence is the stronger claim;
+             * the ordering was inverted. */
+            if (parameters.detect_shape == false)
             { // if not using shape detection, give positive
                 strcpy(record.outcome.outcome, OutcomePositive);
             }
@@ -882,12 +886,31 @@ static void predict_outcome_core(Record &record, DiagnosticParameters &parameter
             {
                 strcpy(record.outcome.outcome, OutcomeError);
             }
-        }
 
-        //  if positive, check if slight positive (transition time beyond a certain time i.e. t = 22 min)
-        if (strcmp(record.outcome.outcome, OutcomePositive) == 0 && record.outcome.transition_time.x >= parameters.min_slight_positive_time)
-        {
-            strcpy(record.outcome.outcome, OutcomeSlightPositive);
+            /* Ct policy, applied to the Positive just assigned rather than gating it.
+             *
+             * Both marks live INSIDE the min_sharpness block on purpose. The Slight-Positive
+             * demotion used to sit outside it, which was harmless only because nothing else
+             * assigned Positive; with a second Positive-assigning path above, a demotion that
+             * can see outcomes this block did not set is a trap.
+             *
+             * MIN_CALLABLE_CT (4.0) and min_slight_positive_time (22.0) are mutually exclusive,
+             * so the order between them cannot change a result. */
+            if (strcmp(record.outcome.outcome, OutcomePositive) == 0)
+            {
+                if (record.outcome.transition_time.x < MIN_CALLABLE_CT)
+                {
+                    /* Real reaction, unreportable number. F is exactly this state - "the machine
+                     * will not vouch for this well, repeat the sample" - and E is returned to
+                     * meaning "the analysis could not run". */
+                    strcpy(record.outcome.outcome, OutcomeFlagged);
+                    record.outcome.shape_flag = SHAPE_FLAG_EARLY_RISE;
+                }
+                else if (record.outcome.transition_time.x >= parameters.min_slight_positive_time)
+                {
+                    strcpy(record.outcome.outcome, OutcomeSlightPositive);
+                }
+            }
         }
         return;
     }
@@ -1121,11 +1144,19 @@ void predict_outcome(Record &record, DiagnosticParameters &parameters)
     record.outcome.window_rate = window_rate(record, parameters);
     record.outcome.rise_width = rise_width_minutes(record, parameters);
 
-    /* The review gate. shape_flag now carries one bit of meaning - "the new thresholds took this
-     * well" - rather than which arm of a shape rule fired. */
-    record.outcome.shape_flag = removed_by_new_gate(record, parameters) ? 1 : 0;
+    /* The review gate. shape_flag is a REASON CODE (SHAPE_FLAG_* in Algo.h), not a bit: this gate
+     * sets SHAPE_FLAG_THRESHOLD_BAND, and predict_outcome_core() may already have set
+     * SHAPE_FLAG_EARLY_RISE. Two different questions, so they must stay distinguishable. */
+    /* v2.4.5at: predict_outcome_core() may already have flagged this well SHAPE_FLAG_EARLY_RISE.
+     * This assignment was unconditional and would clobber it. The two reasons answer different
+     * questions, so the gate only runs when core left the flag clear. */
+    if (record.outcome.shape_flag == SHAPE_FLAG_NONE)
+        record.outcome.shape_flag = removed_by_new_gate(record, parameters) ? SHAPE_FLAG_THRESHOLD_BAND : SHAPE_FLAG_NONE;
 
-    if (record.outcome.shape_flag)
+    /* Only the threshold-band reason is downgradable. An early riser cleared both min_increase
+     * and min_sharpness, so calling it Negative in the a-variant would assert the opposite of
+     * what was measured; it stays Flagged in both builds. */
+    if (record.outcome.shape_flag == SHAPE_FLAG_THRESHOLD_BAND)
     {
         /* Every measurement behind the call is left standing either way: Ct, increase, steepness,
          * window rate and rise_width still describe what the curve did. An operator asking "why is this

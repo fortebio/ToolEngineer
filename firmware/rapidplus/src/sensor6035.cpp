@@ -214,6 +214,22 @@ void sensor6035::setStepeSensorstart()
 }
 
 #define BREAKING_START_INDEX 6
+
+/* v2.4.5at (plan Doi 5): check_risingData() takes a SAMPLE INDEX. bResultGet() was passing
+ * detection_margin_time in MINUTES (sample 4 = 1.3 min) while the upload path converted it
+ * (sample 12 = 4.0 min), so the screen and the upload could begin their rising-trend scan at
+ * different points and disagree about the same well. One conversion now, used by both.
+ * timePerLoop is settable from web/Serial, so the divide is guarded. At the shipped default
+ * (timePerLoop = 20 s) this returns 12 for 4.0 min - identical to the old upload-path value,
+ * so the upload path replays with zero delta; only the display path moves, which is the point. */
+static int marginToSampleIndex(double minutes)
+{
+    const unsigned long perLoopMs = OPTO_INTERVAL;
+    if (perLoopMs == 0 || minutes <= 0.0)
+        return 0; /* unset or garbage: scan from the start rather than divide by zero */
+    return (int)(minutes * 60000.0 / (double)perLoopMs);
+}
+
 #define RISING_WINDOW 6
 /***********************************************************************
  * Function: bResultGet()
@@ -319,7 +335,7 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
             Serial.printf("Slot %d: neutralised %u vertical climb(s)\n", (int)(i + 1),
                           (unsigned)climbsFixed);
         size_t breakIndex = check_breakData(recordIn.raw_data, BREAK_JUMP_THRESHOLD, BREAKING_START_INDEX);
-        size_t risingIndex = check_risingData(recordIn.raw_data, recordIn.parameters.detection_margin_time, RISING_WINDOW);
+        size_t risingIndex = check_risingData(recordIn.raw_data, marginToSampleIndex(recordIn.parameters.detection_margin_time), RISING_WINDOW);
     if (breakIndex)
     {
         if (risingIndex)
@@ -493,7 +509,7 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
         // two paths begin their rising-trend scan at different points (sample 12 = 4.0 min here,
         // sample 4 = 1.3 min there). Left alone pending measurement; changing it moves results on
         // the display path. See docs/history/2026-08-13-thuat-toan-goi-ket-qua-v2.4.3a.md.
-        size_t risingIndex = check_risingData(recordIn.raw_data, recordIn.parameters.detection_margin_time * (60000 / OPTO_INTERVAL), RISING_WINDOW);
+        size_t risingIndex = check_risingData(recordIn.raw_data, marginToSampleIndex(recordIn.parameters.detection_margin_time), RISING_WINDOW);
 
         // --------------------------------------------------
         auto timeBegin = recordIn.time_data.begin();

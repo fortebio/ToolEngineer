@@ -533,11 +533,17 @@ static String ip = "";
 //     server's plain "fbt_<ver>.bin" will not match this name -> the machine is offered the
 //     NON-AT build and an operator pressing RED replaces the trial firmware. Either keep these
 //     units off the network, or give the server a file named for this exact string.
+// v2.4.5at BRANCH: the algorithm changed here (early-rise wells now resolve through the shape
+// test and land on F with a reason code, instead of being vetoed as '!'), so these builds MUST
+// NOT claim the strings base v2.4.5 already claims. checkFirmware() compares
+// `name != "fbt_" + FirmwareVer + ".bin"` EXACTLY - a unit on this build calling itself
+// "v2.4.5AT" would match the base-v2.4.5 image on the server, read "You have the latest
+// version" and never update, which is failure mode 1 above. Suffix bumped, not decoration.
 #ifndef FIRMWARE_VERSION
 #ifdef SHAPE_RULE_NEGATIVE
-#define FIRMWARE_VERSION "v2.4.5a"
+#define FIRMWARE_VERSION "v2.4.5a1"
 #else
-#define FIRMWARE_VERSION "v2.4.5AT"
+#define FIRMWARE_VERSION "v2.4.5AT1"
 #endif
 #endif
 static String FirmwareVer = FIRMWARE_VERSION;

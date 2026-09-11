@@ -623,6 +623,17 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
       outcomeObj["transition_time"] = outcome[i].transition_time.toJSON();
       outcomeObj["plateau_point"] = outcome[i].plateau_point.toJSON();
       outcomeObj["increase"] = outcome[i].increase;
+      /* v2.4.5at: the shape measurements and the flag REASON now leave the instrument.
+       * They were computed on every curve, written to the Serial dump and then dropped, so the
+       * one discriminator that separates a real rise from a slow drift never reached the server
+       * - which meant no threshold for it could be set from field data, and a well flagged F
+       * arrived with no way to say WHY it was flagged. get_outcome[i] is a whole-struct copy
+       * (sensor6035.cpp), so these are already populated here. */
+      outcomeObj["shape_flag"] = outcome[i].shape_flag;
+      outcomeObj["rise_width"] = rounded((float)outcome[i].rise_width);
+      outcomeObj["window_rate"] = rounded((float)outcome[i].window_rate);
+      outcomeObj["arm_width"] = rounded((float)outcome[i].arm_width);
+      outcomeObj["suspect_score"] = outcome[i].suspect_score;
 
       peak_features[i].main_peak.x = rounded((float)peak_features[i].main_peak.x);
       peak_features[i].main_peak.y = rounded((float)peak_features[i].main_peak.y);

@@ -65,6 +65,50 @@ double arm_width_minutes(const Record &record);
 #define BREAK_JUMP_THRESHOLD 20.0
 
 /* ---------------------------------------------------------------------------
+ * MIN_CALLABLE_CT - the earliest transition time that may still be REPORTED as a number.
+ *
+ * Same disease as BREAK_JUMP_THRESHOLD above: detection_margin_time carries three unrelated
+ * jobs, so moving it for one of them silently moves the other two.
+ *     find_sigmoidal_feature()  -> discard_index, the peak-search floor      (signal processing)
+ *     predict_outcome_core()    -> the earliest callable Ct                  (CLINICAL)
+ *     sensor6035 check_risingData -> where the rising-trend scan starts      (signal processing)
+ * Only the middle one is a judgement about what the assay may claim; the other two are about
+ * where it is safe to look. This constant takes the middle one and nothing else.
+ *
+ * Seeded at 4.0, the value detection_margin_time carries today, so the split is a no-op by
+ * construction: replaying the label set across this change must give ZERO differences. That
+ * zero is the proof the split is clean - it is not evidence that 4.0 is the right number.
+ *
+ * What 4.0 costs today, measured: of 45 staff corrections in the ERP (28 Aug - 10 Sep 2026,
+ * 37 runs, 13 instruments, all v2.4.4), 15 were a reviewer overturning this gate - every one
+ * of them with a Ct between 3.0 and 3.7, and 12 of the 15 on the well the operator had loaded
+ * as the positive control, which carries the most template and therefore runs fastest. The
+ * gate is not catching bad curves; it is catching the strongest ones.
+ *
+ * NOT a parastructure field, for the BREAK_JUMP_THRESHOLD reasons: parastructure is at its
+ * 402-byte ceiling, and a clinical floor should not be reachable from the web config at all. */
+#define MIN_CALLABLE_CT 4.0
+
+/* ---------------------------------------------------------------------------
+ * shape_flag reason codes (DiagnosticOutcome::shape_flag, AlgoData.h).
+ *
+ * shape_flag used to be a 0/1 bit meaning only "the review gate took this well". A second
+ * reason now routes wells to F, and a flag that cannot say WHY is a blind label: the two
+ * causes need opposite handling downstream, and one of them is not a negative in any build.
+ *
+ * 1 THRESHOLD_BAND - removed_by_new_gate(): Positive under the v2.4.3 thresholds, Negative
+ *                    under the current ones. This is the reason SHAPE_RULE_NEGATIVE exists,
+ *                    and the only one it may downgrade.
+ * 2 EARLY_RISE     - amplified (past min_increase AND min_sharpness) with a recognisable
+ *                    shape, but Ct < MIN_CALLABLE_CT, so the NUMBER is not reportable even
+ *                    though the reaction is real. Never downgraded to Negative in either
+ *                    build - a well that cleared both size gates is not a negative, and the
+ *                    a-variant's rule was written for the threshold band, not for this. */
+#define SHAPE_FLAG_NONE            0
+#define SHAPE_FLAG_THRESHOLD_BAND  1
+#define SHAPE_FLAG_EARLY_RISE      2
+
+/* ---------------------------------------------------------------------------
  * THE TWO-ARM SHAPE RULE IS GONE. Do not reintroduce it without new evidence.
  *
  * It was "share < 0.45 AND steepness < 15" (arm A) OR "rise width > 10 min AND increase < 45"
