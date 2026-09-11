@@ -935,7 +935,20 @@ function ingestSlots(data) {
  * In the v2.4.3a build the same well arrives as "N" with the flag still set; no note is shown
  * there, because it would invite the operator to question a Negative that is already settled. */
 function shapeNote(s) {
-  if (!s || !s.shape || shapeMode === "negative") return null;
+  if (!s || !s.shape) return null;
+  // shape_flag is a REASON CODE (SHAPE_FLAG_* in Alg/Algo.h), not a bit.
+  // 2 = early rise: the well cleared both size gates and has a recognisable shape, but its Ct
+  // landed before MIN_CALLABLE_CT, so the NUMBER is not reportable even though the reaction is.
+  // The wording below (rise too slow / too weak) is reason 1 and would be the opposite of true
+  // here. Reason 2 is never downgraded to Negative, so it shows in BOTH builds - hence this
+  // returns before the shapeMode check.
+  if (s.shape === 2) {
+    return (
+      "Flagged: this well amplified, but it crossed too early to put a time on - the detection " +
+      "is real, the Ct is not. Repeat this sample if you need the number."
+    );
+  }
+  if (shapeMode === "negative") return null;
   var bits = [];
   if (s.rise !== null && s.rise !== undefined)
     bits.push("the rise took " + s.rise + " min");
