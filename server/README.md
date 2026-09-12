@@ -78,6 +78,25 @@ tailscale status ; tailscale ip -4
 - [ ] Bảo mật SSH: tắt password sau khi key chạy ổn
 - [x] Nạp dữ liệu vào PostgreSQL (bảng `sessions`) + API đọc cho Flutter — deploy + chạy 2026-07-11: **3.372 phiên / 88 thiết bị** từ Drive, thiết bị vẫn POST realtime, API chạy qua `https://fbt.basa-luma.ts.net`
 - [x] Tài khoản đăng nhập app chuyển từ Google Sheet về bảng `users` — deploy 2026-07-14 (`POST /auth` hợp đồng userAuth.js, 3 tài khoản đã import; còn thiếu GRANT DELETE — xem [docs/history/2026-07-14.md](docs/history/2026-07-14.md))
-- [ ] Host app WEB tại **`https://fbt.basa-luma.ts.net/app/`** — code + file đã lên box 2026-07-14 (mount `/app` ← `~/fbt_server/web`, cùng origin hết CORS; login trả `apiToken`); CHỜ restart `fbt-receiver` để nạp
+- [x] Host app WEB tại **`https://fbt.basa-luma.ts.net/app/`** — mount `/app` ← `~/fbt_server/web`, cùng origin hết CORS; login trả `apiToken`. Đang chạy (kiểm 2026-09-12) nhưng bundle là build **2026-08-28** — chưa có tab Chăm sóc KH / Sản xuất; cần `deploy.ps1 -Web` với `build/web_prod` mới
+- [x] Nhận **log máy từ nhân viên CSKH** (app tab Chăm sóc KH › Xử lý sự cố): `PUT /devices/{id}/logs` · `GET /devices/{id}/logs` · `GET /logs/{file}` → file trong `~/fbt_server/logs/` — code + test xong 2026-09-04 (19/20 pass, xem [docs/history/2026-09-04.md](docs/history/2026-09-04.md)); **ĐÃ DEPLOY 2026-09-12**
+
+- [x] Nhận **hồ sơ nghiệm thu trạm ATE** (app tab Sản xuất): `PUT /ate/records` · `GET /ate/records[/{id}]` ·
+  `GET /ate/sn/{sn}` · `GET /ate/stats` (FPY/Pareto) · `GET|PUT /ate/limits` → file trong `~/fbt_server/ate/`
+  — code + test xong 2026-09-07 (47/47 pass, xem [docs/history/2026-09-07.md](docs/history/2026-09-07.md));
+  **ĐÃ DEPLOY 2026-09-12** (qua Terminal Cockpit, xem [docs/history/2026-09-11.md](docs/history/2026-09-11.md))
+
+- [x] **Vai trò xưởng** `manager`/`operator` cho app (bước A kế hoạch tài khoản nhà máy): `app/auth.py`
+  nhận 2 vai trò mới, quản lý SX chỉ quản lý được thao tác viên, và **chỉ root/admin nhận token ghi OTA**
+  — code + test xong 2026-09-07 (57/57 pass); **ĐÃ DEPLOY 2026-09-12**
+
+- [x] **Kho OTA tách theo SẢN PHẨM** (giai đoạn 0 của [docs/plan/ota-nhieu-san-pham.md](docs/plan/ota-nhieu-san-pham.md)):
+  `~/fbt_server/ota/products/<product>/` mỗi kho một `target.json` + manifest cạnh từng `.bin`; máy cũ
+  không khai `?product=` → kho `OTA_LEGACY_PRODUCT` (mặc định `rapidplus`); route cũ `/ota/<file>`,
+  `/ota/target/<file>` giữ nguyên; mới: `GET /ota/products`, `PUT|DELETE /ota/{product}/…`,
+  `/ota/check?product&hw`; server đọc thẻ nhúng `FBTIMG1;…;;` trong `.bin` lúc upload; file cũ ở gốc
+  `ota/` TỰ dời lúc restart — code + test xong 2026-09-11 (81/81 pass, xem
+  [docs/history/2026-09-11.md](docs/history/2026-09-11.md)); **ĐÃ DEPLOY 2026-09-12** — `openapi.json`
+  production khớp hệt code local (29/29 route). Bản web `/app/` vẫn là build 2026-08-28 (chưa deploy web)
 
 > Xem chi tiết + thứ tự làm trong [docs/plan/KE_HOACH_PHAT_TRIEN.md](docs/plan/KE_HOACH_PHAT_TRIEN.md).

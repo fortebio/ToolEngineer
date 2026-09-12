@@ -68,6 +68,36 @@ class OtaFile {
   const OtaFile({required this.name, required this.size, this.modified});
 }
 
+/// Một bản **log máy** nhân viên CSKH đã gửi lên server (tab Chăm sóc KH ›
+/// Xử lý sự cố) — `GET /devices/{id}/logs` trả metadata, KHÔNG kèm nội dung
+/// (`text` lấy riêng qua [FbtApi.fetchDeviceLog] khi mở).
+class DeviceLogEntry {
+  final String file; // tên file trên server, cũng là khoá để tải về
+  final String device;
+  final String by; // tài khoản gửi (client tự khai, như OtaPin.by)
+  final String note; // mô tả sự cố nhân viên nhập
+  final DateTime? at; // lúc server nhận (giờ địa phương)
+  final int size; // số ký tự log
+  final int findings; // số dấu hiệu bộ quét thấy lúc gửi
+
+  const DeviceLogEntry({
+    required this.file,
+    required this.device,
+    this.by = '',
+    this.note = '',
+    this.at,
+    this.size = 0,
+    this.findings = 0,
+  });
+}
+
+/// Kết quả `PUT /devices/{id}/logs`.
+class DeviceLogUploadResult {
+  final String file;
+  final int size;
+  const DeviceLogUploadResult({required this.file, required this.size});
+}
+
 /// Trạng thái kho OTA: các bản đã tải lên + bản đang được chọn để thiết bị nạp.
 class OtaState {
   final String? target; // null = chưa chọn → thiết bị không cập nhật gì
@@ -126,9 +156,16 @@ class FbtApi implements CloudHistoryClient {
     return _decode(resp);
   }
 
-  /// PUT/DELETE (thao tác ghi của mục OTA). Dùng `http.Request` thay vì
-  /// `http.put` để gửi được body bytes thô của file .bin.
-  Future<dynamic> _send(String method, String path, {List<int>? body}) async {
+  /// PUT/DELETE (thao tác ghi của mục OTA + gửi log CSKH). Dùng `http.Request`
+  /// thay vì `http.put` để gửi được body bytes thô của file .bin.
+  /// [contentType] mặc định octet-stream (file .bin); gửi JSON thì truyền
+  /// `application/json` để server (và Swagger) đọc đúng.
+  Future<dynamic> _send(
+    String method,
+    String path, {
+    List<int>? body,
+    String contentType = 'application/octet-stream',
+  }) async {
     if (baseUrl.isEmpty) {
       throw CloudApiException(
           'Chưa cấu hình URL Engineer Server (vào Cài đặt).');
@@ -136,7 +173,7 @@ class FbtApi implements CloudHistoryClient {
     final req = http.Request(method, _uri(path))..headers.addAll(headers);
     if (body != null) {
       req.bodyBytes = body;
-      req.headers['Content-Type'] = 'application/octet-stream';
+      req.headers['Content-Type'] = contentType;
     }
     http.Response resp;
     try {
@@ -358,6 +395,94 @@ class FbtApi implements CloudHistoryClient {
   /// Xoá 1 bản firmware khỏi server.
   Future<void> deleteOta(String name) =>
       _send('DELETE', '/ota/${Uri.encodeComponent(name)}');
+
+  /// GET trả **bytes thô** (file .bin) — lỗi HTTP map y hệt [_decode], nhưng
+  /// KHÔNG parse JSON. [timeout] riêng vì file firmware ~2.3 MB, đường mạng
+  /// chậm có thể quá 20 s mặc định.
+  Future<List<int>> _getBytes(Uri uri, {Duration? timeout}) async {
+    if (baseUrl.isEmpty) {
+      throw CloudApiException(
+          'Chưa cấu hình URL Engineer Server (vào Cài đặt).');
+    }
+    http.Response resp;
+    try {
+      resp = await http
+          .get(uri, headers: headers.isEmpty ? null : headers)
+          .timeout(timeout ?? this.timeout);
+    } catch (e) {
+      throw CloudApiException('Không kết nối được Engineer Server: $e');
+    }
+    if (resp.statusCode != 200) _decode(resp); // ném lỗi theo mã HTTP
+    return resp.bodyBytes;
+  }
+
+  /// Tải một bản firmware về máy tính (`GET /ota/{file}`, body = bytes .bin) —
+  /// nút "Tải về" ở tab Quản lý máy › Cập nhật OTA. Cùng route thiết bị dùng
+  /// khi tự cập nhật, nên file nhận được đúng là thứ máy sẽ nạp.
+  Future<List<int>> downloadOta(String name) => _getBytes(
+        _uri('/ota/${Uri.encodeComponent(name)}'),
+        timeout: const Duration(minutes: 3),
+      );
+
+  // --- Log máy (tab Chăm sóc KH › Xử lý sự cố) ------------------------------
+  // PUT chứ không POST: cùng lý do mục OTA — `POST /{path}` catch-all của server
+  // nuốt mọi POST thành payload thiết bị (trả 400 "invalid"). Server chưa deploy
+  // route này → 405 → `_decode` đã nói "server chưa được cập nhật cho tính năng".
+
+  /// Gửi log UART đọc từ máy lên server: `PUT /devices/{id}/logs`, body JSON
+  /// `{by, note, port, baud, captured_at, app, findings[], text}` — `text` là
+  /// log THÔ (server lưu nguyên file JSON trong `FBT_LOGS_DIR`).
+  Future<DeviceLogUploadResult> uploadDeviceLog(
+      String deviceId, Map<String, dynamic> body) async {
+    final id = deviceId.trim();
+    if (id.isEmpty) throw CloudApiException('Thiếu mã máy.');
+    final json = await _send(
+      'PUT',
+      '/devices/${Uri.encodeComponent(id)}/logs',
+      body: utf8.encode(jsonEncode(body)),
+      contentType: 'application/json',
+    );
+    if (json is! Map) {
+      throw CloudApiException('Định dạng trả về của /logs không đúng.');
+    }
+    return DeviceLogUploadResult(
+      file: (json['file'] ?? '').toString(),
+      size: (json['size'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// Danh sách log đã gửi của một máy — mới nhất trước. `GET /devices/{id}/logs`.
+  Future<List<DeviceLogEntry>> listDeviceLogs(String deviceId,
+      {int limit = 50}) async {
+    final id = deviceId.trim();
+    if (id.isEmpty) return const [];
+    final json = await _get(_uri(
+        '/devices/${Uri.encodeComponent(id)}/logs', {'limit': '$limit'}));
+    final items = (json is Map ? json['items'] : null) as List?;
+    if (items == null) return const [];
+    return [
+      for (final e in items.whereType<Map>())
+        DeviceLogEntry(
+          file: (e['file'] ?? '').toString(),
+          device: (e['device'] ?? id).toString(),
+          by: (e['by'] ?? '').toString(),
+          note: (e['note'] ?? '').toString(),
+          at: DateTime.tryParse((e['received_at'] ?? '').toString())
+              ?.toLocal(),
+          size: (e['size'] as num?)?.toInt() ?? 0,
+          findings: (e['findings'] as num?)?.toInt() ?? 0,
+        )
+    ];
+  }
+
+  /// Nội dung đầy đủ một bản log (`GET /logs/{file}`) — có khoá `text`.
+  Future<Map<String, dynamic>> fetchDeviceLog(String file) async {
+    final json = await _get(_uri('/logs/${Uri.encodeComponent(file)}'));
+    if (json is! Map<String, dynamic>) {
+      throw CloudApiException('Định dạng /logs/{file} không đúng.');
+    }
+    return json;
+  }
 
   @override
   Future<CloudRunsPage> listRuns(

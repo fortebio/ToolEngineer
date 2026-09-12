@@ -389,7 +389,22 @@ class _UserEditDialogState extends State<_UserEditDialog> {
   late final TextEditingController _ids = TextEditingController(
       text: (widget.existing?.ids ?? const []).join(', '));
   final _pass = TextEditingController();
-  late String _role = widget.existing?.role == 'admin' ? 'admin' : 'user';
+  /// Vai trò được phép ĐẶT, theo người đang đăng nhập: root đặt được mọi vai
+  /// trò; quản lý sản xuất chỉ đặt được `operator` (server gác lại lần nữa).
+  static List<String> _allowedRoles() {
+    final me = SessionStore.current;
+    if (me == null) return const [];
+    if (me.isRoot) return const ['user', 'admin', 'manager', 'operator', 'root'];
+    if (me.isManager) return const ['operator'];
+    return const [];
+  }
+
+  late final List<String> _roles = _allowedRoles();
+
+  // Vai trò hiện tại của tài khoản đang sửa. GIỮ NGUYÊN nếu nó nằm ngoài danh
+  // sách mình được đặt (vd quản lý mở nhầm một tài khoản admin) — bản trước quy
+  // mọi vai trò lạ về 'user', tức là sửa tên một tài khoản root là HẠ QUYỀN nó.
+  late String _role = widget.existing?.role ?? (_roles.contains('user') ? 'user' : (_roles.isEmpty ? 'user' : _roles.first));
   late bool _active = widget.existing?.active ?? true;
   String? _error;
 
@@ -456,21 +471,40 @@ class _UserEditDialogState extends State<_UserEditDialog> {
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              value: _role,
+              initialValue: _role,
               decoration: InputDecoration(labelText: tr('us.role')),
               items: [
-                DropdownMenuItem(value: 'user', child: Text(roleLabel('user'))),
-                DropdownMenuItem(
-                    value: 'admin', child: Text(roleLabel('admin'))),
-                DropdownMenuItem(value: 'root', child: Text(roleLabel('root'))),
+                for (final r in {..._roles, _role}) // giữ cả vai trò hiện có
+                  DropdownMenuItem(value: r, child: Text(roleLabel(r))),
               ],
-              onChanged: (v) => setState(() => _role = v ?? 'user'),
+              // Chỉ được đặt vai trò trong danh sách của mình; vai trò hiện có
+              // hiện ra để đọc nhưng không chọn lại được nếu ngoài quyền.
+              onChanged: (v) {
+                if (v == null || !_roles.contains(v)) return;
+                setState(() => _role = v);
+              },
             ),
+            if (_roles.length == 1) ...[
+              const SizedBox(height: 6),
+              Text(tr('um.onlyOperators'),
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ],
             const SizedBox(height: 10),
-            TextField(
-              controller: _ids,
-              decoration: InputDecoration(labelText: tr('um.ids')),
-            ),
+            // Danh sách mã máy chỉ có nghĩa với dữ liệu LÂM SÀNG. Vai trò xưởng
+            // không lọc theo nó (hồ sơ sản xuất theo số máy vừa làm ra), nên ô
+            // này ẩn đi thay vì để người ta điền một thứ không ai đọc.
+            if (_role == 'manager' || _role == 'operator')
+              Text(tr('um.idsFactoryHint'),
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant))
+            else
+              TextField(
+                controller: _ids,
+                decoration: InputDecoration(labelText: tr('um.ids')),
+              ),
             const SizedBox(height: 10),
             TextField(
               controller: _name,

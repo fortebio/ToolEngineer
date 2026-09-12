@@ -11,7 +11,11 @@ from app.logic import hash_password, parse_active, parse_ids, verify_password
 
 LOGIN_FAIL_MSG = "Sai tài khoản hoặc mật khẩu"  # dùng CHUNG cho mọi lỗi login (không lộ thông tin)
 NO_PERMISSION_MSG = "Không có quyền"
-_ROLES = ("root", "admin", "user")
+# Vai trò hợp lệ. `manager`/`operator` thêm 2026-09-07 cho xưởng sản xuất
+# (docs/plan/tai-khoan-nha-may.md ở repo app).
+_ROLES = ("root", "admin", "manager", "operator", "user")
+# Vai trò được phép quản lý tài khoản, và phạm vi của từng cái.
+_MANAGE_SCOPE = {"root": _ROLES, "manager": ("operator",)}
 
 
 def dispatch(body: dict) -> dict:
@@ -64,6 +68,14 @@ def api_token_for(role: str) -> str:
 
     `OTA_ADMIN_TOKEN` rỗng (tính năng chưa bật) → rơi về `TOKEN` y như cũ, nên
     deploy file này một mình KHÔNG đổi hành vi gì.
+
+    **Vai trò xưởng (`manager`/`operator`) nhận `TOKEN`, KHÔNG nhận token admin.**
+    Đây là nửa quan trọng nhất của bước A: máy trạm đặt ở xưởng ghi được hồ sơ
+    ATE (`PUT /ate/records` chỉ cần token thường) và tải được `.bin` để nạp,
+    nhưng KHÔNG arm được firmware cho 109 máy ngoài thị trường. Trước 2026-09-07
+    muốn cho thao tác viên vào tab Sản xuất thì phải cấp `admin`, tức là trao
+    luôn quyền đó. Bước B sẽ tách tiếp `STATION_TOKEN` để họ cũng không đọc được
+    dữ liệu lâm sàng (docs/plan/tai-khoan-nha-may.md §4).
     """
     if role in ("root", "admin") and config.OTA_ADMIN_TOKEN:
         return config.OTA_ADMIN_TOKEN
@@ -119,22 +131,40 @@ def _change_email(body: dict) -> dict:
 
 
 def _require_admin(body: dict) -> dict | None:
-    """Gate admin: root + active + đúng mật khẩu, sai → None (caller trả NO_PERMISSION)."""
+    """Gate quản lý tài khoản: đúng mật khẩu + vai trò có quyền quản lý.
+
+    `root` quản lý MỌI vai trò; `manager` (quản lý sản xuất) chỉ quản lý
+    `operator` — xưởng tự thêm/khoá người theo ca mà không với tới được tài khoản
+    kỹ thuật hay tài khoản khách hàng. Phạm vi cụ thể do [_may_touch] chốt; hàm
+    này chỉ trả người gọi, sai → None (caller trả NO_PERMISSION).
+
+    Mật khẩu vẫn phải gửi MỖI LẦN (app không lưu mật khẩu) — giữ nguyên cơ chế
+    cũ, không phát minh phiên admin riêng.
+    """
     u = _check_login(_str(body.get("adminUser")).strip(), _str(body.get("adminPassword")))
-    return u if (u is not None and u["role"] == "root") else None
+    return u if (u is not None and u["role"] in _MANAGE_SCOPE) else None
+
+
+def _may_touch(caller: dict, target_role: str) -> bool:
+    """Người gọi có được đụng tài khoản mang vai trò `target_role` không."""
+    return target_role in _MANAGE_SCOPE.get(caller["role"], ())
 
 
 def _list_users(body: dict) -> dict:
-    if _require_admin(body) is None:
+    caller = _require_admin(body)
+    if caller is None:
         return {"ok": False, "error": NO_PERMISSION_MSG}
+    # Quản lý sản xuất chỉ THẤY thao tác viên: danh sách tài khoản kỹ thuật và
+    # khách hàng không phải việc của xưởng, và không thấy thì không dò được.
     users = [{"username": u["username"], "role": u["role"], "ids": list(u["ids"] or []),
               "name": u["name"] or "", "email": u["email"] or "", "active": u["active"]}
-             for u in db.list_users()]
+             for u in db.list_users() if _may_touch(caller, u["role"])]
     return {"ok": True, "users": users}
 
 
 def _save_user(body: dict) -> dict:
-    if _require_admin(body) is None:
+    caller = _require_admin(body)
+    if caller is None:
         return {"ok": False, "error": NO_PERMISSION_MSG}
     u = body.get("user")
     if not isinstance(u, dict):
@@ -153,8 +183,14 @@ def _save_user(body: dict) -> dict:
     pw = _str(u.get("password"))
     email = _str(u.get("email")).strip()
 
-    # CHẶN hạ quyền/khoá root hoạt động CUỐI CÙNG (chống tự khoá mình ra ngoài).
     existing = db.get_user(username)
+    # Phạm vi của người gọi: kiểm CẢ vai trò mới LẪN vai trò cũ. Thiếu vế "cũ"
+    # thì quản lý sản xuất chỉ cần gửi role=operator là sửa/hạ quyền được một tài
+    # khoản admin.
+    if not _may_touch(caller, role) or (existing and not _may_touch(caller, existing["role"])):
+        return {"ok": False, "error": NO_PERMISSION_MSG}
+
+    # CHẶN hạ quyền/khoá root hoạt động CUỐI CÙNG (chống tự khoá mình ra ngoài).
     if (existing and existing["role"] == "root" and existing["active"]
             and (role != "root" or not active)
             and db.count_roots(active_only=True) <= 1):
@@ -167,7 +203,8 @@ def _save_user(body: dict) -> dict:
 
 
 def _delete_user(body: dict) -> dict:
-    if _require_admin(body) is None:
+    caller = _require_admin(body)
+    if caller is None:
         return {"ok": False, "error": NO_PERMISSION_MSG}
     username = _str(body.get("username")).strip()
     if not username:
@@ -175,6 +212,8 @@ def _delete_user(body: dict) -> dict:
     target = db.get_user(username)
     if target is None:
         return {"ok": False, "error": f"Không tìm thấy user: {username}"}
+    if not _may_touch(caller, target["role"]):
+        return {"ok": False, "error": NO_PERMISSION_MSG}
     if target["role"] == "root" and db.count_roots() <= 1:
         return {"ok": False, "error": "Không thể xoá root cuối cùng"}
     db.delete_user(username)

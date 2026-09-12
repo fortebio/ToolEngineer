@@ -25,7 +25,8 @@ Sau khi **đăng nhập** (§1.6), giao diện dùng **thanh điều hướng d�
 để hiện (overlay **trượt** vào, có "tay nắm" gợi ý). Tab **nội dung theo vai trò**:
 
 - **Khách hàng** (`user`): **Lịch sử**.
-- **Nhân sự** (`admin`/`root`): **+ Kỹ Thuật** (Log nhiệt · Đọc serial · Nạp code).
+- **Nhân sự** (`admin`/`root`): **+ Chăm sóc KH** (Thông tin máy · Xử lý sự cố — §1.8) **+ Quản lý máy**
+  **+ Sản xuất** (trạm ATE — §1.10) **+ Kỹ Thuật** (Log nhiệt · Đọc serial · Nạp code).
 - **Root**: **+ Quản lý User** (§1.7).
 
 **Thiết lập** + **Đăng xuất** nằm trong **menu của icon tài khoản** (cuối thanh dọc) — KHÔNG còn là tab.
@@ -156,20 +157,29 @@ Mở qua **icon tài khoản** (cuối thanh nav) → **Thiết lập**. Một m
 > Link cloud + accounts (`/exec`) **gắn sẵn trong code** (`kDefaultCloudApiUrl`, `kDefaultAuthApiUrl`) →
 > chạy ngay, không cần nhập. Đổi deploy: sửa hằng đó rồi build lại.
 
-### 1.6 Đăng nhập & phân quyền (3 vai trò)
+### 1.6 Đăng nhập & phân quyền (5 vai trò)
 
-Mở app là vào **màn đăng nhập** (tài khoản + mật khẩu). Xác thực qua **Apps Script accounts RIÊNG**
-([sheet/userAuth.js](sheet/userAuth.js)) — web app + Google Sheet riêng, **tách khỏi** backend lịch
-sử cloud. Phiên **lưu cục bộ** → lần sau vào thẳng; **Đăng xuất** trong menu icon tài khoản.
+Mở app là vào **màn đăng nhập** (tài khoản + mật khẩu). Xác thực qua **Engineer Server**
+(`POST /auth`, bảng `users` Postgres — chuyển từ Apps Script `userAuth.js` về từ 2026-07-14; script cũ
+chỉ còn là đường lùi khẩn cấp). Đăng nhập thành công server trả kèm **token API theo vai trò**. Phiên
+**lưu cục bộ** → lần sau vào thẳng; **Đăng xuất** trong menu icon tài khoản.
 
 | Vai trò (`role`) | Hiển thị | Quyền |
 | --- | --- | --- |
 | `root` | **Root** | Full app + **Quản lý User** (§1.7) — thêm/sửa/xóa **mọi** tài khoản; **thấy mọi máy** |
-| `admin` | **Nhân viên** | Full app (Lịch sử + Kỹ Thuật + Thiết lập); **chỉ thấy mã máy được cấp** (trừ khi `ids = "*"` thì full); được Lưu/Đồng bộ/Lấy-từ-máy/Xóa — **KHÔNG** quản lý tài khoản |
+| `admin` | **Nhân viên** | Full app (Lịch sử + CSKH + Quản lý máy + Kỹ Thuật + Sản xuất); **chỉ thấy mã máy được cấp** (trừ khi `ids = "*"`); được Lưu/Đồng bộ/Lấy-từ-máy/Xóa — **KHÔNG** quản lý tài khoản |
+| `manager` | **Quản lý SX** | **Sản xuất** đầy đủ (Chạy trạm · Hồ sơ máy · Thống kê) + **xem** Quản lý máy; **tạo/khoá tài khoản Thao tác viên**; **KHÔNG** ghi OTA, **KHÔNG** xem dữ liệu lâm sàng |
+| `operator` | **Thao tác viên** | Chỉ **Sản xuất › Chạy trạm + Hồ sơ máy**; không Thống kê, không OTA, không Kỹ Thuật, không lịch sử lâm sàng |
 | `user` | **Khách hàng** | **Read-only**: chỉ xem đồ thị **mã máy được cấp**; ẩn Kỹ Thuật + mọi nút ghi (vẫn **lưu được ảnh** đồ thị) |
 
-Phân quyền qua `SessionStore.current`: `isStaff` (root+admin) quyết định **`canWrite`** (Lưu/Đồng bộ/Xóa) +
-hiện tab **Kỹ Thuật**; `canManageUsers` (= root). **Phạm vi XEM máy** = `allowAll` (`canSee()`): chỉ **root**
+Hai vai trò **xưởng** (`manager`/`operator`, thêm 2026-09-07 — [kế hoạch](docs/plan/tai-khoan-nha-may.md)):
+sinh ra để người đứng máy ở nhà máy KHÔNG phải mang vai trò `admin` — mà `admin` thì server phát kèm
+**token ghi OTA**, tức là quyền đẩy firmware cho cả fleet ngoài thị trường. Nay `manager`/`operator` nhận
+token thiết bị: ghi được hồ sơ ATE, tải được `.bin` để nạp, nhưng không arm được bản nào cho fleet.
+
+Phân quyền qua `SessionStore.current`, đọc theo **tên việc** (`canWriteClinical` · `canWriteOta` ·
+`canRunStation` · `canSeeProduction` · `canUseTech` · `canManageUsers`…) chứ không theo chức danh —
+ma trận đầy đủ có test ở `test/user_session_test.dart`. **Phạm vi XEM máy** = `allowAll` (`canSee()`): chỉ **root**
 (super-admin) **hoặc** `ids` chứa `"*"` mới thấy tất cả — **admin không có `"*"` chỉ thấy mã được cấp**, như
 khách hàng. Lọc enforce **ở client** (cloud/history fetch hết rồi `canSee`). Tài khoản (username · mật khẩu ·
 vai trò · **mã máy được cấp** · email · active) quản lý trên **Google Sheet** (tab `Accounts`).
@@ -193,6 +203,90 @@ Thao tác (qua `POST {action: listUsers|saveUser|deleteUser}`, **root-gated** b�
 > đăng nhập bằng tài khoản đó.
 
 ---
+
+### 1.8 Chăm sóc KH (nhân sự) — Thông tin máy · Xử lý sự cố
+
+Tab riêng cho **nhân viên chăm sóc khách hàng** vận hành không cần kiến thức kỹ thuật
+([lib/screens/support_screen.dart](lib/screens/support_screen.dart), chạy cả desktop lẫn web;
+thiết kế chi tiết: [docs/07-cham-soc-khach-hang.md](docs/07-cham-soc-khach-hang.md)).
+
+- **Thông tin máy**: tài liệu viết bằng ngôn ngữ đời thường cho nhân viên CSKH, theo thứ tự nên đọc:
+  **sản phẩm là gì → một lần xét nghiệm diễn ra thế nào (5 bước) → đọc kết quả cho khách (P/N/S/E, CT)
+  → nút bấm & màn hình (kèm bộ tách mã lỗi 4 số) → WiFi, app & hệ thống → cập nhật phần mềm → câu hỏi
+  khách thường gọi (hỏi gì · khách tự thử gì · khi nào chuyển kỹ thuật) → kịch bản tiếp nhận & ticket →
+  từ điển thuật ngữ**; mục **"Dành cho kỹ thuật"** (cổng USB, lệnh máy) thu gọn mặc định. Có dải giới
+  thiệu, chip **"Đi tới"** cuộn thẳng tới mục, ô tìm. Nội dung ở `lib/data/machine_info_content.dart` —
+  sửa một chỗ.
+- **Xử lý sự cố** — 3 bước: **(1) Kết nối** cắm USB máy → chọn cổng (web: hộp thoại trình duyệt) →
+  Kết nối (115200, DTR/RTS off nên máy không reset) · **(2) Nhật ký máy (log)** hiện theo dòng, dòng
+  đáng chú ý tô đỏ + bộ lọc; khung **"Máy đang nói gì"** mở đầu bằng **kết luận một dòng** (đỏ: chuyển
+  kỹ thuật · vàng: khách tự thử được · xanh: không thấy lỗi quen thuộc) rồi dịch log ESP32 thành tiếng
+  người (nguồn yếu/brownout, crash, thiếu firmware, watchdog, mất cảm biến nhiệt -127, WiFi/HTTP/OTA
+  lỗi, lý do reset) kèm gợi ý; nút "Yêu cầu máy" chỉ hiện nhãn tiếng Việt (lệnh thật `ParaRead` · `M` ·
+  `TemperatureOutput` · `Res` nằm trong tooltip, `Res` có xác nhận) ·
+  **(3) Gửi log về kỹ thuật**: mã máy (tự điền nếu log in `RPL…`) + mô tả → `PUT /devices/{id}/logs`
+  Engineer Server; **Lưu file** (`FBT_RAPID_supportlog\`, web: Downloads) khi không có mạng; nút
+  **Log đã gửi** xem lại các bản đã gửi của máy đó.
+- Cổng COM dùng chung với tab Kỹ Thuật: rời tab/mục là tự ngắt cổng (giữ log).
+- Server phải deploy route mới (`server/app/main.py`, xem `server/docs/history/2026-09-04.md`);
+  chưa deploy thì nút Gửi báo "server chưa được cập nhật cho tính năng này" (405).
+
+### 1.9 Quản lý máy (nhân sự) — Cập nhật OTA · Trạng thái máy
+
+Tab [lib/screens/manager_machine_screen.dart](lib/screens/manager_machine_screen.dart), chỉ HTTP tới
+Engineer Server nên chạy cả web.
+
+- **Cập nhật OTA**: kho firmware `.bin` trên server — **Tải firmware lên** (hỏi tên phiên bản, lưu thành
+  `fbt_v<version>.bin`), **Chọn bản này** cho cả fleet (hộp xác nhận + số máy ảnh hưởng), **Tiến độ**
+  triển khai, **Huỷ chọn**, **Xoá** (chặn xoá bản đang chọn/đang ghim), và **Tải về máy tính** (icon
+  mũi tên xuống trên từng dòng: desktop mở hộp thoại "Lưu thành…", web tải xuống Downloads — cùng route
+  `GET /ota/{file}` thiết bị dùng khi tự cập nhật, để kỹ thuật nạp bằng cáp hoặc lưu trữ).
+- **Trạng thái máy**: bảng máy với firmware đang chạy, người thiết lập, số phiên, lần gửi cuối (chấm
+  xanh/xám theo 24 giờ), ghim riêng bản firmware cho từng máy (chỉ máy ≥ v2.4.4), lịch sử firmware.
+
+### 1.10 Sản xuất — trạm ATE (nhân sự) — Chạy trạm · Hồ sơ máy · Thống kê
+
+Trạm nghiệm thu máy tại xưởng ([lib/screens/ate_screen.dart](lib/screens/ate_screen.dart); thiết kế:
+[docs/08-tram-san-xuat-ate.md](docs/08-tram-san-xuat-ate.md), kế hoạch đầy đủ P0→P5:
+[docs/plan/ate-san-xuat.md](docs/plan/ate-san-xuat.md)). Hiện có **pha P0: nạp → khai sinh → hồ sơ**.
+
+- **Chạy trạm** (chỉ desktop): khai một lần cho cả ca (mã trạm, người chạy, bộ 3 file `.bin`, chip/flash
+  mode/size/baud, `para version`, PCB version, FW kỳ vọng) → **quét mã vạch số máy** (máy quét USB hoạt
+  động như bàn phím, Enter là chạy luôn) → kịch bản 5 bước chạy tuần tự, **dừng đúng bước hỏng**:
+  **FW-02** nhận chip · flash · MAC → **FW-01** nạp 3 file + `verify_flash` + **sha256 của .bin** →
+  **BOOT-01** nghe UART và quét log (dùng chung bộ quét của tab CSKH) → **ID-01** ghi số máy rồi
+  **đọc lại `ParaRead` đối chiếu** → **ID-02** tham số mặc định của lô → rồi **6 bước tự kiểm phần
+  cứng**: **OPT-01** 10 cảm biến quang (`GET /errors`, chưa có mạng thì lùi về lệnh `R`) → **OPT-03**
+  tín hiệu sáng từng slot (`0`–`9`, một slot một lần) → **TMP-01** 6 kênh nhiệt qua `TemperatureOutput`
+  (bắt cảm biến mất kết nối `-127`, lệch giữa kênh, lệch nhiệt phòng) → **FAN-01 · BUZ-01 · HMI-01**
+  quạt/còi/màn hình + 3 nút (app gửi lệnh rồi hỏi người vận hành ĐẠT/KHÔNG ĐẠT). Kết luận **ĐẠT / HỎNG /
+  DỪNG GIỮA CHỪNG** hiện to kèm bước hỏng; có nút **chạy lại một bước** (chốt thành **hồ sơ mới**, không
+  sửa hồ sơ cũ) và nhật ký trạm đầy đủ (copy được).
+  *Ngưỡng quang chưa chốt thì bước đo **ghi số** (kết luận `info`) chứ không tự nhận là ĐẠT — chạy 10–20
+  máy tốt, đọc số trong hồ sơ rồi đặt ngưỡng bằng `PUT /ate/limits`, không phải sửa code.*
+- **Hồ sơ máy**: mở ra là thấy ngay **hồ sơ gần đây của cả xưởng** (máy nào vừa chạy, ĐẠT/HỎNG ở bước
+  nào, thuộc lô nào) — không phải nhớ sẵn số máy mới xem được gì. Gõ/quét số máy → **hồ sơ khai sinh**
+  (ngày, trạm, người chạy, firmware + sha256, MAC, bộ ngưỡng đã chấm) + **mọi lần qua trạm** kể cả các
+  lần hỏng; mở từng lần xem chi tiết từng bước và log thô.
+- **Thống kê**: **FPY** (máy đạt ngay lần thử đầu / máy đã thử — *không* phải tỉ lệ hồ sơ PASS),
+  sản lượng theo ngày, **Pareto mã bước hỏng**; lọc được theo lô.
+- **Tiêu chuẩn** (nhân sự kỹ thuật sửa, quản lý SX xem): **bộ ngưỡng đặt cho TỪNG LÔ sản xuất** — chọn
+  lô (hoặc thêm lô mới) rồi điền ngưỡng quang/nhiệt/nạp. **Ô trống = chưa chốt** (trạm vẫn đo và ghi số,
+  chỉ không chấm đạt/hỏng). Trạm lấy bộ của lô đang chạy; lô chưa có bộ riêng thì lùi về bộ chung/mặc
+  định và màn trạm **hiện cảnh báo** cho biết đang chấm theo bộ nào. Sửa ngưỡng phải **đổi version** —
+  server từ chối dùng lại version cũ cho nội dung khác, vì hồ sơ chỉ ghi chuỗi version đó.
+  **Nhập/Xuất JSON**: khai cả đợt sản xuất bằng file thay vì gõ tay từng lô — nhận file *một bộ*
+  (nạp vào biểu mẫu để kiểm rồi Lưu), *một bộ kèm mã lô*, hoặc *nhiều lô một file* (xem trước rồi ghi
+  từng lô; lô nào lỗi thì báo riêng, không chặn lô còn lại).
+- **Không mất dữ liệu khi rớt mạng**: hồ sơ ghi file cục bộ trước (`FBT_RAPID_ate\cho_gui\`), đẩy
+  server sau; mạng sống lại thì tự gửi cả hàng đợi (nút "Gửi lại N hồ sơ đang chờ").
+- **Bản web chạy trạm được** (từ 2026-09-08): nạp bằng **esptool-js qua Web Serial** trên Chrome/Edge
+  máy tính, **firmware lấy từ kho OTA của server** (không phải file trên máy). Ba khác biệt so với bản
+  desktop, màn tự nói ra: bước nạp **chưa đối chiếu lại được** nội dung flash (ghi `info` chứ không phải
+  ĐẠT), phải bấm **Chọn cổng** một lần mỗi ca, và hàng đợi offline nằm trong bộ nhớ trình duyệt (lược
+  log thô, mất nếu xoá dữ liệu duyệt). Trạm chính vẫn nên dùng bản desktop.
+- Server phải deploy bản có `/ate/*` (`server/app/main.py`); chưa deploy thì app báo "Server chưa có
+  endpoint /ate (405)" và hồ sơ nằm lại hàng đợi cục bộ, không mất.
 
 ## 2. Yêu cầu
 
@@ -285,6 +379,18 @@ lib/
   screens/temperature_log_screen.dart    # Log nhiệt: đa COM realtime + lưu log/đồ thị
   screens/serial_console_screen.dart     # Đọc serial: console raw đa cổng (đọc/ghi, text/HEX) để debug
   screens/flasher_screen.dart            # Nạp code: flash ESP qua esptool (Process) + theo dõi log boot
+  screens/ate_screen.dart                # tab Sản xuất (ATE): Chạy trạm | Hồ sơ máy | Thống kê
+  screens/ate_screen_web.dart            #   bản web (chỉ Hồ sơ máy | Thống kê — không có Chạy trạm)
+  screens/ate_run_screen.dart            #   Chạy trạm: quét số máy → 5 bước → PASS/FAIL → hồ sơ
+  screens/ate_profile_screen.dart        #   Hồ sơ máy: hồ sơ khai sinh + mọi lần qua trạm
+  screens/ate_stats_screen.dart          #   Thống kê: FPY, sản lượng/ngày, Pareto mã bước hỏng
+  services/ate_runner.dart               # kịch bản ATE (THUẦN Dart, test được — interface AteStation)
+  services/ate_station_io.dart           #   bản thật của AteStation: esptool (Process) + cổng COM
+  services/ate_api.dart                  #   client /ate/* của Engineer Server (PUT/GET)
+  services/ate_queue_io.dart             #   hàng đợi hồ sơ: ghi file trước, đẩy server sau
+  services/ate_prefs.dart                #   cấu hình của TRẠM (mã trạm, người chạy, bộ .bin, tham số nạp)
+  models/ate_record.dart                 # hồ sơ + kết quả bước + bộ ngưỡng (AteLimits)
+  util/sha256.dart                       # SHA-256 thuần Dart (vân tay file .bin trong hồ sơ ATE)
   screens/saved_logs_screen.dart         # danh sách log đã lưu
   screens/saved_log_detail_screen.dart   # xem lại 1 log: vẽ lại đồ thị + thống kê
   screens/saved_charts_screen.dart       # gallery ảnh đồ thị đã lưu

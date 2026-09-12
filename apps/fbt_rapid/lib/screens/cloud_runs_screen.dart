@@ -205,7 +205,7 @@ class _CloudRunsScreenState extends State<CloudRunsScreen> {
           // nút ghi vào nó. Bày nút đồng bộ trong khi không có màn nào đọc ra là
           // mời người ta tải dữ liệu về một chỗ không mở được.
           // User read-only cũng không thấy nút này (chỉ admin).
-          if (kLocalHistoryEnabled && SessionStore.canWrite)
+          if (kLocalHistoryEnabled && SessionStore.canWriteClinical)
             IconButton(
               tooltip: 'Đồng bộ trang này về máy',
               onPressed: (_loading || _syncing || _runs.isEmpty) ? null : _sync,

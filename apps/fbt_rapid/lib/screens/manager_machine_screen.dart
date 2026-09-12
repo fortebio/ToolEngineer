@@ -1,7 +1,9 @@
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../services/app_settings.dart';
+import '../util/platform_files.dart' as pf;
 import '../services/cloud_history_api.dart';
 import '../services/fbt_api.dart';
 import '../models/test_result.dart';
@@ -190,6 +192,39 @@ class _OtaTabState extends State<_OtaTab> {
     if (mounted) _snack(tr('mm.uploadedAs').replaceFirst('{name}', name));
   }
 
+  /// Tải một bản firmware từ server về máy tính (nút "Tải về" trên từng dòng).
+  ///
+  /// Vì sao cần: file .bin chỉ nằm trên server sau khi tải lên; kỹ thuật đi hiện
+  /// trường muốn nạp bằng cáp (tab Kỹ Thuật › Nạp code) hoặc lưu trữ/đối chiếu
+  /// phải lấy lại đúng bản đó — cùng route `GET /ota/{file}` thiết bị dùng khi tự
+  /// cập nhật, nên thứ tải về đúng là thứ máy sẽ nạp. Desktop: hộp thoại "Lưu
+  /// thành…" (gợi ý đúng tên file); web: tải xuống Downloads.
+  Future<void> _download(OtaFile f) async {
+    if (_busyName != null) return;
+    setState(() => _busyName = f.name);
+    try {
+      final bytes = await _api.downloadOta(f.name);
+      if (!mounted) return;
+      final path = await pf.saveBytesFileDialog(
+        f.name,
+        bytes,
+        label: 'Firmware',
+        extensions: const ['bin'],
+      );
+      if (!mounted) return;
+      if (path == null) return; // người dùng hủy hộp thoại
+      _snack(kIsWeb
+          ? tr('techweb.downloaded')
+          : tr('mm.downloaded').replaceFirst('{path}', path));
+    } on CloudApiException catch (e) {
+      _snack(e.message, error: true);
+    } catch (e) {
+      _snack('$e', error: true);
+    } finally {
+      if (mounted) setState(() => _busyName = null);
+    }
+  }
+
   Future<void> _confirmDelete(OtaFile f) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -248,7 +283,9 @@ class _OtaTabState extends State<_OtaTab> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final canWrite = SessionStore.canWrite;
+    // Quản lý sản xuất vào được tab này nhưng CHỈ XEM: `canWriteOta` là
+    // root/admin. Ai đứng máy ở xưởng không được arm firmware cho fleet.
+    final canWrite = SessionStore.canWriteOta;
 
     return Column(
       // `stretch` chứ không để mặc định (`center`): dải trạng thái nay co theo nội
@@ -387,7 +424,7 @@ class _OtaTabState extends State<_OtaTab> {
             icon: const Icon(Icons.donut_large_outlined, size: 18),
             label: Text(tr('mm.progress')),
           ),
-        if (target != null && SessionStore.canWrite)
+        if (target != null && SessionStore.canWriteOta)
           TextButton(
             onPressed: _busyName == null
                 ? () => _write(_api.clearOtaTarget, name: target)
@@ -444,12 +481,19 @@ class _OtaTabState extends State<_OtaTab> {
           side: BorderSide(color: sem.success.withValues(alpha: 0.4)),
           labelStyle: TextStyle(color: sem.success, fontSize: 12),
         )
-      else if (SessionStore.canWrite)
+      else if (SessionStore.canWriteOta)
         TextButton(
           onPressed: _busyName == null ? () => _confirmDeploy(f) : null,
           child: Text(tr('mm.select')),
         ),
-      if (SessionStore.canWrite) ...[
+      // Tải về: cho MỌI nhân sự (tab này đã gate isStaff) — đọc một file firmware
+      // không phải thao tác ghi. Đứng TRƯỚC nút xoá để hai icon đối lập không kề nhau.
+      IconButton(
+        tooltip: tr('mm.download'),
+        onPressed: _busyName == null ? () => _download(f) : null,
+        icon: const Icon(Icons.download_outlined),
+      ),
+      if (SessionStore.canWriteOta) ...[
         const SizedBox(width: 4),
         // KHÔNG cho xoá bản ĐANG ĐƯỢC DÙNG. Server thì vẫn cho (xoá `.bin` gỡ luôn ghim —
         // ngữ nghĩa cố ý, xem server/CLAUDE.md), nên đây là chặn Ở TAY NGƯỜI BẤM: một cú

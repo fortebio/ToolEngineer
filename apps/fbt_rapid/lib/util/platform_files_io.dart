@@ -29,15 +29,41 @@ void openFolder(String path) {
 }
 
 /// Hộp thoại "Save as" rồi ghi [text]. Trả đường dẫn đã lưu, null nếu hủy.
-Future<String?> saveTextFileDialog(String suggestedName, String text) async {
+/// Mặc định lọc file JSON (đa số nơi gọi xuất JSON); nhật ký trạm truyền
+/// `extensions: ['txt']` để hộp thoại không gợi ý sai đuôi.
+Future<String?> saveTextFileDialog(
+  String suggestedName,
+  String text, {
+  String label = 'JSON',
+  List<String> extensions = const ['json'],
+}) async {
   final loc = await getSaveLocation(
     suggestedName: suggestedName,
-    acceptedTypeGroups: const [
-      XTypeGroup(label: 'JSON', extensions: ['json'])
+    acceptedTypeGroups: [
+      if (extensions.isNotEmpty) XTypeGroup(label: label, extensions: extensions),
     ],
   );
   if (loc == null) return null;
   await File(loc.path).writeAsString(text);
+  return loc.path;
+}
+
+/// Hộp thoại "Save as" rồi ghi [bytes] (file nhị phân, vd firmware .bin).
+/// Trả đường dẫn đã lưu, null nếu hủy. [extensions] không có dấu chấm.
+Future<String?> saveBytesFileDialog(
+  String suggestedName,
+  List<int> bytes, {
+  String label = 'File',
+  List<String> extensions = const [],
+}) async {
+  final loc = await getSaveLocation(
+    suggestedName: suggestedName,
+    acceptedTypeGroups: [
+      if (extensions.isNotEmpty) XTypeGroup(label: label, extensions: extensions),
+    ],
+  );
+  if (loc == null) return null;
+  await File(loc.path).writeAsBytes(bytes);
   return loc.path;
 }
 

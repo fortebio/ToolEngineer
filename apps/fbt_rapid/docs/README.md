@@ -19,6 +19,14 @@ Sơ đồ vẽ bằng **Mermaid** (GitHub/VS Code render trực tiếp).
 | 04 | [Giải thuật đường cong CT](04-giai-thuat-duong-cong-ct.md) | Pipeline raw→calibrate→baseline→Savitzky–Golay, công thức |
 | 05 | [Theo dõi nhiệt độ realtime](05-theo-doi-nhiet-do.md) | Máy trạng thái cổng COM, ghép cặp TimeRT/TimeRB, watchdog |
 | 06 | [Công cụ kỹ thuật](06-cong-cu-ky-thuat.md) | Chia sẻ cổng COM, đọc serial, nạp firmware (esptool) |
+| 07 | [Chăm sóc khách hàng](07-cham-soc-khach-hang.md) | Tab CSKH: tra cứu thông tin máy, đọc log qua USB, bộ quét dấu hiệu lỗi, gửi log lên Engineer Server |
+| 08 | [Trạm sản xuất ATE](08-tram-san-xuat-ate.md) | Tab Sản xuất (P0): kịch bản nạp · khai sinh · hồ sơ nghiệm thu, FPY/Pareto, hàng đợi offline |
+
+**Kế hoạch đầy đủ (P0→P5):** [ATE — trạm test tự động cho sản xuất](plan/ate-san-xuat.md) — **P0 đã hiện thực**
+(xem tài liệu 08); P1→P5 (tự kiểm quang/nhiệt, hiệu chuẩn tự động, burn-in, đa DUT) còn là kế hoạch.
+
+**Kế hoạch (chưa hiện thực):** [Tài khoản cho quản lý & nhân viên xưởng](plan/tai-khoan-nha-may.md) —
+thêm vai trò `manager`/`operator`, tách quyền theo việc, token theo phạm vi để máy trạm không cầm quyền ghi OTA.
 
 ## Sơ đồ cấp cao nhất
 

@@ -18,6 +18,10 @@ String roleLabel(String roleCode) {
       return tr('role.root');
     case 'admin':
       return tr('role.admin');
+    case 'manager':
+      return tr('role.manager');
+    case 'operator':
+      return tr('role.operator');
     default:
       return tr('role.user');
   }
@@ -102,6 +106,8 @@ const Map<String, Map<String, String>> _t = {
   'mm.targetIs': {'vi': 'Máy sẽ nạp: {name}', 'en': 'Machines will flash: {name}', 'zh': '设备将刷入：{name}', 'th': 'เครื่องจะแฟลช: {name}'},
   'mm.clearTarget': {'vi': 'Huỷ chọn', 'en': 'Clear', 'zh': '取消选择', 'th': 'ยกเลิก'},
   'mm.delete': {'vi': 'Xoá', 'en': 'Delete', 'zh': '删除', 'th': 'ลบ'},
+  'mm.download': {'vi': 'Tải bản này về máy tính', 'en': 'Download to this computer', 'zh': '下载到本机', 'th': 'ดาวน์โหลดลงเครื่องนี้'},
+  'mm.downloaded': {'vi': 'Đã lưu firmware: {path}', 'en': 'Firmware saved: {path}', 'zh': '固件已保存：{path}', 'th': 'บันทึกเฟิร์มแวร์แล้ว: {path}'},
   'mm.deleteTitle': {'vi': 'Xoá bản firmware?', 'en': 'Delete firmware?', 'zh': '删除固件？', 'th': 'ลบเฟิร์มแวร์?'},
   'mm.deleteBody': {'vi': 'Xoá "{name}" khỏi server? Không thể hoàn tác.', 'en': 'Delete "{name}" from the server? This cannot be undone.', 'zh': '从服务器删除“{name}”？此操作无法撤销。', 'th': 'ลบ "{name}" ออกจากเซิร์ฟเวอร์? ไม่สามารถย้อนกลับได้'},
   'mm.firmware': {'vi': 'Firmware', 'en': 'Firmware', 'zh': '固件', 'th': 'เฟิร์มแวร์'},
@@ -221,7 +227,17 @@ const Map<String, Map<String, String>> _t = {
   'us.role': {'vi': 'Vai trò', 'en': 'Role'},
   'role.root': {'vi': 'Root', 'en': 'Root', 'zh': 'Root', 'th': 'Root'},
   'role.admin': {'vi': 'Nhân viên', 'en': 'Staff', 'zh': '员工', 'th': 'พนักงาน'},
+  'role.manager': {'vi': 'Quản lý SX', 'en': 'Production manager', 'zh': '生产经理', 'th': 'ผู้จัดการผลิต'},
+  'role.operator': {'vi': 'Thao tác viên', 'en': 'Operator', 'zh': '操作员', 'th': 'ผู้ปฏิบัติงาน'},
   'role.user': {'vi': 'Khách hàng', 'en': 'Customer', 'zh': '客户', 'th': 'ลูกค้า'},
+  'um.onlyOperators': {
+    'vi': 'Quản lý sản xuất chỉ tạo/sửa được tài khoản Thao tác viên.',
+    'en': 'A production manager can only create or edit operator accounts.'
+  },
+  'um.idsFactoryHint': {
+    'vi': 'Vai trò xưởng không dùng danh sách mã máy — hồ sơ sản xuất không lọc theo mã máy được cấp.',
+    'en': 'Factory roles do not use the machine list — production records are not filtered by granted machines.'
+  },
   'us.devices': {'vi': 'Mã máy được cấp', 'en': 'Assigned machines'},
   'us.changePassword': {'vi': 'Đổi mật khẩu', 'en': 'Change password'},
   'us.changeEmail': {'vi': 'Đổi email', 'en': 'Change email'},
@@ -410,6 +426,112 @@ const Map<String, Map<String, String>> _t = {
     'vi': 'Chỉ đọc {n} lần đo gần nhất — máy có {total}. Phần cũ hơn chưa hiện.',
     'en': 'Read only the latest {n} runs of {total}. Older history not shown.'
   },
+  // --- Tab Chăm sóc KH (nhân sự): Thông tin máy | Xử lý sự cố ---
+  'nav.support': {'vi': 'Chăm sóc KH', 'en': 'Customer care', 'zh': '客户服务', 'th': 'ดูแลลูกค้า'},
+  'sp.info': {'vi': 'Thông tin máy', 'en': 'Machine info', 'zh': '设备信息', 'th': 'ข้อมูลเครื่อง'},
+  'sp.trouble': {'vi': 'Xử lý sự cố', 'en': 'Troubleshooting', 'zh': '故障处理', 'th': 'แก้ไขปัญหา'},
+  'sp.infoHint': {'vi': 'Hiểu sản phẩm và cách vận hành để trả lời khách — không cần kiến thức kỹ thuật. Gõ từ khoá để lọc.', 'en': 'Understand the product and how it is used so you can answer customers — no technical background needed. Type to filter.'},
+  'sp.troubleHint': {'vi': 'Cắm cáp USB máy → Kết nối → nhật ký máy tự hiện → app tóm tắt máy đang gặp gì → điền mã máy + mô tả → Gửi về kỹ thuật.', 'en': 'Plug the USB cable → Connect → the machine log appears → the app sums up what is wrong → enter machine ID + note → Send to engineering.'},
+  'sp.search': {'vi': 'Tìm trong thông tin máy…', 'en': 'Search machine info…', 'zh': '搜索设备信息…', 'th': 'ค้นหาข้อมูลเครื่อง…'},
+  'sp.noMatch': {'vi': 'Không có mục nào khớp.', 'en': 'Nothing matches.', 'zh': '没有匹配项。', 'th': 'ไม่พบรายการที่ตรงกัน'},
+  'sp.errCodeLabel': {'vi': 'Mã lỗi trên màn', 'en': 'On-screen code'},
+  'sp.errCodeHint': {'vi': 'Nhập 4 chữ số hiện trên màn TFT để tách thành module · loại · bước · slot.', 'en': 'Type the 4 digits shown on the TFT to split into module · type · step · slot.'},
+  'sp.errCodeInvalid': {'vi': 'Mã lỗi gồm đúng 4 chữ số.', 'en': 'The code is exactly 4 digits.'},
+  'sp.errModule': {'vi': 'Module', 'en': 'Module'},
+  'sp.errType': {'vi': 'Loại', 'en': 'Type'},
+  'sp.errStep': {'vi': 'Bước', 'en': 'Step'},
+  'sp.errSlot': {'vi': 'Slot', 'en': 'Slot'},
+  'sp.step1': {'vi': 'Kết nối máy', 'en': 'Connect the machine'},
+  'sp.step2': {'vi': 'Nhật ký máy (log)', 'en': 'Machine log'},
+  'sp.step3': {'vi': 'Gửi về kỹ thuật', 'en': 'Send to engineering'},
+  'sp.port': {'vi': 'Cổng COM', 'en': 'COM port', 'zh': 'COM 端口', 'th': 'พอร์ต COM'},
+  'sp.refreshPorts': {'vi': 'Làm mới cổng', 'en': 'Refresh ports'},
+  'sp.connect': {'vi': 'Kết nối', 'en': 'Connect', 'zh': '连接', 'th': 'เชื่อมต่อ'},
+  'sp.connecting': {'vi': 'Đang kết nối…', 'en': 'Connecting…'},
+  'sp.disconnect': {'vi': 'Ngắt kết nối', 'en': 'Disconnect', 'zh': '断开', 'th': 'ตัดการเชื่อมต่อ'},
+  'sp.connected': {'vi': 'Đã kết nối', 'en': 'Connected', 'zh': '已连接', 'th': 'เชื่อมต่อแล้ว'},
+  'sp.notConnected': {'vi': 'Chưa kết nối', 'en': 'Not connected', 'zh': '未连接', 'th': 'ยังไม่เชื่อมต่อ'},
+  'sp.noPorts': {'vi': 'Không thấy cổng USB nào. Cắm cáp USB máy (cáp có dây data) rồi bấm làm mới; chưa có driver CP210x/CH340 thì cài.', 'en': 'No USB port found. Plug the machine USB cable (a data cable) then refresh; install the CP210x/CH340 driver if missing.'},
+  'sp.webPick': {'vi': 'Bấm "Kết nối" rồi chọn cổng của máy trong hộp thoại trình duyệt.', 'en': 'Press "Connect" and pick the machine port in the browser dialog.'},
+  'sp.openFail': {'vi': 'Không mở được cổng: {err}', 'en': 'Could not open the port: {err}'},
+  'sp.lost': {'vi': 'Mất kết nối với máy — cáp rút hoặc máy tắt. Cắm lại rồi bấm Kết nối; log đã đọc vẫn còn.', 'en': 'Connection lost — cable unplugged or machine off. Reconnect; the log read so far is kept.'},
+  'sp.quick': {'vi': 'Yêu cầu máy:', 'en': 'Ask the machine to:'},
+  'sp.cmdTip': {'vi': 'Lệnh gửi cho máy: {cmd}', 'en': 'Command sent to the machine: {cmd}'},
+  'sp.cmdPara': {'vi': 'Đọc tham số', 'en': 'Read parameters'},
+  'sp.cmdCal': {'vi': 'Đọc hiệu chuẩn', 'en': 'Read calibration'},
+  'sp.cmdTemp': {'vi': 'Bật/tắt nhiệt', 'en': 'Toggle temperatures'},
+  'sp.cmdReset': {'vi': 'Khởi động lại máy', 'en': 'Restart machine'},
+  'sp.cmdSent': {'vi': 'Đã gửi lệnh {cmd} — xem phản hồi trong log.', 'en': 'Sent {cmd} — watch the log for the reply.'},
+  'sp.resetTitle': {'vi': 'Khởi động lại máy?', 'en': 'Restart the machine?'},
+  'sp.resetBody': {'vi': 'Máy đang chạy mẫu sẽ MẤT lần chạy đó. Chỉ khởi động lại khi máy rảnh — dùng để lấy log lúc máy khởi động (lý do reset, version).', 'en': 'A run in progress will be LOST. Restart only when idle — useful to capture the boot log (reset reason, version).'},
+  'sp.lines': {'vi': '{n} dòng', 'en': '{n} lines', 'zh': '{n} 行', 'th': '{n} บรรทัด'},
+  'sp.onlyIssues': {'vi': 'Chỉ dòng đáng chú ý', 'en': 'Notable lines only'},
+  'sp.autoscroll': {'vi': 'Tự cuộn', 'en': 'Auto-scroll'},
+  'sp.clear': {'vi': 'Xóa log', 'en': 'Clear log'},
+  'sp.saveLocal': {'vi': 'Lưu file', 'en': 'Save file', 'zh': '保存文件', 'th': 'บันทึกไฟล์'},
+  'sp.saved': {'vi': 'Đã lưu: {path}', 'en': 'Saved: {path}'},
+  'sp.openFolder': {'vi': 'Mở thư mục', 'en': 'Open folder'},
+  'sp.noData': {'vi': 'Chưa có nhật ký. Cắm cáp USB máy vào laptop và bấm Kết nối — chữ máy in ra sẽ hiện ở đây.', 'en': 'No log yet. Plug the machine into the laptop by USB and press Connect — what the machine prints shows up here.'},
+  'sp.waiting': {'vi': 'Đã kết nối, đang chờ máy in… Máy im lặng thì bấm "Đọc tham số" hoặc thao tác trên máy.', 'en': 'Connected, waiting for the machine to print… If it stays quiet, press "Read parameters" or use the machine.'},
+  'sp.triageTitle': {'vi': 'Máy đang nói gì', 'en': 'What the machine is saying'},
+  'sp.triageNoLog': {'vi': 'Có nhật ký rồi app sẽ tự tóm tắt ở đây bằng lời dễ hiểu: máy gặp gì, khách tự thử được gì, khi nào chuyển kỹ thuật.', 'en': 'Once there is a log, the app sums it up here in plain words: what is wrong, what the customer can try, when to escalate.'},
+  'sp.statusError': {'vi': 'Có lỗi máy không tự hết — chuyển kỹ thuật kèm nhật ký này.', 'en': 'There is a machine fault that will not clear itself — escalate with this log.'},
+  'sp.statusWarn': {'vi': 'Có việc khách tự thử được — làm theo gợi ý bên dưới; vẫn lặp thì gửi nhật ký.', 'en': 'The customer can try something first — follow the tips below; if it keeps happening, send the log.'},
+  'sp.statusOk': {'vi': 'Không thấy dấu hiệu lỗi quen thuộc. Khách vẫn gặp sự cố thì mô tả rõ hiện tượng rồi gửi nhật ký.', 'en': 'No known error pattern. If the customer still has a problem, describe it and send the log.'},
+  'sp.detectedId': {'vi': 'Mã máy trong log: {id}', 'en': 'Machine ID in log: {id}'},
+  'sp.detectedVersion': {'vi': 'Firmware: {v}', 'en': 'Firmware: {v}'},
+  'sp.deviceId': {'vi': 'Mã máy', 'en': 'Machine ID', 'zh': '设备编号', 'th': 'รหัสเครื่อง'},
+  'sp.deviceIdHint': {'vi': 'In trên tem máy (RPL…). App tự điền nếu thấy trong log.', 'en': 'Printed on the label (RPL…). Filled automatically when found in the log.'},
+  'sp.note': {'vi': 'Mô tả sự cố', 'en': 'Issue description', 'zh': '故障描述', 'th': 'รายละเอียดปัญหา'},
+  'sp.noteHint': {'vi': 'Khách thấy gì, xảy ra lúc nào, có lặp không…', 'en': 'What the customer sees, when, does it repeat…'},
+  'sp.by': {'vi': 'Người gửi', 'en': 'Sent by'},
+  'sp.send': {'vi': 'Gửi log về kỹ thuật', 'en': 'Send log to engineering', 'zh': '发送日志给技术', 'th': 'ส่งล็อกให้ฝ่ายเทคนิค'},
+  'sp.sending': {'vi': 'Đang gửi…', 'en': 'Sending…'},
+  'sp.sent': {'vi': 'Đã gửi lên server: {file}', 'en': 'Sent to the server: {file}'},
+  'sp.sendNeedText': {'vi': 'Chưa có log để gửi — kết nối máy và chờ log hiện ra.', 'en': 'Nothing to send yet — connect the machine and wait for the log.'},
+  'sp.sendNeedId': {'vi': 'Nhập mã máy trước (in trên tem máy).', 'en': 'Enter the machine ID first (on the label).'},
+  'sp.sendFail': {'vi': 'Gửi thất bại: {err}', 'en': 'Send failed: {err}'},
+  'sp.sentList': {'vi': 'Log đã gửi', 'en': 'Sent logs'},
+  'sp.sentEmpty': {'vi': 'Máy này chưa có log nào trên server.', 'en': 'No log on the server for this machine yet.'},
+  'sp.viewSent': {'vi': 'Log đã gửi', 'en': 'Sent logs'},
+  'sp.sentLoadFail': {'vi': 'Không tải được log: {err}', 'en': 'Could not load the log: {err}'},
+  'sp.guideTitle': {'vi': 'Làm theo 4 bước', 'en': 'Four steps'},
+  'sp.guide1': {'vi': 'Cắm cáp USB từ máy vào laptop, chọn cổng vừa xuất hiện, bấm Kết nối. Máy vẫn chạy bình thường, không bị tắt hay khởi động lại.', 'en': 'Plug the machine into the laptop by USB, pick the new port, press Connect. The machine keeps running normally.'},
+  'sp.guide2': {'vi': 'Nhờ khách làm lại thao tác gây lỗi trên máy. Muốn xem máy khởi động thế nào thì bấm "Khởi động lại máy" (chỉ khi máy đang rảnh).', 'en': 'Have the customer reproduce the problem. To see how the machine boots, press "Restart machine" (only when idle).'},
+  'sp.guide3': {'vi': 'Đọc khung "Máy đang nói gì": app tóm tắt bằng lời dễ hiểu. Nhiều ca (nguồn yếu, mất WiFi) xử lý được ngay với khách.', 'en': 'Read "What the machine is saying": the app sums it up in plain words. Many cases (weak power, WiFi) can be fixed with the customer right away.'},
+  'sp.guide4': {'vi': 'Điền mã máy + mô tả sự cố rồi bấm Gửi về kỹ thuật. Không có mạng thì Lưu file và gửi email.', 'en': 'Fill in machine ID + description and press Send to engineering. Without network, Save file and email it.'},
+  'sp.introInfo': {'vi': 'Tài liệu này viết cho nhân viên chăm sóc khách hàng: đọc từ trên xuống lần đầu, sau đó dùng chip bên trên hoặc ô tìm để tra nhanh khi khách gọi. Mục "Dành cho kỹ thuật" ở cuối chỉ mở khi kỹ thuật yêu cầu.', 'en': 'Written for customer-care staff: read top to bottom once, then use the chips above or the search box while on a call. The "For engineering" section at the end is only needed when engineering asks.'},
+  'sp.jumpTo': {'vi': 'Đi tới:', 'en': 'Jump to:'},
+  'sp.advancedTag': {'vi': 'Kỹ thuật', 'en': 'Technical'},
+  'sp.advancedShow': {'vi': 'Mở', 'en': 'Show'},
+  'sp.advancedHide': {'vi': 'Thu gọn', 'en': 'Hide'},
+
+  // --- Bộ quét log (util/log_triage.dart): tiêu đề + gợi ý theo khoá luật ---
+  'triage.brownout': {'vi': 'Nguồn yếu — máy tự reset (brownout)', 'en': 'Weak power — machine self-resets (brownout)'},
+  'triage.brownoutHint': {'vi': 'Điện áp tụt. Đổi adapter/ổ cắm, không dùng chung ổ với thiết bị công suất lớn. Vẫn lặp → chuyển kỹ thuật.', 'en': 'Voltage dropped. Change the adapter/outlet, avoid sharing with high-power devices. Still repeating → escalate.'},
+  'triage.crash': {'vi': 'Firmware bị lỗi nghiêm trọng (crash)', 'en': 'Firmware crashed'},
+  'triage.crashHint': {'vi': 'Máy tự khởi động lại do lỗi phần mềm. Ghi lại thao tác ngay trước đó và gửi log — kỹ thuật cần dòng Backtrace.', 'en': 'The machine rebooted from a software fault. Note what happened right before and send the log — engineering needs the Backtrace line.'},
+  'triage.noFirmware': {'vi': 'Không có firmware hợp lệ trong máy', 'en': 'No valid firmware on the machine'},
+  'triage.noFirmwareHint': {'vi': 'Thường sau lần nạp code hỏng/thiếu file. Kỹ thuật cần nạp lại đủ bootloader + partition + app đúng offset.', 'en': 'Usually after a bad/incomplete flash. Engineering must reflash bootloader + partition + app at the right offsets.'},
+  'triage.flashRead': {'vi': 'Lỗi đọc bộ nhớ flash', 'en': 'Flash read error'},
+  'triage.flashReadHint': {'vi': 'Sai chế độ flash (DIO/QIO) khi nạp hoặc chip flash hỏng. Chuyển kỹ thuật kèm log.', 'en': 'Wrong flash mode (DIO/QIO) when flashing, or a bad flash chip. Escalate with the log.'},
+  'triage.watchdog': {'vi': 'Máy bị treo rồi tự reset (watchdog)', 'en': 'Machine hung then self-reset (watchdog)'},
+  'triage.watchdogHint': {'vi': 'Một tác vụ trong firmware bị kẹt. Nếu lặp ở cùng một bước thì ghi rõ bước đó và gửi log.', 'en': 'A firmware task got stuck. If it repeats at the same step, note the step and send the log.'},
+  'triage.tempSensor': {'vi': 'Cảm biến nhiệt không đọc được (-127 / NaN)', 'en': 'Temperature sensor unreadable (-127 / NaN)'},
+  'triage.tempSensorHint': {'vi': 'Đứt dây hoặc lỏng đầu nối cảm biến. Máy không chạy đúng được — chuyển kỹ thuật.', 'en': 'Broken wire or loose sensor connector. The machine cannot run correctly — escalate.'},
+  'triage.wifi': {'vi': 'WiFi không ổn định / không nối được', 'en': 'WiFi unstable / cannot connect'},
+  'triage.wifiHint': {'vi': 'Hỏi khách: WiFi có đổi mật khẩu, đổi router, hay máy ở xa sóng không. Cấu hình lại WiFi trên máy.', 'en': 'Ask: did the WiFi password/router change, is the machine far from the router? Reconfigure WiFi on the machine.'},
+  'triage.upload': {'vi': 'Gửi kết quả lên server thất bại', 'en': 'Result upload to the server failed'},
+  'triage.uploadHint': {'vi': 'Máy có mạng nhưng không tới được server (chặn cổng, mất Internet). Kiểm "Lần gửi cuối" ở Trạng thái máy; báo kỹ thuật nếu nhiều máy cùng lúc.', 'en': 'Networked but cannot reach the server (blocked port, no Internet). Check "Last upload" in Machine status; escalate if several machines at once.'},
+  'triage.ota': {'vi': 'Cập nhật firmware (OTA) lỗi', 'en': 'Firmware update (OTA) failed'},
+  'triage.otaHint': {'vi': 'Tải bản mới không xong (mạng yếu) hoặc bản không hợp lệ. Thử lại khi mạng ổn; vẫn lỗi → kỹ thuật.', 'en': 'Download incomplete (weak network) or invalid image. Retry on a stable network; still failing → engineering.'},
+  'triage.idfError': {'vi': 'Có dòng lỗi hệ thống (E)', 'en': 'System error lines (E)'},
+  'triage.idfErrorHint': {'vi': 'Thông điệp lỗi mức thấp của ESP32. Không tự xử được — gửi kèm log để kỹ thuật đọc.', 'en': 'Low-level ESP32 error messages. Not user-serviceable — include in the log for engineering.'},
+  'triage.resetPower': {'vi': 'Máy vừa bật nguồn', 'en': 'Machine was powered on'},
+  'triage.resetPowerHint': {'vi': 'Khởi động bình thường sau khi cắm điện — không phải lỗi.', 'en': 'Normal boot after power-on — not an error.'},
+  'triage.resetSoft': {'vi': 'Máy tự khởi động lại (reset mềm)', 'en': 'Machine restarted itself (soft reset)'},
+  'triage.resetSoftHint': {'vi': 'Reset do phần mềm (sau cập nhật, lệnh Res…). Một lần = bình thường; lặp liên tục = xem các dấu hiệu khác.', 'en': 'Software-initiated reset (after update, Res command…). Once = normal; repeating = check the other findings.'},
+
   // --- Quản lý User (admin) ---
   'um.title': {'vi': 'Quản lý User', 'en': 'Manage users'},
   'um.adminPass': {
@@ -450,4 +572,227 @@ const Map<String, Map<String, String>> _t = {
   'ce.title': {'vi': 'Đổi email', 'en': 'Change email'},
   'ce.new': {'vi': 'Email mới', 'en': 'New email'},
   'ce.ok': {'vi': 'Đã đổi email.', 'en': 'Email updated.'},
+
+  // --- Tab Sản xuất (ATE): Chạy trạm | Hồ sơ máy | Thống kê ---
+  'nav.ate': {'vi': 'Sản xuất', 'en': 'Production', 'zh': '生产', 'th': 'การผลิต'},
+  'ate.shellHint': {
+    'vi': 'Trạm nghiệm thu máy tại xưởng: nạp firmware → ghi số máy → hồ sơ có truy vết.',
+    'en': 'Factory acceptance station: flash firmware → write serial number → traceable record.'
+  },
+  'ate.shellHintWeb': {
+    'vi': 'Bản web chỉ tra cứu hồ sơ và thống kê — chạy trạm phải dùng app trên máy tính của trạm.',
+    'en': 'The web build only looks up records and stats — running the station needs the desktop app.'
+  },
+  'ate.run': {'vi': 'Chạy trạm', 'en': 'Run station'},
+  'ate.profile': {'vi': 'Hồ sơ máy', 'en': 'Machine record'},
+  'ate.stats': {'vi': 'Thống kê', 'en': 'Statistics'},
+
+  // Tên bước (mã bước giữ nguyên, không dịch — nó là khoá vẽ Pareto)
+  'ate.step.FW-02': {'vi': 'Nhận chip · flash · MAC', 'en': 'Detect chip · flash · MAC'},
+  'ate.step.FW-01': {'vi': 'Nạp firmware', 'en': 'Flash firmware'},
+  'ate.step.BOOT-01': {'vi': 'Khởi động sạch', 'en': 'Clean boot'},
+  'ate.step.ID-01': {'vi': 'Ghi số máy', 'en': 'Write serial number'},
+  'ate.step.ID-02': {'vi': 'Tham số mặc định của lô', 'en': 'Batch default parameters'},
+  'ate.step.OPT-01': {'vi': '10 cảm biến quang', 'en': '10 optical sensors'},
+  'ate.step.OPT-03': {'vi': 'Tín hiệu sáng từng slot', 'en': 'Slot bright signal'},
+  'ate.step.TMP-01': {'vi': '6 kênh nhiệt', 'en': '6 temperature channels'},
+  'ate.step.FAN-01': {'vi': 'Quạt', 'en': 'Fan'},
+  'ate.step.BUZ-01': {'vi': 'Còi', 'en': 'Buzzer'},
+  'ate.step.HMI-01': {'vi': 'Màn hình + 3 nút', 'en': 'Display + 3 buttons'},
+  'ate.batch': {'vi': 'Lô sản xuất', 'en': 'Production batch'},
+  'ate.batchHint': {
+    'vi': 'Quyết định bộ TIÊU CHUẨN máy này bị chấm theo. Đổi lô thì bấm Enter để nạp lại ngưỡng.',
+    'en': 'Chooses which limits this machine is judged by. Change it then press Enter to reload.'
+  },
+  'ate.limitsBatchWarn': {
+    'vi': 'Lô "{b}" chưa có tiêu chuẩn riêng — đang chấm theo bộ {s}',
+    'en': 'Batch "{b}" has no limits of its own — judging by the {s} set'
+  },
+  'ate.limits2': {'vi': 'Tiêu chuẩn', 'en': 'Limits'},
+  'ate.limitsCommon': {'vi': 'Bộ chung', 'en': 'Common set'},
+  'ate.limitsForBatch': {'vi': 'Tiêu chuẩn của lô {b}', 'en': 'Limits for batch {b}'},
+  'ate.limitsInherited': {
+    'vi': 'Lô này CHƯA có bộ riêng — trạm đang chấm theo bộ {s}. Lưu ở đây là tạo bộ riêng cho lô.',
+    'en': 'This batch has no set yet — the station uses the {s} set. Saving here creates one for the batch.'
+  },
+  'ate.limitsNewBatch': {'vi': 'Thêm lô…', 'en': 'Add batch…'},
+  'ate.limitsVersion': {'vi': 'Version bộ ngưỡng', 'en': 'Limits version'},
+  'ate.limitsVersionHint': {
+    'vi': 'Hồ sơ chỉ ghi chuỗi này. Sửa ngưỡng thì ĐỔI version — server từ chối dùng lại version cũ cho nội dung khác.',
+    'en': 'Records only store this string. Change it whenever you change a threshold — the server rejects reusing a version for different content.'
+  },
+  'ate.limitsNeedVersion': {'vi': 'Phải đặt version cho bộ ngưỡng.', 'en': 'The limits set needs a version.'},
+  'ate.limitsBadNumber': {'vi': 'Giá trị của "{f}" không phải số.', 'en': '"{f}" is not a number.'},
+  'ate.limitsSaved': {'vi': 'Đã lưu tiêu chuẩn version {v}.', 'en': 'Saved limits version {v}.'},
+  'ate.limitsSave': {'vi': 'Lưu tiêu chuẩn', 'en': 'Save limits'},
+  'ate.limitsReadOnly': {
+    'vi': 'Chỉ nhân sự kỹ thuật đặt được tiêu chuẩn. Bạn xem để biết lô đang chấm theo bộ nào.',
+    'en': 'Only engineering staff can set limits. You can view which set the batch is judged by.'
+  },
+  'ate.limitsImport': {'vi': 'Nhập JSON', 'en': 'Import JSON'},
+  'ate.limitsExport': {'vi': 'Xuất JSON', 'en': 'Export JSON'},
+  'ate.limitsImported': {
+    'vi': 'Đã nạp "{n}" vào biểu mẫu của {b} — KIỂM lại rồi bấm Lưu tiêu chuẩn.',
+    'en': 'Loaded "{n}" into the form for {b} — review it, then press Save.'
+  },
+  'ate.limitsImportErr': {'vi': 'Không đọc được file: {e}', 'en': 'Could not read the file: {e}'},
+  'ate.limitsImportMany': {
+    'vi': 'File có {n} bộ tiêu chuẩn — ghi thẳng lên server?',
+    'en': 'The file holds {n} limit sets — write them to the server?'
+  },
+  'ate.limitsImportManyDo': {'vi': 'Ghi tất cả', 'en': 'Write all'},
+  'ate.limitsImportedMany': {'vi': 'Đã ghi {n} bộ: {b}.', 'en': 'Wrote {n} sets: {b}.'},
+  'ate.limitsUnknownKeys': {
+    'vi': 'Khoá app chưa biết (vẫn giữ nguyên khi lưu): {k}',
+    'en': 'Keys this app does not know (kept as-is on save): {k}'
+  },
+  'ate.limitsExtraKept': {'vi': 'giữ {n} khoá lạ', 'en': '{n} unknown keys kept'},
+  'ate.limitsExported': {'vi': 'Đã xuất: {p}', 'en': 'Exported: {p}'},
+  'ate.limitsUnset': {'vi': 'chưa chốt', 'en': 'not set'},
+  'ate.limitsOpto': {'vi': 'Quang (OPT-03)', 'en': 'Optics (OPT-03)'},
+  'ate.limitsOptoHint': {
+    'vi': 'Để TRỐNG = chưa chốt: trạm vẫn đo và ghi số vào hồ sơ, nhưng không chấm đạt/hỏng. Chạy 10–20 máy tốt rồi điền từ chính các số đó.',
+    'en': 'Leave EMPTY = not set: the station still measures and records the numbers but does not judge. Run 10–20 known-good machines, then fill these in from those numbers.'
+  },
+  'ate.limitsTemp': {'vi': 'Nhiệt (TMP-01)', 'en': 'Temperature (TMP-01)'},
+  'ate.limitsTempHint': {
+    'vi': 'Nhiệt phòng là số của TỪNG xưởng — đo rồi điền; để trống thì chỉ chấm phần lệch giữa các kênh.',
+    'en': 'Room temperature differs per workshop — measure it; leave empty and only channel spread is judged.'
+  },
+  'ate.limitsFlash': {'vi': 'Nạp & khai sinh (P0)', 'en': 'Flash & birth (P0)'},
+  'ate.limitsVerify': {'vi': 'Bắt buộc verify sau khi nạp', 'en': 'Require verify after flashing'},
+  'ate.confirmTitle': {'vi': 'Xác nhận tại chỗ', 'en': 'Confirm on the spot'},
+  'ate.confirmYes': {'vi': 'ĐẠT', 'en': 'PASS'},
+  'ate.confirmNo': {'vi': 'KHÔNG ĐẠT', 'en': 'FAIL'},
+  'ate.confirmHint': {
+    'vi': 'Nhìn/nghe máy rồi trả lời. Trả lời sai làm hỏng giá trị của cả cột dữ liệu này.',
+    'en': 'Look at (or listen to) the machine, then answer. A careless answer ruins this whole column of data.'
+  },
+
+  // Chạy trạm
+  'ate.port': {'vi': 'Cổng COM', 'en': 'COM port'},
+  'ate.setup': {'vi': 'Cấu hình trạm', 'en': 'Station setup'},
+  'ate.setupHint': {
+    'vi': 'Khai một lần cho cả ca: mã trạm, người chạy, bộ 3 file .bin đang chốt cho lô và tham số nạp.',
+    'en': 'Set once per shift: station code, operator, the three .bin files for this batch and flash options.'
+  },
+  'ate.limits': {'vi': 'Bộ ngưỡng', 'en': 'Limits'},
+  'ate.limitsOffline': {
+    'vi': 'Không lấy được bộ ngưỡng từ server — đang dùng bộ dự phòng',
+    'en': 'Could not fetch limits from the server — using the local fallback'
+  },
+  'ate.queued': {'vi': 'Gửi lại {n} hồ sơ đang chờ', 'en': 'Resend {n} pending records'},
+  'ate.offset': {'vi': 'Offset', 'en': 'Offset'},
+  'ate.grantPort': {'vi': 'Chọn cổng', 'en': 'Pick port'},
+  'ate.fromServer': {
+    'vi': 'Lấy từ kho firmware trên server',
+    'en': 'From the firmware store on the server'
+  },
+  'ate.webNote': {
+    'vi': 'Bản web: nạp bằng esptool-js qua Web Serial (Chrome/Edge máy tính), firmware lấy từ kho trên server. Bước nạp CHƯA đối chiếu lại được nội dung flash.',
+    'en': 'Web build: flashing via esptool-js over Web Serial (desktop Chrome/Edge), firmware from the server store. The flash step cannot verify flash contents yet.'
+  },
+  'ate.noBin': {'vi': '(chưa chọn file)', 'en': '(no file selected)'},
+  'ate.station': {'vi': 'Mã trạm', 'en': 'Station'},
+  'ate.operator': {'vi': 'Người chạy', 'en': 'Operator'},
+  'ate.pcbVersion': {'vi': 'PCB version', 'en': 'PCB version'},
+  'ate.expectFw': {'vi': 'FW kỳ vọng', 'en': 'Expected FW'},
+  'ate.paraVersion': {'vi': 'para version', 'en': 'para version'},
+  'ate.pickBootloader': {'vi': 'Chọn bootloader', 'en': 'Pick bootloader'},
+  'ate.pickPartition': {'vi': 'Chọn partition', 'en': 'Pick partition'},
+  'ate.pickApp': {'vi': 'Chọn firmware', 'en': 'Pick firmware'},
+  'ate.chip': {'vi': 'Chip', 'en': 'Chip'},
+  'ate.flashMode': {'vi': 'Flash mode', 'en': 'Flash mode'},
+  'ate.flashSize': {'vi': 'Flash size', 'en': 'Flash size'},
+  'ate.flashBaud': {'vi': 'Baud nạp', 'en': 'Flash baud'},
+  'ate.eraseFirst': {'vi': 'Xoá flash trước khi nạp', 'en': 'Erase flash first'},
+  'ate.scanHint': {
+    'vi': 'Quét mã vạch số máy (hoặc gõ rồi Enter) — trạm chạy ngay sau khi quét.',
+    'en': 'Scan the machine barcode (or type then press Enter) — the station starts right away.'
+  },
+  'ate.sn': {'vi': 'Số máy', 'en': 'Serial number'},
+  'ate.snHelp': {
+    'vi': 'Tối đa {n} ký tự — firmware chỉ nhận bấy nhiêu, dài hơn là máy không nhận mã.',
+    'en': 'At most {n} characters — the firmware rejects longer ids.'
+  },
+  'ate.start': {'vi': 'BẮT ĐẦU', 'en': 'START'},
+  'ate.stop': {'vi': 'DỪNG', 'en': 'STOP'},
+  'ate.note': {'vi': 'Ghi chú (tuỳ chọn)', 'en': 'Note (optional)'},
+  'ate.pass': {'vi': 'ĐẠT', 'en': 'PASS'},
+  'ate.fail': {'vi': 'HỎNG', 'en': 'FAIL'},
+  'ate.aborted': {'vi': 'DỪNG GIỮA CHỪNG', 'en': 'ABORTED'},
+  'ate.failedAt': {'vi': 'hỏng ở', 'en': 'failed at'},
+  'ate.rerun': {'vi': 'Chạy lại bước', 'en': 'Rerun step'},
+  'ate.stepOf': {'vi': 'Bước {i}/{n}', 'en': 'Step {i}/{n}'},
+  'ate.nextMachine': {
+    'vi': 'Gỡ máy ra, quét số máy tiếp theo.',
+    'en': 'Remove the machine and scan the next one.'
+  },
+  'ate.binGone': {
+    'vi': 'Bản "{f}" KHÔNG còn trong kho — chọn lại trước khi chạy.',
+    'en': 'Version "{f}" is NO LONGER in the store — pick another before running.'
+  },
+  'ate.log': {'vi': 'Nhật ký trạm', 'en': 'Station log'},
+  'ate.logEmpty': {'vi': 'Chưa chạy máy nào.', 'en': 'No run yet.'},
+  'ate.logLines': {'vi': '{n} dòng', 'en': '{n} lines'},
+  'ate.logSave': {'vi': 'Tải nhật ký (.txt)', 'en': 'Download log (.txt)'},
+  'ate.logSaved': {'vi': 'Đã lưu nhật ký: {p}', 'en': 'Log saved: {p}'},
+  'ate.saveFailed': {
+    'vi': 'KHÔNG lưu được hồ sơ xuống máy trạm: {err}. Dừng dây chuyền và báo kỹ thuật — chạy tiếp là mất dữ liệu nghiệm thu.',
+    'en': 'Could NOT write the record on this PC: {err}. Stop and call engineering — continuing loses acceptance data.'
+  },
+  'ate.sentOk': {'vi': 'Đã lưu và gửi hồ sơ ({id}).', 'en': 'Record saved and uploaded ({id}).'},
+  'ate.savedOffline': {
+    'vi': 'Đã lưu hồ sơ trên máy trạm, CHƯA gửi được lên server ({err}) — sẽ tự gửi lại.',
+    'en': 'Record saved locally but not uploaded ({err}) — it will be resent automatically.'
+  },
+  'ate.flushed': {'vi': 'Đã gửi thêm {n} hồ sơ chờ.', 'en': 'Sent {n} pending records.'},
+  'ate.rejected': {
+    'vi': '{n} hồ sơ bị server từ chối — đã chuyển sang thư mục loi_gui để không kẹt hàng đợi.',
+    'en': '{n} records were rejected by the server — moved to loi_gui so the queue keeps moving.'
+  },
+  'ate.nothingRan': {
+    'vi': 'Chưa bước nào chạy xong — không có gì để nghiệm thu, chưa lưu hồ sơ nào.',
+    'en': 'No step finished — nothing to accept, no record was saved.'
+  },
+
+  // Hồ sơ máy
+  'ate.recent': {'vi': 'Hồ sơ gần đây', 'en': 'Recent records'},
+  'ate.recentEmpty': {
+    'vi': 'Chưa có hồ sơ nghiệm thu nào.\nMáy chạy qua trạm xong sẽ hiện ở đây.',
+    'en': 'No acceptance records yet.\nMachines show up here once they pass through the station.'
+  },
+  'ate.clearSearch': {'vi': 'Xoá tìm kiếm', 'en': 'Clear search'},
+  'ate.snSearchHint': {'vi': 'Gõ hoặc quét số máy rồi Enter', 'en': 'Type or scan a serial number then press Enter'},
+  'ate.search': {'vi': 'Tra cứu', 'en': 'Look up'},
+  'ate.noPermission': {
+    'vi': 'Tài khoản của bạn không được cấp quyền xem máy {sn}.',
+    'en': 'Your account is not allowed to view machine {sn}.'
+  },
+  'ate.noRecords': {'vi': 'Chưa có hồ sơ ATE nào của máy {sn}.', 'en': 'No ATE record for machine {sn} yet.'},
+  'ate.attempts': {'vi': 'Các lần qua trạm ({n})', 'en': 'Station runs ({n})'},
+  'ate.noBirth': {
+    'vi': 'Máy này CHƯA có lần nào ĐẠT — chưa được nghiệm thu.',
+    'en': 'This machine has never passed — not accepted yet.'
+  },
+  'ate.birthAt': {'vi': 'Ngày khai sinh', 'en': 'Birth date'},
+  'ate.fw': {'vi': 'Firmware', 'en': 'Firmware'},
+
+  // Thống kê
+  'ate.from': {'vi': 'Từ ngày', 'en': 'From'},
+  'ate.to': {'vi': 'Đến ngày', 'en': 'To'},
+  'ate.fpy': {'vi': 'FPY (đạt ngay lần đầu)', 'en': 'FPY (first pass yield)'},
+  'ate.machines': {'vi': 'máy', 'en': 'machines'},
+  'ate.recordsTotal': {'vi': 'Hồ sơ', 'en': 'Records'},
+  'ate.failHint': {'vi': 'hồ sơ hỏng', 'en': 'failed records'},
+  'ate.abortedHint': {'vi': 'dừng giữa chừng', 'en': 'aborted runs'},
+  'ate.pareto': {'vi': 'Pareto mã bước hỏng', 'en': 'Failure Pareto'},
+  'ate.paretoHint': {
+    'vi': 'Bước hỏng ĐẦU TIÊN của mỗi hồ sơ — sửa từ trên xuống là bớt lỗi nhanh nhất.',
+    'en': 'The FIRST failing step of each record — fixing from the top removes the most failures.'
+  },
+  'ate.noFail': {'vi': 'Không có hồ sơ hỏng trong khoảng này.', 'en': 'No failures in this range.'},
+  'ate.byDay': {'vi': 'Sản lượng theo ngày', 'en': 'Output by day'},
+  'ate.noData': {'vi': 'Chưa có dữ liệu.', 'en': 'No data yet.'},
+  'ate.day': {'vi': 'Ngày', 'en': 'Day'},
 };

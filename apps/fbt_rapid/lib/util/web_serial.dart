@@ -20,6 +20,23 @@ bool get webSerialSupported => _navSerial != null;
 @JS('navigator.serial.requestPort')
 external JSPromise<JSObject> _requestPort();
 
+@JS('navigator.serial.getPorts')
+external JSPromise<JSArray<JSObject>> _getPorts();
+
+/// Các cổng người dùng ĐÃ cấp quyền trước đó — KHÔNG hiện hộp thoại.
+///
+/// Nhờ hàm này trạm web chỉ phải xin quyền MỘT LẦN: từ máy thứ hai trở đi nó tự
+/// dùng lại cổng đã cấp, không bắt công nhân bấm chọn cổng cho từng máy (một ca
+/// vài chục máy thì đó là vài chục cú bấm vô nghĩa).
+Future<List<WebSerialPort>> grantedSerialPorts() async {
+  try {
+    final arr = await _getPorts().toDart;
+    return [for (final p in arr.toDart) WebSerialPort._(p)];
+  } catch (_) {
+    return const [];
+  }
+}
+
 /// Mở hộp thoại chọn cổng của trình duyệt. Trả `null` nếu người dùng Hủy.
 Future<WebSerialPort?> requestSerialPort() async {
   try {

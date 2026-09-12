@@ -6,10 +6,14 @@ import '../services/storage_paths.dart';
 import '../theme/app_theme.dart';
 import '../util/i18n.dart';
 import '../util/serial_support.dart';
+// Tab Sản xuất (ATE): bản desktop chạy trạm (esptool + cổng COM qua dart:io);
+// bản web chỉ tra hồ sơ + thống kê (HTTP) — cùng tên class, khác nội dung.
+import 'ate_screen.dart' if (dart.library.html) 'ate_screen_web.dart';
 import 'folder_screen.dart';
 import 'history_combined_screen.dart';
 import 'login_screen.dart';
 import 'manager_machine_screen.dart';
+import 'support_screen.dart';
 // Tab Kỹ Thuật: desktop dùng COM/esptool (dart:ffi/dart:io); web import bản
 // Web Serial + esptool-js (tech_screen_web.dart) — không kéo native vào web.
 import 'tech_screen.dart' if (dart.library.html) 'tech_screen_web.dart';
@@ -99,23 +103,41 @@ class _HomeShellState extends State<HomeShell> {
     }
 
     final session = SessionStore.current;
-    // Mặc định fail-closed: không có phiên → coi như KHÔNG phải nhân sự (ẩn tab
-    // Kỹ Thuật / Quản lý User), tránh lộ công cụ kỹ thuật lúc đăng xuất/race.
-    final isStaff = session?.isStaff ?? false; // nhân sự (root + nhân viên)
-    final isRoot = session?.isRoot ?? false; // chỉ root quản lý tài khoản
+    // Mặc định fail-closed: không có phiên → KHÔNG quyền nào cả (ẩn hết tab
+    // công cụ), tránh lộ chúng trong khoảnh khắc đăng xuất/race.
+    //
+    // Gác theo QUYỀN CỦA VIỆC, không theo chức danh: từ 2026-09-07 có thêm hai
+    // vai trò xưởng (`manager`, `operator`) chỉ được vào tab Sản xuất — nếu vẫn
+    // gác bằng `isStaff` thì cho họ thấy tab Sản xuất đồng nghĩa với trao luôn
+    // OTA + Kỹ Thuật. Bảng quyền: docs/plan/tai-khoan-nha-may.md §3.1.
+    final canSeeClinical = session?.canSeeClinical ?? false;
+    final canSupport = session?.canSupport ?? false;
+    final canSeeOta = session?.canSeeOta ?? false;
+    final canSeeProduction = session?.canSeeProduction ?? false;
+    final canUseTech = session?.canUseTech ?? false;
+    final canManageUsers = session?.canManageUsers ?? false;
 
     // CHỈ các mục NỘI DUNG vào thanh tab dọc. Thiết lập nằm trong icon tài khoản.
+    //
+    // Dựng bằng `add` thay vì list literal: tab Chăm sóc KH cần biết CHỈ SỐ của
+    // chính nó (`active: _index == i`) để mục Xử lý sự cố nhả cổng COM khi
+    // người dùng chuyển sang tab khác — cổng COM dùng chung với tab Kỹ Thuật.
     final tabs = <_Tab>[
-      _Tab(
-        icon: Icons.history_outlined,
-        selectedIcon: Icons.history,
-        label: tr('nav.history'),
-        page: HistoryCombinedScreen(
-          key: ValueKey('histcomb_${settings.deviceIp}_${settings.cloudApiUrl}'),
-          settings: settings,
+      // Lịch sử = dữ liệu LÂM SÀNG của khách hàng. Người của xưởng không có
+      // việc gì ở đây (chủ dự án chốt 2026-09-07) nên tab này biến mất với họ,
+      // và tab đầu tiên của họ là Sản xuất.
+      if (canSeeClinical)
+        _Tab(
+          icon: Icons.history_outlined,
+          selectedIcon: Icons.history,
+          label: tr('nav.history'),
+          page: HistoryCombinedScreen(
+            key:
+                ValueKey('histcomb_${settings.deviceIp}_${settings.cloudApiUrl}'),
+            settings: settings,
+          ),
         ),
-      ),
-      if (kShowFolderTab)
+      if (kShowFolderTab && canSeeClinical)
         _Tab(
           icon: Icons.folder_outlined,
           selectedIcon: Icons.folder,
@@ -125,39 +147,77 @@ class _HomeShellState extends State<HomeShell> {
             settings: settings,
           ),
         ),
+    ];
+    if (canSupport) {
+      // Nhân sự: tab Chăm sóc KH (Thông tin máy | Xử lý sự cố) — công cụ cho
+      // nhân viên CSKH: tra cứu máy + cắm USB đọc log rồi gửi về kỹ thuật.
+      // Chạy cả web (Web Serial) — màn tự báo khi trình duyệt không hỗ trợ,
+      // nên KHÔNG gác `serialToolsAvailable`: mục Thông tin máy vẫn hữu ích
+      // trên điện thoại.
+      final supportIndex = tabs.length;
+      tabs.add(_Tab(
+        icon: Icons.support_agent_outlined,
+        selectedIcon: Icons.support_agent,
+        label: tr('nav.support'),
+        page: SupportScreen(
+          key: ValueKey('support_${settings.engineerUrl}'),
+          settings: settings,
+          active: _index == supportIndex,
+        ),
+      ));
+    }
+    if (canSeeOta) {
       // Nhân sự: tab Quản lý máy (Cập nhật OTA | Trạng thái máy). Chỉ HTTP tới
       // Engineer Server nên chạy cả web, không cần bản _web riêng.
-      if (isStaff)
-        _Tab(
-          icon: Icons.precision_manufacturing_outlined,
-          selectedIcon: Icons.precision_manufacturing,
-          label: tr('nav.manager'),
-          page: ManagerMachineScreen(
-            key: ValueKey('mm_${settings.engineerUrl}'),
-            settings: settings,
-          ),
+      // Quản lý sản xuất CÓ tab này nhưng chỉ-xem: mọi nút ghi trong màn gác
+      // riêng bằng `canWriteOta`.
+      tabs.add(_Tab(
+        icon: Icons.precision_manufacturing_outlined,
+        selectedIcon: Icons.precision_manufacturing,
+        label: tr('nav.manager'),
+        page: ManagerMachineScreen(
+          key: ValueKey('mm_${settings.engineerUrl}'),
+          settings: settings,
         ),
-      // Nhân sự: tab Kỹ Thuật (Log nhiệt | Đọc serial | Nạp code). Trên web =
-      // bản Web Serial + esptool-js — conditional import ở đầu file chọn bản đúng.
-      // `serialToolsAvailable`: trình duyệt ĐIỆN THOẠI không có Web Serial nên
-      // cả ba công cụ đều vô dụng ở đó. Bày một tab mà bấm vào chỉ ra màn báo
-      // lỗi thì tệ hơn không bày. Gác theo KHẢ NĂNG nền tảng, không theo bề rộng
-      // — cửa sổ desktop kéo hẹp vẫn phải giữ tab này.
-      if (isStaff && serialToolsAvailable)
-        _Tab(
-          icon: Icons.build_outlined,
-          selectedIcon: Icons.build,
-          label: tr('nav.tech'),
-          page: const TechScreen(),
+      ));
+    }
+    if (canSeeProduction) {
+      // Tab Sản xuất (ATE) — trạm nạp + khai sinh + hồ sơ nghiệm thu cho xưởng.
+      // Nhân sự + quản lý sản xuất + thao tác viên. KHÔNG gác
+      // `serialToolsAvailable`: bản web của tab này bỏ mục "Chạy trạm" nhưng vẫn
+      // tra được hồ sơ máy + FPY, và đó là thứ quản lý cần xem trên điện thoại.
+      tabs.add(_Tab(
+        icon: Icons.factory_outlined,
+        selectedIcon: Icons.factory,
+        label: tr('nav.ate'),
+        page: AteScreen(
+          key: ValueKey('ate_${settings.engineerUrl}'),
+          settings: settings,
         ),
-      if (isRoot)
-        _Tab(
-          icon: Icons.manage_accounts_outlined,
-          selectedIcon: Icons.manage_accounts,
-          label: tr('um.title'),
-          page: const UserManagementScreen(),
-        ),
-    ];
+      ));
+    }
+    // Nhân sự: tab Kỹ Thuật (Log nhiệt | Đọc serial | Nạp code). Trên web =
+    // bản Web Serial + esptool-js — conditional import ở đầu file chọn bản đúng.
+    // `serialToolsAvailable`: trình duyệt ĐIỆN THOẠI không có Web Serial nên
+    // cả ba công cụ đều vô dụng ở đó. Bày một tab mà bấm vào chỉ ra màn báo
+    // lỗi thì tệ hơn không bày. Gác theo KHẢ NĂNG nền tảng, không theo bề rộng
+    // — cửa sổ desktop kéo hẹp vẫn phải giữ tab này.
+    if (canUseTech && serialToolsAvailable) {
+      tabs.add(_Tab(
+        icon: Icons.build_outlined,
+        selectedIcon: Icons.build,
+        label: tr('nav.tech'),
+        page: const TechScreen(),
+      ));
+    }
+    if (canManageUsers) {
+      tabs.add(_Tab(
+        icon: Icons.manage_accounts_outlined,
+        selectedIcon: Icons.manage_accounts,
+        label: tr('um.title'),
+        page: const UserManagementScreen(),
+      ));
+    }
 
     if (_index >= tabs.length) _index = 0;
     final wide = _wide || _menuOpen;
@@ -458,7 +518,15 @@ class _AccountMenu extends StatelessWidget {
       radius: 17,
       backgroundColor: cs.primaryContainer,
       child: Icon(
-        (s?.isStaff ?? false) ? Icons.shield_outlined : Icons.person_outline,
+        // Ba nhóm, ba biểu tượng: nhân sự kỹ thuật (khiên) · người của xưởng
+        // (nhà máy) · khách hàng (người). Nhìn icon là biết đang đăng nhập bằng
+        // tài khoản nào — ở xưởng dùng chung máy trạm thì đây là dấu hiệu duy
+        // nhất thấy ngay khi ai đó quên đăng xuất.
+        (s?.isStaff ?? false)
+            ? Icons.shield_outlined
+            : (s?.isFactory ?? false)
+                ? Icons.factory_outlined
+                : Icons.person_outline,
         size: 20,
         color: cs.onPrimaryContainer,
       ),
@@ -565,7 +633,9 @@ class _MobileDrawer extends StatelessWidget {
                 child: Icon(
                   (s?.isStaff ?? false)
                       ? Icons.shield_outlined
-                      : Icons.person_outline,
+                      : (s?.isFactory ?? false)
+                          ? Icons.factory_outlined
+                          : Icons.person_outline,
                   color: cs.onPrimaryContainer,
                 ),
               ),

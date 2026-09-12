@@ -103,6 +103,48 @@ def list_devices() -> list[dict]:
                 for d, n, t, v in cur.fetchall()]
 
 
+def monitor_flow() -> dict:
+    """Luồng dữ liệu cho tab Giám sát: tổng phiên, 24h/7 ngày, và 7 ngày gần nhất.
+
+    Đếm theo **`posted_at`** (giờ SERVER nhận) chứ KHÔNG phải `received_at` (giờ
+    MÁY tự khai): máy lỗi NTP báo năm 2000 sẽ không bao giờ được tính vào "24h
+    qua", còn máy lệch giờ về tương lai thì tính nhầm mãi mãi. Giám sát mà đếm
+    theo đồng hồ của thiết bị thì đo đồng hồ chứ không đo lưu lượng.
+
+    Hai truy vấn dùng CHUNG một kết nối — mỗi lần mở là một tiến trình Postgres
+    mới, không đáng cho một lần bấm Làm mới.
+    """
+    with _conn() as conn, conn.cursor() as cur:
+        # `count(DISTINCT id_device)` gộp vào ĐÂY: cùng một lượt quét bảng, thêm
+        # nó không tốn gì, tách ra là thêm nguyên một lần quét mỗi lần Làm mới.
+        # `pg_total_relation_size` gộp luôn vào đây: nó là tra catalog, không quét
+        # bảng, nên đi kèm không tốn gì. Có cỡ bảng + số hàng là suy ra được
+        # bytes/hàng, từ đó ra tốc độ phình và "còn bao lâu thì đầy đĩa".
+        cur.execute("""SELECT count(*),
+                              count(*) FILTER (WHERE posted_at >= now() - interval '24 hours'),
+                              count(*) FILTER (WHERE posted_at >= now() - interval '7 days'),
+                              count(DISTINCT id_device),
+                              pg_total_relation_size('sessions')
+                       FROM sessions""")
+        total, last24h, last7d, devices, db_bytes = cur.fetchone()
+
+        # Ngày RỖNG được bù ở `monitor._fill_days` chứ không generate_series ở SQL:
+        # cột thiếu ngày thì biểu đồ vẽ 6 cột đều nhau, đọc thành "ngày nào cũng
+        # như ngày nào" trong khi thật ra có ngày server không nhận gì cả.
+        # Nhóm theo ngày GIỜ VIỆT NAM, không phải UTC: người xem ở UTC+7 nên cột
+        # UTC trải từ 07:00 hôm nay tới 07:00 hôm sau — cả buổi sáng, cột ngoài
+        # cùng bên phải mang nhãn ngày HÔM QUA trong khi chứa dữ liệu sáng nay.
+        # `monitor._fill_days` neo theo cùng múi giờ này.
+        cur.execute("""SELECT (posted_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date, count(*)
+                       FROM sessions
+                       WHERE posted_at >= now() - interval '7 days'
+                       GROUP BY 1 ORDER BY 1""")
+        by_day = {str(d): n for d, n in cur.fetchall()}
+
+    return {"total": total, "last24h": last24h, "last7d": last7d,
+            "devices": devices, "db_bytes": db_bytes, "by_day": by_day}
+
+
 def list_sessions(device, from_, to, page, limit) -> dict:
     """Danh sách phiên đo (mới nhất trước), lọc theo thiết bị/khoảng ngày, phân trang."""
     params = {"device": device, "from": from_, "to": to,

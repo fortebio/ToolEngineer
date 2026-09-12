@@ -65,8 +65,67 @@ trước khi kết luận hỏng.
   `settings_screen.dart` cũ KHÔNG còn dùng). **Thanh nav ẩn hẳn** — hover mép trái (vùng 14px +
   "tay nắm" gợi ý) mới hiện như **overlay trong `Stack`** (KHÔNG dùng `Row`): bung/thu thanh nav KHÔNG
   relayout nội dung → tránh giật `fl_chart`.
+- **Tab Quản lý máy** (`manager_machine_screen.dart`, nhân sự; chỉ HTTP nên chạy cả web): **Cập nhật
+  OTA** (kho `.bin` trên Engineer Server: tải lên `PUT /ota/{file}` với tên `fbt_v<version>.bin`, chọn
+  bản chung/ghim máy `PUT /ota/target/…`, xoá `DELETE`, **tải về** `FbtApi.downloadOta` = `GET /ota/{file}`
+  bytes thô qua `_getBytes` (timeout riêng 3 phút) → `pf.saveBytesFileDialog` (desktop "Lưu thành…",
+  web tải xuống; thêm 2026-09-04)) **| Trạng thái máy** (`/devices` + `fw-log`). Mọi thao tác ghi dùng
+  PUT/DELETE vì server catch-all POST. **Server đã tách kho OTA THEO SẢN PHẨM** (2026-09-11,
+  `server/app/ota.py`, giai đoạn 0 của `docs/plan/ota-nhieu-san-pham.md`): `products/<product>/`,
+  máy không khai `?product=` → kho `OTA_LEGACY_PRODUCT` (`rapidplus`); **app hiện vẫn gọi route
+  CŨ không `{product}`** (= kho legacy, chạy nguyên) — giai đoạn 2 app chuyển sang `GET /ota/products`
+  + `/ota/{product}/…`, upload không gõ version (`PUT /ota/{product}`, server đọc thẻ `FBTIMG1`
+  trong .bin); `/ota/check` trả thêm `ver/product/hw/reason`, `/devices` thêm `product/hw/product_effective`.
+  Firmware giai đoạn 1 (chưa làm): nhúng thẻ + gửi `&product=&hw=` + đối chiếu manifest.
+- **Tab Chăm sóc KH** (`support_screen.dart`, nhân sự, 2026-09-04; doc `docs/07-cham-soc-khach-hang.md`):
+  mẫu segmented **Thông tin máy** (`support_info_screen.dart`, nội dung = dữ liệu ở
+  `data/machine_info_content.dart`, tiếng Việt, KHÔNG qua `tr()`, **viết cho CSKH không nền kỹ
+  thuật** — thứ tự sản phẩm → quy trình → kết quả → … → kịch bản → từ điển; mục `advanced: true`
+  ("Dành cho kỹ thuật") thu gọn mặc định; chip "Đi tới" = `jump` + `GlobalKey`/`ensureVisible`
+  nên danh sách là `SingleChildScrollView`+`Column`; kèm bộ tách mã lỗi 4 số `decodeErrorCode`)
+  **| Xử lý sự cố** (`support_troubleshoot_screen.dart`: khung "Máy đang nói gì" mở đầu bằng
+  **kết luận 1 dòng** đỏ/vàng/xanh (`sp.statusError/Warn/Ok`) rồi mới liệt kê dấu hiệu; nút
+  "Yêu cầu máy" giấu lệnh thật vào tooltip; Kết nối USB → log theo
+  dòng + **bộ quét `util/log_triage.dart`** (regex ESP32 → khoá i18n `triage.<key>`/`<key>Hint`,
+  test `test/log_triage_test.dart`) → **Gửi log** `FbtApi.uploadDeviceLog` = `PUT /devices/{id}/logs`
+  / `listDeviceLogs` / `fetchDeviceLog`). **MỘT màn cho cả desktop lẫn web** nhờ facade
+  **`util/serial_link.dart`** (`export _io if (dart.library.html) _web`; kiểu chung ở
+  `serial_link_types.dart`): `serialLinkCanListPorts` false trên web → bỏ ô chọn cổng, `openSerialLink`
+  bật hộp thoại trình duyệt và trả `null` khi Hủy. Cổng COM dùng chung tab Kỹ Thuật → `HomeShell`
+  dựng list tab bằng `add` để biết chỉ số và truyền `active: _index == supportIndex`; màn nhả cổng
+  (giữ log) khi `active` → false. Lệnh nhanh CHỈ lệnh an toàn (`ParaRead`/`M`/`TemperatureOutput`/`Res`
+  có xác nhận) — KHÔNG `P` (treo firmware).
+- **Tab Sản xuất (ATE)** (`ate_screen.dart`, nhân sự, 2026-09-07; doc `docs/08-tram-san-xuat-ate.md`,
+  kế hoạch đầy đủ `docs/plan/ate-san-xuat.md`): trạm nghiệm thu máy ở xưởng, **pha P0** = nạp → khai
+  sinh → hồ sơ. Mẫu segmented **Chạy trạm | Hồ sơ máy | Thống kê**. Ba lớp tách BẠCH, đừng trộn:
+  **`services/ate_runner.dart`** = kịch bản, **THUẦN Dart** (không Flutter/dart:io — mọi thứ chạm phần
+  cứng qua interface `AteStation`; có test `test/ate_runner_test.dart` với máy giả) ·
+  **`services/ate_station_io.dart`** = bản thật (esptool `Process.start` + `util/serial_link.dart`) ·
+  **`services/ate_api.dart`** + **`ate_queue_io.dart`** = hồ sơ (ghi file `FBT_RAPID_ate\cho_gui\`
+  TRƯỚC, `PUT /ate/records` SAU, mạng sống lại thì flush). 5 bước P0: `FW-02` (flash_id → chip/flash/MAC)
+  → `FW-01` (write_flash + `verify_flash` + **sha256 của .bin** bằng `util/sha256.dart` tự viết, KHÔNG
+  thêm package `crypto`) → `BOOT-01` (nghe UART, quét bằng `util/log_triage.dart` dùng chung tab CSKH)
+  → `ID-01` (ghi số máy rồi **`ParaRead` đọc lại đối chiếu**) → `ID-02` (tham số lô). **P1 thêm 6 bước
+  tự kiểm** (2026-09-07): `OPT-01` (10 cảm biến quang — `GET /errors` nếu máy có IP, chưa có mạng thì
+  lùi về UART `R`) · `OPT-03` (tín hiệu sáng từng slot: gửi `0`–`9` **MỘT slot một lần**) · `TMP-01`
+  (6 kênh nhiệt qua `TemperatureOutput`, parser `parseTempSamples` sao y `temperature_serial`) ·
+  `FAN-01`/`BUZ-01`/`HMI-01` (gửi lệnh rồi hỏi người vận hành qua hook `confirm`). **Tiêu chuẩn đặt theo TỪNG LÔ
+  SẢN XUẤT** (2026-09-07): `GET|PUT /ate/limits?batch=` + `GET /ate/limits/list`; server lùi dần **bộ
+  của lô → bộ chung → mặc định** và trả `source` để màn trạm cảnh báo khi lô đang chạy chưa có bộ riêng.
+  Hồ sơ mang `batch` (lọc được ở `/ate/records`, `/ate/stats`) và `limits_ver`. Màn đặt ngưỡng:
+  `ate_limits_screen.dart` (mục Tiêu chuẩn), gác `canEditLimits` = nhân sự kỹ thuật; có **nhập/xuất
+  JSON** (một bộ · một bộ kèm `batch` · nhiều lô qua `batches`/`items`) — bộ đọc file là hàm THUẦN
+  `parseAteLimitsImport` trong `models/ate_record.dart` (test `test/ate_limits_import_test.dart`),
+  khoá lạ được GIỮ và gửi lại khi lưu. Bản web
+  **Trạm chạy được CẢ TRÊN WEB** (2026-09-08): `services/ate_station.dart` là facade
+  `export _io if (dart.library.html) _web` — desktop = esptool + libserialport, web = **esptool-js +
+  Web Serial**; hàng đợi cũng có facade `ate_queue.dart` (web = localStorage, lược log, trần 60 hồ sơ).
+  **MỘT màn Chạy trạm** dùng chung, không có bản `_web` riêng. Ba khác biệt web phải nhớ: firmware lấy
+  từ **kho OTA của server** (`fetchBin` → `GET /ota/{file}`, `AteBinPart.path` là TÊN file chứ không
+  phải đường dẫn), **chưa verify được** sau nạp (FW-01 hạ xuống `info`, xem `AteFlashResult.verified`),
+  và `http://<ip>` tới máy bị chặn mixed content nên OPT-01 lùi về UART.
 - **Phiên/phân quyền**: `services/session_store.dart` giữ `UserSession` **toàn cục** qua static
-  `SessionStore.current` (giống pattern `StoragePaths`). **3 vai trò** (`UserRole`): `root` (Root) /
+  `SessionStore.current` (giống pattern `StoragePaths`). **3 vai trò GỐC** (`UserRole` — nay là 5, xem bullet ngay dưới): `root` (Root) /
   `admin` (Nhân viên) / `user` (Khách hàng) — tên hiển thị qua `roleLabel()` (i18n). `canWrite` = nhân sự
   (`isStaff` = root+admin); `canManageUsers` = **root** (quản lý tài khoản **root-only**, gate
   `requireAdmin_` trong userAuth.js yêu cầu role==="root"). **Phạm vi XEM máy = `allowAll`** (`canSee()`):
@@ -75,6 +134,22 @@ trước khi kết luận hỏng.
   **canWrite** + hiện tab Kỹ Thuật, KHÔNG quyết định phạm vi xem. Lọc dữ liệu enforce **ở client**
   (`cloud_devices`/`history` fetch hết rồi `canSee`); `UserSession.fromJson` TỰ tính `allowAll` (không tin
   `allowAll` backend cũ). Màn con đọc `SessionStore.current`/`canWrite` để lọc + ẩn nút.
+- **5 vai trò từ 2026-09-07** (thêm 2 vai trò XƯỞNG — `docs/plan/tai-khoan-nha-may.md`): `root` ·
+  `admin` (nhân viên kỹ thuật/CSKH) · **`manager`** (quản lý sản xuất) · **`operator`** (thao tác viên) ·
+  `user` (khách hàng). Quyền đọc theo **TÊN VIỆC**, không theo chức danh — `UserSession`/`SessionStore`
+  có `canSeeClinical` · `canWriteClinical` · `canSupport` · `canUseTech` · `canWriteOta` · `canSeeOta` ·
+  `canSeeProduction` · `canSeeProductionStats` · `canRunStation` · `canManageUsers` +
+  `canManageRole(target)`. `canWrite` GIỮ làm **alias** của `canWriteClinical` (21 chỗ gọi cũ) — code mới
+  đừng dùng nó. Ma trận đầy đủ có test: `test/user_session_test.dart`.
+  ⚠️ Ba luật dễ quên: (1) **người của xưởng KHÔNG xem dữ liệu lâm sàng** (chủ dự án chốt) → tab Lịch sử
+  biến mất với họ, tab đầu tiên là Sản xuất; (2) **hồ sơ ATE KHÔNG lọc theo `ids`** — máy vừa ra khỏi
+  chuyền chưa cấp cho ai, dùng `canSeeProduction` chứ đừng dùng `canSee`; (3) `roleFromCode` quy vai trò
+  lạ về `user` (fail-closed) → **cập nhật app trên máy trạm TRƯỚC khi tạo tài khoản manager/operator**,
+  không thì họ đăng nhập vào chỉ thấy Lịch sử.
+- **Token API phát theo vai trò** (`server/app/auth.py::api_token_for`): root/admin → `OTA_ADMIN_TOKEN`
+  (ghi được OTA); **manager/operator/user → `TOKEN` thiết bị** (đọc + ghi hồ sơ ATE, KHÔNG arm được
+  firmware cho fleet). Đổi vai trò một tài khoản thì **phải đăng xuất/đăng nhập lại** mới đổi token —
+  quyền cũ còn nguyên trong máy cho tới lúc đó.
 - **Nguồn dữ liệu** (mỗi nguồn 1 service):
   - `device_api.dart` — HTTP `GET /getdata` tới IP máy trong LAN (tab Lịch sử).
   - **3 nguồn cloud, 1 giao diện chung** `CloudHistoryClient` (trong `cloud_history_api.dart`):
@@ -280,6 +355,146 @@ trước khi kết luận hỏng.
   mỗi lượt (chống lặp bằng cờ `stop_hook_active`). Vì vậy hãy giữ file này luôn cập nhật.
 
 ## Gotchas (đã gặp thật — đừng dẫm lại)
+- **ATE — máy giả phải trả UART theo TỪNG MẨU, không phải cả khối** (bài học đắt 2026-09-09): bộ nghe
+  BOOT-01 ngắt ngay khi thấy banner ROM (`ets `/`rst:0x`), trên bo thật log về từng ~30 byte nên nó
+  cắt đúng ở `ets Jul 29 2019 12:21:46 / rst:` rồi chấm "không thấy version" — **14 hồ sơ đầu tiên
+  của trạm web FAIL sạch** dù nạp thành công. 48 test vẫn xanh vì `FakeStation` trả cả khối một lần
+  nên `until` đúng ngay chunk đầu. Giờ máy giả trả mẩu 8 ký tự và tôn trọng `until`; luật cho mọi
+  `until` mới: chỉ ngắt khi đã có THỨ CẦN CHẤM (version/lỗi/`{Green: n}`/đủ 2 mẫu nhiệt), không
+  ngắt ở "dấu hiệu bắt đầu". Nhìn hồ sơ thật (`%LOCALAPPDATA%\fbt-localtest\ate\*.json`, cột
+  `raw` của bước hỏng) trước khi tin test.
+- **`ExpansionTile` căn GIỮA phần thân**: `expandedCrossAxisAlignment` mặc định là `center`, nên một
+  `Container` không đặt bề rộng sẽ co lại bằng dòng dài nhất rồi nằm lọt thỏm giữa thẻ (khung Nhật ký
+  trạm dính đúng lỗi này). Thân chiếm hết bề ngang thì phải `CrossAxisAlignment.stretch`.
+- **`DropdownButtonFormField` bề rộng CỐ ĐỊNH thì phải `isExpanded: true`**: chữ dài hơn ô là
+  RenderFlex tràn phải — bản debug kẻ sọc vàng, **bản release cắt cụt im lặng**. Bắt được nhờ widget
+  test, không phải nhờ nhìn màn hình.
+- **Ô chọn hiện TRỐNG chưa chắc là lỗi widget — soi DỮ LIỆU trước**: ô "Chọn bootloader" của trạm web
+  trống trong khi cấu hình đã lưu tên bản, tôi đoán ngay là `FormField.initialValue` chỉ gieo một lần.
+  Sai: kho OTA đã đổi sang bộ tên khác (`fbt_v2.4.4-bootloader.bin`) nên tên cũ không còn tồn tại —
+  `DropdownButtonFormField` bỏ giá trị lạ là ĐÚNG. Bài học kép: (1) so danh sách thật với giá trị đã
+  lưu trước khi mổ widget; (2) trạng thái "tên đã lưu không còn trong kho" phải **nói ra**
+  (`ate.binGone`), vì ô trống trông y hệt "chưa ai cấu hình".
+- **Lái bản WEB bằng browser tool: BẬT SEMANTICS trước, đừng đoán toạ độ**. Flutter web vẽ lên canvas
+  nên `find`/`read_page` trả rỗng và click theo pixel hay trượt im lặng. Bấm nút ẩn của Flutter một
+  lần là có cây accessibility để click theo `ref`:
+  `document.querySelector('flt-semantics-placeholder').click()` (qua `javascript_tool`), chờ ~1s.
+  Ba lưu ý: cây **tự tắt lại** sau vài thao tác (bấm lại), `ref` **cũ đi ngay khi layout đổi** (đọc
+  lại `read_page` trước mỗi click), và menu `DropdownButton` chỉ đưa vào cây **những mục đang thấy** —
+  cuộn trong menu rồi đọc lại mới đủ. Ảnh chụp thỉnh thoảng timeout/ra khung phóng to (pane bị che):
+  đó là lỗi CHỤP, không phải app — kiểm bằng `read_page` hoặc đọc thẳng `localStorage` để biết state.
+- **ATE — `AteStation` nói Ý ĐỊNH, không nói cú pháp esptool**: `chipInfo()` / `flash(AteFlashRequest)`
+  chứ không phải `esptool(List<String> args)`. Đổi từ bản cũ (truyền tham số dòng lệnh) vì bản web
+  không có tiến trình nào để chạy — nó gọi esptool-js. Đặt ranh giới ở cú pháp CLI thì bản web phải đi
+  phân tích chuỗi tham số; đặt ở ý định thì một kịch bản chạy cả hai nền tảng.
+- **ATE web — nền tảng không verify được thì bước nạp là `info`, KHÔNG phải `pass`**
+  (`AteFlashResult.verified`). Đừng "cho qua" để hồ sơ đẹp: hồ sơ nghiệm thu mà ghi "verify khớp" cho
+  thứ không ai đối chiếu là hỏng đúng cái giá trị của nó.
+- **ATE — một `version` bộ ngưỡng = một NỘI DUNG**: `PUT /ate/limits` trả **400** nếu lưu nội dung khác
+  dưới version đã có (`ate_limits_conflict`). Hồ sơ chỉ ghi chuỗi `limits_ver`, nên tái dùng version là
+  mất khả năng trả lời "máy này bị chấm theo ngưỡng nào" — đúng vết xe `fbt_v2.4.5.bin` (hai image, một
+  tên). Sửa ngưỡng thì đổi version.
+- **ATE — ô ngưỡng để TRỐNG nghĩa là "chưa chốt", KHÔNG phải 0**: app không gửi khoá đó → `AteLimits`
+  đọc ra `null` → bước đo trả `info`. Đừng "tạm điền 0 cho nó chạy": 0 là một ngưỡng thật và mọi máy
+  đều vượt qua nó.
+- **ATE — ngưỡng chưa chốt thì trả `info`, KHÔNG phải `pass`**: `AteLimits` để `null` cho mọi ngưỡng
+  quang + nhiệt phòng; bước đo ghi số vào hồ sơ với verdict `info` (không làm hỏng hồ sơ, cũng không
+  giả vờ đã kiểm). Chạy 10–20 golden unit → đọc số trong hồ sơ → `PUT /ate/limits` là tự chuyển sang
+  chấm. Đừng "tạm điền một con số cho nó chạy" — cả cột dữ liệu sau đó thành vô nghĩa.
+- **ATE — `testShot` (`0`–`9`) KHÔNG echo số slot**: phải gửi ĐÚNG MỘT slot rồi chờ đúng một dòng
+  `{Green: …}` (`parseGreenMean`). Bắn cả 10 slot rồi parse hàng loạt là gán nhầm số sang slot khác mà
+  vẫn "ĐẠT" — kiểu sai âm thầm nguy hiểm nhất của trạm.
+- **ATE — bước bán tự động không có hook `confirm` thì `skip`**, không bao giờ tự `pass`. Máy trạm chạy
+  không người mà đóng dấu "quạt đạt" thì cột dữ liệu đó vứt đi.
+- **ATE — `-127` là cảm biến nhiệt Dallas MẤT KẾT NỐI**, không phải nhiệt độ âm: `TMP-01` chấm FAIL và
+  gọi đúng tên kênh (`kTempChannels`). Cùng luật với bộ quét log của tab CSKH.
+- **ATE — firmware trả `true` cả khi KHÔNG ghi gì**: `JsonDataConfig()` bỏ qua toàn bộ cấu hình nếu
+  thiếu khoá `"para version"` (hoặc sai tên khoá) mà **vẫn báo thành công**. Vì vậy `ate_runner`
+  (1) LUÔN chèn `para version` vào mọi JSON `{...}@` gửi qua Serial — đường `POST /config` được
+  firmware tự chèn, đường Serial thì KHÔNG; (2) **không chấm theo ACK**, luôn `ParaRead` rồi đối chiếu
+  chuỗi. Tên khoá (`device ID` / `para version` / `PCB version`) là hằng ở đầu `ate_runner.dart`, lấy
+  theo `GET /config` của firmware v2.4.4 — **đối chiếu lại với firmware trước khi chạy lô đầu**.
+- **ATE — hồ sơ đẩy bằng PUT, không POST** (`PUT /ate/records`): `POST /{path}` catch-all của server
+  nuốt mọi POST thành payload thiết bị → 400 "missing id_device". Cùng luật với OTA và log CSKH.
+- **`--base-href /app/` KHÔNG chạy qua Git Bash**: MSYS đổi `/app/` thành `C:/Program Files/Git/app/`
+  → `flutter build web` báo "should start and end with /" rồi **vẫn thoát mã 0** (tưởng build xong,
+  thật ra không). Build web có base-href thì chạy từ **PowerShell**, hoặc đặt `MSYS_NO_PATHCONV=1`.
+- **Thêm màn desktop-only phải build lại web để kiểm**: `flutter analyze` KHÔNG phát hiện `dart:io` lọt
+  vào cây import của bản web (conditional import chỉ giải quyết lúc build). Sau khi thêm tab mới chạy
+  `flutter build web --release --output build/web_check` (thư mục riêng để không đè bản test ở
+  `build\web`) rồi xoá đi.
+- **Flutter trên box `ADM` (2026-09-04)**: dự án ghim **3.44.1** qua FVM (`.fvm/fvm_config.json`) nhưng
+  máy KHÔNG có `fvm` lẫn `flutter` trong PATH. SDK đã tải thủ công (zip stable chính thức, 1.14 GB) vào
+  **`C:\Users\ADM\fvm\versions\3.44.1`** (đúng layout FVM — cài `fvm` sau là nhận). Gọi bằng đường dẫn
+  đầy đủ từ PowerShell, kèm `PUB_CACHE`:
+  `$env:PUB_CACHE="$env:LOCALAPPDATA\Pub\Cache"; & C:\Users\ADM\fvm\versions\3.44.1\bin\flutter.bat analyze …`
+  (chạy `flutter.bat` từ Git Bash dễ lỗi script sh). **Máy KHÔNG có Visual Studio** → không build được
+  Windows desktop ở đây (chỉ analyze/test/build web); `windows/` cũng gitignored (sinh lại bằng
+  `flutter create` trên máy có VS — nhớ tên pubspec `RapidPlusApp` phải đổi tạm, xem gotcha dưới).
+- **Công thức TEST LOCAL bản web + server (đã chạy 2026-09-04, không cần Postgres/thiết bị)**:
+  (1) venv Python trong scratchpad (`pip install fastapi httpx uvicorn pytest`), test:
+  `PYTHONIOENCODING=utf-8 python -m pytest server/tests/test_api.py -q` (chạy TỪ `server/`).
+  (2) `flutter build web --release --base-href /app/ --dart-define=FBT_URL=http://127.0.0.1:8080
+  --dart-define=FBT_TOKEN=localtok` rồi chạy server local **serve luôn bản web** (cùng origin, hết CORS):
+  `FBT_WEB_DIR=<repo>\build\web FBT_DATA_DIR/OTA/LOGS_DIR=<scratch> RECEIVER_TOKEN=localtok
+  FBT_DB="dbname=__nope__ connect_timeout=1" python -m uvicorn app.main:app --port 8080` (từ `server/`)
+  → mở `http://127.0.0.1:8080/app/`. (3) **Login thật cần Postgres** → trên box ADM đã dựng
+  **PostgreSQL 17.7 portable** (zip binaries EDB, không cài đặt/không service) ở
+  `%LOCALAPPDATA%\fbt-localtest\pgsql`, data `…\pgdata` (`initdb -U postgres -A trust`, port **5433**),
+  DB `mydb` đã chạy `deploy/schema.sql`, bảng `users` có 3 tài khoản test: **`cskh`/`cskh123`** (admin,
+  `*`) · **`root`/`root123`** (root) · **`khach`/`khach123`** (user, chỉ RPL02013); 1 phiên mẫu
+  `docs/data_sample/data_RPL.json` đã ingest. Bật/tắt cả bộ bằng **`server\scripts\localtest.ps1`**
+  (`-Stop` để tắt) — script tự tạo venv ở `%LOCALAPPDATA%\fbt-localtest\venv` (venv trong scratchpad
+  phiên AI là thư mục TẠM, đừng trông vào nó). Không có Postgres thì đường lùi: nhét phiên vào
+  localStorage bằng JS rồi reload: khoá `flutter.user_session_v1` = `JSON.stringify(JSON.stringify({username,
+  name, role:'admin', ids:['*'], allowAll:true}))` (shared_preferences web bọc JSON 2 lớp), thêm
+  `flutter.engineer_url`/`flutter.engineer_token` cùng kiểu. (4) **Cổng serial GIẢ** để test Web Serial
+  không cần máy: ghi đè `navigator.serial.requestPort = async () => fakePort` với `fakePort` có
+  `getInfo()`, `open()` (tạo `readable` = `ReadableStream` enqueue từng dòng log ESP32 theo timer,
+  `writable` = `WritableStream` ghi vào `window.__fakeWrites`), `setSignals()`, `close()` — dart2js gọi
+  đúng property đó. Đã dùng để xác nhận toàn chuỗi Chăm sóc KH: kết nối → quét dấu hiệu → lệnh nhanh
+  ghi `ParaRead\n` → PUT log lên server local → "Log đã gửi" đọc lại → đổi tab tự đóng cổng.
+  ⚠️ Bản `build\web` sau bước (2) nhúng URL localhost + token test — build lại KHÔNG dart-define trước
+  khi deploy. Click trong Flutter web (canvas) thỉnh thoảng TRƯỢT không báo lỗi → chụp lại xác nhận
+  trước khi kết luận (gặp thật: nút Đóng dialog + đổi tab).
+- **Deploy từ box ADM — ĐÃ MỞ SSH thẳng 2026-09-12** (trước đó bị Tailscale SSH chặn: `tailnet policy
+  does not permit you to SSH`; LAN 22 timeout; tên ngắn `fbt` không resolve → dùng IP `100.109.127.87`
+  hoặc `fbt.basa-luma.ts.net`). Cách mở: trên box `sudo tailscale set --ssh=false` (OpenSSH nhận lại
+  cổng 22) + thêm `~/.ssh/id_ed25519.pub` của ADM vào `authorized_keys` của `engineer` — người dùng tự
+  làm qua **Cockpit** `https://100.109.127.87:9090` (cổng 9090 KHÔNG dính chính sách Tailscale SSH;
+  có Terminal trong trình duyệt). Không SSH được thì chuyển file qua Cockpit bằng cách dán `base64` của
+  `tar.gz` (KHÔNG zip của PowerShell 5.1 — nó ghi path bằng `\`, giải nén Linux ra tên hỏng). Quy trình
+  gói sẵn trong **`server\scripts\deploy.ps1`** (`-Server` scp CẢ `app/*.py` + `scripts/migrate_ota.py`,
+  tự `cp -a app app.bak.<stamp>` trên box trước; `-Web` scp NỘI DUNG `build\web_prod` đúng gotcha
+  `scp -O`; `-DryRun` chỉ in lệnh); restart `fbt-receiver` vẫn phải tự chạy (sudo cần mật khẩu, `-t`).
+  Bản web production build ra **`build\web_prod`** (`--output build/web_prod`, KHÔNG dart-define) để
+  không đè bản test local ở `build\web`. Windows OpenSSH hỏi host key rồi KHÔNG nhận "yes" (lặp vô hạn)
+  → thêm `-o StrictHostKeyChecking=accept-new`.
+- **Box production KHÔNG chắc chạy code của `main` — kiểm trước khi deploy** (dính thật 2026-09-12):
+  box nhận code nhánh `origin/ota-rollout-docs-tests` (28/08: `server/app/monitor.py` + route
+  `/monitor`, app có `monitor_screen.dart`, tải hàng loạt, CSV rollout) mà clone ADM chưa merge; scp từ
+  `main` ghi đè `main.py`/`db.py`/`__init__.py` → tab Giám sát của bản web gãy ~35 phút. Dấu vết: file
+  trên box **không có trong local** (`monitor.py` mtime cũ + `.pyc`). Đã ghép lại 4 file server từ commit
+  `8bc627d`; **phần app Flutter của nhánh đó CHƯA merge** → build web từ cây này sẽ MẤT Giám sát + tải
+  hàng loạt — phải merge nhánh vào `main` trước. Luật: `git fetch` + `git branch -r --no-merged` +
+  so `ls app/*.py` trên box với local trước mọi lần deploy.
+- **File `.ps1` có tiếng Việt PHẢI lưu UTF-8 CÓ BOM**: PowerShell 5.1 đọc file không BOM theo ANSI →
+  chuỗi vỡ → lỗi parse "ma" ở dòng vô can (`token '&&' is not a valid statement separator`, "missing
+  terminator"). Tool Write ghi KHÔNG BOM → sau khi viết phải thêm BOM
+  (`[IO.File]::WriteAllText(p, t, (New-Object Text.UTF8Encoding($true)))`); kiểm nhanh bằng
+  `[Management.Automation.Language.Parser]::ParseFile` (ANSI) so với `ParseInput` (UTF-8).
+- **Test server `GET /ota/../../note.md` trả 405 chứ không 404 với httpx mới**: httpx chuẩn hoá `..`
+  TRƯỚC khi gửi → request thành `GET /note.md` → khớp catch-all `POST /{path}` sai method → 405.
+  Không phải lỗi server (path không tới handler, không lộ file) — assert nên là `in (404, 405)`.
+- **`server/app/main.py` KHÔNG được có tác dụng phụ ghi đĩa lúc import** (ngoài `mkdir`):
+  `app/__init__.py` import `app.main`, nên MỌI script/test import `app.*` đều chạy main.py —
+  đặt `ota.migrate_legacy()` dưới `FastAPI(...)` làm `scripts/migrate_ota.py --dry-run` dời file
+  THẬT (đã dính 2026-09-11). Việc "chạy một lần lúc khởi động" đặt trong `lifespan` (chỉ tiến
+  trình uvicorn thật chạy; `TestClient` không dùng `with` thì cũng không chạy).
+- **Route server mới KHÔNG được là POST** (đã ghi ở mục OTA, lặp lại vì dễ quên): `POST /{path}`
+  catch-all ingest nuốt mọi POST → 400 "invalid". Log CSKH dùng `PUT /devices/{id}/logs`; tên file
+  trả về dài hơn 64 ký tự nên `GET /logs/{file}` kiểm tên bằng regex riêng, KHÔNG `safe_name` (cắt 64
+  ký tự → đổi tên → 404 sai).
 - **Phân trang + lọc quyền `canSee` ở CLIENT → user hạn chế kẹt ở trang rỗng**: màn tải theo trang
   rồi lọc `canSee` (vd `json_files_screen`) — 1 trang có thể TOÀN máy không-được-xem → lọc ra RỖNG.
   Nếu coi `_items.isEmpty` là "hết" (nút Tải thêm nằm trong ListView, không hiện) thì user chỉ được

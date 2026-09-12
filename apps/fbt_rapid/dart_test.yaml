@@ -1,0 +1,6 @@
+# Bộ ảnh tài liệu (test/ate_run_shots_test.dart) so từng PIXEL nên phụ thuộc font
+# của máy chạy → KHÔNG cho nó vào `flutter test` thường. Chạy có chủ đích bằng:
+#   flutter test test/ate_run_shots_test.dart --update-goldens --run-skipped
+tags:
+  shots:
+    skip: "anh tai lieu - chay rieng voi --run-skipped --update-goldens"

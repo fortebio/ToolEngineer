@@ -18,8 +18,26 @@ Future<void> writeFileText(String path, String text) async =>
 void openFolder(String path) {}
 
 /// Web: không có hộp thoại "Save as" — tải thẳng xuống Downloads.
-Future<String?> saveTextFileDialog(String suggestedName, String text) async {
+/// [label]/[extensions] chỉ có nghĩa trên desktop (bộ lọc hộp thoại), giữ ở đây
+/// cho khớp chữ ký.
+Future<String?> saveTextFileDialog(
+  String suggestedName,
+  String text, {
+  String label = 'JSON',
+  List<String> extensions = const ['json'],
+}) async {
   downloadBytes(suggestedName, utf8.encode(text));
+  return suggestedName;
+}
+
+/// Web: không có hộp thoại "Save as" — tải thẳng xuống Downloads.
+Future<String?> saveBytesFileDialog(
+  String suggestedName,
+  List<int> bytes, {
+  String label = 'File',
+  List<String> extensions = const [],
+}) async {
+  downloadBytes(suggestedName, bytes);
   return suggestedName;
 }
 

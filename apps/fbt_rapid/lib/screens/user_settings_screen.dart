@@ -443,7 +443,7 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
           ),
 
           // --- RAPID ERP (API ngoài) — CHỈ admin nhập ---
-          if (SessionStore.canWrite) ...[
+          if (SessionStore.canWriteClinical) ...[
             const SizedBox(height: 24),
             _section(tr('us.rapidErp')),
             TextField(

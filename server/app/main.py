@@ -12,18 +12,38 @@ import os
 import re
 import threading
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from app import auth as accounts, config, db, ratelimit
-from app.logic import canonical_sha256, check_auth, payload_time, safe_name, validate, verify_password
+from app import auth as accounts, config, db, monitor as monitor_mod, ota, ratelimit
+from app.logic import (DEFAULT_ATE_LIMITS, ate_limits_conflict, ate_match,
+                       ate_meta, ate_stats,
+                       canonical_sha256, check_auth, normalize_ate_record,
+                       payload_time, product_key, safe_name, validate,
+                       validate_ate_limits, validate_ate_record, verify_password)
 
-app = FastAPI(title="FBT Home Server", version="1.0")
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    # Kho OTA phẳng cũ (trước 2026-09-11) → products/<LEGACY_PRODUCT>/. Tự chạy, idempotent;
+    # quên bước này là /ota/check của cả fleet thấy kho trống — xem ota.migrate_legacy.
+    # Ở LIFESPAN chứ không phải lúc import: `app/__init__.py` import module này, nên mọi
+    # script (`scripts/migrate_ota.py --dry-run`, manage_users…) và test import `app.*`
+    # đều chạy qua đây — di cư lúc import là "--dry-run" cũng dời file thật (đã dính).
+    for act in ota.migrate_legacy():
+        print(f"ota migrate: {act}", flush=True)
+    yield
+
+
+app = FastAPI(title="FBT Home Server", version="1.0", lifespan=_lifespan)
 config.DATA_DIR.mkdir(parents=True, exist_ok=True)  # tạo thư mục lưu file 1 lần lúc khởi động
 config.OTA_DIR.mkdir(parents=True, exist_ok=True)
+config.LOGS_DIR.mkdir(parents=True, exist_ok=True)  # log máy CSKH gửi lên (xem cuối file)
+config.ATE_DIR.mkdir(parents=True, exist_ok=True)  # hồ sơ trạm ATE (xem cuối file)
 
 
 def auth(authorization: str = Header("")):
@@ -198,6 +218,29 @@ async def ingest(request: Request):
     return {"ok": True, "file": name, "db": db_ok, "id": sid}
 
 
+# Route của nhánh `ota-rollout-docs-tests` (commit 8bc627d, 2026-08-28) — đã chạy trên box từ
+# 28/08 cùng bản web có tab Giám sát; deploy 2026-09-12 từ `main` lỡ ghi đè mất nên ghép lại.
+@app.get("/monitor", dependencies=[Depends(ota_admin)])
+def monitor(flow: bool = Query(True, description="False = bỏ phần đếm phiên đo (vòng vẽ realtime)")):
+    """Số liệu giám sát cho tab **Giám sát** của app: dịch vụ, tài nguyên box, luồng dữ liệu.
+
+    `def` chứ KHÔNG `async def`: hàm này đọc `/proc` và **chặn** ở truy vấn
+    Postgres. FastAPI đẩy handler `def` sang threadpool, còn `async def` thì chạy
+    THẲNG trên event loop — unit chạy `--workers 1` nên một lần bấm Làm mới lúc
+    DB chậm sẽ treo cả server (kể cả POST của thiết bị).
+
+    Gác bằng **`ota_admin`** (token nhân sự), KHÔNG phải `auth()`: token thiết bị
+    nằm trong 4 KB đầu mọi file `.bin`, mà `disk.free` cộng với `/ingest` 16 MB
+    mỗi POST là công thức làm đầy đĩa — đĩa đầy thì mất dữ liệu đo (xem docstring
+    `app/monitor.py`). `OTA_ADMIN_TOKEN` chưa đặt thì `ota_admin` rơi về `auth()`,
+    nên deploy file này một mình không đổi hành vi của box hiện tại.
+
+    Server chỉ phân biệt nhân sự/khách hàng (root và admin dùng CHUNG token), nên
+    "chỉ root" vẫn là gác ở giao diện app.
+    """
+    return monitor_mod.snapshot(with_flow=flow)
+
+
 @app.get("/devices", dependencies=[Depends(auth)])
 def devices():
     """Danh sách thiết bị + số phiên + lần gửi cuối + version firmware.
@@ -215,6 +258,12 @@ def devices():
         e = _fw_entry(seen.get(r["id_device"]))
         if e and _fw_newer(e["at"], r.get("last_seen")):
             r["version"] = e["version"]
+        # Sản phẩm/PCB máy TỰ KHAI (firmware ≥ v2.4.6). Rỗng = chưa khai → app hiện
+        # "cũ → <legacy>" chứ không hiện trống; `product_effective` là kho mà /ota/check
+        # THẬT SỰ tra cho máy này, để app đối chiếu tiến độ đúng kho.
+        r["product"] = e["product"] if e else ""
+        r["hw"] = e["hw"] if e else ""
+        r["product_effective"] = r["product"] or ota.legacy_product_for(r["id_device"])
     return rows
 
 
@@ -246,117 +295,52 @@ def device_fw_log(device: str):
 
 
 # --- OTA firmware (tab "Quản lý máy" của app) --------------------------------
-# Kho .bin nằm ở config.OTA_DIR; bản đang CHỌN để nạp ghi trong `target.json`
-# (file, KHÔNG bảng DB — khỏi migration + GRANT, đúng nguyên tắc "file là nguồn
-# chân lý" của service này).
+# Kho .bin TÁCH THEO SẢN PHẨM ở config.OTA_DIR/products/<product>/ (mỗi sản phẩm một
+# `target.json`; ảnh + manifest cạnh nhau) — toàn bộ logic kho nằm ở app/ota.py, route ở
+# đây chỉ đổi OtaError → HTTPException. Máy không khai `?product=` (fleet ≤ v2.4.5) đi vào
+# kho `LEGACY_PRODUCT`; các route KHÔNG có đoạn `{product}` là đường lùi cho app/firmware cũ.
 #
 # ⚠️ DÙNG PUT/DELETE cho mọi thao tác ghi, KHÔNG POST: route `POST /{_path:path}`
 # catch-all ingest ở trên NUỐT mọi POST → `POST /ota/...` sẽ bị hiểu là payload
 # thiết bị và trả 400. PUT/DELETE không dính catch-all nên khỏi lo thứ tự đăng ký.
-# Riêng các GET path CỐ ĐỊNH (/ota, /ota/check) phải đứng TRƯỚC `/ota/{filename}`
-# nếu không "check" sẽ khớp vào {filename}.
-
-_TARGET_FILE = config.OTA_DIR / "target.json"
-
-
-def _pin_entry(v) -> dict | None:
-    """Một mục ghim, chấp nhận CẢ HAI dạng đã từng ghi ra `target.json`.
-
-    Dạng đầu (2026-08-18 sáng) là chuỗi tên file trần; dạng hiện tại là
-    `{"file": ..., "by": ..., "at": ...}`. File này sửa tay được và tồn tại trên box từ
-    trước, nên đọc phòng thủ ở đúng một chỗ thay vì rải `isinstance` khắp nơi.
-
-    ⚠️ `by` là do CLIENT tự khai — token admin không mang danh tính nào để server đối
-    chiếu. Nó là **ghi chú vận hành**, không phải nhật ký kiểm toán; đừng dùng nó để quy
-    trách nhiệm.
-    """
-    if isinstance(v, str):
-        return {"file": v, "by": "", "at": ""} if v else None
-    if isinstance(v, dict) and isinstance(v.get("file"), str) and v["file"]:
-        return {"file": v["file"], "by": str(v.get("by") or ""), "at": str(v.get("at") or "")}
-    return None
+# Riêng các GET path CỐ ĐỊNH (/ota, /ota/check, /ota/products) phải đứng TRƯỚC
+# `/ota/{filename}` và `/ota/{product}/{filename}`; đoạn cố định `target` cũng phải
+# đứng trước đoạn động cùng hình dạng (`/ota/target/{f}` vs `/ota/{product}/{f}`) —
+# và `product_key` từ chối luôn ba từ `check|products|target` để không có sản phẩm nào
+# trùng path cố định.
 
 
-def _ota_cfg() -> dict:
-    """Nội dung target.json: {"target": {file,by,at}|None, "devices": {<id>: {file,by,at}}}.
+def _product(product: str) -> str:
+    """Khoá sản phẩm trong path: sai cú pháp/từ dành riêng → 404 (không có kho đó)."""
+    key = product_key(product)
+    if key is None:
+        raise HTTPException(404, "product not found")
+    return key
 
-    `target` đi qua CÙNG [_pin_entry] với ghim: bản chung cũng phải nhớ ai đặt (trước
-    đây nó là chuỗi tên file trần -> không ai trả lời được "ai đẩy bản này cho 109 máy").
-    Dạng chuỗi cũ vẫn đọc được, `by` rỗng.
-    """
+
+def _ota_call(fn, *a, **kw):
     try:
-        cfg = json.loads(_TARGET_FILE.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        cfg = {}
-    if not isinstance(cfg, dict):
-        cfg = {}
-    devs = cfg.get("devices")
-    devs = devs if isinstance(devs, dict) else {}
-    cfg["devices"] = {
-        k: e for k, v in devs.items() if (e := _pin_entry(v)) is not None
-    }
-    cfg["target"] = _pin_entry(cfg.get("target"))
-    return cfg
-
-
-def _ota_save(cfg: dict) -> None:
-    """Ghi NGUYÊN TỬ: `/ota/check` đọc file này trên mọi request của 109 máy, và một lần
-    ghi đè tại chỗ bị đọc trúng giữa chừng sẽ trả JSON cụt -> thiết bị coi như 'không có
-    bản nào' và im lặng bỏ qua lượt đó."""
-    cfg = {"target": cfg.get("target"), "devices": cfg.get("devices") or {}}
-    tmp = _TARGET_FILE.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, _TARGET_FILE)
-
-
-def _ota_target(device: str = "") -> str | None:
-    """Bản firmware dành cho `device`; None nếu không có bản nào để nạp.
-
-    Ghim theo TỪNG MÁY thắng bản chung. Ba lý do tồn tại: thử bản mới trên 1 máy trước khi
-    mở cho cả fleet, giữ một máy ở bản cũ, và giao bản riêng cho một khách.
-
-    Ghim mà file đã mất -> **KHÔNG rơi về bản chung**, trả None. Rơi về bản chung sẽ đẩy
-    đúng cái máy vừa được cố ý giữ lại đi lên phía trước — hỏng theo chiều nguy hiểm. (Trên
-    thực tế trạng thái đó không xảy ra qua API: xoá một .bin sẽ gỡ luôn mọi ghim tới nó.)
-    """
-    cfg = _ota_cfg()
-    entry = (cfg["devices"].get(device) if device else None) or cfg["target"]
-    if not entry:
-        return None
-    return entry["file"] if (config.OTA_DIR / entry["file"]).is_file() else None
-
-
-def _ota_name(filename: str) -> str:
-    """Tên file .bin an toàn (chặn path traversal); sai → 400."""
-    name = safe_name(filename)
-    if name != filename or not name.lower().endswith(".bin"):
-        raise HTTPException(400, "tên file phải là .bin hợp lệ")
-    return name
+        return fn(*a, **kw)
+    except ota.OtaError as e:
+        raise HTTPException(e.status, e.detail) from None
 
 
 @app.get("/ota", dependencies=[Depends(auth)])
-def ota_list():
-    """Danh sách firmware đã tải lên + bản chung + các máy được ghim riêng."""
-    files = sorted(
-        (p for p in config.OTA_DIR.glob("*.bin") if p.is_file()),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    cfg = _ota_cfg()
-    tgt = cfg["target"] or {}
-    return {
-        "target": _ota_target(),
-        # Ai đặt bản CHUNG + lúc nào — app hiện ở dải trạng thái, như cột "Người thiết
-        # lập" của ghim. Client tự khai, xem _pin_entry.
-        "target_by": tgt.get("by", ""),
-        "target_at": tgt.get("at", ""),
-        "devices": cfg["devices"],   # {id_device: tên .bin} — app hiện cột "Bản ghim"
-        "files": [
-            {"name": p.name, "size": p.stat().st_size,
-             "modified": datetime.fromtimestamp(p.stat().st_mtime, timezone.utc)}
-            for p in files
-        ],
-    }
+def ota_list(product: str = ""):
+    """Kho của MỘT sản phẩm: firmware đã tải lên + bản chung + các máy ghim riêng.
+
+    Không `?product=` → kho `LEGACY_PRODUCT` (app cũ gọi y như trước, thấy đúng kho của
+    fleet đang chạy). Mọi sản phẩm: `GET /ota/products`.
+    """
+    key = _product(product) if product else config.LEGACY_PRODUCT
+    return ota.listing(key)
+
+
+@app.get("/ota/products", dependencies=[Depends(auth)])
+def ota_products():
+    """Danh sách khoá sản phẩm + số ảnh + bản chung + số máy ghim. `legacy` đánh dấu kho
+    mà máy không tự khai product sẽ rơi vào."""
+    return {"legacy": config.LEGACY_PRODUCT, "products": ota.products_summary()}
 
 
 # --- Version firmware do MÁY TỰ BÁO ------------------------------------------
@@ -431,9 +415,11 @@ def _fw_entry(v) -> dict | None:
     toàn bộ fleet. Chuỗi trần vẫn hiểu được nên nhận luôn, khỏi bắt người ta gõ lại.
     """
     if isinstance(v, str):
-        return {"version": v, "at": ""} if v else None
+        return {"version": v, "at": "", "product": "", "hw": ""} if v else None
     if isinstance(v, dict) and isinstance(v.get("version"), str) and v["version"]:
-        return {"version": v["version"], "at": str(v.get("at") or "")}
+        # product/hw: máy tự khai từ firmware ≥ v2.4.6 (`?product=&hw=`); rỗng = chưa khai.
+        return {"version": v["version"], "at": str(v.get("at") or ""),
+                "product": str(v.get("product") or ""), "hw": str(v.get("hw") or "")}
     return None
 
 
@@ -467,12 +453,16 @@ def _fw_log() -> dict:
     return _fw_read(_FW_LOG_FILE) or {}
 
 
-def _fw_report(device: str, ver: str, updated: bool = False) -> None:
+def _fw_report(device: str, ver: str, updated: bool = False,
+               product: str = "", hw: str = "") -> None:
     """Ghi version máy vừa khai — và ghi thêm MỘT MỐC vào nhật ký nếu version ĐỔI.
 
     Thiếu/bẩn -> BỎ QUA IM LẶNG, không 400: firmware trước v2.4.5 không gửi `ver`, và một
     lượt check của nó vẫn phải nạp được bản mới — đường sửa từ xa DUY NHẤT tới máy ngoài
     hiện trường đi qua chính request này.
+
+    `product`/`hw` (firmware ≥ v2.4.6 tự khai) chỉ đi vào `fw_seen.json` cho `/devices`
+    hiện cột Sản phẩm/PCB — KHÔNG vào nhật ký mốc (giữ file đó nhỏ). Đã được caller lọc.
 
     **Hai file, cố ý:**
       * `fw_seen.json` — chỉ bản HIỆN TẠI. `/devices` đọc nó trên mọi lần mở bảng, giữ nhỏ.
@@ -530,7 +520,7 @@ def _fw_report(device: str, ver: str, updated: bool = False) -> None:
                 # mọi máy thật sẽ trải qua; chạm trần thì bỏ mốc CŨ NHẤT.
                 log[device] = entries[-_FW_LOG_MAX:]
                 _atomic_json(_FW_LOG_FILE, log)
-            seen[device] = {"version": ver, "at": now}
+            seen[device] = {"version": ver, "at": now, "product": product, "hw": hw}
             _atomic_json(_FW_FILE, seen)
     except Exception as e:
         # ĐĨA ĐẦY / MẤT QUYỀN GHI KHÔNG ĐƯỢC PHÉP GIẾT `/ota/check`.
@@ -544,123 +534,165 @@ def _fw_report(device: str, ver: str, updated: bool = False) -> None:
 
 
 @app.get("/ota/check", dependencies=[Depends(auth)])
-def ota_check(request: Request, device: str = "", ver: str = "", updated: str = ""):
+def ota_check(request: Request, device: str = "", ver: str = "", updated: str = "",
+              product: str = "", hw: str = ""):
     """**Thiết bị** gọi định kỳ để biết có bản mới không.
 
     `?device=<id>` — firmware v2.4.4 gửi sẵn từ bản đầu. Có ghim riêng cho máy đó thì trả
-    bản ghim, không thì trả bản chung. Trả `{update:false}` khi không có bản nào.
+    bản ghim, không thì trả bản chung. Trả `{update:false, reason}` khi không có bản nào.
 
     `?ver=<bản đang chạy>` — firmware v2.4.5+ khai luôn version của nó, server ghi lại cho
     `/devices` (xem [_fw_report]). Ghi TRƯỚC khi xét có bản mới hay không: `{update:false}`
     là lượt PHỔ BIẾN NHẤT (fleet đã lên đúng bản) và cũng là lượt xác nhận nó đã lên.
 
+    `?product=<khoá>&hw=<PCB>` — firmware v2.4.6+ tự khai nó là sản phẩm gì, PCB nào. Có
+    `product` → tra ĐÚNG kho đó (sai cú pháp → fail-closed `reason:"product"`, không đoán
+    hộ); không có → kho `LEGACY_PRODUCT` ([ota.legacy_product_for]) — toàn bộ fleet ≤ v2.4.5.
+    `hw` chỉ lọc khi manifest của ảnh có danh sách PCB (ảnh có thẻ nhúng).
+
     So sánh version là việc của FIRMWARE: nó biết mình đang chạy gì, server chỉ lưu file.
-    `sha256` kèm theo cho app/người xem; firmware dùng header `x-MD5` của `/ota/{file}`.
+    `version` GIỮ = TÊN FILE (firmware ≤ v2.4.5 so đúng chuỗi `fbt_<ver>.bin`); `ver` là
+    version thật từ manifest cho firmware mới. `sha256` kèm theo cho app/người xem;
+    firmware dùng header `x-MD5` của `/ota/{product}/{file}`.
     """
     # `?updated=1` = máy vừa NẠP XONG một bản và khởi động lại vào nó (firmware chốt cờ này
     # trong NVS ngay khi `httpUpdate` trả OK). Khác hẳn suy từ "version đổi": nó thấy được cả
     # lần nạp LẠI CÙNG một bản, và phân biệt "vừa cập nhật" với "vừa mất điện bật lại".
-    _fw_report(device, ver, updated=updated == "1")
-    name = _ota_target(device)
-    if name is None:
-        return {"update": False}
-    path = config.OTA_DIR / name
+    key = product_key(product) if product else None
+    hw_ok = hw if _ID_OK.fullmatch(hw) else ""
+    _fw_report(device, ver, updated=updated == "1", product=key or "", hw=hw_ok)
+    if product and key is None:
+        return {"update": False, "reason": "product"}
+    key = key or ota.legacy_product_for(device)
+    hit, reason = ota.resolve(key, device, hw_ok)
+    if hit is None:
+        return {"update": False, "reason": reason}
+    m = hit["manifest"]
     return {
         "update": True,
-        "version": name,
-        "size": path.stat().st_size,
-        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-        "url": str(request.url.replace(path=f"/ota/{name}", query="")),
+        "version": hit["file"],
+        "ver": m.get("ver", ""),
+        "product": key,
+        "hw": m.get("hw"),
+        "size": m.get("size"),
+        "sha256": m.get("sha256"),
+        "url": str(request.url.replace(path=f"/ota/{key}/{hit['file']}", query="")),
     }
 
+
+# --- route GHI kiểu cũ (không đoạn {product}) = kho LEGACY_PRODUCT ------------------------
+# App đang phát hành gọi đúng các URL này; giữ nguyên để deploy server một mình không làm
+# gãy gì. Khai báo TRƯỚC các route `/ota/{product}/…` cùng hình dạng.
 
 @app.put("/ota/target/{filename}", dependencies=[Depends(ota_admin)])
-def ota_set_target(filename: str, device: str = "", by: str = ""):
-    """Chọn bản firmware sẽ nạp ở lần `/ota/check` tới.
-
-    Không có `?device=` → đặt bản CHUNG cho cả fleet.
-    Có `?device=<id>` → **ghim riêng máy đó**, thắng bản chung.
-    """
-    name = _ota_name(filename)
-    if not (config.OTA_DIR / name).is_file():
-        raise HTTPException(404, "firmware not found")
-    cfg = _ota_cfg()
-    entry = {
-        "file": name,
-        "by": by[:64],  # client tự khai, xem _pin_entry
-        "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-    }
-    if device:
-        cfg["devices"][safe_name(device)] = entry
-    else:
-        cfg["target"] = entry
-    _ota_save(cfg)
-    return {"ok": True, "target": name, "device": device or None}
+def ota_set_target_legacy(filename: str, device: str = "", by: str = ""):
+    """Chọn bản firmware sẽ nạp ở lần `/ota/check` tới — kho `LEGACY_PRODUCT`.
+    Không `?device=` → bản CHUNG; có → **ghim riêng máy đó**, thắng bản chung."""
+    return ota_set_target(config.LEGACY_PRODUCT, filename, device=device, by=by)
 
 
 @app.delete("/ota/target", dependencies=[Depends(ota_admin)])
-def ota_clear_target(device: str = ""):
-    """Huỷ chọn. Không có `?device=` → bỏ bản CHUNG **và giữ nguyên mọi ghim riêng**
-    (bỏ chọn cho fleet không được âm thầm thả các máy đang bị giữ lại).
-    Có `?device=<id>` → chỉ gỡ ghim của máy đó, nó quay về theo bản chung."""
-    cfg = _ota_cfg()
-    if device:
-        cfg["devices"].pop(safe_name(device), None)
-    else:
-        cfg["target"] = None
-    _ota_save(cfg)
-    return {"ok": True, "target": (cfg["target"] or {}).get("file"), "device": device or None}
+def ota_clear_target_legacy(device: str = ""):
+    return ota_clear_target(config.LEGACY_PRODUCT, device=device)
 
 
-@app.put("/ota/{filename}", dependencies=[Depends(ota_admin)])
-async def ota_upload(filename: str, request: Request):
-    """Tải firmware lên: body = NGUYÊN bytes file .bin.
+@app.put("/ota/{name}", dependencies=[Depends(ota_admin)])
+async def ota_upload_legacy(name: str, request: Request, force: str = "", by: str = "",
+                            note: str = ""):
+    """Hai việc trên cùng một hình dạng path, phân biệt bằng đuôi `.bin`:
+    * `PUT /ota/<file>.bin` — upload kiểu cũ vào kho `LEGACY_PRODUCT` (app đang phát hành).
+    * `PUT /ota/<product>` — upload KHÔNG TÊN: server đặt tên từ thẻ nhúng trong ảnh
+      (ảnh không thẻ → 400, phải dùng dạng có tên)."""
+    if name.lower().endswith(".bin"):
+        return await ota_upload(config.LEGACY_PRODUCT, name, request, force=force, by=by, note=note)
+    key = _product(name)
+    raw = await _ota_body(request)
+    m = _ota_call(ota.upload, key, None, raw, force=force == "1", by=by, note=note)
+    print(f"ota upload {key}/{m['name']} ({m['size']} bytes, tag={bool(m['tag'])})", flush=True)
+    return {"ok": True, "product": key, "name": m["name"], "size": m["size"],
+            "ver": m["ver"], "hw": m["hw"], "sha256": m["sha256"], "existed": m["existed"]}
 
-    Cố tình KHÔNG dùng multipart/UploadFile để khỏi phải cài thêm
-    `python-multipart` trên box (requirements.txt hiện chỉ có fastapi/uvicorn/psycopg).
-    """
-    name = _ota_name(filename)
+
+@app.delete("/ota/{filename}", dependencies=[Depends(ota_admin)])
+def ota_delete_legacy(filename: str):
+    return ota_delete(config.LEGACY_PRODUCT, filename)
+
+
+@app.get("/ota/{filename}", dependencies=[Depends(auth)])
+def ota_legacy(filename: str):
+    """Tải `.bin` kiểu cũ (`/ota/<file>`) — tìm trong kho `LEGACY_PRODUCT`. URL mà
+    `/ota/check` trả ra giờ có đoạn product, nhưng app cũ tải về bằng đường này."""
+    return ota_download(config.LEGACY_PRODUCT, filename)
+
+
+# --- route theo sản phẩm -------------------------------------------------------------------
+
+async def _ota_body(request: Request) -> bytes:
+    """Body = NGUYÊN bytes file .bin. Cố tình KHÔNG dùng multipart/UploadFile để khỏi phải
+    cài thêm `python-multipart` trên box (requirements.txt chỉ có fastapi/uvicorn/psycopg)."""
     cl = request.headers.get("content-length")
     if not (cl and cl.isdigit()):
         raise HTTPException(411, "content-length required")
     if int(cl) > config.MAX_BODY:
         raise HTTPException(413, "body too large")
-    raw = await request.body()
-    if not raw:
-        raise HTTPException(400, "file rỗng")
-    # Ghi ra file tạm rồi ĐỔI TÊN, không ghi đè tại chỗ. `write_bytes` truncate file về 0 rồi
-    # ghi lại, mà `GET /ota/{file}` đọc lại file đó suốt cả stream 2.4 MB — đẩy bản mới trùng
-    # tên trong lúc một máy đang tải sẽ ghép nửa bản cũ với nửa bản mới. `os.replace` trong
-    # CÙNG thư mục là nguyên tử trên ext4: máy đang tải giữ inode cũ tới khi xong.
-    tmp = config.OTA_DIR / f".tmp-{name}"
-    tmp.write_bytes(raw)
-    os.replace(tmp, config.OTA_DIR / name)
-    print(f"ota upload {name} ({len(raw)} bytes)", flush=True)
-    return {"ok": True, "name": name, "size": len(raw)}
+    return await request.body()
 
 
-@app.delete("/ota/{filename}", dependencies=[Depends(ota_admin)])
-def ota_delete(filename: str):
-    """Xoá 1 bản firmware, và dọn MỌI lựa chọn trỏ tới nó — bản chung lẫn ghim từng máy.
+@app.put("/ota/{product}/target/{filename}", dependencies=[Depends(ota_admin)])
+def ota_set_target(product: str, filename: str, device: str = "", by: str = ""):
+    """Chọn bản firmware của kho [product] sẽ nạp ở lần `/ota/check` tới.
+    Không `?device=` → bản CHUNG của sản phẩm đó; có `?device=<id>` → **ghim riêng máy đó**."""
+    key = _product(product)
+    name = _ota_call(ota.bin_name, filename)
+    _ota_call(ota.set_target, key, name, device=device, by=by)
+    return {"ok": True, "product": key, "target": name, "device": device or None}
 
-    Dọn ghim ở đây là chủ ý: nó làm cho trạng thái "máy bị ghim vào một file không còn tồn
-    tại" **không thể phát sinh qua API**. Trạng thái đó im lặng (máy chỉ đơn giản không bao
-    giờ được mời cập nhật) nên rất khó phát hiện, mà nguyên nhân lại nằm ở một thao tác xoá
-    xảy ra từ lâu, ở màn hình khác.
+
+@app.delete("/ota/{product}/target", dependencies=[Depends(ota_admin)])
+def ota_clear_target(product: str, device: str = ""):
+    """Huỷ chọn. Không `?device=` → bỏ bản CHUNG **và giữ nguyên mọi ghim riêng**
+    (bỏ chọn cho fleet không được âm thầm thả các máy đang bị giữ lại).
+    Có `?device=<id>` → chỉ gỡ ghim của máy đó, nó quay về theo bản chung."""
+    key = _product(product)
+    cfg = ota.clear_target(key, device=device)
+    return {"ok": True, "product": key, "target": (cfg["target"] or {}).get("file"),
+            "device": device or None}
+
+
+@app.put("/ota/{product}/{filename}", dependencies=[Depends(ota_admin)])
+async def ota_upload(product: str, filename: str, request: Request, force: str = "",
+                     by: str = "", note: str = ""):
+    """Tải firmware lên kho [product]: body = NGUYÊN bytes file .bin.
+
+    Ảnh có thẻ nhúng thì `product` thẻ phải = kho và TÊN phải = tên server đặt từ thẻ
+    (`fbt_v<ver>.bin` cho kho kế thừa, `<product>_v<ver>.bin` cho kho khác). Cùng tên đã
+    có: cùng nội dung → 200 `existed:true`; khác nội dung → **409** (xoá trước rồi tải).
+    Xem [ota.upload].
     """
-    name = _ota_name(filename)
-    (config.OTA_DIR / name).unlink(missing_ok=True)
-    cfg = _ota_cfg()
-    if (cfg["target"] or {}).get("file") == name:
-        cfg["target"] = None
-    cfg["devices"] = {d: e for d, e in cfg["devices"].items() if e["file"] != name}
-    _ota_save(cfg)
-    return {"ok": True}
+    key = _product(product)
+    name = _ota_call(ota.bin_name, filename)
+    raw = await _ota_body(request)
+    m = _ota_call(ota.upload, key, name, raw, force=force == "1", by=by, note=note)
+    if not m["existed"]:
+        print(f"ota upload {key}/{name} ({m['size']} bytes, tag={bool(m['tag'])})", flush=True)
+    return {"ok": True, "product": key, "name": name, "size": m["size"], "ver": m["ver"],
+            "hw": m["hw"], "sha256": m["sha256"], "existed": m["existed"]}
 
 
-@app.get("/ota/{filename}", dependencies=[Depends(auth)])
-def ota(filename: str):
-    """Tai firmware .bin cho thiet bi OTA.
+@app.delete("/ota/{product}/{filename}", dependencies=[Depends(ota_admin)])
+def ota_delete(product: str, filename: str):
+    """Xoá 1 bản firmware của kho [product], và dọn MỌI lựa chọn trỏ tới nó — bản chung lẫn
+    ghim từng máy — để trạng thái "ghim vào file không còn tồn tại" không thể phát sinh qua
+    API (trạng thái đó im lặng: máy chỉ đơn giản không bao giờ được mời cập nhật)."""
+    key = _product(product)
+    name = _ota_call(ota.bin_name, filename)
+    ota.delete_bin(key, name)
+    return {"ok": True, "product": key}
+
+
+@app.get("/ota/{product}/{filename}", dependencies=[Depends(auth)])
+def ota_download(product: str, filename: str):
+    """Tải firmware .bin cho thiết bị OTA (URL mà `/ota/check` trả ra).
 
     Header `x-MD5`: thư viện `HTTPUpdate` của ESP32 TỰ ĐỌC header này và gọi
     `Update.setMD5()` (HTTPUpdate.cpp:223,344) → firmware được kiểm toàn vẹn
@@ -677,10 +709,11 @@ def ota(filename: str):
     ⚠️ Và **`curl -I` (HEAD) trả 405 trên server này** — FastAPI `@app.get` không
     tự nhận HEAD. Kiểm bằng `curl -s -o /dev/null -D -`, đừng dùng `-I`.
     """
+    key = product_key(product)
     name = safe_name(filename)
-    if name != filename or not name.lower().endswith(".bin"):
+    if key is None or name != filename or not name.lower().endswith(".bin"):
         raise HTTPException(404, "firmware not found")
-    path = config.OTA_DIR / name
+    path = ota.product_dir(key) / name
     if not path.is_file():
         raise HTTPException(404, "firmware not found")
     return FileResponse(
@@ -740,6 +773,420 @@ def session_errors(sid: int):
     if rows is None:
         raise HTTPException(404, "session not found")
     return {"id": sid, "errors": rows}
+
+
+# --- Log máy do nhân viên CSKH gửi (app: tab "Chăm sóc KH" › Xử lý sự cố) -----
+# Nhân viên cắm USB vào máy, app đọc log UART rồi PUT lên đây kèm mã máy + mô tả
+# sự cố; kỹ thuật mở lại bằng GET. Lưu FILE trong config.LOGS_DIR (không bảng DB —
+# khỏi migration/GRANT, cùng nguyên tắc với data_plus/ và ota/).
+#
+# ⚠️ PUT chứ không POST: `POST /{_path:path}` catch-all ingest ở trên nuốt mọi POST
+# → `POST /devices/x/logs` bị hiểu là payload thiết bị và trả 400. Xem test
+# `test_log_post_roi_vao_catchall`.
+#
+# Tên file: `<device>_<UTC %Y%m%d_%H%M%S>_<sha256(text)[:8]>.json` — xếp theo tên là
+# xếp theo thời gian; app bấm Gửi hai lần cùng log trong cùng giây vẫn ra hai file
+# khác nhau khi text khác, trùng hệt thì ghi đè (vô hại).
+
+_LOG_FILE_RE = re.compile(r"^[A-Za-z0-9_.-]{1,160}\.json$")
+
+
+def _log_file(name: str) -> str:
+    """Tên file log hợp lệ, hoặc 400. KHÔNG dùng safe_name: nó cắt 64 ký tự, còn tên
+    ở đây = device(≤64) + dấu thời gian + hash nên dài hơn; đổi tên là 404 sai."""
+    if not _LOG_FILE_RE.match(name) or ".." in name:
+        raise HTTPException(400, "tên file log không hợp lệ")
+    return name
+
+
+def _log_meta(path) -> dict | None:
+    """Metadata một file log (KHÔNG kèm `text`) — file hỏng/sửa tay méo → None, bỏ qua
+    thay vì làm 500 cả danh sách."""
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(doc, dict):
+        return None
+    text = doc.get("text")
+    findings = doc.get("findings")
+    return {
+        "file": path.name,
+        "device": str(doc.get("device") or ""),
+        "received_at": str(doc.get("received_at") or ""),
+        "captured_at": str(doc.get("captured_at") or ""),
+        "by": str(doc.get("by") or ""),
+        "note": str(doc.get("note") or ""),
+        "port": str(doc.get("port") or ""),
+        "app": str(doc.get("app") or ""),
+        "size": len(text) if isinstance(text, str) else 0,
+        "findings": len(findings) if isinstance(findings, list) else 0,
+    }
+
+
+@app.put("/devices/{device}/logs", dependencies=[Depends(auth)])
+async def device_log_upload(device: str, request: Request):
+    """Nhận một bản log UART của máy `device`. Body JSON:
+    `{text (bắt buộc), by, note, port, baud, captured_at, app, findings[]}`.
+
+    Mọi trường ngoài `text` là CLIENT TỰ KHAI (token không mang danh tính) — ghi chú
+    vận hành, không phải kiểm toán. Trả `{ok, file, size}`.
+    """
+    cl = request.headers.get("content-length")
+    if not (cl and cl.isdigit()):
+        raise HTTPException(411, "content-length required")
+    if int(cl) > config.MAX_BODY:
+        raise HTTPException(413, "body too large")
+    raw = await request.body()
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise HTTPException(400, f"invalid json: {e}")
+    if not isinstance(data, dict):
+        raise HTTPException(400, "body phải là JSON object")
+    text = data.get("text")
+    if not isinstance(text, str) or not text.strip():
+        raise HTTPException(400, "thiếu `text` (log rỗng)")
+    if len(text) > config.MAX_LOG_TEXT:
+        raise HTTPException(413, "log quá dài")
+
+    dev = safe_name(device)
+    now = datetime.now(timezone.utc)
+    findings = data.get("findings")
+    doc = {
+        "device": dev,
+        "received_at": now.isoformat(),
+        "captured_at": str(data.get("captured_at") or "")[:40],
+        "by": str(data.get("by") or "")[:64],
+        "note": str(data.get("note") or "")[:2000],
+        "port": str(data.get("port") or "")[:64],
+        "baud": data.get("baud") if isinstance(data.get("baud"), int) else None,
+        "app": str(data.get("app") or "")[:64],
+        "findings": findings if isinstance(findings, list) else [],
+        "text": text,
+    }
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:8]
+    name = f"{dev}_{now:%Y%m%d_%H%M%S}_{digest}.json"
+    # Ghi tạm rồi đổi tên (nguyên tử) — giống ota_upload: GET đang đọc dở không thấy nửa file.
+    tmp = config.LOGS_DIR / f".tmp-{name}"
+    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, config.LOGS_DIR / name)
+    print(f"device log {name} ({len(text)} chars, by={doc['by']!r})", flush=True)
+    return {"ok": True, "file": name, "size": len(text)}
+
+
+@app.get("/devices/{device}/logs", dependencies=[Depends(auth)])
+def device_logs(device: str, limit: int = Query(50, ge=1, le=500)):
+    """Các bản log đã gửi của một máy — **mới nhất trước**, KHÔNG kèm `text`
+    (mở từng bản qua `GET /logs/{file}`)."""
+    dev = safe_name(device)
+    # Glob theo tiền tố rồi KIỂM lại field `device`: "RPL_1_*" cũng khớp file của
+    # máy "RPL_1_x" — tên có dấu gạch dưới thì tiền tố không đủ để phân biệt.
+    paths = sorted(config.LOGS_DIR.glob(f"{dev}_*.json"), key=lambda p: p.name, reverse=True)
+    items = []
+    for p in paths:
+        m = _log_meta(p)
+        if m and m["device"] == dev:
+            items.append(m)
+        if len(items) >= limit:
+            break
+    return {"device": dev, "items": items}
+
+
+@app.get("/logs/{filename}", dependencies=[Depends(auth)])
+def device_log_get(filename: str):
+    """Một bản log đầy đủ (có `text`)."""
+    path = config.LOGS_DIR / _log_file(filename)
+    if not path.is_file():
+        raise HTTPException(404, "log not found")
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise HTTPException(500, "log file hỏng")
+
+
+# --- Trạm ATE: hồ sơ nghiệm thu máy tại xưởng (app: tab "Sản xuất") ----------
+# Một máy qua trạm = 1 file JSON trong config.ATE_DIR, tên:
+#   <sn>_<started_at UTC %Y%m%d_%H%M%S>_<sha256(body)[:12]>.json
+#
+# Tên file mang HẾT khoá idempotent (thời điểm bắt đầu + hash nội dung client
+# gửi): trạm mất mạng rồi đẩy lại hàng đợi sẽ ghi đè lên chính file đó thay vì
+# sinh hồ sơ trùng — thay cho ràng buộc UNIQUE(body_sha256) của bảng `ate_records`
+# trong kế hoạch (docs/plan/ate-san-xuat.md §7.2). Chỉ `received_at` (giờ server)
+# đổi giữa hai lần gửi, và nó KHÔNG tham gia hash.
+#
+# ⚠️ PUT chứ không POST: `POST /{_path:path}` catch-all ingest ở trên nuốt mọi
+# POST. Kế hoạch §7.2 đề xuất khai báo `POST /ate/records` TRƯỚC catch-all; ở đây
+# chọn PUT vì nó không phụ thuộc thứ tự đăng ký route — cùng lý do với mục OTA và
+# log CSKH, và một lần ai đó chuyển route lên/xuống là hồ sơ ATE lại rơi vào
+# đường nhận dữ liệu đo mà không ai thấy.
+
+_ATE_FILE_RE = re.compile(r"^[A-Za-z0-9_.-]{1,200}\.json$")
+
+# Bộ ngưỡng CHUNG (khi trạm chưa khai lô) + bộ ngưỡng THEO LÔ.
+#
+# Tiêu chuẩn là thứ admin đặt cho TỪNG LÔ SẢN XUẤT: lô dùng linh kiện quang khác,
+# hoặc chạy ở xưởng có nhiệt phòng khác, thì ngưỡng khác - ép tất cả về một bộ
+# chung là hoặc chấm oan lô này, hoặc thả lỏng lô kia.
+_ATE_LIMITS_FILE = config.ATE_DIR / "limits.json"
+_ATE_LIMITS_DIR = config.ATE_DIR / "limits"
+
+
+def _ate_batch(batch: str) -> str:
+    """Mã lô hợp lệ (dùng làm tên file), hoặc 400."""
+    b = batch.strip()
+    if not b:
+        return ""
+    if len(b) > 64 or not re.fullmatch(r"[A-Za-z0-9_.\-]+", b):
+        raise HTTPException(400, "mã lô chỉ gồm chữ, số, _ . - và tối đa 64 ký tự")
+    return b
+
+
+def _ate_limits_file(batch: str) -> Path:
+    return _ATE_LIMITS_FILE if not batch else _ATE_LIMITS_DIR / f"{batch}.json"
+
+# Cache tóm tắt hồ sơ theo (mtime, size) — `/ate/stats` và `/ate/records` đều
+# phải quét CẢ kho để sắp theo thời gian (tên file bắt đầu bằng số máy nên xếp
+# theo tên KHÔNG phải xếp theo thời gian). Đọc lại vài nghìn file JSON mỗi lần
+# mở màn Thống kê là phí; file không đổi thì tóm tắt cũng không đổi.
+_ATE_CACHE: dict[str, tuple[float, int, dict]] = {}
+
+
+def _ate_file(name: str) -> str:
+    """Tên file hồ sơ hợp lệ, hoặc 400. KHÔNG dùng safe_name (nó cắt 64 ký tự,
+    còn tên ở đây = sn + dấu thời gian + hash nên dài hơn → đổi tên = 404 sai)."""
+    if not _ATE_FILE_RE.match(name) or ".." in name:
+        raise HTTPException(400, "tên file hồ sơ không hợp lệ")
+    return name
+
+
+def _ate_stamp(value: str) -> str:
+    """`started_at` ISO → `%Y%m%d_%H%M%S` UTC cho tên file; hỏng/thiếu → giờ hiện
+    tại. Tên file phải xếp được theo thời gian nên không được để rỗng."""
+    try:
+        dt = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return f"{dt.astimezone(timezone.utc):%Y%m%d_%H%M%S}"
+    except (ValueError, TypeError):
+        return f"{datetime.now(timezone.utc):%Y%m%d_%H%M%S}"
+
+
+def _ate_metas() -> list[dict]:
+    """Tóm tắt MỌI hồ sơ trong kho, mới nhất trước. File hỏng/sửa tay méo → bỏ
+    qua (một file rác không được làm 500 cả màn thống kê)."""
+    out = []
+    seen = set()
+    for p in config.ATE_DIR.glob("*.json"):
+        if p.name == _ATE_LIMITS_FILE.name:
+            continue
+        seen.add(p.name)
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        hit = _ATE_CACHE.get(p.name)
+        if hit and hit[0] == st.st_mtime and hit[1] == st.st_size:
+            out.append(hit[2])
+            continue
+        doc = _ate_doc(p)
+        if doc is None:
+            continue
+        meta = ate_meta(doc, p.name)
+        _ATE_CACHE[p.name] = (st.st_mtime, st.st_size, meta)
+        out.append(meta)
+    for gone in set(_ATE_CACHE) - seen:  # file bị xoá tay → đừng giữ trong cache
+        _ATE_CACHE.pop(gone, None)
+    out.sort(key=lambda m: str(m.get("started_at") or m.get("received_at") or ""),
+             reverse=True)
+    return out
+
+
+def _ate_doc(path) -> dict | None:
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return doc if isinstance(doc, dict) else None
+
+
+@app.put("/ate/records", dependencies=[Depends(auth)])
+async def ate_record_put(request: Request):
+    """Trạm đẩy một hồ sơ nghiệm thu. Body JSON:
+    `{sn, verdict, limits_ver, steps[], started_at, finished_at, station, operator,
+    fw_version, fw_sha256, pcb_version, mac, calib, note, app}`.
+
+    Trả `{ok, id, file, sn, verdict}` — `id` chính là tên file, dùng cho
+    `GET /ate/records/{id}`. Gửi lại cùng nội dung = cùng `id` (idempotent).
+    """
+    cl = request.headers.get("content-length")
+    if not (cl and cl.isdigit()):
+        raise HTTPException(411, "content-length required")
+    if int(cl) > config.MAX_BODY:
+        raise HTTPException(413, "body too large")
+    raw = await request.body()
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise HTTPException(400, f"invalid json: {e}")
+    err = validate_ate_record(data)
+    if err:
+        raise HTTPException(400, err)
+
+    now = datetime.now(timezone.utc)
+    doc = normalize_ate_record(data, now.isoformat())
+    name = (f"{safe_name(doc['sn'])}_{_ate_stamp(doc['started_at'])}"
+            f"_{canonical_sha256(data).hex()[:12]}.json")
+    # Ghi tạm rồi đổi tên (nguyên tử) — GET đang đọc dở không thấy nửa file.
+    tmp = config.ATE_DIR / f".tmp-{name}"
+    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, config.ATE_DIR / name)
+    _ATE_CACHE.pop(name, None)
+    print(f"ate record {name} verdict={doc['verdict']} by={doc['operator']!r}", flush=True)
+    return {"ok": True, "id": name, "file": name, "sn": doc["sn"], "verdict": doc["verdict"]}
+
+
+@app.get("/ate/records", dependencies=[Depends(auth)])
+def ate_records(
+    sn: str = "",
+    batch: str = "",
+    verdict: str = "",
+    from_: str = Query(None, alias="from"),
+    to: str = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=500),
+):
+    """Tra cứu hồ sơ (mới nhất trước), phân trang như `/sessions`. KHÔNG kèm
+    `steps` — mở từng hồ sơ bằng `GET /ate/records/{id}`."""
+    _check_date(from_, "from")
+    _check_date(to, "to")
+    items = [m for m in _ate_metas()
+             if ate_match(m, sn.strip(), from_ or "", to or "", verdict.strip(),
+                          batch.strip())]
+    off = (page - 1) * limit
+    return {"total": len(items), "page": page, "limit": limit,
+            "items": items[off:off + limit]}
+
+
+@app.get("/ate/stats", dependencies=[Depends(auth)])
+def ate_stats_api(from_: str = Query(None, alias="from"), to: str = Query(None),
+                  batch: str = ""):
+    """FPY, sản lượng theo ngày, Pareto mã bước hỏng. Xem `logic.ate_stats` để
+    biết FPY tính theo LẦN THỬ ĐẦU của mỗi máy, không phải tỉ lệ hồ sơ PASS."""
+    _check_date(from_, "from")
+    _check_date(to, "to")
+    items = [m for m in _ate_metas()
+             if ate_match(m, "", from_ or "", to or "", "", batch.strip())]
+    return ate_stats(items)
+
+
+@app.get("/ate/limits", dependencies=[Depends(auth)])
+def ate_limits_get(batch: str = ""):
+    """Bộ ngưỡng ÁP DỤNG cho một lô. Thứ tự lùi: bộ của lô → bộ chung → mặc định.
+
+    Trả thêm `batch` + `source` (`batch` | `chung` | `mặc định`) để trạm hiện rõ
+    đang chấm theo bộ nào — "tưởng đang chấm theo tiêu chuẩn của lô mà thật ra
+    đang chạy bộ mặc định" là kiểu nhầm không ai phát hiện ra từ màn hình.
+    """
+    b = _ate_batch(batch)
+    doc = _ate_doc(_ate_limits_file(b)) if b and _ate_limits_file(b).is_file() else None
+    source = "batch"
+    if doc is None:
+        doc = _ate_doc(_ATE_LIMITS_FILE) if _ATE_LIMITS_FILE.is_file() else None
+        source = "chung"
+    if doc is None:
+        doc, source = dict(DEFAULT_ATE_LIMITS), "mặc định"
+    return {**doc, "batch": b, "source": source}
+
+
+@app.get("/ate/limits/list", dependencies=[Depends(auth)])
+def ate_limits_list():
+    """Các lô đã có bộ ngưỡng riêng + bộ chung — cho màn Tiêu chuẩn của admin."""
+    items = []
+    if _ATE_LIMITS_FILE.is_file():
+        d = _ate_doc(_ATE_LIMITS_FILE) or {}
+        items.append({"batch": "", "version": d.get("version", ""),
+                      "updated_at": d.get("updated_at", ""),
+                      "updated_by": d.get("updated_by", "")})
+    if _ATE_LIMITS_DIR.is_dir():
+        for p in sorted(_ATE_LIMITS_DIR.glob("*.json")):
+            d = _ate_doc(p) or {}
+            items.append({"batch": p.stem, "version": d.get("version", ""),
+                          "updated_at": d.get("updated_at", ""),
+                          "updated_by": d.get("updated_by", "")})
+    return {"items": items}
+
+
+@app.put("/ate/limits", dependencies=[Depends(ota_admin)])
+async def ate_limits_put(request: Request, by: str = "", batch: str = ""):
+    """Đặt bộ ngưỡng mới. Gác bằng token admin OTA — quyền lớn nhất server có
+    (nó KHÔNG biết vai trò tài khoản); kế hoạch §7.2 muốn "chỉ root", và trong
+    app chỉ root mới thấy nút này. Đổi ngưỡng là hành động có chủ đích: mọi hồ sơ
+    ghi kèm `limits_ver`, nên máy đã nghiệm thu vẫn tra lại được nó bị chấm theo
+    bộ nào."""
+    raw = await request.body()
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise HTTPException(400, f"invalid json: {e}")
+    err = validate_ate_limits(data)
+    if err:
+        raise HTTPException(400, err)
+    b = _ate_batch(batch)
+    path = _ate_limits_file(b)
+    # MỘT version = MỘT nội dung. Sửa ngưỡng thì đổi version, không thì hồ sơ cũ
+    # (chỉ ghi `limits_ver`) mất khả năng truy ngược.
+    old = _ate_doc(path) if path.is_file() else None
+    clash = ate_limits_conflict(old, data)
+    if clash:
+        raise HTTPException(400, clash)
+    data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    data["updated_by"] = str(by or "")[:64]
+    data["batch"] = b
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.parent / f".tmp-{path.name}"
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+    # Nhật ký append-only: đổi ngưỡng là hành động phải giải trình được.
+    try:
+        with (config.ATE_DIR / "limits_history.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps(data, ensure_ascii=False) + "\n")
+    except OSError as e:
+        print(f"ate limits history failed: {e}", flush=True)
+    print(f"ate limits[{b or 'chung'}] -> {data['version']} by={data['updated_by']!r}",
+          flush=True)
+    return {"ok": True, "version": data["version"], "batch": b}
+
+
+@app.get("/ate/sn/{sn}", dependencies=[Depends(auth)])
+def ate_by_sn(sn: str):
+    """**Hồ sơ khai sinh** của một máy + mọi lần test lại.
+
+    `birth` = lần PASS ĐẦU TIÊN (máy ra xưởng theo bản ghi nào), `records` = tất
+    cả các lần, mới nhất trước. Máy phải chạy lại 3 lần mới đạt thì cả 3 đều ở
+    đây — retry cũng là dữ liệu.
+    """
+    key = sn.strip()
+    items = [m for m in _ate_metas() if str(m.get("sn") or "").lower() == key.lower()]
+    passes = [m for m in items if str(m.get("verdict") or "").lower() == "pass"]
+    return {
+        "sn": key,
+        "records": items,
+        "attempts": len(items),
+        "birth": passes[-1] if passes else None,  # items mới→cũ nên PASS cũ nhất ở cuối
+    }
+
+
+@app.get("/ate/records/{filename}", dependencies=[Depends(auth)])
+def ate_record_get(filename: str):
+    """Một hồ sơ đầy đủ (có `steps`, kèm log thô từng bước)."""
+    path = config.ATE_DIR / _ate_file(filename)
+    if not path.is_file():
+        raise HTTPException(404, "ate record not found")
+    doc = _ate_doc(path)
+    if doc is None:
+        raise HTTPException(500, "file hồ sơ hỏng")
+    return doc
 
 
 # App WEB (Flutter build web, build với --base-href /app/) serve tĩnh CÙNG ORIGIN

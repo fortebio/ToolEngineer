@@ -11,9 +11,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-os.environ["FBT_DATA_DIR"] = tempfile.mkdtemp(prefix="fbt_test_")
-os.environ["FBT_OTA_DIR"] = tempfile.mkdtemp(prefix="fbt_ota_test_")
-os.environ["RECEIVER_TOKEN"] = "testtok"
+# setdefault: test_ota_products.py đặt cùng bộ env; module nào import app.main trước
+# cũng phải ra CÙNG thư mục, không thì module sau trỏ vào thư mục app không dùng.
+os.environ.setdefault("FBT_DATA_DIR", tempfile.mkdtemp(prefix="fbt_test_"))
+os.environ.setdefault("FBT_OTA_DIR", tempfile.mkdtemp(prefix="fbt_ota_test_"))
+os.environ.setdefault("FBT_LOGS_DIR", tempfile.mkdtemp(prefix="fbt_logs_test_"))
+os.environ.setdefault("FBT_ATE_DIR", tempfile.mkdtemp(prefix="fbt_ate_test_"))
+os.environ.setdefault("RECEIVER_TOKEN", "testtok")
 os.environ.setdefault("FBT_DB", "dbname=__nope__ connect_timeout=1")  # DB không tồn tại -> reads 500
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -22,6 +26,7 @@ from app.main import app  # noqa: E402
 
 DATA = Path(os.environ["FBT_DATA_DIR"])
 OTA = Path(os.environ["FBT_OTA_DIR"])
+ATE = Path(os.environ["FBT_ATE_DIR"])
 SAMPLE = json.loads((ROOT / "docs" / "data_sample" / "data_RPL.json").read_text(encoding="utf-8"))
 client = TestClient(app, raise_server_exceptions=False)
 AUTH = {"Authorization": "Bearer testtok"}
@@ -113,14 +118,290 @@ def test_reads_can_token_va_db():
 
 
 def test_ota_tai_file_bin_va_chan_path_ban():
-    (OTA / "firmware.bin").write_bytes(b"firmware")
+    # Kho tách theo sản phẩm (2026-09-11): đường `/ota/<file>` kiểu cũ đọc kho LEGACY_PRODUCT.
+    legacy = OTA / "products" / "rapidplus"
+    legacy.mkdir(parents=True, exist_ok=True)
+    (legacy / "firmware.bin").write_bytes(b"firmware")
     assert client.get("/ota/firmware.bin").status_code == 401
     r = client.get("/ota/firmware.bin", headers=AUTH)
     assert r.status_code == 200
     assert r.content == b"firmware"
     assert r.headers["content-type"] == "application/octet-stream"
-    assert client.get("/ota/../../note.md", headers=AUTH).status_code == 404
+    # httpx chuan hoa ".." TRUOC khi gui -> request thanh GET /note.md, khop catch-all
+    # POST /{path} sai method => 405. Path khong toi handler, khong lo file (xem CLAUDE.md).
+    assert client.get("/ota/../../note.md", headers=AUTH).status_code in (404, 405)
     assert client.get("/ota/fw.txt", headers=AUTH).status_code == 404
+
+
+# --- Log máy CSKH gửi lên (PUT /devices/{id}/logs, GET .../logs, GET /logs/{file}) ---
+LOGS = Path(os.environ["FBT_LOGS_DIR"])
+LOG_BODY = {
+    "by": "cskh01",
+    "note": "Khách báo máy tự tắt giữa chừng",
+    "port": "COM5",
+    "baud": 115200,
+    "captured_at": "2026-09-04T10:00:00",
+    "app": "FBT_RAPID",
+    "findings": [{"level": "error", "key": "brownout", "count": 2}],
+    "text": "rst:0x1 (POWERON_RESET)\nBrownout detector was triggered\nversion 2.4.5\n",
+}
+
+
+def test_log_upload_can_token():
+    assert client.put("/devices/RPL02013/logs", json=LOG_BODY).status_code == 401
+
+
+def test_log_post_roi_vao_catchall():
+    # POST bị catch-all ingest nuốt -> 400 (payload thiết bị không hợp lệ). Đây là LÝ DO app dùng PUT.
+    r = client.post("/devices/RPL02013/logs", json=LOG_BODY, headers=AUTH)
+    assert r.status_code == 400
+
+
+def test_log_upload_ghi_file():
+    r = client.put("/devices/RPL02013/logs", json=LOG_BODY, headers=AUTH)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True and body["file"].startswith("RPL02013_") and body["file"].endswith(".json")
+    assert body["size"] == len(LOG_BODY["text"])
+    doc = json.loads((LOGS / body["file"]).read_text(encoding="utf-8"))
+    assert doc["device"] == "RPL02013" and doc["text"] == LOG_BODY["text"]
+    assert doc["by"] == "cskh01" and doc["note"] == LOG_BODY["note"] and doc["baud"] == 115200
+    assert doc["findings"] == LOG_BODY["findings"] and doc["received_at"]
+    assert not list(LOGS.glob(".tmp-*"))  # ghi tạm rồi đổi tên, không để rác
+
+
+def test_log_upload_thieu_text_400():
+    assert client.put("/devices/RPL02013/logs", json={"by": "x"}, headers=AUTH).status_code == 400
+    assert client.put("/devices/RPL02013/logs", json={"text": "   "}, headers=AUTH).status_code == 400
+    assert client.put("/devices/RPL02013/logs", json=[1, 2], headers=AUTH).status_code == 400
+    r = client.put("/devices/RPL02013/logs", content=b"{oops", headers={**AUTH, "Content-Type": "application/json"})
+    assert r.status_code == 400
+
+
+def test_log_list_va_get():
+    up = client.put("/devices/RPL09999/logs", json=dict(LOG_BODY, note="lần 1"), headers=AUTH).json()
+    r = client.get("/devices/RPL09999/logs", headers=AUTH)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["device"] == "RPL09999"
+    files = [i["file"] for i in body["items"]]
+    assert up["file"] in files
+    item = next(i for i in body["items"] if i["file"] == up["file"])
+    assert item["note"] == "lần 1" and item["by"] == "cskh01" and item["size"] == len(LOG_BODY["text"])
+    assert item["findings"] == 1 and "text" not in item  # danh sách KHÔNG kèm nội dung
+    # máy khác không thấy log máy này
+    assert up["file"] not in [i["file"] for i in client.get("/devices/RPL02013/logs", headers=AUTH).json()["items"]]
+    # tải bản đầy đủ
+    g = client.get(f"/logs/{up['file']}", headers=AUTH)
+    assert g.status_code == 200 and g.json()["text"] == LOG_BODY["text"]
+    assert client.get(f"/logs/{up['file']}").status_code == 401
+
+
+def test_log_get_ten_file_xau():
+    assert client.get("/logs/khong_co.json", headers=AUTH).status_code == 404
+    assert client.get("/logs/..%2F..%2Fetc%2Fpasswd", headers=AUTH).status_code in (400, 404, 405)
+    assert client.get("/logs/abc.txt", headers=AUTH).status_code == 400
+
+
+def test_log_device_path_traversal_lam_sach():
+    r = client.put("/devices/RPL02013%5C..%5C..%5Cetc/logs", json=LOG_BODY, headers=AUTH)
+    # safe_name làm sạch mã máy -> file nằm TRONG LOGS_DIR, không leo thư mục
+    assert r.status_code == 200, r.text
+    assert r.json()["file"].startswith("RPL02013_.._.._etc_")
+    assert not (LOGS.parent / "etc").exists()
+    assert all(p.parent == LOGS for p in LOGS.glob("*.json"))
+
+
+
+
+# --- Trạm ATE (tab "Sản xuất" của app) ---------------------------------------
+
+ATE_REC = {
+    "sn": "RPL02013",
+    "station": "TRAM-01",
+    "operator": "cskh",
+    "fw_version": "v2.4.4",
+    "fw_sha256": "a" * 64,
+    "limits_ver": "p0-2026-09-07",
+    "started_at": "2026-09-07T01:00:00+00:00",
+    "finished_at": "2026-09-07T01:04:00+00:00",
+    "verdict": "pass",
+    "steps": [
+        {"code": "FW-01", "name": "Nạp firmware", "verdict": "pass"},
+        {"code": "ID-01", "name": "Ghi số máy", "verdict": "pass", "value": 1},
+    ],
+}
+
+
+def test_ate_put_can_token():
+    assert client.put("/ate/records", json=ATE_REC).status_code == 401
+
+
+def test_ate_post_roi_vao_catchall():
+    """POST /ate/records rơi vào `POST /{_path}` (ingest) -> 400. Đây là lý do
+    route ghi hồ sơ dùng PUT."""
+    r = client.post("/ate/records", json=ATE_REC, headers=AUTH)
+    assert r.status_code == 400 and "id_device" in r.text
+
+
+def test_ate_put_ghi_file_va_idempotent():
+    r1 = client.put("/ate/records", json=ATE_REC, headers=AUTH)
+    assert r1.status_code == 200, r1.text
+    body = r1.json()
+    assert body["ok"] is True and body["sn"] == "RPL02013" and body["verdict"] == "pass"
+    assert body["id"].startswith("RPL02013_20260907_010000_")
+    before = len(list(ATE.glob("*.json")))
+    r2 = client.put("/ate/records", json=ATE_REC, headers=AUTH)   # đẩy lại y hệt
+    assert r2.json()["id"] == body["id"]
+    assert len(list(ATE.glob("*.json"))) == before  # ghi đè, KHÔNG sinh hồ sơ trùng
+    doc = json.loads((ATE / body["id"]).read_text(encoding="utf-8"))
+    assert doc["fail_code"] == "" and doc["received_at"]
+
+
+def test_ate_put_body_xau_400():
+    assert client.put("/ate/records", json={"sn": "X"}, headers=AUTH).status_code == 400
+    assert client.put("/ate/records", json=dict(ATE_REC, verdict="ok"),
+                      headers=AUTH).status_code == 400
+    assert client.put("/ate/records", json=dict(ATE_REC, steps=[]),
+                      headers=AUTH).status_code == 400
+
+
+def test_ate_list_get_va_sn():
+    fail = dict(ATE_REC, sn="RPL09999", verdict="fail",
+                started_at="2026-09-07T02:00:00+00:00",
+                steps=[{"code": "BOOT-01", "name": "Khởi động", "verdict": "fail",
+                        "detail": "Guru Meditation"}])
+    fid = client.put("/ate/records", json=fail, headers=AUTH).json()["id"]
+    client.put("/ate/records", json=ATE_REC, headers=AUTH)
+
+    r = client.get("/ate/records", headers=AUTH).json()
+    assert r["total"] >= 2 and r["page"] == 1
+    assert r["items"][0]["started_at"] >= r["items"][-1]["started_at"]  # mới nhất trước
+    assert "steps" not in r["items"][0] and r["items"][0]["steps_total"] >= 1
+
+    only_fail = client.get("/ate/records?verdict=fail", headers=AUTH).json()
+    assert only_fail["total"] >= 1
+    assert all(i["verdict"] == "fail" for i in only_fail["items"])
+    assert only_fail["items"][0]["fail_code"] == "BOOT-01"   # tự suy từ steps
+
+    by_sn = client.get("/ate/records?sn=rpl09999", headers=AUTH).json()
+    assert by_sn["total"] == 1 and by_sn["items"][0]["sn"] == "RPL09999"
+    assert client.get("/ate/records?from=2030-01-01", headers=AUTH).json()["total"] == 0
+    assert client.get("/ate/records?from=garbage", headers=AUTH).status_code == 400
+
+    full = client.get(f"/ate/records/{fid}", headers=AUTH).json()
+    assert full["steps"][0]["detail"] == "Guru Meditation"
+
+    sn = client.get("/ate/sn/RPL02013", headers=AUTH).json()
+    assert sn["attempts"] >= 1 and sn["birth"]["verdict"] == "pass"
+    assert client.get("/ate/sn/KHONG_CO", headers=AUTH).json() == {
+        "sn": "KHONG_CO", "records": [], "attempts": 0, "birth": None}
+
+
+def test_ate_record_ten_file_xau():
+    assert client.get("/ate/records/khong_co.json", headers=AUTH).status_code == 404
+    assert client.get("/ate/records/abc.txt", headers=AUTH).status_code == 400
+
+
+def test_ate_stats():
+    s = client.get("/ate/stats", headers=AUTH).json()
+    assert s["machines"] >= 1 and 0 <= s["fpy"] <= 1
+    assert isinstance(s["pareto"], list) and isinstance(s["by_day"], list)
+    assert client.get("/ate/stats?to=2030-13-01", headers=AUTH).status_code == 400
+
+
+def test_ate_limits_mac_dinh_va_put():
+    d = client.get("/ate/limits", headers=AUTH).json()
+    assert d["version"] and d["sn_max_len"] == 9      # bộ mặc định P0+P1
+    # Ngưỡng quang CHƯA CHỐT phải là null (app chuyển sang chế độ chỉ ghi số),
+    # không được lỡ tay điền một con số đoán.
+    assert d["bright_min"] is None and d["bright_spread_pct"] is None
+    assert d["temp_spread_c"] == 2 and d["ambient_c"] is None
+    assert client.put("/ate/limits", json={"sn_max_len": 9},
+                      headers=AUTH).status_code == 400  # thiếu version
+    r = client.put("/ate/limits?by=root", json={"version": "v2", "sn_max_len": 9,
+                                                "boot_watch_sec": 20}, headers=AUTH)
+    assert r.status_code == 200 and r.json()["version"] == "v2"
+    back = client.get("/ate/limits", headers=AUTH).json()
+    assert back["version"] == "v2" and back["boot_watch_sec"] == 20
+    assert back["updated_by"] == "root" and back["updated_at"]
+
+
+def test_ate_limits_khong_lot_vao_danh_sach_ho_so():
+    """limits.json nằm CÙNG thư mục với hồ sơ — không được đếm như một hồ sơ."""
+    ids = [i["id"] for i in client.get("/ate/records", headers=AUTH).json()["items"]]
+    assert "limits.json" not in ids
+
+
+def test_ate_sn_path_traversal_lam_sach():
+    r = client.put("/ate/records", json=dict(ATE_REC, sn="../../etc/passwd"), headers=AUTH)
+    assert r.status_code == 200, r.text
+    assert not (ATE.parent / "etc").exists()
+    assert all(p.parent == ATE for p in ATE.glob("*.json"))
+
+
+
+def test_ate_limits_theo_lo():
+    """Tiêu chuẩn đặt THEO LÔ; lô chưa có bộ riêng thì lùi về bộ chung/mặc định."""
+    r = client.put("/ate/limits?batch=L2609A&by=cskh",
+                   json={"version": "L2609A-1", "bright_min": 800,
+                         "bright_spread_pct": 8, "ambient_c": 28}, headers=AUTH)
+    assert r.status_code == 200, r.text
+    assert r.json()["batch"] == "L2609A"
+
+    got = client.get("/ate/limits?batch=L2609A", headers=AUTH).json()
+    assert got["version"] == "L2609A-1" and got["source"] == "batch"
+    assert got["bright_min"] == 800 and got["batch"] == "L2609A"
+
+    # Lô khác chưa khai → lùi về bộ chung (đã PUT ở test trước) hoặc mặc định.
+    other = client.get("/ate/limits?batch=L9999Z", headers=AUTH).json()
+    assert other["source"] in ("chung", "mặc định")
+    assert other["batch"] == "L9999Z"          # vẫn nói rõ đang hỏi cho lô nào
+    assert other.get("bright_min") is None      # KHÔNG dính ngưỡng của lô khác
+
+    lst = client.get("/ate/limits/list", headers=AUTH).json()["items"]
+    assert any(i["batch"] == "L2609A" and i["version"] == "L2609A-1" for i in lst)
+
+
+def test_ate_limits_mot_version_mot_noi_dung():
+    """Sửa ngưỡng mà giữ nguyên version → 400. Hồ sơ chỉ ghi `limits_ver`."""
+    body = {"version": "L2609B-1", "bright_min": 500}
+    assert client.put("/ate/limits?batch=L2609B", json=body, headers=AUTH).status_code == 200
+    # Gửi LẠI y hệt = idempotent, không phải xung đột.
+    assert client.put("/ate/limits?batch=L2609B", json=body, headers=AUTH).status_code == 200
+    r = client.put("/ate/limits?batch=L2609B",
+                   json={"version": "L2609B-1", "bright_min": 900}, headers=AUTH)
+    assert r.status_code == 400 and "đổi version" in r.text
+    # Đổi version thì lưu được.
+    assert client.put("/ate/limits?batch=L2609B",
+                      json={"version": "L2609B-2", "bright_min": 900},
+                      headers=AUTH).status_code == 200
+    assert client.get("/ate/limits?batch=L2609B", headers=AUTH).json()["bright_min"] == 900
+
+
+def test_ate_ma_lo_xau_400():
+    for bad in ("../../etc", "lô có dấu", "a" * 65, "x/y"):
+        assert client.get(f"/ate/limits?batch={bad}", headers=AUTH).status_code == 400, bad
+    # Không có file nào leo ra ngoài kho ATE (chỉ .json hồ sơ/ngưỡng + nhật ký .jsonl)
+    assert all(p.suffix in (".json", ".jsonl")
+               for p in ATE.glob("**/*") if p.is_file())
+
+
+def test_ate_ho_so_loc_theo_lo():
+    a = dict(ATE_REC, sn="RPL03001", batch="L2609A",
+             started_at="2026-09-07T04:00:00+00:00")
+    b = dict(ATE_REC, sn="RPL03002", batch="L2609B",
+             started_at="2026-09-07T04:10:00+00:00")
+    client.put("/ate/records", json=a, headers=AUTH)
+    client.put("/ate/records", json=b, headers=AUTH)
+
+    r = client.get("/ate/records?batch=L2609A", headers=AUTH).json()
+    assert r["total"] >= 1
+    assert all(i["batch"] == "L2609A" for i in r["items"])
+    assert any(i["sn"] == "RPL03001" for i in r["items"])
+
+    s = client.get("/ate/stats?batch=L2609B", headers=AUTH).json()
+    assert s["total"] == 1 and s["machines"] == 1
 
 
 if __name__ == "__main__":

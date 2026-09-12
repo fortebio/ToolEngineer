@@ -36,7 +36,7 @@ class _HistoryCombinedScreenState extends State<HistoryCombinedScreen> {
   ///
   /// THỨ TỰ = mức độ dùng: Engineer Server đứng đầu (mục mặc định khi mở tab),
   /// Cloud Google lùi về cuối.
-  List<CloudSource> get _sources => SessionStore.canWrite
+  List<CloudSource> get _sources => SessionStore.canWriteClinical
       ? const [CloudSource.engineer, CloudSource.rapidErp, CloudSource.google]
       : const [CloudSource.google];
 

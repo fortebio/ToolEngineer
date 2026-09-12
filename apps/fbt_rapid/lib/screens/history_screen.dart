@@ -101,7 +101,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     // User là read-only: ẩn "Lấy kết quả từ máy", "Xóa".
-    final canWrite = SessionStore.canWrite;
+    final canWrite = SessionStore.canWriteClinical;
     // Nền trong suốt + KHÔNG appBar: mục con của `AppTabScaffold` (tab Lịch sử,
     // nhánh `_showLocal`) — tab đó đã có tiêu đề. Nút của AppBar cũ xuống hàng
     // công cụ ngay đầu nội dung.
