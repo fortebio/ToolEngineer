@@ -75,19 +75,31 @@ double arm_width_minutes(const Record &record);
  * Only the middle one is a judgement about what the assay may claim; the other two are about
  * where it is safe to look. This constant takes the middle one and nothing else.
  *
- * Seeded at 4.0, the value detection_margin_time carries today, so the split is a no-op by
- * construction: replaying the label set across this change must give ZERO differences. That
- * zero is the proof the split is clean - it is not evidence that 4.0 is the right number.
+ * Introduced at 4.0 - the value detection_margin_time carried - so the SPLIT itself was a
+ * no-op by construction and replays with zero differences. That zero proved the split was
+ * clean. It was never evidence that 4.0 was the right number, and it is not any more.
  *
- * What 4.0 costs today, measured: of 45 staff corrections in the ERP (28 Aug - 10 Sep 2026,
- * 37 runs, 13 instruments, all v2.4.4), 15 were a reviewer overturning this gate - every one
- * of them with a Ct between 3.0 and 3.7, and 12 of the 15 on the well the operator had loaded
- * as the positive control, which carries the most template and therefore runs fastest. The
- * gate is not catching bad curves; it is catching the strongest ones.
+ * LOWERED TO 3.0. What 4.0 cost, measured: of 45 staff corrections in the ERP (28 Aug - 10 Sep
+ * 2026, 37 runs, 13 instruments, all v2.4.4), 16 wells hit this gate and a reviewer overturned
+ * 15 of them to Positive - unanimous on every well that carried a Ct. Every one of the 15 fell
+ * between 3.0 and 3.7 min, and 12 were the well the operator had loaded as the positive
+ * control, which carries the most template and so runs fastest. The gate was not catching bad
+ * curves; it was catching the strongest ones and asking a human to wave each one through.
+ *
+ * 3.0 is the floor of the observed range, not a margin below it: nothing in that population
+ * crossed earlier, so anything that does is genuinely new and should still be held. The two
+ * things that could put a crossing down there - the optical warm-up transient, whose slope
+ * peaks near t = 1.0 min, and a sensor step that slipped neutralise_climbs - both land BELOW
+ * 3.0, so the gate still stands where it can do work.
+ *
+ * The baseline argument for 4.0 does not survive contact with baseline(): it subtracts a single
+ * scalar, and increase is plateau.y - transition.y, a DIFFERENCE, while every index comes from
+ * differential_data, where a constant vanishes. The baseline window moves the chart and nothing
+ * else. See docs/plan/2026-09-10-dieu-kien-tra-error-tang-som.md.
  *
  * NOT a parastructure field, for the BREAK_JUMP_THRESHOLD reasons: parastructure is at its
  * 402-byte ceiling, and a clinical floor should not be reachable from the web config at all. */
-#define MIN_CALLABLE_CT 4.0
+#define MIN_CALLABLE_CT 3.0
 
 /* ---------------------------------------------------------------------------
  * shape_flag reason codes (DiagnosticOutcome::shape_flag, AlgoData.h).
