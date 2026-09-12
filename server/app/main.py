@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -34,8 +35,14 @@ async def _lifespan(_app: FastAPI):
     # Ở LIFESPAN chứ không phải lúc import: `app/__init__.py` import module này, nên mọi
     # script (`scripts/migrate_ota.py --dry-run`, manage_users…) và test import `app.*`
     # đều chạy qua đây — di cư lúc import là "--dry-run" cũng dời file thật (đã dính).
-    for act in ota.migrate_legacy():
-        print(f"ota migrate: {act}", flush=True)
+    # BỌC try/except: đây là việc DỌN KHO, không được phép làm uvicorn không lên — startup fail
+    # là mất luôn `/ingest` của cả fleet (109 máy) vì một file .bin do root scp lên mà
+    # `engineer` không os.replace được. Kêu to trong journal rồi vẫn phục vụ.
+    try:
+        for act in ota.migrate_legacy():
+            print(f"ota migrate: {act}", flush=True)
+    except Exception as e:  # noqa: BLE001 — cố ý bắt tất cả
+        print(f"ota migrate FAILED (kho OTA giữ nguyên, server vẫn chạy): {e!r}", flush=True)
     yield
 
 
@@ -607,8 +614,7 @@ async def ota_upload_legacy(name: str, request: Request, force: str = "", by: st
         return await ota_upload(config.LEGACY_PRODUCT, name, request, force=force, by=by, note=note)
     key = _product(name)
     raw = await _ota_body(request)
-    m = _ota_call(ota.upload, key, None, raw, force=force == "1", by=by, note=note)
-    print(f"ota upload {key}/{m['name']} ({m['size']} bytes, tag={bool(m['tag'])})", flush=True)
+    m = await _ota_store(key, None, raw, force=force == "1", by=by, note=note)
     return {"ok": True, "product": key, "name": m["name"], "size": m["size"],
             "ver": m["ver"], "hw": m["hw"], "sha256": m["sha256"], "existed": m["existed"]}
 
@@ -626,6 +632,18 @@ def ota_legacy(filename: str):
 
 
 # --- route theo sản phẩm -------------------------------------------------------------------
+
+async def _ota_store(key: str, name: str | None, raw: bytes, **kw) -> dict:
+    """`ota.upload` trong THREADPOOL: băm sha256 + quét thẻ + ghi 2.4 MB (và đọc lại ảnh cũ
+    khi trùng tên) là việc chặn — handler này `async def` (để `await request.body()`), chạy
+    thẳng là treo event loop của worker duy nhất, tức treo cả POST /ingest của máy."""
+    m = await run_in_threadpool(lambda: _ota_call(ota.upload, key, name, raw, **kw))
+    if not m["existed"]:
+        # `tag` có thể vắng ở manifest cũ/sửa tay (read_manifest chỉ đòi size+sha256) → .get
+        print(f"ota upload {key}/{m['name']} ({m['size']} bytes, tag={bool(m.get('tag'))})",
+              flush=True)
+    return m
+
 
 async def _ota_body(request: Request) -> bytes:
     """Body = NGUYÊN bytes file .bin. Cố tình KHÔNG dùng multipart/UploadFile để khỏi phải
@@ -672,9 +690,7 @@ async def ota_upload(product: str, filename: str, request: Request, force: str =
     key = _product(product)
     name = _ota_call(ota.bin_name, filename)
     raw = await _ota_body(request)
-    m = _ota_call(ota.upload, key, name, raw, force=force == "1", by=by, note=note)
-    if not m["existed"]:
-        print(f"ota upload {key}/{name} ({m['size']} bytes, tag={bool(m['tag'])})", flush=True)
+    m = await _ota_store(key, name, raw, force=force == "1", by=by, note=note)
     return {"ok": True, "product": key, "name": name, "size": m["size"], "ver": m["ver"],
             "hw": m["hw"], "sha256": m["sha256"], "existed": m["existed"]}
 

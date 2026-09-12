@@ -23,6 +23,7 @@ HTTPException. Không import app.main (vòng).
 import hashlib
 import json
 import os
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -76,12 +77,32 @@ def list_products() -> list[str]:
     return sorted(keys)
 
 
+def is_bin_name(name) -> bool:
+    """Tên file .bin an toàn: đúng bộ ký tự của safe_name, đuôi .bin, KHÔNG bắt đầu bằng `.`
+    (file tạm `.tmp-<name>` của upload dở dang cũng là *.bin)."""
+    return (isinstance(name, str) and bool(name) and safe_name(name) == name
+            and name.lower().endswith(".bin") and not name.startswith("."))
+
+
 def bin_name(filename: str) -> str:
     """Tên file .bin an toàn (chặn path traversal); sai → 400."""
-    name = safe_name(filename)
-    if name != filename or not name.lower().endswith(".bin"):
+    if not is_bin_name(filename):
         raise OtaError(400, "tên file phải là .bin hợp lệ")
-    return name
+    return filename
+
+
+def _bins(d: Path) -> list[Path]:
+    """Các ảnh trong một kho. ⚠️ `Path.glob('*.bin')` KHỚP CẢ dotfile (khác glob của shell) →
+    phải lọc `.tmp-*.bin` (upload bị ngắt) ra, không thì nó được liệt kê/di cư như ảnh thật."""
+    if not d.is_dir():
+        return []
+    return [p for p in d.glob("*.bin") if p.is_file() and not p.name.startswith(".")]
+
+
+# Mọi read-modify-write của target.json đi qua khoá này: set/clear/delete chạy trong threadpool
+# (route `def`), hai request ghi cùng lúc mà không khoá là một ghim biến mất không báo gì.
+# Lock trong tiến trình đủ vì service chạy MỘT worker (cùng giả định với _FW_LOCK ở main.py).
+_CFG_LOCK = threading.Lock()
 
 
 def _atomic_json(path: Path, obj) -> None:
@@ -109,9 +130,10 @@ def pin_entry(v) -> dict | None:
     chiếu. Nó là **ghi chú vận hành**, không phải nhật ký kiểm toán.
     """
     if isinstance(v, str):
-        return {"file": v, "by": "", "at": ""} if v else None
-    if isinstance(v, dict) and isinstance(v.get("file"), str) and v["file"]:
+        return {"file": v, "by": "", "at": ""} if is_bin_name(v) else None
+    if isinstance(v, dict) and is_bin_name(v.get("file")):
         return {"file": v["file"], "by": str(v.get("by") or ""), "at": str(v.get("at") or "")}
+    # Tên không an toàn (`../x.bin`, `.tmp-x.bin`): bỏ mục — đọc/ghi manifest theo nó là ra ngoài kho.
     return None
 
 
@@ -166,6 +188,15 @@ def build_manifest(product: str, name: str, raw: bytes, *, by: str = "", note: s
     }
 
 
+def _norm_hw(v) -> list[str] | None:
+    if isinstance(v, str):
+        v = v.split(",")
+    if not isinstance(v, list):
+        return None
+    out = [str(h).strip().upper() for h in v if str(h).strip()]
+    return out or None
+
+
 def read_manifest(product: str, name: str) -> dict | None:
     """Manifest của một ảnh; None nếu .bin không tồn tại.
 
@@ -185,7 +216,9 @@ def read_manifest(product: str, name: str) -> dict | None:
     if isinstance(m, dict) and m.get("size") == st.st_size and isinstance(m.get("sha256"), str):
         m.setdefault("product", product)
         m.setdefault("ver", ver_from_name(name))
-        m.setdefault("hw", None)
+        # hw sửa tay có thể là chuỗi hay chữ thường → ép về đúng dạng build_manifest sinh
+        # (list HOA hoặc None), không thì `in` thành so chuỗi con / lệch hoa-thường.
+        m["hw"] = _norm_hw(m.get("hw"))
         return m
     m = build_manifest(product, name, path.read_bytes(), source="rebuilt",
                        at=datetime.fromtimestamp(st.st_mtime, timezone.utc)
@@ -291,24 +324,26 @@ def upload(product: str, name: str | None, raw: bytes, *, force: bool = False,
 def set_target(product: str, name: str, *, device: str = "", by: str = "") -> None:
     if not (product_dir(product) / name).is_file():
         raise OtaError(404, "firmware not found")
-    cfg = read_cfg(product)
     entry = {"file": name, "by": by[:64], "at": _now()}
-    if device:
-        cfg["devices"][safe_name(device)] = entry
-    else:
-        cfg["target"] = entry
-    save_cfg(product, cfg)
+    with _CFG_LOCK:
+        cfg = read_cfg(product)
+        if device:
+            cfg["devices"][safe_name(device)] = entry
+        else:
+            cfg["target"] = entry
+        save_cfg(product, cfg)
 
 
 def clear_target(product: str, *, device: str = "") -> dict:
     """Huỷ chọn. Không `device` → bỏ bản CHUNG **và giữ nguyên mọi ghim riêng**;
     có `device` → chỉ gỡ ghim máy đó. Trả cfg sau khi ghi."""
-    cfg = read_cfg(product)
-    if device:
-        cfg["devices"].pop(safe_name(device), None)
-    else:
-        cfg["target"] = None
-    save_cfg(product, cfg)
+    with _CFG_LOCK:
+        cfg = read_cfg(product)
+        if device:
+            cfg["devices"].pop(safe_name(device), None)
+        else:
+            cfg["target"] = None
+        save_cfg(product, cfg)
     return cfg
 
 
@@ -318,18 +353,18 @@ def delete_bin(product: str, name: str) -> None:
     d = product_dir(product)
     (d / name).unlink(missing_ok=True)
     manifest_path(product, name).unlink(missing_ok=True)
-    cfg = read_cfg(product)
-    if (cfg["target"] or {}).get("file") == name:
-        cfg["target"] = None
-    cfg["devices"] = {k: e for k, e in cfg["devices"].items() if e["file"] != name}
-    save_cfg(product, cfg)
+    with _CFG_LOCK:
+        cfg = read_cfg(product)
+        if (cfg["target"] or {}).get("file") == name:
+            cfg["target"] = None
+        cfg["devices"] = {k: e for k, e in cfg["devices"].items() if e["file"] != name}
+        save_cfg(product, cfg)
 
 
 def listing(product: str) -> dict:
     """Nội dung kho một sản phẩm — hình dạng `GET /ota` cũ + `product` + trường manifest."""
     d = product_dir(product)
-    files = sorted((p for p in d.glob("*.bin") if p.is_file()),
-                   key=lambda p: p.stat().st_mtime, reverse=True) if d.is_dir() else []
+    files = sorted(_bins(d), key=lambda p: p.stat().st_mtime, reverse=True)
     cfg = read_cfg(product)
     tgt = cfg["target"] or {}
     out = []
@@ -354,8 +389,7 @@ def listing(product: str) -> dict:
 def products_summary() -> list[dict]:
     out = []
     for key in list_products():
-        d = product_dir(key)
-        n = sum(1 for p in d.glob("*.bin") if p.is_file()) if d.is_dir() else 0
+        n = len(_bins(product_dir(key)))
         cfg = read_cfg(key)
         out.append({"product": key, "files": n, "target": target_file(key),
                     "pinned": len(cfg["devices"]), "legacy": key == config.LEGACY_PRODUCT})
@@ -385,7 +419,7 @@ def migrate_legacy(dry_run: bool = False) -> list[str]:
     legacy = config.LEGACY_PRODUCT
     dest = product_dir(legacy)
     actions: list[str] = []
-    bins = sorted(p for p in r.glob("*.bin") if p.is_file())
+    bins = sorted(_bins(r))  # bỏ `.tmp-*.bin` dở dang ở gốc — không phải ảnh
     tj = r / "target.json"
     if not bins and not tj.is_file():
         return actions

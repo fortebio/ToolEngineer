@@ -297,3 +297,79 @@ def test_post_roi_vao_catchall(kho):
     """Ghi bằng PUT, không POST: catch-all ingest nuốt mọi POST → 400. Ghim luật."""
     r = client.post("/ota/reader/reader_v1.bin", content=img(), headers=AUTH)
     assert r.status_code == 400
+
+
+# --- code-review 2026-09-12: 10 phát hiện → test ghim lại ------------------------------------
+
+def test_tmp_bin_khong_phai_anh(kho):
+    """`Path.glob('*.bin')` khớp cả dotfile → .tmp-*.bin (upload dở) không được lộ ra."""
+    (kho / ".tmp-fbt_v9.bin").write_bytes(img(body=b"do dang"))       # ở gốc (bản cũ)
+    d = kho / "products" / "reader"; d.mkdir(parents=True)
+    (d / ".tmp-reader_v1.bin").write_bytes(img(body=b"do dang"))      # trong kho
+    (d / "reader_v1.bin").write_bytes(img())
+    assert ota.migrate_legacy() == []                                   # gốc coi như sạch
+    assert (kho / ".tmp-fbt_v9.bin").is_file()                          # không bị dời
+    names = [f["name"] for f in client.get("/ota?product=reader", headers=AUTH).json()["files"]]
+    assert names == ["reader_v1.bin"]
+    assert not (d / ".tmp-reader_v1.bin.json").exists()                 # không sinh manifest cho nó
+    by = {x["product"]: x for x in client.get("/ota/products", headers=AUTH).json()["products"]}
+    assert by["reader"]["files"] == 1
+    # ghim vào tên dotfile / traversal cũng bị từ chối ở API
+    assert client.put("/ota/reader/target/.tmp-reader_v1.bin", headers=AUTH).status_code == 400
+
+
+def test_legacy_product_reserved_roi_ve_rapidplus():
+    """Env OTA_LEGACY_PRODUCT trúng từ dành riêng phải rơi về rapidplus (không thì mọi route
+    ghi kiểu cũ 404 vì _product('target') từ chối)."""
+    assert config.valid_product("rapidplus") and config.valid_product("reader-2")
+    for bad in ("target", "check", "products", "Reader", ""):
+        assert not config.valid_product(bad), bad
+
+
+def test_target_json_sua_tay_ten_khong_an_toan(kho):
+    d = kho / "products" / "rapidplus"; d.mkdir(parents=True)
+    (d / "fbt_v1.bin").write_bytes(img())
+    (d / "target.json").write_text(json.dumps({
+        "target": {"file": "../../x.bin"},
+        "devices": {"RPLA": ".tmp-fbt_v1.bin", "RPLB": {"file": "fbt_v1.bin"}},
+    }), encoding="utf-8")
+    cfg = ota.read_cfg("rapidplus")
+    assert cfg["target"] is None and list(cfg["devices"]) == ["RPLB"]
+    assert client.get("/ota/check?device=RPLA", headers=AUTH).json() == {"update": False, "reason": "none"}
+    assert client.get("/ota/check?device=RPLB", headers=AUTH).json()["version"] == "fbt_v1.bin"
+    assert not (kho / "x.bin.json").exists() and not (kho.parent / "x.bin.json").exists()
+
+
+def test_manifest_hw_sua_tay_duoc_chuan_hoa(kho):
+    d = kho / "products" / "rapidplus"; d.mkdir(parents=True)
+    raw = img(); (d / "fbt_v1.bin").write_bytes(raw)
+    import hashlib
+    (d / "fbt_v1.bin.json").write_text(json.dumps({
+        "size": len(raw), "sha256": hashlib.sha256(raw).hexdigest(), "hw": "v1.3, v1.2"}), encoding="utf-8")
+    client.put("/ota/rapidplus/target/fbt_v1.bin", headers=AUTH)
+    q = "/ota/check?device=RPL1&product=rapidplus"
+    assert client.get(q + "&hw=V1.3", headers=AUTH).json()["update"] is True   # chữ thường trong file vẫn khớp
+    assert client.get(q + "&hw=V1", headers=AUTH).json() == {"update": False, "reason": "hw"}  # không còn so chuỗi con
+    assert client.get(q, headers=AUTH).json()["hw"] == ["V1.3", "V1.2"]
+
+
+def test_upload_khong_ten_day_lai_anh_da_co(kho):
+    raw = img("reader", "v1.0.0")
+    assert put_bin("/ota/reader", raw).status_code == 200
+    # manifest sửa tay thiếu 'tag' → đẩy lại đúng ảnh vẫn 200 existed (không KeyError)
+    mp = kho / "products" / "reader" / "reader_v1.0.0.bin.json"
+    m = json.loads(mp.read_text(encoding="utf-8")); m.pop("tag")
+    mp.write_text(json.dumps(m), encoding="utf-8")
+    r = put_bin("/ota/reader", raw)
+    assert r.status_code == 200 and r.json()["existed"] is True
+
+
+def test_lifespan_khong_chet_khi_di_cu_loi(kho, monkeypatch):
+    """Di cư kho lỗi (PermissionError…) không được làm server không khởi động."""
+    def boom(dry_run=False):
+        raise PermissionError("gia lap file do root so huu")
+    monkeypatch.setattr(ota, "migrate_legacy", boom)
+    from fastapi.testclient import TestClient as TC
+    from app.main import app as _app
+    with TC(_app) as c:  # `with` mới chạy lifespan
+        assert c.get("/").json()["ok"] is True

@@ -519,7 +519,17 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   `scp -O`; `-DryRun` chỉ in lệnh); restart `fbt-receiver` vẫn phải tự chạy (sudo cần mật khẩu, `-t`).
   Bản web production build ra **`build\web_prod`** (`--output build/web_prod`, KHÔNG dart-define) để
   không đè bản test local ở `build\web`. Windows OpenSSH hỏi host key rồi KHÔNG nhận "yes" (lặp vô hạn)
-  → thêm `-o StrictHostKeyChecking=accept-new`.
+  → thêm `-o StrictHostKeyChecking=accept-new`. **Kiểm deploy KHÔNG cần token** (đủ để kết luận): (1)
+  `curl …/openapi.json` rồi so `json.dumps(sort_keys)` với `app.openapi()` sinh từ code local (TestClient
+  env tạm) — giống hệt = đúng code đang chạy, khác = liệt kê route lệch; (2) route mới phải **401** khi
+  thiếu token (có route, gác nguyên); (3) web: md5 `main.dart.js` tải từ `/app/` == `build/web_prod` ==
+  file trên box, và `grep -c` khoá i18n đặc trưng (`nav.monitor`, `statusError`, `binGone`) trong bundle.
+  ⚠️ `md5sum` in dấu `\` ĐẦU DÒNG khi path có backslash (Windows) → so md5 bằng mắt/`uniq` sau khi bỏ
+  ký tự đó, đừng `cut -c1-32` rồi kết luận "khác". **Trước khi bảo người dùng restart** (sudo, tay):
+  `ssh … 'cd ~/fbt_server && venv/bin/python -c "import app.main"'` — import bằng venv THẬT của box bắt
+  được thiếu package/lỗi cú pháp mà không phải hạ service (`__init__.py` nạp trễ nên import không có
+  tác dụng phụ). Handler FastAPI `async def` (cần `await request.body()`) mà làm việc chặn (băm/ghi
+  MB) thì `await run_in_threadpool(...)` — worker duy nhất, treo loop là treo cả `/ingest`.
 - **Box production KHÔNG chắc chạy code của `main` — kiểm trước khi deploy** (dính thật 2026-09-12):
   box nhận code nhánh `origin/ota-rollout-docs-tests` (28/08: `server/app/monitor.py` + route
   `/monitor`, app có `monitor_screen.dart`, tải hàng loạt, CSV rollout) mà clone ADM chưa merge; scp từ
@@ -543,6 +553,10 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   đặt `ota.migrate_legacy()` dưới `FastAPI(...)` làm `scripts/migrate_ota.py --dry-run` dời file
   THẬT (đã dính 2026-09-11). Việc "chạy một lần lúc khởi động" đặt trong `lifespan` (chỉ tiến
   trình uvicorn thật chạy; `TestClient` không dùng `with` thì cũng không chạy).
+- **Server: `pathlib.Path.glob('*.bin')` KHỚP CẢ dotfile** (khác glob của shell) → file tạm `.tmp-<name>.bin`
+  của upload bị ngắt bị liệt kê/di cư như ảnh thật; mọi chỗ glob kho phải lọc `not p.name.startswith('.')`.
+  Và **việc "chạy một lần lúc khởi động" trong `lifespan` phải bọc `try/except` + log** — ném lỗi ở đó là
+  uvicorn không lên, mất luôn `/ingest` của cả fleet vì một thao tác dọn dẹp (code-review 2026-09-12).
 - **Route server mới KHÔNG được là POST** (đã ghi ở mục OTA, lặp lại vì dễ quên): `POST /{path}`
   catch-all ingest nuốt mọi POST → 400 "invalid". Log CSKH dùng `PUT /devices/{id}/logs`; tên file
   trả về dài hơn 64 ký tự nên `GET /logs/{file}` kiểm tên bằng regex riêng, KHÔNG `safe_name` (cắt 64

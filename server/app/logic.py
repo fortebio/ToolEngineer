@@ -6,6 +6,7 @@ import os
 import re
 from datetime import datetime, timedelta, timezone
 
+from app import config as _cfg
 from app.config import ARRAY_FIELDS
 
 _VN = timezone(timedelta(hours=7))
@@ -383,21 +384,17 @@ def ate_limits_conflict(old, new) -> str | None:
 
 
 # --- OTA nhiều sản phẩm (docs/plan/ota-nhieu-san-pham.md ở repo app) -----------------
-# Khoá sản phẩm: chữ thường + số + gạch ngang, gộp luôn biến thể (`rapidplus`, `rapidplus-a`,
-# `reader`). Ba từ dành riêng vì chúng là ĐOẠN PATH cố định của /ota/*: một sản phẩm tên
-# "target" sẽ làm `PUT /ota/target/<file>` (đặt bản chung kiểu cũ) và `PUT /ota/<product>/<file>`
-# (upload kiểu mới) trỏ vào cùng một URL.
-PRODUCT_RE = re.compile(r"[a-z0-9-]{1,24}")
-PRODUCT_RESERVED = frozenset({"check", "products", "target"})
+# Cú pháp khoá + từ dành riêng nằm ở config.py (env LEGACY_PRODUCT cũng phải qua đúng bộ
+# lọc đó); ở đây chỉ re-export cho chỗ gọi cũ.
+PRODUCT_RE = _cfg.PRODUCT_RE
+PRODUCT_RESERVED = _cfg.PRODUCT_RESERVED
 
 
 def product_key(s) -> str | None:
     """Khoá sản phẩm hợp lệ, hoặc None. KHÔNG tự hạ hoa/thường: firmware gửi `Reader` là
     firmware gửi sai, và /ota/check phải fail-closed với nó chứ không đoán hộ."""
     s = str(s or "")
-    if not PRODUCT_RE.fullmatch(s) or s in PRODUCT_RESERVED:
-        return None
-    return s
+    return s if _cfg.valid_product(s) else None
 
 
 # Thẻ nhận dạng NHÚNG trong ảnh firmware, do build sinh ra (firmware ≥ v2.4.6):

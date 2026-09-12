@@ -77,6 +77,9 @@ if ($Web) {
     # Sao lưu bản web đang host trước khi ghi đè (cùng lý do với app/ ở trên; box đã có nhiều web.bak.*).
     $stampWeb = Get-Date -Format "yyyyMMdd-HHmmss"
     Run "ssh $Target `"[ -d $Remote/web ] && cp -a $Remote/web $Remote/web.bak.$stampWeb; true`""
+    # Chỉ giữ 3 bản web.bak.* MỚI NHẤT (~60 MB/bản; box từng tích 14 bản). Xoá bản cũ hơn.
+    # `ls -dt` xếp mới → cũ, `tail -n +4` là từ bản thứ 4 trở đi; không có gì thì xargs -r bỏ qua.
+    Run "ssh $Target `"cd $Remote && ls -dt web.bak.* 2>/dev/null | tail -n +4 | xargs -r rm -rf; ls -d web.bak.* 2>/dev/null`""
     Run "ssh $Target `"mkdir -p $Remote/web/assets $Remote/web/canvaskit $Remote/web/icons && chmod -R u+rwX $Remote/web`""
     # file rời ở gốc
     $top = Get-ChildItem $webProd -File | ForEach-Object { "`"$($_.FullName)`"" }

@@ -65,15 +65,29 @@ WEB_DIR = Path(os.environ.get("FBT_WEB_DIR", str(Path.home() / "fbt_server" / "w
 # `OTA_DIR/products/<product>/` (mỗi sản phẩm một `target.json` riêng) — xem app/ota.py.
 OTA_DIR = Path(os.environ.get("FBT_OTA_DIR", str(Path.home() / "fbt_server" / "ota")))
 
+# Khoá sản phẩm OTA: chữ thường + số + gạch ngang, gộp luôn biến thể (`rapidplus`,
+# `rapidplus-a`, `reader`). Ba từ dành riêng vì chúng là ĐOẠN PATH cố định của /ota/*:
+# một sản phẩm tên "target" làm `PUT /ota/target/<file>` (đặt bản chung kiểu cũ) và
+# `PUT /ota/<product>/<file>` (upload kiểu mới) trỏ vào cùng một URL. Đặt ở config (không
+# ở logic.py) vì chính env bên dưới cũng phải qua bộ lọc này — logic import config, không ngược.
+PRODUCT_RE = re.compile(r"[a-z0-9-]{1,24}")
+PRODUCT_RESERVED = frozenset({"check", "products", "target"})
+
+
+def valid_product(s) -> bool:
+    s = str(s or "")
+    return bool(PRODUCT_RE.fullmatch(s)) and s not in PRODUCT_RESERVED
+
+
 # Sản phẩm dành cho máy KHÔNG tự khai `?product=` ở `/ota/check` — tức TOÀN BỘ fleet
 # firmware ≤ v2.4.5 đang chạy hôm nay (RapidPlus). Đây là đường bắt buộc, không phải
 # tiện ích: đường sửa từ xa duy nhất tới 109 máy sau NAT đi qua chính request đó, nên
 # server không được đòi firmware mới rồi mới trả lời. File .bin + target.json cũ ở gốc
 # OTA_DIR được tự dời vào products/<LEGACY_PRODUCT>/ lúc khởi động (ota.migrate_legacy).
-# Khoá sản phẩm: [a-z0-9-]{1,24}; sai cú pháp thì rơi về "rapidplus" thay vì làm gãy
-# /ota/check của cả fleet vì một dòng env gõ nhầm.
+# Sai cú pháp HOẶC trúng từ dành riêng thì rơi về "rapidplus" thay vì làm gãy /ota/check
+# (hoặc mọi route ghi kiểu cũ — `_product('target')` là 404) vì một dòng env gõ nhầm.
 _LEGACY = os.environ.get("OTA_LEGACY_PRODUCT", "rapidplus").strip().lower()
-LEGACY_PRODUCT = _LEGACY if re.fullmatch(r"[a-z0-9-]{1,24}", _LEGACY) else "rapidplus"
+LEGACY_PRODUCT = _LEGACY if valid_product(_LEGACY) else "rapidplus"
 
 # Tuỳ chọn: máy cũ KHÔNG khai product nhưng mã máy có tiền tố nhận ra được → sản phẩm
 # theo tiền tố, vd "RPL=rapidplus,RDR=reader". Tiền tố dài hơn thắng. Không khớp gì →
@@ -82,7 +96,7 @@ LEGACY_PRODUCT_BY_PREFIX: dict[str, str] = {}
 for _item in os.environ.get("OTA_LEGACY_PRODUCT_BY_PREFIX", "").split(","):
     if "=" in _item:
         _pre, _prod = (s.strip() for s in _item.split("=", 1))
-        if _pre and re.fullmatch(r"[a-z0-9-]{1,24}", _prod.lower()):
+        if _pre and valid_product(_prod.lower()):
             LEGACY_PRODUCT_BY_PREFIX[_pre] = _prod.lower()
 
 # Bắt buộc ảnh .bin tải lên phải có THẺ NHẬN DẠNG nhúng (`FBTIMG1;product=…;ver=…;hw=…;;`,
