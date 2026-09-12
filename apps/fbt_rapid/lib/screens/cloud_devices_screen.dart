@@ -10,6 +10,7 @@ import '../util/i18n.dart';
 import '../widgets/app_search_box.dart';
 import '../util/format.dart';
 import 'cloud_runs_screen.dart';
+import 'download_device_dialog.dart';
 
 /// Kiểu sắp xếp danh sách máy.
 enum _DeviceSort { latestDesc, latestAsc, idAsc, idDesc }
@@ -426,6 +427,27 @@ class _CloudDevicesScreenState extends State<CloudDevicesScreen> {
                                         ),
                                       ),
                                   ],
+                                ),
+                              ),
+                              // Tải toàn bộ dữ liệu của máy này. Đặt TRONG thẻ nhưng
+                              // là IconButton riêng nên bấm vào đây không kích hoạt
+                              // onTap của thẻ (không nhảy sang màn lần chạy).
+                              IconButton(
+                                tooltip: tr('dl.tooltip'),
+                                icon: const Icon(Icons.download_outlined),
+                                onPressed: () => showDialog(
+                                  context: context,
+                                  barrierDismissible: false,
+                                  builder: (_) => DownloadDeviceDialog(
+                                    settings: widget.settings,
+                                    source: widget.source,
+                                    device: d,
+                                    // Nhịp đọc quyết định trục thời gian của đồ
+                                    // thị — không truyền thì ảnh xuất hàng loạt
+                                    // lệch trục so với ảnh từ màn chi tiết.
+                                    readingIntervalSec:
+                                        widget.settings.readingIntervalSec,
+                                  ),
                                 ),
                               ),
                               Icon(Icons.chevron_right, color: cs.onSurfaceVariant),

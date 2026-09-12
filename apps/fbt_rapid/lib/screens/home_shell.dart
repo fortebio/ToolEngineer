@@ -13,6 +13,7 @@ import 'folder_screen.dart';
 import 'history_combined_screen.dart';
 import 'login_screen.dart';
 import 'manager_machine_screen.dart';
+import 'monitor_screen.dart';
 import 'support_screen.dart';
 // Tab Kỹ Thuật: desktop dùng COM/esptool (dart:ffi/dart:io); web import bản
 // Web Serial + esptool-js (tech_screen_web.dart) — không kéo native vào web.
@@ -116,6 +117,7 @@ class _HomeShellState extends State<HomeShell> {
     final canSeeProduction = session?.canSeeProduction ?? false;
     final canUseTech = session?.canUseTech ?? false;
     final canManageUsers = session?.canManageUsers ?? false;
+    final isRoot = session?.isRoot ?? false; // tab Giám sát: hạ tầng, chỉ root
 
     // CHỈ các mục NỘI DUNG vào thanh tab dọc. Thiết lập nằm trong icon tài khoản.
     //
@@ -210,6 +212,26 @@ class _HomeShellState extends State<HomeShell> {
         page: const TechScreen(),
       ));
     }
+    // Root: tình trạng Engineer Server. Chỉ root vì đây là hạ tầng, không
+    // phải dữ liệu vận hành hằng ngày — cùng mức với Quản lý User. Gác bằng
+    // `isRoot` chứ KHÔNG `canManageUsers`: từ 2026-09-07 quản lý sản xuất cũng
+    // quản lý được tài khoản (operator) nhưng không có việc gì với hạ tầng.
+    // Lưu ý: gác này chỉ ẩn TAB; endpoint /monitor bên server vẫn nhận mọi
+    // token hợp lệ (xem doc đầu monitor_screen.dart).
+    if (isRoot) {
+      tabs.add(_Tab(
+        icon: Icons.monitor_heart_outlined,
+        selectedIcon: Icons.monitor_heart,
+        label: tr('nav.monitor'),
+        page: MonitorScreen(
+          // Key gồm cả TOKEN: đổi token trong Cài đặt mà key không đổi thì
+          // `late final _api` giữ header cũ và tab 401 tới khi khởi động lại
+          // app. (`mm_`/`folder_`/`histcomb_` còn nguyên lỗ này — sửa riêng.)
+          key: ValueKey('mon_${settings.engineerUrl}_${settings.engineerToken}'),
+          settings: settings,
+        ),
+      ));
+    }
     if (canManageUsers) {
       tabs.add(_Tab(
         icon: Icons.manage_accounts_outlined,
@@ -262,7 +284,15 @@ class _HomeShellState extends State<HomeShell> {
       ),
       body: IndexedStack(
         index: _index,
-        children: [for (final t in tabs) t.page],
+        // `TickerMode` = cờ "tab này đang được xem", dùng CHUNG cho mọi tab.
+        // `IndexedStack` dựng HẾT các con (đã đo: con bị ẩn vẫn `tickerMode=true`)
+        // nên nếu không tắt, animation và mọi thứ nghe theo ticker của 4 tab ẩn
+        // vẫn chạy suốt phiên. Màn nào cần biết mình có đang hiển thị không thì
+        // đọc `TickerMode.of(context)` — không phải thêm cờ `active` riêng.
+        children: [
+          for (var i = 0; i < tabs.length; i++)
+            TickerMode(enabled: i == _index, child: tabs[i].page),
+        ],
       ),
     );
   }
@@ -279,7 +309,10 @@ class _HomeShellState extends State<HomeShell> {
             left: _slim,
             child: IndexedStack(
               index: _index,
-              children: [for (final t in tabs) t.page],
+              children: [
+                for (var i = 0; i < tabs.length; i++)
+                  TickerMode(enabled: i == _index, child: tabs[i].page),
+              ],
             ),
           ),
           // Rail LUÔN HIỆN. Bung ra chỉ phủ lên nội dung.

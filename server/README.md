@@ -10,9 +10,9 @@ MiniPC cũ dựng thành server chạy 24/7: **Debian + PostgreSQL**, truy cập
 
 | | |
 |---|---|
-| [app/](app/) | Package service FastAPI (`config`/`logic`/`db`/`auth`/`main`) — chạy `uvicorn app.main:app` |
+| [app/](app/) | Package service FastAPI (`config`/`logic`/`db`/`auth`/`monitor`/`main`) — chạy `uvicorn app.main:app` |
 | [scripts/](scripts/) | CLI: `reconcile.py` (nạp bù file `data_plus/` khi DB down) · `import_accounts.py` (di cư tài khoản từ Sheet CSV) |
-| [tests/](tests/) | `test_logic.py` + `test_api.py` — chạy `python tests/test_logic.py` hoặc `pytest` |
+| [tests/](tests/) | `test_logic.py` + `test_monitor.py` + `test_api.py` — chạy `python tests/test_logic.py` hoặc `pytest` |
 | [deploy/](deploy/) | `schema.sql` + `fbt-receiver.service` + migration |
 | 📖 **Dựng lại từ đầu** | [docs/plan/HUONG_DAN_DUNG_SERVER.md](docs/plan/HUONG_DAN_DUNG_SERVER.md) |
 | [legacy/](legacy/) | `receiver.py` (stdlib cũ), `import_drive_logs.py` (Drive — đã bỏ) — tham khảo |

@@ -23,7 +23,7 @@ void openFolder(String path) {}
 Future<String?> saveTextFileDialog(
   String suggestedName,
   String text, {
-  String label = 'JSON',
+  String label = '',
   List<String> extensions = const ['json'],
 }) async {
   downloadBytes(suggestedName, utf8.encode(text));

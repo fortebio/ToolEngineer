@@ -36,12 +36,13 @@ scripts/               # CLI dùng lại logic của app/
   import_drive_backup.py #  Nạp log Drive vào kho backup `drive_sessions` (TÁCH khỏi sessions)
   deploy.ps1           #   scp CẢ app/*.py + scripts/migrate_ota.py (+ bản web build/web_prod) lên box; -DryRun in lệnh
   localtest.ps1        #   Bật/tắt bộ test local: Postgres portable :5433 + uvicorn :8080 + tài khoản test
-tests/                 # test_logic.py (thuần) + test_api.py (smoke, TestClient) + test_auth_roles.py (phạm vi
+tests/                 # test_logic.py + test_monitor.py (thuần) + test_api.py (smoke, TestClient) + test_auth_roles.py (phạm vi
                        #   quản lý tài khoản, thay app.db bằng kho RAM) + test_ota_products.py (kho OTA theo sản
                        #   phẩm; fixture `kho` vá config.OTA_DIR mỗi test) — chạy được không cần Postgres.
                        #   Env test đặt bằng os.environ.setdefault ở MỌI module (module nào import app.main trước
                        #   cũng ra cùng thư mục; gán đè sau import là module sau trỏ vào thư mục app không dùng)
 deploy/                # schema.sql + fbt-receiver.service (deploy lên server)
+                       # ⚠️ unit nào chạy python PHẢI trỏ venv/bin/python — python3 hệ thống KHÔNG có psycopg
 legacy/                # receiver.py (stdlib cũ) + import_drive_logs.py (Drive — đã bỏ) — giữ tham khảo
 requirements.txt       # fastapi, uvicorn, psycopg (pin version)
 .gitignore             # loại secret (.ssh, note.md, *.env) + data + venv

@@ -22,8 +22,13 @@ flutter run -d windows                 # chạy có hot reload
 flutter build windows --debug          # build nhanh để test  → build\windows\x64\runner\Debug\fbt_dxd_app.exe
 flutter build windows --release        # build phát hành      → ...\Release\
 flutter analyze lib/<file>...          # lint nhanh vài file (đừng analyze cả repo nếu không cần)
+flutter analyze lib/ 2>&1 | grep -E "error|warning"   # ĐỌC KẾT QUẢ KIỂU NÀY, đừng | tail
 flutter build web --release            # build WEB → build\web (host tĩnh ở đâu cũng được)
 ```
+⚠️ **`flutter analyze | tail -N` GIẤU MẤT lỗi biên dịch**: repo có sẵn ~11 dòng `info`
+(deprecated_member_use…) nên `error` bị đẩy lên đầu, `tail` chỉ thấy lint vô hại và dòng tổng
+"N issues found" — đọc thành "sạch". Đã suýt commit code không biên dịch được vì cái này
+(2026-08-28). Luôn lọc `grep -E "error|warning"` rồi mới xem tổng số.
 Đóng gói installer (Inno Setup) — **phải `--release` TRƯỚC** vì script trỏ vào thư mục Release.
 `installer.iss` nằm ở **gốc repo app** (source/icon/vendor dùng path tương đối `AddBackslash(SourcePath)`
 — đừng hardcode đường dẫn tuyệt đối); mỗi lần phát hành nhớ nâng `MyAppVersion` trong file.
@@ -41,13 +46,34 @@ PS `SetForegroundWindow` → `GetWindowRect` → `SetCursorPos(rect + offset-the
 GetWindowRect). Click có thể TRƯỢT im lặng (không lỗi) → sau mỗi click phải chụp lại xác nhận;
 kết quả bấm-mở-màn có khi tới CHẬM (fetch mạng) — chụp thấy chưa đổi thì chờ rồi chụp lại
 trước khi kết luận hỏng.
+⚠️ **Click "trượt" hoài thường KHÔNG phải sai toạ độ mà là app đang NẰM DƯỚI cửa sổ khác**
+(VS Code…): Windows chặn cướp focus nên `SetForegroundWindow` im lặng không nâng app lên, và
+click rơi vào **app khác** đang phủ lên. `driver.ps1` chụp theo HWND nên ảnh vẫn ra y hệt dù
+click chẳng tới đâu → nhìn ảnh không phát hiện được. Dấu hiệu: bấm 2–3 lần vẫn không đổi gì.
+Cách chẩn: chụp **CẢ MÀN HÌNH** (`[System.Windows.Forms.SystemInformation]::VirtualScreen` +
+`Graphics.CopyFromScreen`) sẽ thấy ngay ai đang che. Cách nâng app lên thật:
+`(New-Object -ComObject WScript.Shell).AppActivate($pid)` rồi mới click.
+Hộp thoại **native** (chọn/lưu file) cũng là cửa sổ RIÊNG → chụp theo HWND app không thấy nó;
+lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nhận bằng ảnh cả màn hình.
 
 ## Kiến trúc
 - **Entry**: `lib/main.dart` → `_AuthGate` khôi phục phiên đã lưu → `LoginScreen` (chưa đăng nhập)
   hoặc `HomeShell` (đã đăng nhập).
 - **`HomeShell`** (`NavigationRail` dọc + `IndexedStack`): thanh dọc chỉ chứa **tab nội dung** theo vai
-  trò — khách hàng (`user`): **Lịch sử**; nhân sự (`admin`/`root`): **+ Kỹ Thuật**; **`root`**: **+ Quản lý
-  User**. Tab **Kỹ Thuật** (`tech_screen.dart`, mẫu segmented giống Lịch sử) GỘP 3 công cụ: **Log nhiệt**
+  trò — khách hàng (`user`): **Lịch sử**; nhân sự (`admin`/`root`): **+ Kỹ Thuật**; **`root`**: **+ Giám sát
+  + Quản lý User**. Tab **Giám sát** (`monitor_screen.dart`, root-only, thêm 2026-08-28) đọc
+  `GET /monitor` của Engineer Server: uptime dịch vụ · Postgres sống không · CPU/RAM/đĩa · phiên đo
+  24h/7 ngày + biểu đồ 7 cột. Bố cục: **băng phán quyết** (một dòng, mức xấu nhất + LÝ DO) → thanh
+  tài nguyên | chấm trạng thái → **biểu đồ CPU/RAM realtime** → luồng dữ liệu. (Danh sách "máy im
+  lặng >7 ngày" ĐÃ GỠ 2026-08-28 theo yêu cầu chủ dự án — nó đầy máy đã ngừng dùng nên giữ lại là
+  băng phán quyết vàng vĩnh viễn, che mất cảnh báo thật; muốn biết máy nào lâu không gửi thì xem cột
+  "Lần cuối" ở tab Quản lý máy.) Lấy mẫu **5 giây/lần, CHỈ khi tab đang mở** (`TickerMode` — xem gotcha `IndexedStack`), vòng
+  đệm 60 mẫu trong RAM; vòng đó gọi **`GET /monitor?flow=0`** để KHÔNG kéo theo 3 truy vấn quét bảng
+  `sessions` mỗi 5 giây (server cũ chưa biết tham số này thì bỏ qua, vẫn trả đủ). Gác **hai tầng**:
+  server `/monitor` dùng `Depends(ota_admin)` = chỉ token NHÂN SỰ
+  (token thiết bị nằm trong 4 KB đầu mọi `.bin` nên KHÔNG được đọc `disk.free` rồi bơm `/ingest` cho
+  đầy đĩa); còn "chỉ root" là quy ước GIAO DIỆN vì server không phân biệt root với admin (chung
+  token) → đừng thêm dữ liệu nhạy cảm vào endpoint rồi tưởng "chỉ root" che được. Tab **Kỹ Thuật** (`tech_screen.dart`, mẫu segmented giống Lịch sử) GỘP 3 công cụ: **Log nhiệt**
   (`temperature_log_screen.dart`) | **Đọc serial** (`serial_console_screen.dart`) | **Nạp code**
   (`flasher_screen.dart`). **Thiết lập + Đăng xuất** KHÔNG còn là tab mà nằm trong **menu của icon tài khoản**
   (shield = nhân sự root/admin · person = khách hàng) ở `trailing`. Tab **Lịch sử**
@@ -208,6 +234,20 @@ trước khi kết luận hỏng.
 - **Lưu file**: gốc = `StoragePaths.parent` (static, set từ Cài đặt, mặc định `Documents`).
   Kết quả CT → `FBT_RAPID_ketqua\`; log nhiệt → `FBT_RAPID_templog\`; log đọc serial → `FBT_RAPID_seriallog\`
   (`<COM>_<thời gian>.txt`). Mở thư mục/chọn file = `Process.run('explorer.exe', ['/select,', path])`.
+  **Tải hàng loạt theo máy** (nút ⤓ trên thẻ máy, `download_device_dialog.dart` + `BulkExport`
+  trong `result_export.dart`) — cả mẻ đi vào **MỘT nơi** tên `<MãMáy>_toanbo_<ngày>`:
+  desktop là **thư mục** `FBT_RAPID_ketqua\<MãMáy>\<MãMáy>_toanbo_<ngày>\`, web là **MỘT file
+  `.zip`** cùng tên (`package:archive`, thêm 2026-08-26 — trước đó mỗi file một lượt tải, chọn 50
+  lần đo là trình duyệt hỏi 50 lần). Cây bên trong GIỐNG NHAU ở hai nền tảng:
+  **JSON** → mỗi lần đo một file `<Ngày>_<Giờ>_<Firmware>.json` (chủ dự án đã bác kiểu dồn 1 file
+  gộp); **Ảnh đồ thị** → mỗi lần đo một **thư mục con** `<Ngày>_<Giờ>_<Firmware>\` chứa 4 PNG +
+  `data.json`. Đường dẫn trong `ResultExport.chartEntries` ngăn bằng **`/`** (bản desktop tự đổi
+  sang `\`) — dùng `\` là hỏng zip. Tên giờ pad 2 chữ số để **sắp theo tên = sắp theo thời gian**;
+  trùng tên thì thêm `_2/_3` (trùng giây + trùng firmware là ĐÈ MẤT bản ghi mà không báo gì).
+  ⚠️ **File JSON tải về là LOG NGUYÊN BẢN máy đẩy lên server** (`GET /sessions/{id}` =
+  `FbtApi.fetchSessionJson`), KHÔNG phải `runToJson` app tự dựng — chỉ in thụt lề. Nguồn Google /
+  RAPID ERP không có endpoint trả payload thô nên đành rơi về bản app dựng; đừng "thống nhất" hai
+  đường này. Nút "Lưu" ở màn chi tiết (`saveRun`) vẫn giữ chỗ cũ `<MãMáy>\<Ngày_Giờ_Fw>\`.
 - **Đồ thị** (`fl_chart`): `widgets/ct_chart.dart` (CT), `widgets/temp_chart.dart` (nhiệt). Lưu ảnh =
   bọc `RepaintBoundary` rồi `util/chart_capture.dart::captureBoundaryPng` (chụp off-screen qua Overlay).
 
@@ -239,6 +279,16 @@ trước khi kết luận hỏng.
   `tech_screen.dart if (dart.library.html) tech_screen_web.dart` (home_shell) — bản web cùng tên
   class + constructor. Màn nào chỉ HTTP thì KHÔNG cần bản `_web`. File web-only (`web_*.dart`,
   `util/web_serial.dart`, `util/esptool_js.dart`) import trực tiếp `platform_files_web.dart` được.
+- **DEPLOY WEB giờ chạy `deploy-web.ps1`** (gốc repo), ĐỪNG gõ scp tay nữa: mặc định là **chạy thử**
+  (in danh sách file khác md5, không đụng server), thêm `-Go` mới chép. Script tự lo hết những chỗ
+  từng hỏng: chỉ chép file THẬT SỰ khác (6 MB thay vì 43 MB), `scp -O` từng file, sao lưu
+  `web.bak.<stamp>` trước, kiểm quyền ghi TRƯỚC khi đụng gì, gắn vân tay tên file
+  (`main.<hash>.dart.js`) để qua cache Cloudflare 4 tiếng, và md5 lại sau khi chép.
+  Chạy xong nhớ 2 việc script in ra: nhờ **purge Cloudflare** `https://hub.fortebio.tech/app/*`
+  (chưa purge thì người dùng vẫn thấy bản CŨ, không báo lỗi gì) và dọn file vân tay cũ trên box.
+  ⚠️ **Build web PHẢI chạy bằng PowerShell hoặc `MSYS_NO_PATHCONV=1`**: qua Bash (Git Bash) thì
+  `--base-href /app/` bị MSYS dịch thành `C:/Program Files/Git/app/` → lỗi
+  "*--base-href should start and end with /*".
 - **HOST bản web trên chính Engineer Server (2026-07-14)**: build
   `flutter build web --release --base-href /app/` (KHÔNG `--dart-define=FBT_TOKEN` — token nhúng
   vào JS public là LỘ) rồi scp nguyên `build\web\*` vào `~/fbt_server/web/` trên box → server mount
@@ -540,6 +590,37 @@ trước khi kết luận hỏng.
   khi thiếu token). Lưu ý gốc rễ: **URL đã lưu trong `shared_preferences` KHÔNG tự đổi khi đổi hằng
   default** (`_orDefaultUrl` chỉ áp khi ô TRỐNG) — đổi hợp đồng/URL mặc định thì user phải xóa trống
   ô URL cũ (áp cho cả `cloudApiUrl`/`rapidErpUrl`).
+  **Nguyên nhân 405 THỨ HAI (2026-08-26): route CÓ trong file nhưng SERVICE CHƯA RESTART.**
+  `md5sum` main.py trên box KHỚP repo vẫn không có nghĩa route đã sống — uvicorn giữ code nạp lúc
+  khởi động. Phân biệt: `GET /sessions/1` → 401 (route sống) nhưng `GET /sessions/1/errors` → 405
+  (route chưa nạp). Kiểm đúng chỗ: so `stat -c %y app/main.py` với
+  `systemctl show fbt-receiver -p ActiveEnterTimestamp`, hoặc đếm route trong TIẾN TRÌNH:
+  `curl -s localhost:8080/openapi.json | grep -c '<route>'`.
+  ⚠️ **Chạy lệnh kiểm NGAY SAU `systemctl restart` cho kết quả 0 GIẢ** (2026-08-26): uvicorn mất
+  ~1 s mới `Application startup complete`, curl trong khoảng đó không nối được → `grep -c` ra 0,
+  trông y như restart không ăn. Trước khi kết luận: `systemctl is-active` phải `active` VÀ
+  `curl -w '%{http_code}'` phải 200 — ra `000`/0 byte là service chưa lên chứ không phải thiếu route.
+- **Client CỐ Ý nuốt lỗi → route server thiếu trông y hệt "app không có tính năng"**:
+  `FbtApi.sessionErrors`/`fwLog` bọc `try/catch` trả **rỗng** (lý do đúng: rỗng là kết quả bình
+  thường, và không nên vỡ cả màn chi tiết vì một bảng phụ). Hệ quả: 405/401/CORS đều biểu hiện
+  thành bảng KHÔNG hiện, không một thông báo nào. Gặp "tính năng X không có trên bản web/desktop"
+  thì **đừng đi tìm code bị gate theo nền tảng trước** — kiểm 3 bước rẻ hơn nhiều: (1) `grep kIsWeb|
+  dart:io|Platform\.` trong file tính năng, (2) `grep` chuỗi nhãn trong `main.dart.js` ĐANG HOST
+  (bundle cũ hay không), (3) gọi thẳng endpoint xem 401 hay 405. Lần 2026-08-26 cả (1) và (2) đều
+  sạch, thủ phạm là (3) — và nó hỏng ở CẢ hai nền tảng chứ không riêng web.
+  ⚠️ **Bước (2) phải dò bằng chuỗi ASCII, ĐỪNG dò bằng tiếng Việt**: dart2js escape ký tự
+  non-ASCII nên `grep -F "Đang đếm số lần chạy" main.dart.js` LUÔN ra 0 kể cả khi tính năng có
+  trong bundle — âm tính giả, suýt kết luận sai 2026-08-26. Dò bằng **khoá i18n** (`dl.tooltip`)
+  hoặc bản tiếng Anh. Đối chứng nhanh: grep một chuỗi tiếng Việt CŨ chắc chắn có; ra 0 nghĩa là
+  phép grep sai chứ không phải bundle thiếu.
+- **"Deploy rồi mà web chưa thấy tính năng" — dò theo CHUỖI THAM CHIẾU, đừng đoán cache**:
+  `curl /app/` xem `index.html` trỏ bootstrap nào → `curl` bootstrap đó lấy `mainJsPath` →
+  `curl` file `main.<hash>.dart.js` đó rồi so **md5 với `build/web/main.dart.js`** và grep khoá
+  i18n. Khớp hết = server đúng, lỗi ở TRÌNH DUYỆT người dùng: `index.html` được trả **KHÔNG kèm
+  `Cache-Control`** (chỉ `Last-Modified`) nên tab đang mở giữ JS cũ vô thời hạn → Ctrl+Shift+R,
+  hoặc thử **cửa sổ ẩn danh** (phép thử dứt điểm). Service worker KHÔNG phải thủ phạm: Flutter đời
+  này sinh bản "tự huỷ" (815 B, `unregister()` + reload) nên không cache app; nó giống nhau mọi
+  lần build, deploy script bỏ qua là ĐÚNG.
 - **Engineer Server trả 500 = tầng Postgres trên box chưa sẵn sàng** (đúng token vẫn 500): bảng
   `sessions`/role chưa tạo (chưa chạy `deploy/schema.sql`) hoặc Postgres/psycopg thiếu — KHÔNG phải
   lỗi app. `/ingest` vẫn 200 (file-first, catch lỗi DB) nên thiết bị đẩy được mà app không đọc được.
@@ -581,6 +662,14 @@ trước khi kết luận hỏng.
 - **Chụp màn hình app GUI (Flutter) bằng Win32 `PrintWindow` PHẢI dùng flag `2`**
   (`PW_RENDERFULLCONTENT`); flag `0` ra ảnh **đen** vì Flutter render qua DWM composition. Chụp theo
   **HWND** nên KHÔNG cần đưa cửa sổ lên foreground (xem `driver.ps1` trong skill `run-fbt-rapid`).
+- **Xuất CSV cho người dùng VIỆT mở bằng Excel — thiếu 2 thứ là hỏng IM LẶNG** (2026-08-26,
+  `services/rollout_csv.dart`): (1) **BOM UTF-8** ở đầu file, không có thì Excel đọc UTF-8 thành
+  ký tự rác, tiếng Việt hỏng sạch; (2) dòng **`sep=,`** đầu file, vì Windows tiếng Việt lấy dấu
+  phẩy làm dấu THẬP PHÂN nên list separator là `;` → mở file phẩy ra là dồn hết vào **MỘT cột**.
+  Đánh đổi: công cụ đọc CSV nghiêm ngặt phải bỏ dòng đầu (`skiprows=1`) — ghi rõ trong doc hàm.
+  Và **luôn escape ô** theo RFC 4180 (bọc nháy khi có `,`/`"`/xuống dòng, nháy trong nhân đôi):
+  mã máy thật có dấu cách (`proto 1`) và cột trạng thái là tiếng Việt có dấu phẩy — không escape
+  là lệch cột mà không ai báo lại.
 - **Xuất PNG đồ thị KHÔNG đồng nhất giữa các màn** (quan trọng khi đổi nền/theme đồ thị): `result_detail`
   chụp 1 layer **off-screen RIÊNG nền trắng** (Overlay `left:-10000`) → PNG **luôn trắng** dù app dark.
   NHƯNG `curve_compare`/`temperature_log` có `RepaintBoundary` **bọc thẳng widget ĐANG hiển thị**
@@ -640,3 +729,27 @@ trước khi kết luận hỏng.
   `& .claude\skills\run-fbt-rapid\webshot.ps1 -Out web.png` (tự serve `build\web` bằng
   `web-server.js` node tĩnh cùng thư mục — không cần `flutter run -d web-server`; build web trước).
   Chụp bản web đang HOST THẬT: thêm `-Url https://fbt.basa-luma.ts.net/app/` (bỏ bước serve cục bộ).
+- **`IndexedStack` DỰNG MỌI TAB ngay khi đăng nhập — `initState` của màn chưa ai mở VẪN chạy**:
+  `HomeShell` (và mẫu segmented của tab con) đặt tất cả trang vào `IndexedStack`, nó build hết,
+  chỉ vẽ một cái. Nên mọi tác dụng phụ trong `initState` — `Timer.periodic`, fetch, mở cổng —
+  chạy suốt phiên cho màn KHÔNG ai xem. Bắt được 2026-08-28: tab Giám sát tự làm mới 30 giây
+  → 3 truy vấn gom nhóm mỗi 30 giây vào uvicorn 1 worker, cho trang chưa từng được bấm vào.
+  **Cách xử lý CHUẨN (từ 2026-08-28)**: `HomeShell` bọc mỗi tab trong
+  **`TickerMode(enabled: i == _index)`**, màn nào cần biết mình có đang hiển thị thì đọc
+  `TickerMode.valuesOf(context).enabled` trong `didChangeDependencies` rồi bật/tắt timer.
+  ⚠️ **`IndexedStack` KHÔNG tự tắt ticker** — đã đo bằng probe test: con bị ẩn vẫn
+  `tickerMode=true`, nên phải bọc tay. (`TickerMode.of` đã deprecated, dùng `valuesOf`.)
+  Cách khác tuỳ ca: cờ `lazy: true` của `AppTabScaffold` (chỉ dựng mục ĐANG chọn — Lịch sử
+  dùng vì 3 nguồn cloud sẽ bắn 3 request cùng lúc) · cờ `active:` như `tech_screen` truyền
+  xuống khi màn nắm PHẦN CỨNG và phải nhả (cổng COM) · hoặc bỏ hẳn việc định kỳ.
+  Kèm theo: đừng gọi mạng trong `initState` của màn-là-tab (chạy ngay lúc đăng nhập), và
+  `setState` gọi thẳng trong `didChangeDependencies` là "setState() during build" → hoãn
+  bằng `Future.microtask`.
+- **Lịch sử firmware — số lần đo phải cắt theo MỐC NẠP, không gả nguyên cụm** (`services/firmware_history.dart`):
+  `buildFirmwareHistory` gộp các lần đo LIỀN NHAU cùng version thành MỘT quãng, nên **nạp lại đúng bản
+  đang chạy** (v2.4.5 → v2.4.5) chỉ có 1 quãng cho **2** mốc nhật ký `fw-log`. `mergeFirmwareLog` bản đầu
+  gả cả cụm cho mốc khớp ĐẦU TIÊN → dòng CŨ ôm hết số lần đo còn **dòng bản MÁY ĐANG CHẠY hiện "0 lần đo"**
+  (báo về 2026-08-20). Fix: truyền `lanDo: runs` (lần đo thô) vào `mergeFirmwareLog`, đếm theo khoảng
+  `[updatedAt dòng này, updatedAt dòng kế)` **và** vẫn khớp version — giờ trong phiên là giờ MÁY tự khai,
+  mốc `fw-log` là giờ SERVER, lệch đồng hồ thì thà không đếm còn hơn đếm nhầm bản. Test:
+  `flutter test test/firmware_history_test.dart`.

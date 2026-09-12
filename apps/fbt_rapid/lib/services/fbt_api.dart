@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../models/server_status.dart';
 import '../models/test_result.dart';
 import 'app_settings.dart';
 import 'cloud_history_api.dart';
@@ -233,6 +234,24 @@ class FbtApi implements CloudHistoryClient {
     } catch (_) {
       return null;
     }
+  }
+
+  /// `GET /monitor` — số liệu giám sát server (tab Giám sát, root-only ở client).
+  ///
+  /// **NÉM lỗi**, khác hẳn [fwLog] cố ý nuốt: đây là NỘI DUNG CHÍNH của màn
+  /// hình chứ không phải phần làm giàu. Server chưa deploy route này trả **405**
+  /// (catch-all `POST /{path}` khớp path, sai method) — nuốt lỗi thì màn hiện
+  /// trống trơn và trông y hệt "app chưa có tính năng", đúng cái bẫy đã mất một
+  /// buổi để lần ra hồi 2026-08-26.
+  /// [flow] = false: bỏ phần đếm phiên đo — dùng cho vòng vẽ biểu đồ realtime,
+  /// vì phần đó là 3 truy vấn quét toàn bảng `sessions` và nó không đổi sau mỗi
+  /// 5 giây. Server cũ chưa biết tham số này thì bỏ qua, trả đủ như thường.
+  Future<ServerStatus> monitor({bool flow = true}) async {
+    final json = await _get(_uri('/monitor', flow ? null : {'flow': '0'}));
+    if (json is! Map) {
+      throw CloudApiException('Định dạng /monitor không đúng.');
+    }
+    return ServerStatus.fromJson(json.cast<String, dynamic>());
   }
 
   @override
