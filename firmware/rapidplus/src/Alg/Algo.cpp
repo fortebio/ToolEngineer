@@ -603,12 +603,15 @@ static bool find_first_climb(const std::vector<double> &_array, size_t *index,
  *  how many climbs were repaired (may be NULL)
  *  return: none
  */
-void neutralise_climbs(std::vector<double> &_array, uint8_t *applied)
+void neutralise_climbs(std::vector<double> &_array, uint8_t *applied, int16_t *firstIndex)
 {
     if (applied)
         *applied = 0;
+    if (firstIndex)
+        *firstIndex = -1;
     if (_array.size() < (size_t)CLIMB_START_INDEX + 10)
         return;
+    int16_t firstAt = -1;
 
     const std::vector<double> original = _array;
     const double stepBefore = max_abs_step(original);
@@ -686,6 +689,11 @@ void neutralise_climbs(std::vector<double> &_array, uint8_t *applied)
             for (size_t m = i + 1; m < k; m++)
                 _array[m] = y0 + (y1 - y0) * (double)(m - i) / (double)span;
         }
+        /* Recorded here, not where the climb was FOUND: every branch above can break out
+         * without repairing (a level shift that never settles, a spike that runs to the end),
+         * and an index for a repair that did not happen would point the chart at nothing. */
+        if (firstAt < 0)
+            firstAt = (int16_t)i;
         n++;
     }
 
@@ -693,9 +701,12 @@ void neutralise_climbs(std::vector<double> &_array, uint8_t *applied)
     {
         _array = original; /* a repair must never make the discontinuity worse */
         n = 0;
+        firstAt = -1; /* the curve was put back, so there is no repaired step to point at */
     }
     if (applied)
         *applied = n;
+    if (firstIndex)
+        *firstIndex = firstAt;
 }
 
 /***********************************************************************

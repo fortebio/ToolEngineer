@@ -634,6 +634,12 @@ uint16_t postData_GoogleSheet(float CT_value[10], char result[10], uint8_t loops
       outcomeObj["window_rate"] = rounded((float)outcome[i].window_rate);
       outcomeObj["arm_width"] = rounded((float)outcome[i].arm_width);
       outcomeObj["suspect_score"] = outcome[i].suspect_score;
+      /* The repair the chart cannot see. neutralise_climbs() runs on a calibrated COPY, while
+       * amplification[] below is the untouched raw capture - so a step the call already removed
+       * is still drawn to the operator, who reasonably reads it as the instrument being wrong.
+       * climb_first_i is the reading index to mark; -1 means nothing was repaired. */
+      outcomeObj["climbs_fixed"] = outcome[i].climbs_fixed;
+      outcomeObj["climb_first_i"] = outcome[i].climb_first_i;
 
       peak_features[i].main_peak.x = rounded((float)peak_features[i].main_peak.x);
       peak_features[i].main_peak.y = rounded((float)peak_features[i].main_peak.y);

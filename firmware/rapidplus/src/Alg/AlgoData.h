@@ -161,6 +161,12 @@ public:
     double window_rate = -1.0;
     double rise_width = -1.0;
     uint8_t shape_flag = 0;
+    // v2.4.5at. neutralise_climbs() repairs electrical steps on a CALIBRATED COPY of the curve;
+    // the array that gets uploaded is the untouched raw capture (sensor67Value), so a chart drawn
+    // from the upload still shows a step the call never saw. These two say so: how many climbs
+    // were repaired, and the reading index of the first, or -1. Reported, never read by any call.
+    uint8_t climbs_fixed = 0;
+    int16_t climb_first_i = -1;
     DiagnosticOutcome()
     {
         clear();
@@ -178,6 +184,8 @@ public:
         _json["window_rate"] = window_rate;
         _json["rise_width"] = rise_width;
         _json["shape_flag"] = shape_flag;
+        _json["climbs_fixed"] = climbs_fixed;
+        _json["climb_first_i"] = climb_first_i;
         return _json;
     }
     void fromJSON(JsonObject &_json)
@@ -193,6 +201,8 @@ public:
         window_rate = _json["window_rate"] | -1.0;
         rise_width = _json["rise_width"] | -1.0;
         shape_flag = _json["shape_flag"] | 0;
+        climbs_fixed = _json["climbs_fixed"] | 0;
+        climb_first_i = _json["climb_first_i"] | -1;
     }
 
     void clear()
@@ -210,6 +220,8 @@ public:
         window_rate = -1.0;
         rise_width = -1.0;
         shape_flag = 0;
+        climbs_fixed = 0;
+        climb_first_i = -1;
     }
 };
 

@@ -330,7 +330,8 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         // on high-slope slots - 36 breaks that shipped v2.4.3 caught are missed - and CLIMB_MIN_STEP
         // of 8.0 is slope-independent, so this is what closes it. See CLIMB_* in Algo.h.
         uint8_t climbsFixed = 0;
-        neutralise_climbs(recordIn.raw_data, &climbsFixed);
+        int16_t climbFirst = -1;
+        neutralise_climbs(recordIn.raw_data, &climbsFixed, &climbFirst);
         if (climbsFixed)
             Serial.printf("Slot %d: neutralised %u vertical climb(s)\n", (int)(i + 1),
                           (unsigned)climbsFixed);
@@ -420,6 +421,12 @@ bool sensor6035::bResultGet(float *CT_value, char *result)
         info_displayln();
         info_displayln();
 
+        /* Carried on the outcome so it rides the whole-struct copy in the sibling path rather
+         * than a second out-parameter. Set here, after the Break branch has had its say - an
+         * earlier assignment would be cleared out from under us. */
+        recordOut.outcome.climbs_fixed = climbsFixed;
+        recordOut.outcome.climb_first_i = climbFirst;
+
         CT_value[i] = float(recordOut.outcome.transition_time.x);
         result[i] = recordOut.outcome.outcome[0];
         shapeRate[i] = recordOut.outcome.window_rate;
@@ -502,7 +509,8 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
         // relative to the break test. The two paths have diverged before (see the check_risingData
         // note below); this one must not be another instance of that.
         uint8_t climbsFixed = 0;
-        neutralise_climbs(recordIn.raw_data, &climbsFixed);
+        int16_t climbFirst = -1;
+        neutralise_climbs(recordIn.raw_data, &climbsFixed, &climbFirst);
         size_t breakIndex = check_breakData(recordIn.raw_data, BREAK_JUMP_THRESHOLD, BREAKING_START_INDEX);
         // NOTE (v2.4.3a, NOT changed): this call converts detection_margin_time to a sample index,
         // the sibling call in bResultGet() does not - check_risingData() takes an index, so the
@@ -601,6 +609,9 @@ bool sensor6035::bResultPutToGoogleSheet(float *CT_value,
         // serializeJson(jsonOut, Serial);
         info_displayln();
         info_displayln();
+
+        recordOut.outcome.climbs_fixed = climbsFixed;
+        recordOut.outcome.climb_first_i = climbFirst;
 
         get_outcome[i] = recordOut.outcome;
         get_peak_features[i] = recordOut.peak_features;

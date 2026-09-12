@@ -215,7 +215,10 @@ bool   removed_by_new_gate(const Record &record, DiagnosticParameters &parameter
  * min_slight_positive_time with no plateau behind it. */
 #define CLIMB_TAIL_MIN    6
 
-void neutralise_climbs(std::vector<double> &_array, uint8_t *applied);
+/* firstIndex (optional): reading index of the FIRST climb actually applied, or -1 if none was.
+ * Reported so the server can mark the repaired step on a chart that is drawn from the RAW
+ * capture - the repair runs on a calibrated copy, so the uploaded trace still shows the step. */
+void neutralise_climbs(std::vector<double> &_array, uint8_t *applied, int16_t *firstIndex = nullptr);
 
 const String strJson =
     {
