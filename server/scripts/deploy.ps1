@@ -74,6 +74,9 @@ if ($Web) {
         throw "Bundle web_prod đang nhúng URL/token TEST LOCAL — build lại KHÔNG --dart-define"
     }
     Write-Output "=== Web: build/web_prod -> $Remote/web ==="
+    # Sao lưu bản web đang host trước khi ghi đè (cùng lý do với app/ ở trên; box đã có nhiều web.bak.*).
+    $stampWeb = Get-Date -Format "yyyyMMdd-HHmmss"
+    Run "ssh $Target `"[ -d $Remote/web ] && cp -a $Remote/web $Remote/web.bak.$stampWeb; true`""
     Run "ssh $Target `"mkdir -p $Remote/web/assets $Remote/web/canvaskit $Remote/web/icons && chmod -R u+rwX $Remote/web`""
     # file rời ở gốc
     $top = Get-ChildItem $webProd -File | ForEach-Object { "`"$($_.FullName)`"" }

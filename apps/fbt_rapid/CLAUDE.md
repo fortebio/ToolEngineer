@@ -525,9 +525,11 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   `/monitor`, app có `monitor_screen.dart`, tải hàng loạt, CSV rollout) mà clone ADM chưa merge; scp từ
   `main` ghi đè `main.py`/`db.py`/`__init__.py` → tab Giám sát của bản web gãy ~35 phút. Dấu vết: file
   trên box **không có trong local** (`monitor.py` mtime cũ + `.pyc`). Đã ghép lại 4 file server từ commit
-  `8bc627d`; **phần app Flutter của nhánh đó CHƯA merge** → build web từ cây này sẽ MẤT Giám sát + tải
-  hàng loạt — phải merge nhánh vào `main` trước. Luật: `git fetch` + `git branch -r --no-merged` +
-  so `ls app/*.py` trên box với local trước mọi lần deploy.
+  `8bc627d`, rồi **merge cả nhánh vào `main`** (`7687b80`, 2026-09-12) và build+deploy web từ cây đã merge
+  (bản `/app/` giờ có đủ Giám sát + tải hàng loạt + CSKH + ATE). Luật: `git fetch` + `git branch -r
+  --no-merged` + so `ls app/*.py` trên box với local trước mọi lần deploy. Khi merge: tab Giám sát gác
+  `isRoot` chứ KHÔNG `canManageUsers` (từ 09-07 manager cũng quản lý được tài khoản); `saveTextFileDialog`
+  có cả `label` lẫn `extensions`, `label` trống = suy từ đuôi.
 - **File `.ps1` có tiếng Việt PHẢI lưu UTF-8 CÓ BOM**: PowerShell 5.1 đọc file không BOM theo ANSI →
   chuỗi vỡ → lỗi parse "ma" ở dòng vô can (`token '&&' is not a valid statement separator`, "missing
   terminator"). Tool Write ghi KHÔNG BOM → sau khi viết phải thêm BOM
