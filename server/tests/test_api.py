@@ -412,3 +412,28 @@ if __name__ == "__main__":
             ran += 1
             print(f"ok {_name}")
     print(f"{ran} tests passed — {len(list(DATA.glob('*.json')))} file trong {DATA}")
+
+
+def test_web_app_no_cache_header(tmp_path, monkeypatch):
+    """/app/* phải mang Cache-Control: no-cache (font icon cùng URL qua các build — Cloudflare/
+    trình duyệt giữ 4 giờ là icon mới thành ô trống); API không bị gắn."""
+    from starlette.testclient import TestClient as TC
+    from fastapi import FastAPI
+    from fastapi.staticfiles import StaticFiles
+    import app.main as m
+    # app thật chỉ mount /app khi WEB_DIR có lúc import → dựng app con cùng middleware để kiểm
+    web = tmp_path / "web"; web.mkdir(); (web / "index.html").write_text("<html>x</html>")
+    (web / "assets").mkdir(); (web / "assets" / "f.otf").write_bytes(b"font")
+    sub = FastAPI()
+    sub.mount("/app", StaticFiles(directory=web, html=True))
+    sub.middleware("http")(m._web_no_cache)
+    @sub.get("/ota/check")
+    def _api():
+        return {"update": False}
+    c = TC(sub)
+    assert c.get("/app/assets/f.otf").headers["cache-control"] == "no-cache"
+    assert c.get("/app/").headers["cache-control"] == "no-cache"
+    assert "cache-control" not in c.get("/ota/check").headers
+    # 304 vẫn hoạt động (ETag từ StaticFiles) — no-cache chỉ bắt hỏi lại, không tải lại
+    et = c.get("/app/assets/f.otf").headers["etag"]
+    assert c.get("/app/assets/f.otf", headers={"If-None-Match": et}).status_code == 304

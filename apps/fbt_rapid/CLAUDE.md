@@ -553,6 +553,16 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   đặt `ota.migrate_legacy()` dưới `FastAPI(...)` làm `scripts/migrate_ota.py --dry-run` dời file
   THẬT (đã dính 2026-09-11). Việc "chạy một lần lúc khởi động" đặt trong `lifespan` (chỉ tiến
   trình uvicorn thật chạy; `TestClient` không dùng `with` thì cũng không chạy).
+- **Web sau deploy: icon MỚI hiện thành ô trống, icon cũ vẫn hiện = FONT ICON CŨ bị cache, không phải
+  lỗi build** (2026-09-12): Flutter tree-shake `MaterialIcons-Regular.otf` theo bộ icon của TỪNG build
+  nhưng phát ở CÙNG URL; Cloudflare (`hub.fortebio.tech`) gắn `max-age=14400` cho file tĩnh → trình
+  duyệt/CDN giữ font của bản trước 4 giờ trong khi `main.dart.js` đã mới. Chẩn đoán đúng thứ tự:
+  (1) `curl` md5 font trên server so với `build/web_prod` (giống = server đúng); (2) `fonttools`
+  (`TTFont(...).getBestCmap()`) so codepoint từ `packages/flutter/lib/src/material/icons.dart` → font mới
+  có đủ glyph; (3) kết luận cache. Sửa gốc: middleware `Cache-Control: no-cache` cho `/app/*`
+  (`main.py::_web_no_cache`, có test) — trình duyệt/CDN hỏi lại bằng ETag → 304, deploy xong thấy ngay;
+  người dùng đang kẹt thì `Ctrl+Shift+R` hoặc Clear site data. Cảnh báo build "Expected to find fonts
+  for … CupertinoIcons" là của framework, vô hại.
 - **Server: `pathlib.Path.glob('*.bin')` KHỚP CẢ dotfile** (khác glob của shell) → file tạm `.tmp-<name>.bin`
   của upload bị ngắt bị liệt kê/di cư như ảnh thật; mọi chỗ glob kho phải lọc `not p.name.startswith('.')`.
   Và **việc "chạy một lần lúc khởi động" trong `lifespan` phải bọc `try/except` + log** — ném lỗi ở đó là

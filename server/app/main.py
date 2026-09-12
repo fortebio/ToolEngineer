@@ -1212,3 +1212,24 @@ if config.WEB_DIR.is_dir():
     from fastapi.staticfiles import StaticFiles
 
     app.mount("/app", StaticFiles(directory=config.WEB_DIR, html=True), name="webapp")
+
+
+@app.middleware("http")
+async def _web_no_cache(request: Request, call_next):
+    """`Cache-Control: no-cache` cho mọi file dưới /app/ (bản web Flutter).
+
+    Vì sao: Flutter web phát `main.dart.js`, `assets/fonts/MaterialIcons-Regular.otf`,
+    `FontManifest.json`… ở ĐÚNG MỘT URL qua các lần build (không hash trong tên). Không có
+    header thì Cloudflare (`hub.fortebio.tech`) tự gắn `max-age=14400` và cả CDN lẫn trình
+    duyệt giữ file cũ 4 giờ — deploy 2026-09-12 16:26: JS mới đã về máy người dùng nhưng font
+    icon vẫn là bản 28/08 (đã tree-shake theo bộ icon cũ) → mọi icon mới của tab Chăm sóc KH
+    hiện thành ô trống, trong khi curl từ máy dev thấy server phát đúng file.
+    `no-cache` ≠ không cache: trình duyệt/CDN vẫn giữ bản sao nhưng PHẢI hỏi lại bằng
+    `If-None-Match` → StaticFiles trả 304 (ETag/Last-Modified có sẵn) → mỗi lần mở app tốn
+    ~20 request 304 nhỏ, đổi lại deploy xong là thấy ngay. API (/ota, /sessions…) không đụng.
+    """
+    resp = await call_next(request)
+    p = request.url.path
+    if p == "/app" or p.startswith("/app/"):
+        resp.headers["Cache-Control"] = "no-cache"
+    return resp
