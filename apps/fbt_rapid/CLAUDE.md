@@ -637,6 +637,14 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   theo **newline** → đã biến cả file `.md` thành 1 dòng (HỎNG). Cần xử lý text chứa `\` (vd đổi `\n`
   literal → `<br/>`) thì dùng **Write/Edit tool** hoặc ghi script ra FILE rồi chạy, ĐỪNG nhúng
   backslash vào lệnh inline. (`grep '\\n'` ở đây cũng cho kết quả sai — kiểm bằng `grep -F '\n'`.)
+  **Heredoc `<<'EOF'` trong Bash tool CŨNG nuốt** (2026-09-11: regex `[^/\\]` ghi ra file thành `[^/\]`
+  → lỗi compile) → file Python/regex có `\` phải ghi bằng Write tool. Python in tiếng Việt ra console
+  dính cp1252 → đặt `PYTHONIOENCODING=utf-8` trước lệnh.
+- **Classifier permission của box chặn 3 việc "trông nguy hiểm" dù vô hại** (gặp 2026-09-12): (1) mở
+  HTTP server ra mạng (`python -m http.server --bind <IP tailnet>`); (2) ghi FILE hướng dẫn có chứa lệnh
+  kiểu `mv/rm … /path/*` hoặc `echo key >> authorized_keys` — mô tả bằng lời trong chat thì được;
+  (3) Bash gọi `Remove-Item -Force` qua chuỗi. Đừng loay hoay lách; chuyển sang đường khác (dán base64
+  qua terminal, để người dùng tự chạy lệnh đổi cấu hình bảo mật).
 - **Node.js + Docker GIỜ ĐÃ CÓ trên máy dev** (Node v24, Docker v29 — kiểm `node --version`/`docker --version`).
   Docker **daemon KHÔNG tự chạy** (lỗi `npipe:... dockerDesktopLinuxEngine` = chưa bật): khởi động bằng
   `Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"` rồi poll `docker info` tới khi exit 0
