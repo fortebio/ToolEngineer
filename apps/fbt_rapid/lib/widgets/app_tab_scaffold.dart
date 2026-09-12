@@ -164,10 +164,17 @@ class AppTabScaffold extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppRadius.card),
                   child: IndexedStack(
                     index: index,
+                    // `TickerMode` = cờ "mục này đang được xem", CÙNG cơ chế
+                    // HomeShell dùng cho tab cấp trên: `IndexedStack` dựng hết
+                    // con và con bị ẩn vẫn tick (spinner, AppFadeIn, timer vẽ)
+                    // nếu không tắt. Màn con cần dừng poll/nhả phần cứng khi ẩn
+                    // đọc `TickerMode.valuesOf(context).enabled` trong
+                    // `didChangeDependencies` (mẫu monitor_screen.dart) — không
+                    // cần luồn cờ `active` riêng qua từng tầng nữa.
                     children: [
                       for (var i = 0; i < tabs.length; i++)
                         if (!lazy || i == index)
-                          tabs[i].page
+                          TickerMode(enabled: i == index, child: tabs[i].page)
                         else
                           const SizedBox.shrink(),
                     ],

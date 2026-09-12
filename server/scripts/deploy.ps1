@@ -78,8 +78,14 @@ if ($Web) {
     $stampWeb = Get-Date -Format "yyyyMMdd-HHmmss"
     Run "ssh $Target `"[ -d $Remote/web ] && cp -a $Remote/web $Remote/web.bak.$stampWeb; true`""
     # Chỉ giữ 3 bản web.bak.* MỚI NHẤT (~60 MB/bản; box từng tích 14 bản). Xoá bản cũ hơn.
-    # `ls -dt` xếp mới → cũ, `tail -n +4` là từ bản thứ 4 trở đi; không có gì thì xargs -r bỏ qua.
-    Run "ssh $Target `"cd $Remote && ls -dt web.bak.* 2>/dev/null | tail -n +4 | xargs -r rm -rf; ls -d web.bak.* 2>/dev/null`""
+    # Xếp theo TÊN (`sort -r`, tên mang timestamp), KHÔNG `ls -t`: `cp -a` giữ nguyên mtime của
+    # web/ gốc nên bản vừa chép trông "cũ nhất" và bị xoá ngay (đã dính 2026-09-12 17:44).
+    # Bản bak cũ (19/08) có thư mục `dr-x` do scp lỗi → phải `chmod -R u+rwX` trước khi rm, và
+    # dọn thất bại KHÔNG được chặn deploy (`; true`) — dọn là việc phụ.
+    # ⚠️ KHÔNG dùng `$(…)`/`$d` trong lệnh remote: `Run` đi qua Invoke-Expression nên PowerShell
+    # diễn giải lại `$(` thành subexpression cục bộ (đã dính: `2>/dev/null` thành C:\dev\null).
+    # xargs -I{} thay cho vòng for có biến.
+    Run "ssh $Target `"cd $Remote && ls -d web.bak.* 2>/dev/null | sort -r | tail -n +4 | xargs -r -I{} sh -c 'chmod -R u+rwX {} && rm -rf {}'; ls -d web.bak.* 2>/dev/null; true`""
     Run "ssh $Target `"mkdir -p $Remote/web/assets $Remote/web/canvaskit $Remote/web/icons && chmod -R u+rwX $Remote/web`""
     # file rời ở gốc
     $top = Get-ChildItem $webProd -File | ForEach-Object { "`"$($_.FullName)`"" }

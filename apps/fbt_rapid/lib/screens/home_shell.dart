@@ -121,9 +121,10 @@ class _HomeShellState extends State<HomeShell> {
 
     // CHỈ các mục NỘI DUNG vào thanh tab dọc. Thiết lập nằm trong icon tài khoản.
     //
-    // Dựng bằng `add` thay vì list literal: tab Chăm sóc KH cần biết CHỈ SỐ của
-    // chính nó (`active: _index == i`) để mục Xử lý sự cố nhả cổng COM khi
-    // người dùng chuyển sang tab khác — cổng COM dùng chung với tab Kỹ Thuật.
+    // Dựng bằng `add` (mỗi tab một `if`): tab nào hiện với ai đọc theo quyền
+    // ngay tại chỗ. "Tab đang được xem" đi qua `TickerMode` ở IndexedStack bên
+    // dưới — màn con (Chăm sóc KH nhả cổng COM, Giám sát dừng poll) tự đọc,
+    // không tab nào cần biết chỉ số của mình.
     final tabs = <_Tab>[
       // Lịch sử = dữ liệu LÂM SÀNG của khách hàng. Người của xưởng không có
       // việc gì ở đây (chủ dự án chốt 2026-09-07) nên tab này biến mất với họ,
@@ -156,7 +157,6 @@ class _HomeShellState extends State<HomeShell> {
       // Chạy cả web (Web Serial) — màn tự báo khi trình duyệt không hỗ trợ,
       // nên KHÔNG gác `serialToolsAvailable`: mục Thông tin máy vẫn hữu ích
       // trên điện thoại.
-      final supportIndex = tabs.length;
       tabs.add(_Tab(
         icon: Icons.support_agent_outlined,
         selectedIcon: Icons.support_agent,
@@ -164,7 +164,6 @@ class _HomeShellState extends State<HomeShell> {
         page: SupportScreen(
           key: ValueKey('support_${settings.engineerUrl}'),
           settings: settings,
-          active: _index == supportIndex,
         ),
       ));
     }

@@ -505,7 +505,10 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   đúng property đó. Đã dùng để xác nhận toàn chuỗi Chăm sóc KH: kết nối → quét dấu hiệu → lệnh nhanh
   ghi `ParaRead\n` → PUT log lên server local → "Log đã gửi" đọc lại → đổi tab tự đóng cổng.
   ⚠️ Bản `build\web` sau bước (2) nhúng URL localhost + token test — build lại KHÔNG dart-define trước
-  khi deploy. Click trong Flutter web (canvas) thỉnh thoảng TRƯỢT không báo lỗi → chụp lại xác nhận
+  khi deploy. **Bật lại bộ local thì KIỂM `build\web` có CŨ hơn `lib/` không** (`find lib -newer
+  build/web/main.dart.js -name '*.dart'` ra dòng nào là cũ) — 2026-09-12 bản web local còn là build
+  11-09 trong khi `main` đã merge thêm tab Giám sát/tải hàng loạt; server serve file trên đĩa nên
+  người dùng test bản thiếu tính năng mà không có dấu hiệu gì. Cũ thì build lại rồi mới đưa URL. Click trong Flutter web (canvas) thỉnh thoảng TRƯỢT không báo lỗi → chụp lại xác nhận
   trước khi kết luận (gặp thật: nút Đóng dialog + đổi tab).
 - **Deploy từ box ADM — ĐÃ MỞ SSH thẳng 2026-09-12** (trước đó bị Tailscale SSH chặn: `tailnet policy
   does not permit you to SSH`; LAN 22 timeout; tên ngắn `fbt` không resolve → dùng IP `100.109.127.87`
@@ -525,7 +528,9 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   thiếu token (có route, gác nguyên); (3) web: md5 `main.dart.js` tải từ `/app/` == `build/web_prod` ==
   file trên box, và `grep -c` khoá i18n đặc trưng (`nav.monitor`, `statusError`, `binGone`) trong bundle.
   ⚠️ `md5sum` in dấu `\` ĐẦU DÒNG khi path có backslash (Windows) → so md5 bằng mắt/`uniq` sau khi bỏ
-  ký tự đó, đừng `cut -c1-32` rồi kết luận "khác". **Trước khi bảo người dùng restart** (sudo, tay):
+  ký tự đó, đừng `cut -c1-32` rồi kết luận "khác". Và so file trên box với **file trong cây làm việc**,
+  KHÔNG với `git show HEAD:file | md5sum`: git lưu LF, checkout Windows ra CRLF và scp đẩy bản CRLF lên
+  box → md5 blob git luôn "khác" dù nội dung y hệt (`monitor.py` trùng vì file đó vốn LF). **Trước khi bảo người dùng restart** (sudo, tay):
   `ssh … 'cd ~/fbt_server && venv/bin/python -c "import app.main"'` — import bằng venv THẬT của box bắt
   được thiếu package/lỗi cú pháp mà không phải hạ service (`__init__.py` nạp trễ nên import không có
   tác dụng phụ). Handler FastAPI `async def` (cần `await request.body()`) mà làm việc chặn (băm/ghi
@@ -678,6 +683,18 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   (Trước đây box chỉ có Flutter; nếu gặp box thiếu Node thì `winget install -e --id OpenJS.NodeJS.LTS`
   rồi nạp lại PATH tại chỗ: `$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' +
   [Environment]::GetEnvironmentVariable('Path','User')`.)
+- **Kiểm i18n tự động trước khi review/phát hành**: script Python ngắn — regex `^\s{2}'(key)':` trong
+  `lib/util/i18n.dart` lấy khoá đã khai, `\btr\(\s*'([^']+)'` quét `lib/**` lấy khoá dùng → in khoá THIẾU
+  (`tr()` trả nguyên key) và khoá không có `'en'`. Khoá động `tr('ate.step.$code')` bỏ qua. ⚠️ Thân entry
+  phải cắt theo **ranh giới khoá kế tiếp**, KHÔNG dùng `\{([^}]*)\}`: chuỗi có placeholder `{n}` làm regex
+  đó cắt ở `}` đầu tiên → 76 khoá bị báo "thiếu en" SAI (2026-09-12, mất một lượt review vì thế; thật ra
+  509/509 đủ). Màn lẫn hai thứ tiếng khi chọn English là do `data/machine_info_content.dart` cố ý chỉ
+  tiếng Việt, không phải thiếu khoá.
+- **"Tab này đang được xem" = `TickerMode`**: `HomeShell` bọc mỗi tab trong `TickerMode(enabled: i ==
+  _index)` (IndexedStack dựng hết con, con ẩn vẫn tick) → màn cần dừng poll/animation khi ẩn đọc
+  `TickerMode.valuesOf(context).enabled` trong `didChangeDependencies` (mẫu `monitor_screen.dart`), KHÔNG
+  thêm prop `active` riêng. `AppTabScaffold` (mục con) CHƯA bọc TickerMode → Support/Tech còn luồn cờ
+  `active` tay; đổi chung ở đó là bỏ được cờ (đã ghi ở code-review UI/UX 2026-09-12).
 - **Đổi NGÔN NGỮ** (hệ `tr()` tự viết, không dùng Localizations): phải **key `MaterialApp` theo locale**
   (`key: ValueKey('locale_..')`) thì các màn mới dịch lại — rebuild `MaterialApp` thường KHÔNG rebuild
   route `home`. Theme thì áp **live qua prop** (`theme`/`themeMode`), không cần key.

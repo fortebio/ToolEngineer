@@ -26,11 +26,9 @@ import 'support_troubleshoot_screen.dart';
 class SupportScreen extends StatefulWidget {
   final AppSettings settings;
 
-  /// `false` khi tab này KHÔNG phải tab đang xem → mục Xử lý sự cố tự nhả cổng
-  /// COM (giữ log) cho tab Kỹ Thuật, vì hai bên dùng chung phần cứng COM.
-  final bool active;
-
-  const SupportScreen({super.key, required this.settings, this.active = true});
+  /// Mục Xử lý sự cố tự nhả cổng COM (giữ log) khi tab/mục này không còn được
+  /// xem — nó đọc `TickerMode` do HomeShell + AppTabScaffold bọc, không cần cờ.
+  const SupportScreen({super.key, required this.settings});
 
   @override
   State<SupportScreen> createState() => _SupportScreenState();
@@ -55,10 +53,7 @@ class _SupportScreenState extends State<SupportScreen> {
         AppTab(
           icon: Icons.healing_outlined,
           label: tr('sp.trouble'),
-          page: SupportTroubleshootScreen(
-            settings: widget.settings,
-            active: widget.active && _seg == 1,
-          ),
+          page: SupportTroubleshootScreen(settings: widget.settings),
         ),
       ],
     );

@@ -157,7 +157,19 @@ class _DownloadDeviceDialogState extends State<DownloadDeviceDialog> {
 
         if (_kind == DownloadKind.json) {
           // JSON = LOG NGUYÊN BẢN máy đẩy lên server, không phải bản app dựng lại.
-          await bulk.addText(ResultExport.runFileName(s), await _rawJson(s));
+          // Một lần đo hỏng KHÔNG được làm hỏng cả mẻ — cùng luật với nhánh đồ thị
+          // bên dưới (trước đây chỉ nhánh đó bắt lỗi: lần đo thứ 37 trả 500 là 36 file
+          // đã tải nằm dở, web không ra .zip nào, người dùng chỉ thấy "Lỗi lưu").
+          String? raw;
+          try {
+            raw = await _rawJson(s);
+          } catch (_) {
+            _failed++;
+          }
+          if (!mounted) return;
+          if (raw != null) {
+            await bulk.addText(ResultExport.runFileName(s), raw);
+          }
         } else {
           TestResult run;
           try {

@@ -139,11 +139,13 @@ const Map<String, Map<String, String>> _t = {
   'mm.versionHint': {'vi': 'Nhập version dạng 2.4.4 (ít nhất 2 nhóm số).', 'en': 'Enter a version like 2.4.4 (at least two number groups).', 'zh': '请输入形如 2.4.4 的版本号（至少两组数字）。', 'th': 'ใส่เวอร์ชันแบบ 2.4.4 (อย่างน้อยสองกลุ่มตัวเลข)'},
   'mm.versionInvalid': {'vi': 'Không hợp lệ. Ví dụ đúng: 2.4.4 · 2.4.4AT · 2.4.4_rc1', 'en': 'Invalid. Valid examples: 2.4.4 · 2.4.4AT · 2.4.4_rc1', 'zh': '无效。有效示例：2.4.4 · 2.4.4AT · 2.4.4_rc1', 'th': 'ไม่ถูกต้อง ตัวอย่างที่ใช้ได้: 2.4.4 · 2.4.4AT · 2.4.4_rc1'},
   'mm.versionSavedAs': {'vi': 'Lưu trên server thành: {name}', 'en': 'Saved on the server as: {name}', 'zh': '在服务器上保存为：{name}', 'th': 'บันทึกบนเซิร์ฟเวอร์เป็น: {name}'},
+  // Server (2026-09-11) KHÔNG ghi đè: cùng tên + cùng nội dung → chấp nhận (không đổi gì),
+  // cùng tên + nội dung KHÁC → 409 "một tên = một nội dung". Nói đúng thứ sẽ xảy ra.
   'mm.versionOverwrite': {
-    'vi': '⚠ Server đã có bản cùng tên — tải lên sẽ GHI ĐÈ. Nếu muốn giữ bản cũ, đặt version khác.',
-    'en': '⚠ A build with this name already exists on the server — uploading will OVERWRITE it. Use a different version to keep the old one.',
-    'zh': '⚠ 服务器上已存在同名版本 — 上传将覆盖它。若要保留旧版本，请使用其他版本号。',
-    'th': '⚠ มีรุ่นชื่อนี้บนเซิร์ฟเวอร์แล้ว — การอัปโหลดจะเขียนทับ หากต้องการเก็บรุ่นเก่า ให้ใช้เวอร์ชันอื่น'
+    'vi': '⚠ Server đã có bản cùng tên. Server KHÔNG ghi đè: nếu file khác nội dung sẽ bị từ chối — xoá bản cũ trước, hoặc đặt version khác.',
+    'en': '⚠ A build with this name already exists. The server will NOT overwrite it: a different file is rejected — delete the old build first, or use a different version.',
+    'zh': '⚠ 服务器上已存在同名版本。服务器不会覆盖：内容不同的文件会被拒绝——请先删除旧版本，或使用其他版本号。',
+    'th': '⚠ มีรุ่นชื่อนี้บนเซิร์ฟเวอร์แล้ว เซิร์ฟเวอร์จะไม่เขียนทับ: ไฟล์ที่เนื้อหาต่างจะถูกปฏิเสธ — ลบรุ่นเก่าก่อน หรือใช้เวอร์ชันอื่น'
   },
   'mm.otaEmpty': {'vi': 'Chưa có bản firmware nào trên server.', 'en': 'No firmware on the server yet.', 'zh': '服务器上还没有固件。', 'th': 'ยังไม่มีเฟิร์มแวร์บนเซิร์ฟเวอร์'},
   'mm.select': {'vi': 'Chọn bản này', 'en': 'Select', 'zh': '选择此版本', 'th': 'เลือกรุ่นนี้'},

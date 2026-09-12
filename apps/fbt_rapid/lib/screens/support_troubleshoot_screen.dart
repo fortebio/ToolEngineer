@@ -28,15 +28,11 @@ import 'raw_uart_screen.dart';
 ///    → `PUT /devices/{id}/logs` Engineer Server. Không mạng thì "Lưu file".
 ///
 /// Một màn cho cả desktop lẫn web nhờ `util/serial_link.dart` (facade). Cổng COM
-/// dùng CHUNG với tab Kỹ Thuật: rời tab/mục (`active=false`) là tự ngắt (giữ log).
+/// dùng CHUNG với tab Kỹ Thuật: rời tab/mục là tự ngắt (giữ log) — "đang được xem"
+/// đọc từ `TickerMode` (HomeShell + AppTabScaffold cùng bọc), không luồn cờ riêng.
 class SupportTroubleshootScreen extends StatefulWidget {
   final AppSettings settings;
-  final bool active;
-  const SupportTroubleshootScreen({
-    super.key,
-    required this.settings,
-    this.active = true,
-  });
+  const SupportTroubleshootScreen({super.key, required this.settings});
 
   @override
   State<SupportTroubleshootScreen> createState() =>
@@ -67,6 +63,9 @@ class _SupportTroubleshootScreenState extends State<SupportTroubleshootScreen> {
   String _partial = ''; // phần cuối chưa có xuống dòng
   TriageReport _report = TriageReport.empty;
   Timer? _triageTimer;
+  /// Gộp vẽ: boot log tới theo mẩu ~30 byte, vài chục mẩu/giây — setState mỗi mẩu là
+  /// rebuild cả màn (và dựng lại `idx` 5000 phần tử) từng ấy lần. Vẽ tối đa ~12 lần/giây.
+  Timer? _paintTimer;
   bool _onlyIssues = false;
   bool _autoscroll = true;
   final ScrollController _scroll = ScrollController();
@@ -83,17 +82,26 @@ class _SupportTroubleshootScreenState extends State<SupportTroubleshootScreen> {
     if (serialLinkCanListPorts) _refreshPorts();
   }
 
+  /// Mục này có đang được xem không (tab cấp trên VÀ mục con đều đang chọn).
+  /// `TickerMode` lồng nhau: cha tắt là con đọc ra tắt — đúng cả hai tầng.
+  bool _visible = true;
+
   @override
-  void didUpdateWidget(covariant SupportTroubleshootScreen old) {
-    super.didUpdateWidget(old);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final v = TickerMode.valuesOf(context).enabled;
+    if (v == _visible) return;
+    _visible = v;
     // Rời mục/tab → nhả cổng (GIỮ log) — cùng luật với "Đọc serial" ở tab Kỹ
-    // Thuật: bốn công cụ dùng chung phần cứng COM.
-    if (old.active && !widget.active && _link != null) _disconnect();
+    // Thuật: bốn công cụ dùng chung phần cứng COM. Hoãn một microtask vì
+    // didChangeDependencies chạy trong pha build (_disconnect gọi setState).
+    if (!v && _link != null) Future.microtask(_disconnect);
   }
 
   @override
   void dispose() {
     _triageTimer?.cancel();
+    _paintTimer?.cancel();
     _sub?.cancel();
     _link?.close();
     _scroll.dispose();
@@ -161,6 +169,14 @@ class _SupportTroubleshootScreenState extends State<SupportTroubleshootScreen> {
       setState(() => _connecting = false);
       return;
     }
+    if (!_visible) {
+      // Chuyển tab TRONG LÚC hộp thoại chọn cổng đang mở: lúc rời tab `_link` còn
+      // null nên không có gì để nhả; giữ cổng khi đã ẩn là tab Kỹ Thuật mở cổng
+      // thất bại mà không rõ ai đang giữ. Đóng ngay, không nhận.
+      await link.close();
+      setState(() => _connecting = false);
+      return;
+    }
     _link = link;
     _sub = link.stream.listen(
       _onData,
@@ -212,14 +228,25 @@ class _SupportTroubleshootScreenState extends State<SupportTroubleshootScreen> {
       _flag.removeRange(0, n);
     }
     _scheduleTriage();
-    setState(() {});
-    if (_autoscroll) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scroll.hasClients) {
-          _scroll.jumpTo(_scroll.position.maxScrollExtent);
-        }
-      });
-    }
+    _schedulePaint();
+  }
+
+  /// Vẽ lại sau ≤ 80 ms kể từ mẩu đầu tiên của đợt (không đẩy lùi khi mẩu mới tới —
+  /// đẩy lùi là log dồn dập thì màn đứng im tới khi ngừng).
+  void _schedulePaint() {
+    if (_paintTimer != null) return;
+    _paintTimer = Timer(const Duration(milliseconds: 80), () {
+      _paintTimer = null;
+      if (!mounted) return;
+      setState(() {});
+      if (_autoscroll) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scroll.hasClients) {
+            _scroll.jumpTo(_scroll.position.maxScrollExtent);
+          }
+        });
+      }
+    });
   }
 
   /// Quét lại toàn bộ log sau khi dữ liệu ngừng tới 600ms (boot log tới theo
@@ -247,6 +274,7 @@ class _SupportTroubleshootScreenState extends State<SupportTroubleshootScreen> {
       await l.write(utf8.encode('$cmd\n'));
       _toast(tr('sp.cmdSent').replaceFirst('{cmd}', cmd));
     } catch (e) {
+      if (!mounted) return;
       setState(() => _error = tr('sp.openFail').replaceFirst('{err}', '$e'));
     }
   }
@@ -569,13 +597,21 @@ class _SupportTroubleshootScreenState extends State<SupportTroubleshootScreen> {
   /// Bước 2 — khung log.
   Widget _console(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final all = _partial.isEmpty ? _lines : [..._lines, _partial];
-    final flags = _partial.isEmpty ? _flag : [..._flag, isSuspiciousLine(_partial)];
+    // KHÔNG copy `_lines`/`_flag` mỗi lần dựng (5000 phần tử × mỗi lần vẽ): dòng dở
+    // `_partial` là phần tử cuối "ảo" — đọc qua hai hàm nhỏ bên dưới.
+    final hasPartial = _partial.isNotEmpty;
+    final partialBad = hasPartial && isSuspiciousLine(_partial);
+    final total = _lines.length + (hasPartial ? 1 : 0);
+    String lineAt(int i) => i < _lines.length ? _lines[i] : _partial;
+    bool badAt(int i) => i < _flag.length ? _flag[i] : partialBad;
     final idx = <int>[
-      for (var i = 0; i < all.length; i++)
-        if (!_onlyIssues || flags[i]) i
+      for (var i = 0; i < total; i++)
+        if (!_onlyIssues || badAt(i)) i
     ];
-    final issues = _flag.where((f) => f).length;
+    var issues = 0;
+    for (final f in _flag) {
+      if (f) issues++;
+    }
     return AppCard(
       padding: EdgeInsets.zero,
       child: ClipRRect(
@@ -592,7 +628,7 @@ class _SupportTroubleshootScreenState extends State<SupportTroubleshootScreen> {
                 children: [
                   _StepBadge(2, tr('sp.step2')),
                   Text(
-                    tr('sp.lines').replaceFirst('{n}', '${all.length}'),
+                    tr('sp.lines').replaceFirst('{n}', '$total'),
                     style: TextStyle(
                         fontSize: 12.5,
                         color: cs.onSurfaceVariant,
@@ -627,7 +663,7 @@ class _SupportTroubleshootScreenState extends State<SupportTroubleshootScreen> {
             Expanded(
               child: Container(
                 color: cs.surfaceContainerHighest,
-                child: all.isEmpty
+                child: total == 0
                     ? Center(
                         child: Padding(
                           padding: const EdgeInsets.all(20),
@@ -647,9 +683,9 @@ class _SupportTroubleshootScreenState extends State<SupportTroubleshootScreen> {
                           itemCount: idx.length,
                           itemBuilder: (_, k) {
                             final i = idx[k];
-                            final bad = flags[i];
+                            final bad = badAt(i);
                             return Text(
-                              all[i],
+                              lineAt(i),
                               style: TextStyle(
                                 fontFamily: 'JetBrains Mono',
                                 fontSize: 12,
