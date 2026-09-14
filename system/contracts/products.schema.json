@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fortebio.tech/schemas/products.schema.json",
+  "title": "Forte Biotech product registry (system/products.yaml)",
+  "description": "Schema của registry sản phẩm. Áp lên tài liệu SAU KHI resolve variant_of (tools/registry_check.py). Khoá product phải đúng server/app/config.py::valid_product — regex ở đây chỉ là lưới đầu, registry_check gọi hàm thật.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "products"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "chip": { "type": "string" },
+        "serial_baud": { "type": "integer" },
+        "ota": {
+          "type": "object",
+          "properties": {
+            "check_path": { "type": "string", "pattern": "^/" },
+            "tag_format": { "type": "string", "pattern": "^FBTIMG1;" }
+          }
+        }
+      }
+    },
+    "products": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z0-9-]{1,24}$", "not": { "enum": ["check", "products", "target"] } },
+      "additionalProperties": { "$ref": "#/$defs/product" }
+    },
+    "external_systems": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "owner": { "type": "string" },
+          "base_url": { "type": "string", "format": "uri" },
+          "status": { "type": "string" },
+          "source": { "type": "string" }
+        }
+      }
+    },
+    "environments": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    }
+  },
+  "$defs": {
+    "version_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "regex"],
+      "properties": {
+        "file": { "type": "string", "description": "Tương đối so với firmware.dir" },
+        "regex": { "type": "string", "description": "Python regex có ĐÚNG 1 nhóm bắt = chuỗi version" }
+      }
+    },
+    "firmware": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dir", "envs", "version_source", "image_name", "legacy_name_locked", "tag_prefix"],
+      "properties": {
+        "dir": { "type": "string", "pattern": "^firmware/[a-z0-9-]+$" },
+        "envs": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[A-Za-z0-9_]+$" } },
+        "build_flags": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z0-9_]+$" } },
+        "version_source": { "$ref": "#/$defs/version_source" },
+        "image_name": { "type": "string", "pattern": "\\{ver\\}" },
+        "legacy_name_locked": { "type": "boolean" },
+        "tag_prefix": { "type": "string", "pattern": "^fw/[a-z0-9-]+/$" },
+        "embeds_image_tag": { "type": "boolean" },
+        "ota": { "type": "boolean" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "legacy_name_locked": { "const": true } } },
+          "then": { "properties": { "image_name": { "const": "fbt_{ver}.bin" } } }
+        }
+      ]
+    },
+    "channels": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "optical_slots": { "type": ["integer", "null"], "minimum": 1 },
+        "temp_channels": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "legacy_prefix_default"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["production", "dev", "legacy", "planned"] },
+        "variant_of": { "type": "string", "pattern": "^[a-z0-9-]{1,24}$" },
+        "id_prefix": { "type": "string", "pattern": "^[A-Z][A-Z0-9]{1,5}$" },
+        "legacy_prefix_default": { "type": "boolean" },
+        "hw": { "type": "array", "items": { "type": "string" } },
+        "firmware": { "oneOf": [ { "$ref": "#/$defs/firmware" }, { "type": "null" } ] },
+        "channels": { "$ref": "#/$defs/channels" },
+        "payload": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "contract": { "type": ["string", "null"] },
+            "array_fields": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "ate": {
+          "type": ["object", "null"],
+          "properties": { "script": { "type": "string" }, "limits_source": { "type": "string" } }
+        },
+        "app": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "features": { "type": "array", "items": { "type": "string" } },
+            "log_dir_prefix": { "type": "string" },
+            "app_id": { "type": "string" }
+          }
+        },
+        "endpoints": { "type": "array", "items": { "type": "string" } }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "legacy_prefix_default": { "const": true } } },
+          "then": { "required": ["id_prefix"] }
+        },
+        {
+          "if": { "properties": { "status": { "enum": ["production", "dev", "legacy"] } } },
+          "then": { "required": ["firmware"], "properties": { "firmware": { "type": "object" } } }
+        }
+      ]
+    }
+  }
+}

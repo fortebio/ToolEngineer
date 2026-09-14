@@ -114,7 +114,12 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   "Yêu cầu máy" giấu lệnh thật vào tooltip; Kết nối USB → log theo
   dòng + **bộ quét `util/log_triage.dart`** (regex ESP32 → khoá i18n `triage.<key>`/`<key>Hint`,
   test `test/log_triage_test.dart`) → **Gửi log** `FbtApi.uploadDeviceLog` = `PUT /devices/{id}/logs`
-  / `listDeviceLogs` / `fetchDeviceLog`). **MỘT màn cho cả desktop lẫn web** nhờ facade
+  / `listDeviceLogs` / `fetchDeviceLog`). ⚠️ **Log CSKH là FILE `~/fbt_server/logs/<máy>_<UTC>_<sha8>.json`
+  trên box (`FBT_LOGS_DIR`), KHÔNG vào Postgres → KHÔNG nằm trong `pg_dump`, chưa có backup/retention**;
+  và **chỉ tra được THEO MÃ MÁY** (`GET /devices/{id}/logs`) — không có `GET /logs` chung, không thông
+  báo, nên kỹ thuật không biết CSKH vừa gửi gì nếu không được nhắn (rà 2026-09-15: 1 bản `RPL01015`
+  ngày 14/09 nằm đó). Kiểm nhanh: `ssh engineer@100.109.127.87 'ls ~/fbt_server/logs'`. Muốn "quản lý"
+  thật thì thêm route liệt kê chung + mục Log CSKH trong tab Thư Mục + trạng thái xử lý (chưa làm). **MỘT màn cho cả desktop lẫn web** nhờ facade
   **`util/serial_link.dart`** (`export _io if (dart.library.html) _web`; kiểu chung ở
   `serial_link_types.dart`): `serialLinkCanListPorts` false trên web → bỏ ô chọn cổng, `openSerialLink`
   bật hộp thoại trình duyệt và trả `null` khi Hủy. Cổng COM dùng chung tab Kỹ Thuật → `HomeShell`
@@ -522,7 +527,15 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   `scp -O`; `-DryRun` chỉ in lệnh); restart `fbt-receiver` vẫn phải tự chạy (sudo cần mật khẩu, `-t`).
   Bản web production build ra **`build\web_prod`** (`--output build/web_prod`, KHÔNG dart-define) để
   không đè bản test local ở `build\web`. Windows OpenSSH hỏi host key rồi KHÔNG nhận "yes" (lặp vô hạn)
-  → thêm `-o StrictHostKeyChecking=accept-new`. **Kiểm deploy KHÔNG cần token** (đủ để kết luận): (1)
+  → thêm `-o StrictHostKeyChecking=accept-new`. Ba bẫy trong chính `deploy.ps1` (dính 17:44 cùng ngày):
+  `Run` đi qua `Invoke-Expression` nên lệnh remote KHÔNG được chứa `$(…)`/`$biến` (PowerShell diễn giải
+  lại — `2>/dev/null` thành `C:\dev
+ull`), dùng `xargs -I{}`; dọn `web.bak.*` phải xếp theo TÊN
+  (`sort -r`) vì `cp -a` giữ mtime → `ls -t` coi bản vừa chép là cũ nhất và xoá nó; bak cũ có thư mục
+  `dr-x` → `chmod -R u+rwX` trước `rm`, và bước dọn kết thúc bằng `; true` để không chặn deploy.
+  Sau deploy web, kiểm bằng **`fbt.basa-luma.ts.net`** (thẳng box); `hub.fortebio.tech` qua Cloudflare
+  có thể còn `cf-cache-status: HIT` bản cũ tới hết TTL 4 h nếu object được cache TRƯỚC khi origin phát
+  `no-cache` — purge trên dashboard hoặc đợi, không phải lỗi deploy. **Kiểm deploy KHÔNG cần token** (đủ để kết luận): (1)
   `curl …/openapi.json` rồi so `json.dumps(sort_keys)` với `app.openapi()` sinh từ code local (TestClient
   env tạm) — giống hệt = đúng code đang chạy, khác = liệt kê route lệch; (2) route mới phải **401** khi
   thiếu token (có route, gác nguyên); (3) web: md5 `main.dart.js` tải từ `/app/` == `build/web_prod` ==
@@ -693,8 +706,9 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
 - **"Tab này đang được xem" = `TickerMode`**: `HomeShell` bọc mỗi tab trong `TickerMode(enabled: i ==
   _index)` (IndexedStack dựng hết con, con ẩn vẫn tick) → màn cần dừng poll/animation khi ẩn đọc
   `TickerMode.valuesOf(context).enabled` trong `didChangeDependencies` (mẫu `monitor_screen.dart`), KHÔNG
-  thêm prop `active` riêng. `AppTabScaffold` (mục con) CHƯA bọc TickerMode → Support/Tech còn luồn cờ
-  `active` tay; đổi chung ở đó là bỏ được cờ (đã ghi ở code-review UI/UX 2026-09-12).
+  thêm prop `active` riêng. `AppTabScaffold` (mục con) cũng bọc TickerMode (2026-09-12) — lồng nhau thì
+  `valuesOf` trả giá trị HIỆU DỤNG (cha tắt = con tắt) nên một màn con đọc một chỗ là đủ cả hai tầng;
+  tab Chăm sóc KH đã bỏ cờ `active`, 3 màn Kỹ Thuật vẫn còn cờ (chưa chuyển).
 - **Đổi NGÔN NGỮ** (hệ `tr()` tự viết, không dùng Localizations): phải **key `MaterialApp` theo locale**
   (`key: ValueKey('locale_..')`) thì các màn mới dịch lại — rebuild `MaterialApp` thường KHÔNG rebuild
   route `home`. Theme thì áp **live qua prop** (`theme`/`themeMode`), không cần key.

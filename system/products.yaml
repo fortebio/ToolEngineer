@@ -1,0 +1,174 @@
+# system/products.yaml — REGISTRY SẢN PHẨM của Forte Biotech ("1 system file").
+#
+# Đây là nguồn sự thật DUY NHẤT về: sản phẩm nào tồn tại, khoá `product` của nó (đúng khoá
+# server dùng cho kho OTA `products/<product>/`), tiền tố mã máy, phần cứng, firmware nằm đâu
+# và phát hành thế nào, thiết bị đo bao nhiêu kênh, payload theo hợp đồng nào, app bật tính
+# năng gì, và nó nói chuyện với hệ nào. Server / app / firmware tiêu thụ file này THEO PHA
+# (xem docs/plan/monorepo-mot-he-thong.md, mục "Registry"):
+#   pha 1 (bây giờ): tools/registry_check.py kiểm file này đối chiếu với code thật (CI `registry`).
+#   pha 2: server đọc file → suy OTA_LEGACY_PRODUCT_BY_PREFIX, kiểm độ dài mảng theo optical_slots.
+#   pha 3: app sinh lib/generated/products.g.dart (ProductSpec) thay 10 slot / 6 kênh / RPL cứng.
+#   pha 4: firmware sinh include/fbt_product.h (khoá product, mẫu tên ảnh, thẻ FBTIMG1).
+#
+# LUẬT:
+#   * Khoá sản phẩm: ^[a-z0-9-]{1,24}$ và KHÔNG thuộc {check, products, target} — đúng
+#     `server/app/config.py::valid_product`. registry_check import hàm đó, không chép regex.
+#   * KHÔNG đổi khoá đã phát hành: tên thư mục kho OTA trên box, manifest .bin.json, target.json,
+#     hồ sơ ATE đều ghi chuỗi này.
+#   * Biến thể của cùng phần cứng (build flag khác, thuật toán khác) = khoá RIÊNG có `variant_of`
+#     (kế thừa nông: con ghi đè cha theo từng khoá cấp 1), KHÔNG thêm trục `variant` —
+#     theo quyết định docs/plan/ota-nhieu-san-pham.md §0.
+#   * Ô để null / thiếu = "chưa chốt", KHÔNG phải 0 (cùng luật với ngưỡng ATE).
+#   * `# TODO` = số liệu chưa được người có thẩm quyền xác nhận; registry_check chỉ cảnh báo.
+
+schema_version: 1
+
+defaults:
+  chip: esp32
+  ota:
+    check_path: /ota/check
+    # Thẻ nhận dạng nhúng trong ảnh .bin (server đọc khi upload — server/app/ota.py). Firmware
+    # nhúng từ v2.4.6 (giai đoạn 1 của plan OTA); registry ghi mẫu để pha 4 sinh đúng chuỗi.
+    tag_format: "FBTIMG1;product={product};ver={ver};hw={hw};;"
+  serial_baud: 115200
+
+products:
+  # ---------------------------------------------------------------------------------------
+  rapidplus:
+    name: Forte Rapid+
+    status: production            # production | dev | legacy | planned
+    id_prefix: RPL                # mã máy RPLxxxxx (device_id[10] firmware → tối đa 9 ký tự)
+    # Máy KHÔNG tự khai ?product= ở /ota/check (toàn bộ fleet ≤ v2.4.5) mà mã máy có tiền tố này
+    # → server xếp vào kho sản phẩm này (= OTA_LEGACY_PRODUCT_BY_PREFIX). Mỗi tiền tố CHỈ MỘT
+    # sản phẩm được true; các biến thể cùng tiền tố phân biệt bằng ghim máy (target.json.devices)
+    # hoặc firmware tự khai (v2.4.6+).
+    legacy_prefix_default: true
+    hw: [V1.1, V1.2, V1.3]        # = PCB_version firmware khai / ATE ID-02 ghi  # TODO xác nhận theo lô
+    firmware:
+      dir: firmware/rapidplus
+      envs: [esp32dev]            # [env:…] trong platformio.ini sinh ra ảnh của sản phẩm này
+      version_source:
+        file: src/define.h
+        # define.h có 2 nhánh #ifdef SHAPE_RULE_NEGATIVE / #else — env mặc định lấy nhánh #else.
+        regex: '#else\s*\r?\n\s*#define\s+FIRMWARE_VERSION\s+"(v[^"]+)"'
+      image_name: "fbt_{ver}.bin"
+      # BẤT BIẾN: firmware ≤ v2.4.5 so `name != "fbt_" + FirmwareVer + ".bin"` nguyên chuỗi.
+      # Đổi mẫu tên = 109 máy ngoài đồng không bao giờ thấy bản mới nữa.
+      legacy_name_locked: true
+      tag_prefix: fw/rapidplus/
+      embeds_image_tag: false     # v2.4.6 mới nhúng FBTIMG1
+    channels:
+      optical_slots: 10
+      temp_channels: 6            # Lysis, Amp1, Amp2, Hotlid1, Hotlid2, Ambient (services/temp_types.dart)
+    payload:
+      contract: system/contracts/ingest-rapidplus.schema.json   # P2 viết; pha 1 chỉ kiểm tồn tại nếu khai
+      # Các mảng theo-slot: nếu có mặt phải đúng optical_slots phần tử (= server ARRAY_FIELDS).
+      array_fields: [CT_value, result, record_out, amplification]
+    ate:
+      script: apps/fbt_rapid/lib/services/ate_runner.dart
+      limits_source: server/app/logic.py
+    app:
+      features: [history, ct_chart, realtime_temp_com, flash_esptool, ota_manage, ate_station, support_log_triage]
+      log_dir_prefix: FBT_RAPID_
+      app_id: FBT_RAPID
+    endpoints: [engineer_ingest, engineer_ota_check, erp_ingest, google_apps_script]
+
+  # Biến thể "a": build -DSHAPE_RULE_NEGATIVE (giếng bị cờ hình dạng → gọi ÂM TÍNH).
+  rapidplus-a:
+    name: Forte Rapid+ (biến thể A — SHAPE_RULE_NEGATIVE)
+    status: production
+    variant_of: rapidplus
+    legacy_prefix_default: false  # cùng RPL với rapidplus → phân biệt bằng ghim máy / tự khai
+    firmware:
+      dir: firmware/rapidplus
+      envs: [esp32dev_shape_neg]
+      build_flags: [SHAPE_RULE_NEGATIVE]
+      version_source:
+        file: src/define.h
+        regex: 'SHAPE_RULE_NEGATIVE\s*\r?\n\s*#define\s+FIRMWARE_VERSION\s+"(v[^"]+)"'
+      # Kho OTA riêng theo khoá; máy chạy bản này vẫn nằm trong fleet ≤ v2.4.5 nên tên ảnh vẫn
+      # PHẢI là fbt_<ver>.bin (hậu tố "a" trong ver là cách phân biệt hiện tại).
+      image_name: "fbt_{ver}.bin"
+      legacy_name_locked: true
+      tag_prefix: fw/rapidplus-a/
+      embeds_image_tag: false
+
+  # Firmware viết lại theo IEC 62304 (repo FBT-RapidPlus-Production), CHƯA nạp máy thật.
+  rapidplus-prod:
+    name: Forte Rapid+ — firmware production (IEC 62304)
+    status: dev
+    variant_of: rapidplus
+    legacy_prefix_default: false
+    firmware:
+      dir: firmware/rapidplus-prod
+      envs: [esp32dev, native]    # native = test unit trên PC
+      version_source:
+        file: include/version.h
+        regex: 'FBT_FW_VERSION\s+"([^"]+)"'
+      image_name: "rapidplus-prod_v{ver}.bin"
+      legacy_name_locked: false
+      tag_prefix: fw/rapidplus-prod/
+      embeds_image_tag: true      # bắt buộc ngay từ đầu — không có fleet cũ phải chiều
+
+  # ---------------------------------------------------------------------------------------
+  reader:
+    name: Forte Rapid Reader
+    status: production
+    id_prefix: RDR                # TODO xác nhận với ERP device_registry (bảng device_registry.instrument_id)
+    legacy_prefix_default: true
+    hw: []                        # TODO
+    firmware:
+      dir: firmware/reader
+      envs: [esp32dev]
+      version_source:
+        file: src/define.h
+        regex: 'FirmwareVer\s*=\s*\{?\s*"(v[^"]+)"'
+      image_name: "reader_{ver}.bin"
+      legacy_name_locked: false
+      tag_prefix: fw/reader/
+      ota: false                  # v2.6.6 chưa có OTA
+      embeds_image_tag: false
+    channels:
+      optical_slots: null         # TODO — chưa chốt, KHÔNG điền bừa
+      temp_channels: null
+    payload:
+      contract: null
+    app:
+      features: []
+    endpoints: [google_apps_script]
+
+  readermax:
+    name: Forte Reader Max
+    status: planned
+    id_prefix: RDM                # TODO
+    legacy_prefix_default: false
+    firmware: null
+    channels: null
+
+# Hệ NGOÀI monorepo — chỉ khai báo hợp đồng tích hợp, không chứa code của họ.
+external_systems:
+  erp:
+    name: RAPID ERP (fbterp)
+    owner: team ERP
+    base_url: https://api.fortebio.tech
+    ingest: { path: /api/v1/results/ingest, auth: X-API-Key }
+    external_read: { path: /api/v1/results/external, auth: X-API-Key, doc: apps/fbt_rapid/docs/api-guide-external-vi.md }
+    # ERP có bảng device_registry (instrument_id, device_sku_id, hardware_version, software_version)
+    # → nguồn danh tính máy THỨ HAI bên cạnh Engineer Server. P2 chốt nguồn sự thật.
+    device_registry: true
+  google_apps_script:
+    name: Google Apps Script getData.js (Sheet + Drive)
+    source: legacy/sheet/getData.js
+    status: legacy_active         # CÒN SỐNG: fw ≤ v2.4.5 và reader 2.6.6 vẫn POST vào đây
+    url_env: SECRET_GAS_URL
+
+environments:
+  prod:
+    engineer_url: https://hub.fortebio.tech
+    engineer_fallback: https://fbt.basa-luma.ts.net
+    erp_url: https://api.fortebio.tech
+    web_app: https://hub.fortebio.tech/app/
+  local:
+    engineer_url: http://127.0.0.1:8080
+    postgres: 127.0.0.1:5433
+    script: server/scripts/localtest.ps1
