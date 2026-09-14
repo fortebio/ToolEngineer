@@ -50,16 +50,18 @@ function Say($msg, $color = "Cyan") { Write-Host $msg -ForegroundColor $color }
 function Step($title) { $script:StepNo++; Write-Host ""; Write-Host ("=== [{0}] {1}" -f $script:StepNo, $title) -ForegroundColor Yellow }
 
 # Chay git; in lenh; DryRun thi chi in. Loi -> throw.
+# Ham THUONG (khong param block): moi tham so nam trong $args, ke ca -A/-a/-C/-q — neu khai bao
+# param thi PowerShell bind `-A` vao tham so ten `$a` (khop tien to, khong phan biet hoa/thuong).
 function G {
-  param([Parameter(ValueFromRemainingArguments = $true)][string[]]$a)
+  $a = @($args)
   Write-Host ("  git " + ($a -join " ")) -ForegroundColor DarkGray
-  if ($DryRun) { return }
+  if ($script:DryRun) { return }
   & git @a
   if ($LASTEXITCODE -ne 0) { throw ("git that bai (exit {0}): git {1}" -f $LASTEXITCODE, ($a -join " ")) }
 }
 # git tra ket qua (khong in), dung cho cau hoi; DryRun van chay vi chi doc.
 function GQ {
-  param([Parameter(ValueFromRemainingArguments = $true)][string[]]$a)
+  $a = @($args)
   # PS 5.1: stderr cua lenh native bi redirect + ErrorActionPreference=Stop -> nem loi. Ha xuong Continue trong scope nay.
   $ErrorActionPreference = "Continue"
   $out = & git @a 2>$null
@@ -93,10 +95,11 @@ foreach ($p in @($Mono, $SrcA, $SrcB, $SrcC, $SrcR)) {
 }
 $monoHead = GQ -C $Mono rev-parse --verify HEAD
 if ($monoHead -and -not $Force) { throw "Repo dich da co commit ($monoHead). Xoa noi dung (giu .git) hoac them -Force." }
+# Chay that: A va R phai sach (subtree lay COMMIT, thay doi chua commit se bi bo roi). DryRun: chi canh bao.
 $dirtyA = GQ -C $SrcA status --porcelain
-if ($dirtyA) { throw "Repo A chua sach (commit 6 file P0 + CLAUDE.md truoc):`n$($dirtyA -join "`n")" }
+if ($dirtyA) { $m = "Repo A chua sach (commit truoc, khong thi thay doi KHONG vao monorepo):`n$($dirtyA -join "`n")"; if ($DryRun) { Say $m "Yellow" } else { throw $m } }
 $dirtyR = GQ -C $SrcR status --porcelain
-if ($dirtyR) { throw "Repo R (reader) chua sach:`n$($dirtyR -join "`n")" }
+if ($dirtyR) { $m = "Repo R (reader) chua sach:`n$($dirtyR -join "`n")"; if ($DryRun) { Say $m "Yellow" } else { throw $m } }
 $dirtyB = GQ -C $SrcB status --porcelain
 if ($dirtyB) { Say "CANH BAO: repo B co thay doi chua commit - se KHONG vao monorepo (subtree lay commit):`n$($dirtyB -join "`n")" "Yellow" }
 if (-not $FwBranch) { $FwBranch = (GQ -C $SrcB branch --show-current) }
@@ -111,7 +114,8 @@ if (-not $SkipFilterRepo) {
   if ($LASTEXITCODE -ne 0) { throw "Thieu git-filter-repo: $Python -m pip install --user git-filter-repo" }
   if (Test-Path $mirror) { throw "Mirror da ton tai: $mirror. Xoa no, hoac -SkipFilterRepo de dung lai." }
 } elseif (-not (Test-Path $mirror)) { throw "-SkipFilterRepo nhung khong co mirror: $mirror" }
-& git subtree 2>&1 | Out-Null   # chi de chac chan lenh ton tai (usage -> exit 129)
+$subtreeHelp = GQ subtree   # usage cua git-subtree (exit 129) -> co lenh; khong redirect 2>&1 (PS 5.1 in RemoteException)
+if (-not $subtreeHelp -and $LASTEXITCODE -ne 129) { throw "git subtree khong co san (Git for Windows thuong kem)" }
 Say ("Dich:  {0}" -f $Mono)
 Say ("A app+server: {0}@{1}" -f $SrcA, $aSha)
 Say ("B firmware:   {0}@{1} (nhanh {2})" -f $SrcB, $fwSha, $FwBranch)
