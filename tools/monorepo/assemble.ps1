@@ -56,6 +56,9 @@ function G {
   $a = @($args)
   Write-Host ("  git " + ($a -join " ")) -ForegroundColor DarkGray
   if ($script:DryRun) { return }
+  # git hay ghi canh bao ra stderr (CRLF, progress). Neu NGUOI GOI redirect 2>&1 thi PS 5.1 bien no
+  # thanh NativeCommandError va Stop se dung script giua chung -> chi tin exit code.
+  $ErrorActionPreference = "Continue"
   & git @a
   if ($LASTEXITCODE -ne 0) { throw ("git that bai (exit {0}): git {1}" -f $LASTEXITCODE, ($a -join " ")) }
 }
