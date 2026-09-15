@@ -18,7 +18,11 @@ What it pins - and what it deliberately cannot:
   5. The serial parser survives the NetworkTask's "[dash] ..." line landing inside a JSON line, and
      takes the climb count from the "neutralised" line (the JSON's climbs_fixed is stale on the
      Serial path - sensor6035.cpp serialises before it assigns).
-  6. --regrade of the committed evidence log still finds every scenario where it is. The first
+  6. `uploadResult` (the UART way onto the "Up Data" path, --upload in the runner) is still in the
+     firmware, still dispatched, still refuses while the device is busy or off STA, and still lands
+     on eUpLoadData - not escreenFinished, whose 'f' path would tag the payload "Auto" and whose
+     WHITE reboots. And the runner reads the [up] markers the way Bluetooth.cpp prints them.
+  7. --regrade of the committed evidence log still finds every scenario where it is. The first
      version located scenario 0 by "total getResult sections minus catalogue size", which is off
      by one whenever the log ends with the restore's review - every well then compared against
      the NEXT scenario's echo and came back STALE, and nobody noticed because the report just
@@ -156,7 +160,44 @@ def main():
           "parser takes the climb count from the 'neutralised' line, not the stale JSON field")
     check(res.get(1, {}).get("letter") == "B", "parser maps 'Break' to B")
 
-    # 6. regrade of the committed evidence log: scenario 0 is found after the backup read
+    # 6. uploadResult: the firmware side and the runner's reading of it
+    fs = open(os.path.join(ROOT, "src", "ForteSetting.cpp"), encoding="utf-8", errors="replace").read()
+    body = re.search(r"bool ForteSetting::uploadResult\(\)\s*\{(.*?)\n\}", fs, re.S)
+    check(body is not None, "ForteSetting.cpp defines uploadResult()")
+    if body:
+        b = body.group(1)
+        check("dashboardDeviceBusy()" in b and "refused" in b, "uploadResult() refuses while dashboardDeviceBusy()")
+        check("WL_CONNECTED" in b and "dashboardIsAP()" in b, "uploadResult() refuses without an STA link")
+        check("type_infor = eUpLoadData" in b and "escreenFinished" not in b,
+              "uploadResult() lands on eUpLoadData (type_Upload Manual, WHITE returns without a reboot)")
+        check(b.index("type_infor = eUpLoadData") < b.index("changeScreen = true"),
+              "uploadResult() writes the state before the redraw flag")
+    check(re.search(r"else if \(uploadResult\(\)\)", fs) is not None, "loop() dispatches uploadResult()")
+    bt = open(os.path.join(ROOT, "src", "Bluetooth.cpp"), encoding="utf-8", errors="replace").read()
+    for lit in ('"[up] %s POST OK in %u ms, code=%d (try %u)\\n"',
+                '"[up] %s POST FAIL in %u ms, code=%d (%s) try %u/%u%s\\n"',
+                '"ERP server feedback: %s\\n"', '"[up] %s -> GAS + ingest + ERP (%u B)\\n"'):
+        check(lit in bt, "Bluetooth.cpp still prints %s (the runner keys on it)" % lit)
+    up_text = ("[up] uploadResult refused: device busy\n")
+    u = rsc.parse_upload(up_text, 0.2)
+    check(u["refused"] == "device busy" and not u["ok"], "parse_upload: a refusal is reported, not counted as sent")
+    up_text = ("Slot 1:\nOutcome check: Positive\nIndex Rising data : 7.0\n\nSlot 2:\nOutcome check: Break\n\n"
+               "[up] begin: suspend dashboard + build JSON\n[up] data -> GAS + ingest + ERP (24812 B)\n"
+               "[up] GAS POST begin (free=90000 intLargest=60000 try 1/3)\n"
+               "[up] GAS POST FAIL in 60012 ms, code=-11 (read Timeout) try 1/3\n"
+               "[up] GAS POST begin (free=90000 intLargest=60000 try 2/3)\n"
+               "[up] GAS POST OK in 6123 ms, code=302 (try 2)\n"
+               "[up] ingest POST OK in 2301 ms, code=200 (try 1)\nEngineer server feedback: {\"ok\":true}\n"
+               "[up] ERP POST FAIL in 1900 ms, code=422 (Unprocessable) try 1/3 [no retry]\nERP server feedback: {\"detail\":\"x\"}\n")
+    u = rsc.parse_upload(up_text, 71.0)
+    check(u["targets"].get("GAS", {}).get("ok") and u["targets"]["GAS"]["tries"] == 2 and u["targets"]["GAS"]["code"] == 302,
+          "parse_upload: a retry that succeeds counts as OK with its try number")
+    check(u["targets"].get("ERP", {}).get("code") == 422 and not u["targets"]["ERP"]["ok"] and not u["ok"],
+          "parse_upload: a non-retryable FAIL is final and makes the upload INCOMPLETE")
+    check(u["bytes"] == 24812 and u["letters"] == ["P", "B"] and u["feedback"]["ingest"] == '{"ok":true}',
+          "parse_upload: payload size, upload-path letters and server feedback are read")
+
+    # 7. regrade of the committed evidence log: scenario 0 is found after the backup read
     evidence = os.path.join(ROOT, "docs", "reports", "simcases", "2026-09-15-1201-RPL01015.serial.log")
     if os.path.isfile(evidence):
         import types

@@ -30,6 +30,7 @@ private:
     bool ParaRead();
     bool EEPROMRead();
     bool resultOutput();
+    bool uploadResult();
     bool restart();
     bool start_amplification_simulation();
 

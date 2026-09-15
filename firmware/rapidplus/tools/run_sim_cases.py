@@ -10,9 +10,17 @@
     python tools/run_sim_cases.py COM7 --dry-run             # no port: show what would be sent
     python tools/run_sim_cases.py COM7 --regrade <serial.log> # grade an earlier run's log again (no unit needed)
     python tools/run_sim_cases.py COM7 --restore-from <log>  # put back the run the first getResult of that log captured
+    python tools/run_sim_cases.py COM7 --upload              # ALSO post every scenario to the cloud (GAS + ingest + ERP)
 
-The unit must be IDLE on the start screen. Nothing here uploads: `getResult` reviews the
-stored record on the TFT (escreenReview -> screen_Result('r')), and only the 'f' path posts.
+The unit must be IDLE on the start screen. Without --upload nothing leaves the bench: `getResult`
+reviews the stored record on the TFT (escreenReview -> screen_Result('r')), and only the 'f' path
+posts. With --upload, each scenario is graded first and then sent with `uploadResult`, which is
+the "Up Data" menu item over the UART (eUpLoadData -> screen_Result('f') -> postData_GoogleSheet):
+the payload is the real one - id_device of THIS unit, type_Upload "Manual", disease names "N/A",
+the 7 v2.4.5AT shape fields - and it lands in the real Google Sheet, ingest and ERP. Those runs
+are synthetic and sit next to the unit's real ones under the same id; the report keeps the time
+and the per-target HTTP codes so they can be found again. The stored run put back at the end is
+NOT uploaded.
 
 PROTOCOL (ForteSetting.cpp)
   ParaRead                      -> one JSON line ending in '@': slopes, origins, thresholds, loops, ms/round
@@ -22,6 +30,14 @@ PROTOCOL (ForteSetting.cpp)
   getResult                     -> resultOutput(): the stored record is re-analysed by bResultGet(), which prints
                                    per slot "Outcome check: <word>" and one JSON line (outcome, Ct, increase,
                                    shape_flag, climbs_fixed, ...). Repeatable without a reboot.
+  uploadResult                  -> uploadResult(): eUpLoadData, i.e. screen_Result('f'): re-reads the record,
+                                   re-analyses it on the upload path (bResultPutToGoogleSheet, prints "Outcome
+                                   check" per slot, no JSON) and posts it. Markers: "[up] data -> GAS + ingest +
+                                   ERP (<n> B)", then per target "[up] <T> POST OK in <ms> ms, code=<c> (try k)"
+                                   or "... POST FAIL ... code=<c> (<why>) try k/4", then "Engineer server
+                                   feedback: <body>" and "ERP server feedback: <body>" - the last line of the
+                                   upload. Refused with "[up] uploadResult refused: <why>" when the unit is
+                                   busy or has no STA link. 30-90 s per scenario.
 
 WHAT GETS SENT
   Every scenario is re-materialised for THIS unit: its loop count, its ms/round, and its own slopes/origins
@@ -134,6 +150,19 @@ class Unit(object):
         # a short grace period: the last JSON line may still be streaming
         text += self.read_until(lambda t: False, 1.0)
         return parse_results(text), text
+
+    def upload_result(self, timeout=300.0):
+        """Send `uploadResult` and wait for the last of the three targets. -> (parsed dict, raw text).
+        The unit runs three TLS posts in sequence with up to 3 tries each and a 60 s read timeout
+        per try, so the ceiling is minutes, not seconds; "ERP server feedback:" is the only line
+        that proves the whole sequence is over."""
+        self.ser.reset_input_buffer()
+        self.send("uploadResult")
+        t0 = time.time()
+        text = self.read_until(lambda t: "ERP server feedback:" in t or "uploadResult refused" in t
+                               or "WiFi not connected, skip" in t or "not supported" in t, timeout)
+        text += self.read_until(lambda t: False, 0.5)
+        return parse_upload(text, time.time() - t0), text
 
 
 _NUM_CHARS = set("0123456789+-.eE")
@@ -372,6 +401,62 @@ def parse_results(text):
 
 
 # --------------------------------------------------------------------------- unit parameters
+_UP_OK = re.compile(r"\[up\] (GAS|ingest|ERP) POST OK in (\d+) ms, code=(-?\d+) \(try (\d+)\)")
+_UP_FAIL = re.compile(r"\[up\] (GAS|ingest|ERP) POST FAIL in (\d+) ms, code=(-?\d+) \(([^)]*)\) try (\d+)/(\d+)")
+_UP_BEGIN = re.compile(r"\[up\] (GAS|ingest|ERP) begin failed \(try (\d+)/(\d+)\)")
+_UP_TARGETS = ("GAS", "ingest", "ERP")
+
+
+def parse_upload(text, seconds):
+    """What one `uploadResult` did, from the unit's [up] markers. Per target the LAST attempt
+    counts (postJsonRetry returns on the first OK, so an OK line is always final; a FAIL line is
+    final when it is the last one printed for that target). letters = the verdicts the UPLOAD
+    path printed, in slot order, so they can be compared with getResult's - the two paths share
+    analyseSlotCurve() but not their call site."""
+    up = dict(seconds=round(seconds, 1), refused=None, bytes=None, targets={}, feedback={}, letters=[],
+              complete="ERP server feedback:" in text)
+    m = re.search(r"uploadResult refused: ([^\r\n]*)", text)
+    if m:
+        up["refused"] = m.group(1).strip()
+    if "WiFi not connected, skip" in text:
+        up["refused"] = "WiFi not connected (postData_GoogleSheet skipped)"
+    m = re.search(r"\[up\] data -> GAS \+ ingest \+ ERP \((\d+) B\)", text)
+    if m:
+        up["bytes"] = int(m.group(1))
+    for m in _UP_BEGIN.finditer(text):
+        up["targets"][m.group(1)] = dict(ok=False, code=-1, ms=0, tries=int(m.group(2)), why="begin failed")
+    for m in _UP_FAIL.finditer(text):
+        up["targets"][m.group(1)] = dict(ok=False, code=int(m.group(3)), ms=int(m.group(2)), tries=int(m.group(5)),
+                                         why=m.group(4))
+    for m in _UP_OK.finditer(text):
+        up["targets"][m.group(1)] = dict(ok=True, code=int(m.group(3)), ms=int(m.group(2)), tries=int(m.group(4)), why="")
+    m = re.search(r"Engineer server feedback: ([^\r\n]*)", text)
+    if m:
+        up["feedback"]["ingest"] = m.group(1).replace("\ufffd", "").strip()[:300]   # a stray byte after the body
+    m = re.search(r"ERP server feedback: ([^\r\n]*)", text)
+    if m:
+        up["feedback"]["ERP"] = m.group(1).replace("\ufffd", "").strip()[:300]
+    for w in re.findall(r"Outcome check: ([A-Za-z ]+?)\s*$", _KNOWN_FRAGMENTS.sub("", text), re.M):
+        up["letters"].append(LETTER.get(w.strip(), "?"))
+    up["ok"] = up["complete"] and all(t in up["targets"] and up["targets"][t]["ok"] for t in _UP_TARGETS)
+    return up
+
+
+def describe_upload(up):
+    if up.get("refused"):
+        return "upload REFUSED: %s" % up["refused"]
+    parts = []
+    for t in _UP_TARGETS:
+        r = up["targets"].get(t)
+        if not r:
+            parts.append("%s: no answer" % t)
+        else:
+            parts.append("%s %d%s (%.1f s%s)" % (t, r["code"], "" if r["ok"] else " FAIL " + r["why"],
+                                                 r["ms"] / 1000.0, (", try %d" % r["tries"]) if r["tries"] > 1 else ""))
+    return ("upload %s: " % ("OK" if up["ok"] else "INCOMPLETE")) + " · ".join(parts) + (
+        " — %d B, %.0f s" % (up["bytes"] or 0, up["seconds"]))
+
+
 def unit_params(pj):
     """ParaRead JSON -> (P dict for the mirror, slopes, origins, ident)."""
     op = pj.get("parameters", {})
@@ -450,6 +535,16 @@ def write_report(path_md, path_json, ident, P, slopes, origins, results, backup_
     L.append("")
     L.append("**PASS %d · FAIL %d · KNOWN-WEAK %d · INFO/NOREPLY/STALE %d** trên %d giếng." % (
         n_pass, n_fail, n_known, n_info, n_pass + n_fail + n_known + n_info))
+    ups = [s["upload"] for s in results if s.get("upload")]
+    if ups:
+        n_ok = sum(1 for u in ups if u["ok"])
+        L.append("")
+        L.append("**Upload lên server: %d/%d kịch bản tới đủ 3 đích (GAS · ingest · ERP)**, payload `id_device` %s, "
+                 "`type_Upload` Manual, tên bệnh N/A — đây là dữ liệu MÔ PHỎNG nằm cạnh run thật của máy trên "
+                 "cùng id; nhận diện bằng giờ gửi ghi ở đầu mỗi kịch bản." % (n_ok, len(ups), ident["device"]))
+        bad = [(s["id"], s["upload"]) for s in results if s.get("upload") and not s["upload"]["ok"]]
+        for sid, u in bad:
+            L.append("- ⚠ %s: %s" % (sid, describe_upload(u)))
     if backup_note:
         L.append("")
         L.append(backup_note)
@@ -461,6 +556,15 @@ def write_report(path_md, path_json, ident, P, slopes, origins, results, backup_
     for s in results:
         L.append("## %s — %s" % (s["id"], s["title"]))
         L.append("")
+        u = s.get("upload")
+        if u:
+            L.append("Upload %s: %s%s" % (u.get("at", "?"), describe_upload(u),
+                                          (" — chữ đường upload khác `getResult` ở slot %s" % ", ".join(str(i) for i in u["mismatch"]))
+                                          if u.get("mismatch") else ""))
+            for t in ("ingest", "ERP"):
+                if u["feedback"].get(t):
+                    L.append("- %s: `%s`" % (t, u["feedback"][t].replace("`", "'")))
+            L.append("")
         L.append("| slot | kỳ vọng | máy | Ct | inc | sharp | climb | flag | mirror | Ct | trạng thái | ghi chú |")
         L.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
         for w in s["wells"]:
@@ -585,8 +689,14 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="materialise and print sizes; open no port")
     ap.add_argument("--regrade", default=None, metavar="SERIAL_LOG",
                     help="grade an earlier serial log again instead of talking to the unit (port is ignored)")
+    ap.add_argument("--upload", action="store_true",
+                    help="after grading each scenario, post it to the cloud with `uploadResult` (real payload, real "
+                         "targets, this unit's id, type_Upload Manual); needs the unit on STA")
     ap.add_argument("--out", default=REPORT_DIR)
     a = ap.parse_args()
+    if a.upload and (a.regrade or a.dry_run):
+        print("--upload needs a unit; it cannot be combined with --regrade or --dry-run")
+        return 2
 
     started = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     stamp = datetime.datetime.now().strftime("%Y-%m-%d-%H%M")
@@ -695,6 +805,22 @@ def main():
             dt = time.time() - t0
             print("  getResult: %d slots answered in %.1fs" % (len(res), dt))
             results.append(grade_scenario(s, traces, res, P, slopes, origins))
+            if a.upload:
+                at = datetime.datetime.now().strftime("%H:%M:%S")
+                print("  uploadResult @ %s: posting to GAS + ingest + ERP ..." % at)
+                up, _ = unit.upload_result()
+                up["at"] = at
+                # the upload path re-analyses the same record; its letters must be getResult's
+                up["mismatch"] = [i + 1 for i in range(10)
+                                  if i < len(up["letters"]) and i in res and up["letters"][i] != res[i].get("letter")]
+                if len(up["letters"]) not in (0, 10):
+                    up["mismatch"].append("only %d 'Outcome check' lines" % len(up["letters"]))
+                results[-1]["upload"] = up
+                print("  " + describe_upload(up) + (("  <-- letters differ from getResult on slot %s" % up["mismatch"])
+                                                   if up["mismatch"] else ""))
+                if up.get("refused"):
+                    print("  [!] the unit refused to upload; continuing without uploads is pointless - stopping")
+                    break
     except KeyboardInterrupt:
         print("\ninterrupted")
     finally:
@@ -719,6 +845,9 @@ def main():
         n_pass = sum(1 for s in results for w in s["wells"] if w["status"] == "PASS")
         n_known = sum(1 for s in results for w in s["wells"] if w["status"] == "KNOWN-WEAK")
         print("\nPASS %d  FAIL %d  KNOWN-WEAK %d  -> %s\nserial log: %s" % (n_pass, n_fail, n_known, md, log_path))
+        if a.upload:
+            ups = [s["upload"] for s in results if s.get("upload")]
+            print("uploads: %d/%d scenarios reached all three targets" % (sum(1 for u in ups if u["ok"]), len(ups)))
         print("press WHITE on the unit to leave the review screen (it reboots).")
         return 1 if n_fail else 0
     return 0

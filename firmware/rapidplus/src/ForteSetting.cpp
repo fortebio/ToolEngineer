@@ -617,6 +617,50 @@ bool ForteSetting::resultOutput()
     return true;
 }
 
+/// "uploadResult" will re-send the stored record to the cloud (GAS + ingest + ERP)
+/// @return true if right command, or it return false
+/***********************************************************************
+ * Function: uploadResult()
+ * Description: Parses a serial "uploadResult" command from recvData and puts
+ *  the display on the manual-upload screen (eUpLoadData), which is exactly
+ *  what RED on the on-device Setting menu does: screen_Result('f') re-reads the
+ *  record at RECORDPOS, re-analyses it and posts it through
+ *  postData_GoogleSheet() with type_Upload "Manual". Nothing else in the
+ *  firmware could start an upload from the UART - "getResult" deliberately
+ *  reviews without posting (escreenReview), so a bench dataset injected with
+ *  {"Slot":[..]}n# could be graded but never reach the server.
+ *  Refused (and says so) while the device is busy - the upload parks
+ *  DisplayTask in mbedTLS for up to ~90 s and suspends the dashboard, so it
+ *  must never start on top of a run; eUpLoadData itself counts as busy, so a
+ *  second command cannot stack a second upload on one still in flight - and
+ *  when there is no STA link, where screen_Result('f') would silently skip
+ *  the post and only redraw the grid.
+ * pramameter: none (reads member recvData)
+ *  return: true if recvData starts with "uploadResult", false otherwise
+ */
+bool ForteSetting::uploadResult()
+{
+    if (strncasecmp(recvData, "uploadResult", 12))
+    {
+        return false;
+    }
+    if (dashboardDeviceBusy())
+    {
+        info_displayln("[up] uploadResult refused: device busy");
+        return true;
+    }
+    if (dashboardIsAP() || WiFi.status() != WL_CONNECTED)
+    {
+        info_displayln("[up] uploadResult refused: no STA link, screen_Result('f') would skip the post");
+        return true;
+    }
+    // State first, redraw flag second: DisplayTask polls changeScreen on another core, and
+    // seeing the flag before the new state would redraw the OLD screen and clear the flag.
+    _displayCLD.type_infor = eUpLoadData;
+    _displayCLD.changeScreen = true;
+    return true;
+}
+
 /// @brief Restart the system
 /// "Res" will restart the devicex
 /// @return System restart
@@ -1194,6 +1238,8 @@ void ForteSetting::configSelfCheckLog()
 ///
 /// "getResult" will read all old data stored in the EEPROM, then calculate it again to form the output
 ///
+/// "uploadResult" will re-send the stored record to the cloud (eUpLoadData, type_Upload "Manual")
+///
 /// "Res" will restart the device
 /***********************************************************************
  * Function: loop()
@@ -1587,6 +1633,10 @@ void ForteSetting::loop()
         }
         /// "getResult" will read all old data stored in the EEPROM, then calculate it again to form the output
         else if (resultOutput())
+        {
+        }
+        /// "uploadResult" will re-send the stored record to the cloud, same path as the "Up Data" menu item
+        else if (uploadResult())
         {
         }
         /// "Res" will restart the device

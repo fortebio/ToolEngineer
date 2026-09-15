@@ -1343,7 +1343,7 @@ g++ -O2 -std=c++17 -I.pio/libdeps/esp32dev/ArduinoJson/src tools/test_json_key_p
 node tools/test_profile_minutes.js          # guard: card Profile nhập PHÚT nhưng lưu giây/vòng, clamp 130 giữ nguyên
 python tools/test_status_coverage.py        # guard: web không báo "Idle" khi máy đang chờ người; fillStatus/fillActions cùng tập state
 python tools/test_slot_label_reset.py       # guard: nhãn slot bị xoá khi vào run mới (không upload tên bệnh run trước)
-python tools/test_sim_cases.py              # guard: bộ kịch bản mô phỏng đúng ý đồ ở 5 slope, file simcases/ không lệch `gen`, ngưỡng mirror đọc từ source
+python tools/test_sim_cases.py              # guard: bộ kịch bản mô phỏng đúng ý đồ ở 5 slope, file simcases/ không lệch `gen`, ngưỡng mirror đọc từ source, `uploadResult` còn gác busy/STA, --regrade tìm đúng section
 node tools/test_error_table.js              # guard: Error table thay chỗ chart, đủ 10 slot, mã trùng máy (cần mock --reboot)
 node tools/test_home_error_table.js         # guard: hết run bấm ĐỎ -> Home đổi chart sang bảng lỗi (cần mock --full)
 g++ -O2 -std=c++17 tools/test_wifi_bars.cpp -o t && ./t          # vach song WiFi tren TFT: nguong khop web + chong nhay
@@ -1733,6 +1733,7 @@ python tools/run_sim_cases.py COM7                # ~6 phút: ParaRead → nạp
 python tools/run_sim_cases.py COM7 --only S06     # một kịch bản
 python tools/run_sim_cases.py COM7 --regrade docs/reports/simcases/<log>.serial.log   # chấm lại log cũ, không cần máy
 python tools/run_sim_cases.py COM7 --restore-from docs/reports/simcases/<log>.serial.log   # trả lại record run thật từ log
+python tools/run_sim_cases.py COM7 --upload      # chấm xong mỗi kịch bản thì `uploadResult` → GAS + ingest + ERP THẬT (~15 s/kịch bản)
 ```
 
 **Máy là oracle, mirror chỉ để chọn recipe có biên.** Máy này không có g++ nên không link được `Algo.cpp`
@@ -1744,6 +1745,23 @@ tính σ≈1,5 count, warm-up leo từ dưới, bậc đồng bộ vòng 6, trô
 - **Runner sinh lại dữ liệu theo đúng slope/origin/số vòng/ms-vòng của máy đang cắm** (`ParaRead`), không gửi
   `.raw.txt` đã commit (file đó ở slope danh nghĩa 1,4, dành cho `send_slots.py`). Máy phải **rảnh** ở màn
   chính; `getResult` đi qua `escreenReview` → **không upload**; xong bấm TRẮNG (reboot).
+- **`--upload` là gửi THẬT, lên ba đích thật, dưới id của máy đang cắm** (`type_Upload "Manual"`, tên bệnh
+  `N/A`) — 11 run mô phỏng nằm cạnh run thật của máy đó trên Sheet/ERP; report ghi giờ gửi, mã HTTP từng đích và
+  `id`/`result_id` server trả về để tìm lại. Lệnh Serial **`uploadResult`** (v2.4.5at, 15/09) = ĐỎ trong menu
+  Setting: `eUpLoadData` → `screen_Result('f')`; **từ chối** khi `dashboardDeviceBusy()` (kể cả khi lượt trước
+  chưa xong — `eUpLoadData` là busy) hoặc không có STA (`'f'` không STA thì im lặng bỏ qua post). Ghi
+  `type_infor` **trước** `changeScreen` — ngược lại DisplayTask vẽ lại màn cũ và không upload. Record trả lại
+  cuối run **không** upload. **Đo 15/09 16:11: 11/11 kịch bản → 200 ở cả 3 đích, không retry, ~14 s/kịch bản,
+  payload ~7,9 KB; ingest id 21760–21770, ERP `device_matched true`; chữ đường upload = `getResult` 110/110** —
+  tức payload v2.4.5AT (7 trường mới + chữ `F`) đã qua server thật. Mỗi thân phản hồi server kết thúc bằng một
+  byte `0xFF` (`readBodyDeadlined()` nối `(char)read()` = −1 ở EOF của TLS) — vô hại, chưa sửa. Chi tiết:
+  [docs/history/2026-09-15-gui-bo-kich-ban-mo-phong-len-server.md](docs/history/2026-09-15-gui-bo-kich-ban-mo-phong-len-server.md).
+- ⚠ **"Up Data" trên máy gửi tên bệnh `N/A`** dù run vừa xong có tên: `eUpLoadData` là busy → sườn lên của
+  `isBusy()` trong `dashboardLoop()` xoá nhãn slot trong ~10 ms, trước khi `postData_GoogleSheet` dựng payload
+  (~1 s sau). Có từ 20/08 (reset nhãn theo run), **chưa sửa** — xem "Còn nợ" trong tài liệu trên.
+- **`--regrade` từng đặt kịch bản 0 lệch một section** khi log có cả backup read lẫn restore read (`offset` =
+  tổng getResult − số kịch bản) → **110/110 STALE** mà report chỉ nói "re-run on the unit". Nay nhận diện backup
+  read = getResult đầu không có injection trước nó; guard chấm lại log 12:01 phải ≥ 90 PASS.
 - **Nạp là ghi đè record run cuối trong EEPROM.** Runner đọc record cũ bằng `getResult` trước và nạp trả lại
   sau (`raw_data` in ra là **sau** `neutralise_climbs` → run cũ có climb thì trả lại bản đã vá, báo cáo ghi rõ).
   Không dùng `EEPROMRead` để backup: `sprintf(tmp[4], "%02X", (char)c)` tràn với byte ≥ 0x80.
