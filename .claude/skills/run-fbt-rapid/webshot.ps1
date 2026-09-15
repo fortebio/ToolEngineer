@@ -4,14 +4,14 @@
 # --app (cửa sổ riêng, title = <title> trang = FBT_RAPID), chụp cửa sổ bằng
 # PrintWindow rồi dọn dẹp. GOTCHA: Chromium composite bằng GPU → PrintWindow ra
 # ảnh XÁM nếu thiếu --disable-gpu (đã bật sẵn ở đây; canvaskit vẫn chạy qua
-# SwiftShader). Build trước: flutter build web --release.
+# SwiftShader). Build trước (trong apps/fbt_rapid): flutter build web --release.
 #
 # Vi du:
 #   pwsh .claude/skills/run-fbt-rapid/webshot.ps1 -Out web.png
 #   pwsh .claude/skills/run-fbt-rapid/webshot.ps1 -Url https://fbt.basa-luma.ts.net/app/ -Out live.png
 [CmdletBinding()]
 param(
-  [string]$WebRoot,             # mặc định = <app root>\build\web
+  [string]$WebRoot,             # mặc định = <gốc monorepo>\apps\fbt_rapid\build\web
   [string]$Url,                 # URL đang host THẬT — có thì BỎ bước serve cục bộ
   [string]$Out = "_web.png",
   [int]$Port = 8177,
@@ -22,11 +22,11 @@ $ErrorActionPreference = "Stop"
 $skillDir = Split-Path -Parent $PSCommandPath
 if (-not $Url) {
   if (-not $WebRoot) {
-    $root = $skillDir | Split-Path -Parent | Split-Path -Parent | Split-Path -Parent
-    $WebRoot = Join-Path $root "build\web"
+    $root = $skillDir | Split-Path -Parent | Split-Path -Parent | Split-Path -Parent   # gốc monorepo
+    $WebRoot = Join-Path $root "apps\fbt_rapid\build\web"
   }
   if (-not (Test-Path (Join-Path $WebRoot "index.html"))) {
-    throw "Chua co build web: $WebRoot`nChay: flutter build web --release"
+    throw "Chua co build web: $WebRoot`nChay (trong apps/fbt_rapid): flutter build web --release"
   }
 }
 

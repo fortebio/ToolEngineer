@@ -13,6 +13,7 @@
 [CmdletBinding()]
 param(
   [string]$Exe,                 # đường dẫn .exe; mặc định = build Debug
+  [string]$AppRoot,             # thư mục app Flutter; mặc định <gốc monorepo>\apps\fbt_rapid
   [switch]$Release,             # dùng build Release thay vì Debug
   [string]$Out = "_smoke.png",  # nơi lưu ảnh PNG
   [int]$Timeout = 30,           # giây chờ cửa sổ xuất hiện
@@ -21,10 +22,11 @@ param(
   [switch]$Attach               # chụp tiến trình ĐANG chạy (không launch mới)
 )
 $ErrorActionPreference = "Stop"
-$root = Split-Path -Parent $PSCommandPath | Split-Path -Parent | Split-Path -Parent | Split-Path -Parent
+$root = Split-Path -Parent $PSCommandPath | Split-Path -Parent | Split-Path -Parent | Split-Path -Parent   # gốc monorepo
+if (-not $AppRoot) { $AppRoot = Join-Path $root "apps\fbt_rapid" }   # app nằm trong monorepo từ 2026-09-15
 if (-not $Exe) {
   $cfg = if ($Release) { "Release" } else { "Debug" }
-  $Exe = Join-Path $root "build\windows\x64\runner\$cfg\fbt_dxd_app.exe"
+  $Exe = Join-Path $AppRoot "build\windows\x64\runner\$cfg\fbt_dxd_app.exe"
 }
 
 # --- Win32 capture: chụp 1 cửa sổ theo HWND ra PNG (kể cả khi không foreground) ---

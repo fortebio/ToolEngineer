@@ -1,6 +1,6 @@
 ﻿# Deploy lên FBT Home Server (box `fbt-server`, bản copy PHẲNG ở ~/fbt_server/, KHÔNG git):
 #   -Server : scp app/*.py + scripts/migrate_ota.py -> ~/fbt_server/app/ | scripts/ (kho OTA theo sản phẩm)
-#   -Web    : scp NỘI DUNG build/web_prod/*    -> ~/fbt_server/web/   (bản web /app/)
+#   -Web    : scp NỘI DUNG apps/fbt_rapid/build/web_prod/* -> ~/fbt_server/web/ (bản web /app/; -WebProd để đổi)
 # Sau -Server PHẢI restart dịch vụ (cần sudo, chạy tay — script chỉ in lệnh):
 #   ssh <host> "sudo systemctl restart fbt-receiver"
 #
@@ -21,13 +21,16 @@ param(
     # Tên đầy đủ MagicDNS: tên ngắn `fbt` KHÔNG resolve trên box chưa bật MagicDNS search domain.
     [string]$Target = "engineer@fbt.basa-luma.ts.net",
     [string]$Remote = "~/fbt_server",
+    # Thư mục bản web đã build. Mặc định <gốc monorepo>\apps\fbt_rapid\build\web_prod — từ 2026-09-15
+    # server/ và apps/fbt_rapid/ là hai thư mục ANH EM trong monorepo, app không còn là cha của server/.
+    [string]$WebProd = "",
     [switch]$DryRun
 )
 
 $ErrorActionPreference = "Stop"
 $serverDir = Split-Path -Parent $PSScriptRoot           # ...\server
-$repo = Split-Path -Parent $serverDir                   # gốc repo app
-$webProd = Join-Path $repo "build\web_prod"
+$mono = Split-Path -Parent $serverDir                   # gốc MONOREPO (server/ và apps/ là anh em)
+$webProd = if ($WebProd) { $WebProd } else { Join-Path $mono "apps\fbt_rapid\build\web_prod" }
 
 if (-not $Server -and -not $Web) { throw "Chọn ít nhất một: -Server và/hoặc -Web" }
 
@@ -67,13 +70,13 @@ if ($Server) {
 
 if ($Web) {
     if (-not (Test-Path "$webProd\index.html")) {
-        throw "Chưa có $webProd — build trước: flutter build web --release --base-href /app/ --output build/web_prod (KHÔNG --dart-define)"
+        throw "Chưa có $webProd — build trước (trong apps/fbt_rapid): flutter build web --release --base-href /app/ --output build/web_prod (KHÔNG --dart-define)"
     }
     $bundle = Get-Content "$webProd\main.dart.js" -Raw
     if ($bundle -match "127\.0\.0\.1:8080" -or $bundle -match "localtok") {
         throw "Bundle web_prod đang nhúng URL/token TEST LOCAL — build lại KHÔNG --dart-define"
     }
-    Write-Output "=== Web: build/web_prod -> $Remote/web ==="
+    Write-Output "=== Web: $webProd -> $Remote/web ==="
     # Sao lưu bản web đang host trước khi ghi đè (cùng lý do với app/ ở trên; box đã có nhiều web.bak.*).
     $stampWeb = Get-Date -Format "yyyyMMdd-HHmmss"
     Run "ssh $Target `"[ -d $Remote/web ] && cp -a $Remote/web $Remote/web.bak.$stampWeb; true`""

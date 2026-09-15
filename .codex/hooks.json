@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "input=$(cat); case \"$input\" in *'\"stop_hook_active\":true'*|*'\"stop_hook_active\": true'*) exit 0;; esac; printf '%s' '{\"decision\":\"block\",\"reason\":\"Trước khi dừng: nếu task vừa rồi có BÀI HỌC MỚI đáng ghi (gotcha, lệnh hay dùng, pattern, quyết định kiến trúc) mà CLAUDE.md ở gốc dự án CHƯA có thì cập nhật vào mục phù hợp (ví dụ mục Gotchas); nếu không có gì mới hoặc đã có rồi thì KHÔNG sửa gì. Chỉ làm MỘT lần rồi dừng, KHÔNG lặp lại.\"}'",
+            "command": "input=$(cat); case \"$input\" in *'\"stop_hook_active\":true'*|*'\"stop_hook_active\": true'*) exit 0;; esac; printf '%s' '{\"decision\":\"block\",\"reason\":\"Trước khi dừng: nếu task vừa rồi có BÀI HỌC MỚI đáng ghi (gotcha, lệnh hay dùng, pattern, quyết định kiến trúc) mà CLAUDE.md của PHẦN đang sửa (apps/fbt_rapid, server, firmware/<x>) CHƯA có thì cập nhật vào mục phù hợp (ví dụ mục Gotchas); CLAUDE.md ở gốc monorepo CHỈ nhận quy tắc toàn hệ thống; nếu không có gì mới hoặc đã có rồi thì KHÔNG sửa gì. Chỉ làm MỘT lần rồi dừng, KHÔNG lặp lại.\"}'",
             "timeout": 10
           }
         ]

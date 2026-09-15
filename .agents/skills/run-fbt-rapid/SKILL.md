@@ -13,8 +13,10 @@ Flutter 3.44.2 stable, Windows 11.
 A GUI has no `curl`/Playwright handle, so the harness is
 [driver.ps1](driver.ps1): it launches the built `.exe`, polls for the `FBT_RAPID` window,
 and screenshots **that window** via Win32 `PrintWindow` (works without bringing it to the
-foreground). Paths below are relative to the app root (`<unit>/` = the folder with
-`pubspec.yaml`). The exe is named `fbt_dxd_app.exe` — **not** `RapidPlusApp` (pubspec name)
+foreground). **Monorepo (2026-09-15): the app lives in `apps/fbt_rapid/`** — run every
+`flutter` command from there (`cd apps/fbt_rapid`); `driver.ps1` defaults to that folder
+(override with `-AppRoot`). Paths below are relative to the app root
+(`apps/fbt_rapid/` = the folder with `pubspec.yaml`). The exe is named `fbt_dxd_app.exe` — **not** `RapidPlusApp` (pubspec name)
 nor `FBT_RAPID` (display name); all three differ.
 
 ## Prerequisites

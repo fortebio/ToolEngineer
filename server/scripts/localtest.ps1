@@ -1,10 +1,10 @@
 ﻿# Bật bộ TEST LOCAL cho app FBT_RAPID: PostgreSQL portable (:5433) + FBT Home Server (:8080)
 # serve luôn bản web đã build tại http://127.0.0.1:8080/app/ — không đụng production.
 #
-# Chuẩn bị 1 lần (đã làm trên box ADM 2026-09-04, xem CLAUDE.md gốc repo mục "Công thức TEST LOCAL"):
+# Chuẩn bị 1 lần (đã làm trên box ADM 2026-09-04, xem apps/fbt_rapid/CLAUDE.md mục "Công thức TEST LOCAL"):
 #   - Postgres portable giải nén ở $Base\pgsql, data ở $Base\pgdata (initdb -U postgres -A trust),
 #     DB `mydb` đã chạy deploy/schema.sql, bảng users có 3 tài khoản test (cskh/root/khach).
-#   - Bản web: flutter build web --release --base-href /app/ --dart-define=FBT_URL=http://127.0.0.1:8080
+#   - Bản web (chạy TRONG apps/fbt_rapid): flutter build web --release --base-href /app/ --dart-define=FBT_URL=http://127.0.0.1:8080
 #     --dart-define=FBT_TOKEN=localtok   (build lại KHÔNG dart-define trước khi deploy thật)
 #
 # Dùng:   .\scripts\localtest.ps1            # bật cả hai, in URL + tài khoản
@@ -18,7 +18,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $server = Split-Path -Parent $PSScriptRoot          # ...\server
-$repo = Split-Path -Parent $server                  # gốc repo app
+$mono = Split-Path -Parent $server                  # gốc MONOREPO (app ở apps\fbt_rapid, là anh em của server/)
 $pg = "$Base\pgsql\bin"
 $venv = "$Base\venv"
 
@@ -53,7 +53,7 @@ $env:FBT_DATA_DIR = "$Base\data"
 $env:FBT_OTA_DIR = "$Base\ota"
 $env:FBT_LOGS_DIR = "$Base\logs"
 $env:FBT_ATE_DIR = "$Base\ate"          # ho so tram ATE (tab San xuat)
-$env:FBT_WEB_DIR = "$repo\build\web"
+$env:FBT_WEB_DIR = "$mono\apps\fbt_rapid\build\web"
 $env:RECEIVER_TOKEN = "localtok"
 $env:FBT_DB = "dbname=mydb host=127.0.0.1 port=$PgPort user=postgres connect_timeout=5"
 $env:PYTHONIOENCODING = "utf-8"
