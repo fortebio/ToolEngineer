@@ -18,6 +18,11 @@ What it pins - and what it deliberately cannot:
   5. The serial parser survives the NetworkTask's "[dash] ..." line landing inside a JSON line, and
      takes the climb count from the "neutralised" line (the JSON's climbs_fixed is stale on the
      Serial path - sensor6035.cpp serialises before it assigns).
+  6. --regrade of the committed evidence log still finds every scenario where it is. The first
+     version located scenario 0 by "total getResult sections minus catalogue size", which is off
+     by one whenever the log ends with the restore's review - every well then compared against
+     the NEXT scenario's echo and came back STALE, and nobody noticed because the report just
+     said "re-run on the unit".
 
 It cannot tell whether the FIRMWARE agrees with any of it. Only `run_sim_cases.py COM7` can, and
 the point of this guard is that when that run fails, the dataset is not the suspect.
@@ -150,6 +155,31 @@ def main():
     check(res.get(0, {}).get("climbs") == 1 and res.get(1, {}).get("climbs") == 0,
           "parser takes the climb count from the 'neutralised' line, not the stale JSON field")
     check(res.get(1, {}).get("letter") == "B", "parser maps 'Break' to B")
+
+    # 6. regrade of the committed evidence log: scenario 0 is found after the backup read
+    evidence = os.path.join(ROOT, "docs", "reports", "simcases", "2026-09-15-1201-RPL01015.serial.log")
+    if os.path.isfile(evidence):
+        import types
+        out = tempfile.mkdtemp(prefix="simcases-regrade-")
+        ns = types.SimpleNamespace(regrade=evidence, only=None, out=out)
+        buf = io.StringIO()
+        sys.stdout = buf
+        try:
+            rsc.regrade(ns, "guard", "guard")
+        finally:
+            sys.stdout = old
+        rep_json = [n for n in os.listdir(out) if n.endswith(".json")]
+        counts = {}
+        if rep_json:
+            with open(os.path.join(out, rep_json[0]), "r", encoding="utf-8") as f:
+                for sc_ in json.load(f)["scenarios"]:
+                    for w in sc_["wells"]:
+                        counts[w["status"]] = counts.get(w["status"], 0) + 1
+        check(counts.get("PASS", 0) >= 90 and counts.get("FAIL", 0) == 0 and counts.get("NOREPLY", 0) == 0,
+              "regrade of the 12:01 evidence log: %s (>= 90 PASS, 0 FAIL/NOREPLY; all-STALE means the section offset is wrong)"
+              % ", ".join("%s %d" % kv for kv in sorted(counts.items())))
+    else:
+        check(False, "evidence log %s is missing" % os.path.relpath(evidence, ROOT))
 
     print("\n%s: %d check(s) failed" % ("FAIL" if fails else "PASS", len(fails)))
     return 1 if fails else 0

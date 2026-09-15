@@ -525,20 +525,25 @@ def regrade(a, stamp, started):
     P, slopes, origins, ident = unit_params(json.loads(m.group(1)))
     loops, interval = P["amplification_time"], int(round(P["timePerLoop"] / 1000.0))
     scenarios = [s for s in sc.all_scenarios(loops) if not a.only or a.only.lower() in s["id"].lower()]
-    secs = text.split(">>> getResult")[1:]
-    if len(secs) == len(scenarios) + 1:
-        secs = secs[1:]          # the backup read
-    elif len(secs) == len(scenarios) + 2:
-        secs = secs[1:-1]        # backup read + the restore's review
+    # all_secs[0] is everything before the first getResult; all_secs[j] (j >= 1) is the output of
+    # getResult number j followed by whatever was sent next (the next scenario's injections, or an
+    # upload). A getResult that no injection precedes is the backup read, not a scenario: that
+    # decides where scenario 0 starts. Counting "extra sections" instead is ambiguous - a run with
+    # --restore-from has a trailing restore read and no backup read, a plain run has both - and
+    # the earlier formula (total minus catalogue) put scenario 0 one section late whenever a
+    # restore read existed, so every well compared against the NEXT scenario's echo and was STALE.
+    all_secs = text.split(">>> getResult")
+    lead = 0 if '{"Slot":[' in all_secs[0] else 1
+    secs = [sec.split("\n>>> ")[0] for sec in all_secs[lead + 1:lead + 1 + len(scenarios)]]
     if len(secs) < len(scenarios):
-        print("%s has %d getResult sections, catalogue needs %d" % (a.regrade, len(secs), len(scenarios)))
+        print("%s has %d getResult sections after the backup read, catalogue needs %d"
+              % (a.regrade, len(secs), len(scenarios)))
         return 2
     print("regrading %s: unit %s, %d scenarios" % (a.regrade, ident["device"], len(scenarios)))
     # The unit echoes every injected message in full ('{"Slot":[...]}N'), and the injections for
-    # scenario k sit in the log BEFORE its getResult - i.e. at the end of section k-1. A well is
-    # graded only if what was sent then is byte-for-byte what the catalogue builds now.
-    all_secs = text.split(">>> getResult")
-    offset = len(all_secs) - 1 - len(secs)      # index of the section holding scenario 0's injections
+    # scenario k sit in the log BEFORE its getResult - i.e. at the end of the previous section. A
+    # well is graded only if what was sent then is byte-for-byte what the catalogue builds now.
+    offset = lead      # index of the section holding scenario 0's injections
     results = []
     for k, (s, sec) in enumerate(zip(scenarios, secs)):
         traces = sc.materialise(s, loops, interval)
