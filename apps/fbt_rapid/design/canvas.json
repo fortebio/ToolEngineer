@@ -1,0 +1,60 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 660,
+      "h": 360,
+      "title": "Hiện tại (vấn đề)"
+    },
+    {
+      "file": "OptionA.dc.html",
+      "x": 720,
+      "y": 0,
+      "w": 660,
+      "h": 360
+    },
+    {
+      "file": "OptionB.dc.html",
+      "x": 1440,
+      "y": 0,
+      "w": 660,
+      "h": 360
+    },
+    {
+      "file": "OptionC.dc.html",
+      "x": 720,
+      "y": 420,
+      "w": 660,
+      "h": 360
+    },
+    {
+      "file": "OptionD.dc.html",
+      "x": 1440,
+      "y": 420,
+      "w": 660,
+      "h": 360,
+      "title": "D · Cả ô là ô chọn — ĐÃ CHỌN"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": 420,
+      "w": 620,
+      "text": "Vấn đề: mũi tên 18px màu #4F5A68 đứng cạnh chữ cùng cỡ cùng màu — không có tín hiệu nào nói ô bấm được.\n\nRàng buộc thật của bảng này:\n· 95 máy, cột chỉ rộng ~200px ở 1280px, và phải sống được tới 640px trước khi đổi sang thẻ dọc.\n· Máy dưới v2.4.4 KHÔNG ghim riêng được — mỗi phương án phải có dạng 'không bấm được' đọc ra khác hẳn.\n· Tone đã mang nghĩa: xanh = theo bản chung, đỏ = ghim riêng. Điều khiển không được cướp mất tín hiệu đó."
+    },
+    {
+      "id": "chot",
+      "x": 1440,
+      "y": 840,
+      "w": 660,
+      "text": "ĐÃ CHỌN — dựng xong 2026-08-20.\n\nHai chi tiết chốt thêm khi làm thật:\n· Chevron mang màu chữ CHÍNH (#16202B), không phải màu chữ mờ — đây đúng là lỗi ban đầu, và nó LỌT LƯỚI ở vòng gieo lỗi đầu nên phải thêm test riêng.\n· Máy dưới v2.4.4: giữ nguyên hình dạng ô, chỉ đổi viền sang hairline nhạt và bỏ chevron. Cùng hình mà khác hẳn sức nặng, không cần ẩn đi.\n\nTrên thẻ điện thoại ô chọn chiếm TRỌN bề ngang, không chen chung hàng với firmware + ngày."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

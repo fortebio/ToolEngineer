@@ -1,0 +1,15 @@
+{
+  "name": "fbt-server-cf",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local --port 8787",
+    "schema:local": "wrangler d1 execute fbt --local --file schema.sql",
+    "schema:remote": "wrangler d1 execute fbt --remote --file schema.sql",
+    "test": "node test/contract.mjs",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

@@ -1,0 +1,9 @@
+[Unit]
+Description=FBT: hẹn giờ đồng bộ Drive backup (mỗi 30 phút)
+
+[Timer]
+OnCalendar=*:0/30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,21 @@
+Giai đoạn 1: Thiết lập server
+- Thông tin server:
+    RAM MiniPC	3.7 GB
+    CPU	4 nhân
+    Ổ cứng	113 G    Server dùng để làm gì	(web app / self-host app / chỉ DB / ...)
+- Tạo server: 
+  - server sử dụng debian linux (không desktop)
+  - Database PostgreSQL
+  - Điều khiển server từ xa bằng cách 
+    - SSH LAN
+    - tailscale
+  - 
+- Ý Tưởng phát triển server:
+    - Làm nơi lưu trữ dữ liệu khi thiết bị gửi dữ liệu tới dưới dạng json '/docs/data_sample/data_RPL.json'
+    - cho phép app flutter đọc\duyệt\xử lí dữ liệu json trên
+    - Tạo 1 cái app từ desktop windown để quản lí file/server/hiệu năng vận hành
+    - host web site
+    
+Giai đoạn 2: Vận hành và bảo mật
+
+Giai đoạn 3: Tối ưu hóa

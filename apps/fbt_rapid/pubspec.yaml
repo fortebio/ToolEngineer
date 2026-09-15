@@ -1,0 +1,45 @@
+name: RapidPlusApp
+description: "App quản lý thiết bị RAPID (Forte Rapid+): lịch sử xét nghiệm, đồ thị CT, cài đặt."
+publish_to: "none"
+version: 1.0.2+3
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.0
+  fl_chart: ^0.68.0
+  shared_preferences: ^2.2.2
+  flutter_libserialport: ^0.4.0 # đọc UART/COM (Log nhiệt)
+  file_selector: ^1.0.3 # hộp thoại chọn file (sao lưu / khôi phục)
+  archive: ^4.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    # Logo Forte Biotech — LẤY TỪ `FBT-DXD243/data/logo.png` (bản đã tách nền
+    # trắng của `FBT-DXD243/src/download.png`), KHÔNG lấy thẳng file `src/`:
+    # file gốc có nền trắng đặc, dán lên rail nền tối là một khối trắng.
+    # Không crop riêng phần dấu được — chữ "FORTE BIOTECH" nằm LỌT GIỮA cụm tam
+    # giác trên và cụm dưới, cắt là logo cụt (đã ghi trong FBT-DXD243/CLAUDE.md).
+    - assets/images/forte-logo.png
+  # Bộ font design system (Homies): DM Sans (body/UI), JetBrains Mono (số/log),
+  # Source Serif 4 (tiêu đề display). Variable font — 1 TTF/họ, Flutter tự map
+  # weight qua trục `wght`.
+  fonts:
+    - family: DM Sans
+      fonts:
+        - asset: assets/fonts/DMSans.ttf
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono.ttf
+    - family: Source Serif 4
+      fonts:
+        - asset: assets/fonts/SourceSerif4.ttf

@@ -1,0 +1,9 @@
+[Unit]
+Description=FBT: đồng bộ Drive -> kho backup (drive_sessions)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=engineer
+ExecStart=/home/engineer/fbt_server/drive_sync.sh

@@ -1,0 +1,42 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# Nền tảng sinh bởi `flutter create` (sinh lại khi cần)
+windows/
+android/
+ios/
+macos/
+linux/
+# web/: ignore bằng `web/*` (KHÔNG `web/`) để trừ được 2 file tự quản lý —
+# index.html (title/manifest + thẻ script esptool đã sửa tay, sinh lại là mất)
+# và esptool.js (bundle vendor cho mục Nạp code bản web).
+web/*
+!web/index.html
+!web/esptool.js
+# Icon + manifest thương hiệu (2026-08-19). PHẢI trừ ra: `flutter build web` đọc
+# thẳng từ `web/`, mà chúng là file BINARY không sinh lại được — clone mới mà
+# thiếu là bản web quay về icon Flutter mặc định, im lặng. Đây đúng vết xe mà
+# CLAUDE.md ghi cho `app_icon.ico` ("phải copy tay khi đóng gói").
+!web/favicon.png
+!web/manifest.json
+!web/icons/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Ảnh do golden test sinh ra KHI FAIL (masterImage/testImage/*Diff) — chỉ là bằng
+# chứng của lần chạy hỏng, không phải golden gốc. Golden gốc nằm ở test/goldens/.
+test/failures/
+
+# Ảnh chụp màn hình của skill run-fbt-rapid (driver.ps1 ghi đè mỗi lần chạy)
+_smoke.png
+
+# Log của công cụ, không phải mã nguồn
+.hallmark/log.json
