@@ -36,7 +36,9 @@ review được từng phần, không phải một khối 20 file.
 
 5. **Trước khi giao cho ai: `python tools/check.py` phải xanh.**
 
-Bàn giao bản này: [docs/BAN_GIAO_v2.4.3AT.md](docs/BAN_GIAO_v2.4.3AT.md).
+Bàn giao: **v2.4.5AT so với v2.4.4** → [docs/BAN_GIAO_v2.4.5AT.md](docs/BAN_GIAO_v2.4.5AT.md)
+(nhánh `v2.4.5at`, HEAD `d7775b1`; bản đồ 10 commit / 26 file code, 7 việc còn nợ — trong đó
+`v2.4.5at` **thiếu 10 commit guard của `v2.4.5`**). Bản trước: [docs/BAN_GIAO_v2.4.3AT.md](docs/BAN_GIAO_v2.4.3AT.md).
 
 ⚠ **Đo 2026-09-07: 12/40 guard và 10/52 link tài liệu viện dẫn trong chính file này KHÔNG TỒN TẠI** (chưa
 từng có trong git history, mọi nhánh) — tức ~25% lớp bảo vệ mà tài liệu tuyên bố là thật sự chạy, và
@@ -528,6 +530,9 @@ calib bắt đầu ở máy phải kết thúc ở máy. Firmware/client vẫn c
   thì tên **không khớp** → máy báo có bản mới → người vận hành bấm ĐỎ là **cài đè bản cũ
   tiền-`?ver=`**. Đặt đúng `fbt_v2.4.5AT.bin` lên server, hoặc giữ máy thử **ngoài mạng**. Chi tiết:
   [docs/history/2026-09-09-bump-version-v2.4.5.md](docs/history/2026-09-09-bump-version-v2.4.5.md).
+  **Nhánh `v2.4.5at` nhích thêm một nấc: `v2.4.5AT1` / `v2.4.5a1`** (`21f9331`, 11/09) — thuật toán đổi
+  ở đó (early-rise → `F`), nên **không được** dùng lại chuỗi của nhánh `v2.4.5`; server cần đúng
+  `fbt_v2.4.5AT1.bin`. Bàn giao: [docs/BAN_GIAO_v2.4.5AT.md](docs/BAN_GIAO_v2.4.5AT.md).
 - **Rollback tự động KHÔNG làm được** — `esp_ota_mark_app_valid_cancel_rollback()` cần bootloader
   build với `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE` (arduino-esp32 mặc định TẮT) mà bootloader
   **nằm ngoài đường OTA**. Gọi hàm đó chỉ tạo cảm giác có lưới an toàn. Đường cứu vẫn là
@@ -794,7 +799,11 @@ thêm tay; **đây không phải lỗi**.
 ## Thuật toán gọi kết quả (`src/Alg/`)
 
 Chữ kết quả: **P** Positive · **N** Negative · **S** Slight positive · **E** Error ·
-**B** Break · **F** Flagged (**chỉ có trên v2.4.3AT**).
+**B** Break · **F** Flagged (**từ v2.4.3AT; trên v2.4.4A / v2.4.5AT là env mặc định `esp32dev`**).
+Từ `v2.4.5at`, **`F` có HAI lý do** (`shape_flag` là mã, không phải bit): **1** = dải ngưỡng
+(`removed_by_new_gate()`, bản `a` hạ xuống `N`) · **2** = tăng sớm (qua cả hai ngưỡng, hình dạng
+nhận ra được, nhưng Ct < `MIN_CALLABLE_CT` 3.0 — **vẫn `F` ở cả hai build**, không phải âm tính).
+Giếng "tăng quá sớm" **không còn ra `!`/`E`**: `E` trả về nghĩa "phân tích không chạy được".
 
 Đường đi của một đường cong: hiệu chuẩn `(raw − origin) / slope` → trừ baseline (trung bình
 các điểm trong khoảng `baseline_start` … `+baseline_range` phút) → làm mượt Savitzky-Golay
@@ -802,13 +811,15 @@ các điểm trong khoảng `baseline_start` … `+baseline_range` phút) → l�
 là lúc tốc độ tụt còn 40% của đỉnh khi đi ngược lại, `increase` là mức plateau trừ mức tại
 điểm chuyển.
 
-| Tham số | v2.4.3 | v2.4.3AT |
-| --- | --- | --- |
-| Số vòng | 120 (40 phút) | **90 (30 phút)** |
-| `min_increase` | 20 | **25** |
-| `min_sharpness` | 5 | **8** |
-| baseline | 3 + 4 | **2 + 2** |
-| Chữ `F` | không có | **có** |
+| Tham số | v2.4.3 / v2.4.4 | v2.4.3AT / v2.4.4A | v2.4.5AT (`v2.4.5at`) |
+| --- | --- | --- | --- |
+| Số vòng | 120 (40 phút) | **90 (30 phút)** | 90 |
+| `min_increase` | 20 | **25** | 25 |
+| `min_sharpness` | 5 | **8** | 8 |
+| baseline | 3 + 4 | **2 + 2** | 2 + 2 |
+| Chữ `F` | không có | **có** (1 lý do) | **2 lý do** |
+| Giếng đã khuếch đại, Ct sớm | `< 4.0` → **`E`** (`detection_margin_time`) | `< 4.0` → `E` | `< 3.0` → **`F`** lý do 2, `≥ 3.0` → **`P`** (`MIN_CALLABLE_CT`, `Algo.h`) |
+| Rising-scan màn hình vs upload | mẫu 4 vs 12 (lệch) | lệch | **cùng** `marginToSampleIndex()` |
 
 ⚠️ Sửa giá trị mặc định trong `define.h` **KHÔNG** tới được máy đã cấu hình — phải qua di
 trú EEPROM, xem `ADDR_CONFIG_REV`. Máy nào `GET /selfcheck` báo 40 phút là chưa di trú.
@@ -820,16 +831,22 @@ Tài liệu (đọc theo thứ tự này):
 3. [docs/history/2026-08-16-min-sharpness-8-tail-climb-window-rate.md](docs/history/2026-08-16-min-sharpness-8-tail-climb-window-rate.md) — vì sao ngưỡng 8.0, và TAIL climb repair
 4. [docs/history/2026-08-15-di-tru-cau-hinh-va-tu-kiem-tra.md](docs/history/2026-08-15-di-tru-cau-hinh-va-tu-kiem-tra.md) — di trú cấu hình + tự kiểm tra
 5. ⚠️ [docs/history/2026-08-21-asf-va-quy-tac-hinh-dang.md](docs/history/2026-08-21-asf-va-quy-tac-hinh-dang.md) — **KHÔNG cài bản này lên máy chạy ASF**
+6. [docs/history/2026-09-11-dieu-kien-tra-error-tang-som.md](docs/history/2026-09-11-dieu-kien-tra-error-tang-som.md)
+   — **chỉ `v2.4.5at`** (4 commit `21f9331..d7775b1`): `MIN_CALLABLE_CT` tách khỏi
+   `detection_margin_time` rồi hạ 4.0 → **3.0**; phép thử Ct đưa xuống **SAU** bằng chứng hình dạng;
+   `E` → `F` lý do 2; `shape_flag` thành mã lý do; TFT **bật lại** nhánh `F` + `| ?? |` (`cf6e66e` đã
+   comment); hai đường `check_risingData` cùng đơn vị; payload mang **7 trường** (`shape_flag`,
+   `rise_width`, `window_rate`, `arm_width`, `suspect_score`, `climbs_fixed`, `climb_first_i`).
+   Bằng chứng: 45 lượt sửa ERP 28/08–10/09, **15/16** giếng dính cổng Ct-sớm bị người duyệt lật sang
+   `P`, tất cả Ct 3.0–3.7, 12/15 là chứng dương. ⚠ **Chưa phát lại bộ nhãn** (tool vắng trên nhánh),
+   **chưa có guard**, **chưa chạy máy thật**.
 
-**Kế hoạch đang mở (2026-09-10) — chưa có dòng code nào, cả hai đều chờ số:**
+**Kế hoạch đang mở (2026-09-10) — chờ số:** (kế hoạch *điều kiện trả `!`* đã landed → doc 6 ở trên;
+file [docs/plan/2026-09-10-dieu-kien-tra-error-tang-som.md](docs/plan/2026-09-10-dieu-kien-tra-error-tang-som.md)
+giữ lại lập luận trung tâm — **`baseline()` trừ một HẰNG SỐ** nên cửa sổ baseline không ảnh hưởng
+một phép so nào trong `predict_outcome_core()`, bất biến `baseline_start + baseline_range ==
+detection_margin_time` không ràng buộc gì lên sàn Ct.)
 
-- [docs/plan/2026-09-10-dieu-kien-tra-error-tang-som.md](docs/plan/2026-09-10-dieu-kien-tra-error-tang-som.md)
-  — thiết kế lại điều kiện trả **`!`** (outcome `Error`), nhánh *"tăng quá sớm"*
-  (`Ct < detection_margin_time`). Phát hiện trung tâm: **`baseline()` trừ một HẰNG SỐ**, nên cửa sổ
-  baseline **không ảnh hưởng một phép so nào** trong `predict_outcome_core()` — tức lập luận
-  `baseline_start + baseline_range == detection_margin_time` (`define.h:241-245`) **không đứng được**,
-  và ngưỡng 4.0 là quyết định lâm sàng tự do di chuyển. Kèm: nhánh này chặn **trước** bằng chứng hình
-  dạng nên phủ quyết cả sigmoid có pha lag hợp lệ.
 - [docs/plan/2026-09-10-auto-gain-auto-origin.md](docs/plan/2026-09-10-auto-gain-auto-origin.md)
   — chất lượng đọc cảm biến quang. **Bản sửa 2026-09-10 sau khi ĐO** (`python
   tools/probe_sensor_noise.py sheet/test.json` tái lập mọi con số): nhiễu là **CỘNG TÍNH**, không
@@ -1326,6 +1343,7 @@ g++ -O2 -std=c++17 -I.pio/libdeps/esp32dev/ArduinoJson/src tools/test_json_key_p
 node tools/test_profile_minutes.js          # guard: card Profile nhập PHÚT nhưng lưu giây/vòng, clamp 130 giữ nguyên
 python tools/test_status_coverage.py        # guard: web không báo "Idle" khi máy đang chờ người; fillStatus/fillActions cùng tập state
 python tools/test_slot_label_reset.py       # guard: nhãn slot bị xoá khi vào run mới (không upload tên bệnh run trước)
+python tools/test_sim_cases.py              # guard: bộ kịch bản mô phỏng đúng ý đồ ở 5 slope, file simcases/ không lệch `gen`, ngưỡng mirror đọc từ source
 node tools/test_error_table.js              # guard: Error table thay chỗ chart, đủ 10 slot, mã trùng máy (cần mock --reboot)
 node tools/test_home_error_table.js         # guard: hết run bấm ĐỎ -> Home đổi chart sang bảng lỗi (cần mock --full)
 g++ -O2 -std=c++17 tools/test_wifi_bars.cpp -o t && ./t          # vach song WiFi tren TFT: nguong khop web + chong nhay
@@ -1704,6 +1722,46 @@ Mẫu sẵn có: `tools/slots.txt` (10 slot × 120 vòng).
 stdlib, poll DOM nên không race SSE). Đi hết: heater → waitamp (Start khoá, đặt tên) →
 Confirm → **bấm Start** → amplification đủ 120 vòng → finished (chart ở lại) → Result
 (đọc lại) → **bấm White** (chart mới mất).
+
+### Kịch bản mô phỏng đánh giá KẾT QUẢ trên máy thật (COM) — `tools/sim_cases.py` + `tools/run_sim_cases.py`
+
+```bash
+python tools/sim_cases.py list                    # 11 kịch bản × 10 giếng, ý đồ từng giếng
+python tools/sim_cases.py screen -v               # MIRROR pre-screen: mọi giếng đúng nhánh ở CẢ 5 slope đội máy
+python tools/sim_cases.py gen                     # sinh lại tools/simcases/ (.cal.txt / .raw.txt / .expect.json / README.md)
+python tools/run_sim_cases.py COM7                # ~6 phút: ParaRead → nạp 10 slot/kịch bản → getResult → chấm → docs/reports/simcases/
+python tools/run_sim_cases.py COM7 --only S06     # một kịch bản
+python tools/run_sim_cases.py COM7 --regrade docs/reports/simcases/<log>.serial.log   # chấm lại log cũ, không cần máy
+python tools/run_sim_cases.py COM7 --restore-from docs/reports/simcases/<log>.serial.log   # trả lại record run thật từ log
+```
+
+**Máy là oracle, mirror chỉ để chọn recipe có biên.** Máy này không có g++ nên không link được `Algo.cpp`
+host-side; `sim_cases.py` chép lại thuật toán (đánh dấu MIRROR) **chỉ** để pre-screen — máy và mirror lệch
+thì máy là phép đo. Ba trường kỳ vọng: `expect` (ý đồ) · `accept` (giếng cố ý sát biên) · `known` (điểm yếu
+đã biết, máy hôm nay trả gì; không tính đậu/rớt). Dữ liệu sát thực tế theo số đo (nền 145–560, nhiễu cộng
+tính σ≈1,5 count, warm-up leo từ dưới, bậc đồng bộ vòng 6, trôi ≤25/30′, dương A·k/4 = 20–60/phút, ASF 4–8).
+
+- **Runner sinh lại dữ liệu theo đúng slope/origin/số vòng/ms-vòng của máy đang cắm** (`ParaRead`), không gửi
+  `.raw.txt` đã commit (file đó ở slope danh nghĩa 1,4, dành cho `send_slots.py`). Máy phải **rảnh** ở màn
+  chính; `getResult` đi qua `escreenReview` → **không upload**; xong bấm TRẮNG (reboot).
+- **Nạp là ghi đè record run cuối trong EEPROM.** Runner đọc record cũ bằng `getResult` trước và nạp trả lại
+  sau (`raw_data` in ra là **sau** `neutralise_climbs` → run cũ có climb thì trả lại bản đã vá, báo cáo ghi rõ).
+  Không dùng `EEPROMRead` để backup: `sprintf(tmp[4], "%02X", (char)c)` tràn với byte ≥ 0x80.
+- **Mirror phải nhìn dữ liệu như máy nhìn**: raw nguyên → `(float(raw) − origin)/slope` **float32**
+  (`sensor6035.cpp:293`), và quét 5 slope (1,0…2,2). Bậc +15 từng **bằng đúng** `4×range` tới bit cuối
+  float32 trên RPL01015 → máy không vá, mirror double thì vá. Recipe không có biên, không phải lỗi máy.
+- **JSON Serial của `bResultGet()` luôn in `climbs_fixed 0`** — `toJSON()` (`sensor6035.cpp:418`) chạy
+  **trước** hai phép gán (`:427-428`); đường upload gán trước (`:613`) nên payload đúng. Runner đếm climb từ
+  dòng `Slot N: neutralised K vertical climb(s)`. Sửa = dời hai dòng gán lên trên `toJSON()` (chưa làm).
+- **Serial máy đan xen ở mức BYTE**: `[stack]` là 8 lần `Serial.print` riêng (`main.cpp:471-480`), cùng
+  `[len]`, `finish one round maintenance`, `[dash]` rơi vào giữa hai chữ số của JSON (9/120 record lần đầu).
+  Parser gỡ mảnh **biết trước** (không có xuống dòng) rồi quét tiền tố JSON theo schema → 120/120.
+- **Đo được trên RPL01015 (15/09)**: 110 giếng cùng chữ với mirror, Ct lệch ≤ 1 vòng; `MIN_CALLABLE_CT` 3,0
+  sống (Ct 3,33 → P); **bậc +32 sạch → N đã vá, KHÔNG phải B** — `B` chỉ còn khi `2,5×range ≤ jump <
+  4×range` (nền nhiễu, +32 σ3 → B); **+40 σ4,5 → P** (`known`, họ lỗi RPL01004 trên giếng nhiễu);
+  **rise xong trước 4′ → N vô hình**; Ct thuật toán ≈ chân sườn (`slots.txt` slot 6 = 4,33, không phải ~6,7).
+  Chi tiết + còn nợ (6 giếng đổi recipe chờ nạp lại, record RPL01015 chưa trả):
+  [docs/history/2026-09-15-kich-ban-mo-phong-danh-gia-ket-qua.md](docs/history/2026-09-15-kich-ban-mo-phong-danh-gia-ket-qua.md).
 
 ### Trên máy thật
 

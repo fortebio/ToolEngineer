@@ -1,0 +1,221 @@
+{
+ "id": "S03_slight_positive_boundary",
+ "title": "Late risers straddling min_slight_positive_time = 22 min",
+ "why": "S is decided by ONE number, the Ct, against 22.0. Wells sit at 20.5 / 21.3 / 22.7 / 24 / 26 / 27.5 so both sides of the line are exercised; the 21.3 and 22.7 wells are close enough that either letter is tolerated on the unit (the design Ct is analytic, SG smoothing moves it by up to a round).",
+ "loops": 90,
+ "interval_s": 20,
+ "slopes": [
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "wells": [
+  {
+   "expect": "P",
+   "note": "Ct 20.5",
+   "ct": [
+    19.5,
+    21.5
+   ],
+   "accept": [
+    "P",
+    "S"
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 20.33,
+    "increase": 82.5,
+    "sharpness": 25.0,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 31
+   }
+  },
+  {
+   "expect": "P",
+   "note": "Ct 21.3 - boundary",
+   "ct": [
+    20.3,
+    22.3
+   ],
+   "accept": [
+    "P",
+    "S"
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 21.0,
+    "increase": 80.8,
+    "sharpness": 25.71,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 59
+   }
+  },
+  {
+   "expect": "S",
+   "note": "Ct 22.7 - boundary",
+   "ct": [
+    21.7,
+    23.7
+   ],
+   "accept": [
+    "S",
+    "P"
+   ],
+   "mirror": {
+    "letter": "S",
+    "ct": 22.67,
+    "increase": 76.9,
+    "sharpness": 27.61,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 19
+   }
+  },
+  {
+   "expect": "S",
+   "note": "Ct 24.0",
+   "ct": [
+    23.0,
+    25.0
+   ],
+   "mirror": {
+    "letter": "S",
+    "ct": 23.67,
+    "increase": 85.5,
+    "sharpness": 27.05,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 38
+   }
+  },
+  {
+   "expect": "S",
+   "note": "Ct 26.0, plateau not reached",
+   "ct": [
+    25.0,
+    27.0
+   ],
+   "mirror": {
+    "letter": "S",
+    "ct": 26.33,
+    "increase": 69.8,
+    "sharpness": 26.97,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 32
+   }
+  },
+  {
+   "expect": "S",
+   "note": "Ct 27.5, rise cut by end of run",
+   "ct": [
+    26.2,
+    28.8
+   ],
+   "accept": [
+    "S",
+    "N"
+   ],
+   "mirror": {
+    "letter": "S",
+    "ct": 27.0,
+    "increase": 53.8,
+    "sharpness": 28.4,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 17
+   }
+  },
+  {
+   "expect": "S",
+   "note": "Ct 24.0, weak (A 45)",
+   "ct": [
+    23.0,
+    25.0
+   ],
+   "mirror": {
+    "letter": "S",
+    "ct": 23.67,
+    "increase": 41.4,
+    "sharpness": 12.76,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 67
+   }
+  },
+  {
+   "expect": "P",
+   "note": "Ct 19.0, control P",
+   "ct": [
+    18.0,
+    20.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 19.0,
+    "increase": 84.1,
+    "sharpness": 27.6,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 55
+   }
+  },
+  {
+   "expect": "N",
+   "note": "creep, no rise",
+   "mirror": {
+    "letter": "N",
+    "ct": 20.33,
+    "increase": 4.1,
+    "sharpness": 2.99,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "flat",
+   "mirror": {
+    "letter": "N",
+    "ct": 13.0,
+    "increase": 2.5,
+    "sharpness": 3.41,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 58
+   }
+  }
+ ]
+}

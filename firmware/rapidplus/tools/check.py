@@ -57,6 +57,7 @@ WHAT = {
     "test_tft_widths.py":            "no TFT string overflows 320 px",
     "test_i18n_keys.py":             "every device key exists in both languages",
     "test_config_migration.py":      "define.h / migration / self-check agree",
+    "test_sim_cases.py":             "simulated-run dataset on intent at 5 slopes; simcases/ matches gen",
     "test_upload_targets.py":        "every upload reaches all three endpoints",
     "test_profile_minutes.js":       "Profile card shows minutes, stores seconds/loops",
     "test_readcmd_overflow.cpp":     "readCommand cannot overflow recvData[2048]",

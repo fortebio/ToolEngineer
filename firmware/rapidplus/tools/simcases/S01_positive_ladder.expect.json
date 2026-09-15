@@ -1,0 +1,205 @@
+{
+ "id": "S01_positive_ladder",
+ "title": "Dilution ladder: eight clean positives Ct 5..20 min, two NTC",
+ "why": "Ct accuracy and the P/S boundary from the reagent side: a run the lab could in principle reproduce. Sharpness 25..38, increase 60..110 - well clear of every gate.",
+ "loops": 90,
+ "interval_s": 20,
+ "slopes": [
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "wells": [
+  {
+   "expect": "P",
+   "note": "Ct 5.0, PC-like",
+   "ct": [
+    4.0,
+    6.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 4.67,
+    "increase": 119.3,
+    "sharpness": 49.61,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "Ct 7.0, slots.txt slot 6",
+   "ct": [
+    6.0,
+    8.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 6.67,
+    "increase": 93.5,
+    "sharpness": 34.13,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 16
+   }
+  },
+  {
+   "expect": "P",
+   "note": "Ct 9.0",
+   "ct": [
+    8.0,
+    10.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 8.67,
+    "increase": 86.5,
+    "sharpness": 24.73,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 22
+   }
+  },
+  {
+   "expect": "P",
+   "note": "Ct 11.0",
+   "ct": [
+    10.0,
+    12.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 11.0,
+    "increase": 80.2,
+    "sharpness": 24.64,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 26
+   }
+  },
+  {
+   "expect": "P",
+   "note": "Ct 13.0, high level",
+   "ct": [
+    12.0,
+    14.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 12.67,
+    "increase": 79.3,
+    "sharpness": 20.1,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 28
+   }
+  },
+  {
+   "expect": "P",
+   "note": "Ct 15.0, low level",
+   "ct": [
+    14.0,
+    16.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 14.67,
+    "increase": 75.3,
+    "sharpness": 21.06,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 42
+   }
+  },
+  {
+   "expect": "P",
+   "note": "Ct 18.0",
+   "ct": [
+    17.0,
+    19.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 17.67,
+    "increase": 71.2,
+    "sharpness": 18.78,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 51
+   }
+  },
+  {
+   "expect": "P",
+   "note": "Ct 20.0, last P before S",
+   "ct": [
+    19.0,
+    21.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 20.0,
+    "increase": 64.5,
+    "sharpness": 20.89,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 55
+   }
+  },
+  {
+   "expect": "N",
+   "note": "NTC flat",
+   "mirror": {
+    "letter": "N",
+    "ct": 13.67,
+    "increase": 3.3,
+    "sharpness": 2.8,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "NTC flat, noisy",
+   "mirror": {
+    "letter": "N",
+    "ct": 8.67,
+    "increase": 4.5,
+    "sharpness": 4.74,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  }
+ ]
+}

@@ -1,0 +1,190 @@
+{
+ "id": "S06_breaks_and_climbs",
+ "title": "Steps, spikes and dropouts on negatives: Break vs neutralised climb",
+ "why": "BREAK_JUMP_THRESHOLD 20 splits a step into two fates: >= 20 on a flat trace is a Break; 8..20 is repaired by neutralise_climbs and the well is read as what is left. Each well is one row of that table, including the RPL01004 staircase that used to read Positive.",
+ "loops": 90,
+ "interval_s": 20,
+ "slopes": [
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "wells": [
+  {
+   "expect": "N",
+   "note": "+32 at 10 min on a quiet trace: repaired as an offset, NOT a Break (repair runs first, no upper size)",
+   "climbs": 1,
+   "mirror": {
+    "letter": "N",
+    "ct": 9.0,
+    "increase": 2.6,
+    "sharpness": 2.34,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "+12 at 10 min (sigma 0.7) -> offset repaired",
+   "climbs": 1,
+   "mirror": {
+    "letter": "N",
+    "ct": 22.67,
+    "increase": 1.0,
+    "sharpness": 1.43,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "RPL01004 s2: +19.3 at 5 min, sigma 0.8 -> repaired, not P",
+   "climbs": 1,
+   "mirror": {
+    "letter": "N",
+    "ct": 26.33,
+    "increase": 1.1,
+    "sharpness": 1.36,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "+26 single-reading spike -> repaired",
+   "climbs": 1,
+   "mirror": {
+    "letter": "N",
+    "ct": 10.33,
+    "increase": 2.4,
+    "sharpness": 3.15,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 29
+   }
+  },
+  {
+   "expect": "N",
+   "note": "dropout -40 for 3 readings -> repaired",
+   "climbs": 1,
+   "mirror": {
+    "letter": "N",
+    "ct": 12.67,
+    "increase": 2.8,
+    "sharpness": 2.95,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "staircase 3 x +18 -> repaired",
+   "climbs": 3,
+   "mirror": {
+    "letter": "N",
+    "ct": 27.33,
+    "increase": 0.5,
+    "sharpness": 1.11,
+    "climbs": 3,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "-30 at 10 min: invisible to checkJump, repaired",
+   "climbs": 1,
+   "mirror": {
+    "letter": "N",
+    "ct": 9.33,
+    "increase": 1.9,
+    "sharpness": 2.64,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "+25 in the last 6 readings -> tail hold",
+   "climbs": 1,
+   "mirror": {
+    "letter": "N",
+    "ct": 25.67,
+    "increase": 2.3,
+    "sharpness": 2.69,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 65
+   }
+  },
+  {
+   "expect": "B",
+   "note": "+32 on sigma 3: 2.5x < jump < 4x local range -> Break",
+   "accept": [
+    "B",
+    "N"
+   ],
+   "mirror": {
+    "letter": "B",
+    "ct": 0.0,
+    "increase": -1.0,
+    "sharpness": -1.0,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 39,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "B",
+   "note": "+40 on sigma 4.5: dodges the climb gate (4x range) AND checkJump (post-step slope > 1.0) -> the scorer reads the smoothed edge as a rise",
+   "accept": [
+    "B",
+    "N"
+   ],
+   "known": "P",
+   "mirror": {
+    "letter": "P",
+    "ct": 16.67,
+    "increase": 48.1,
+    "sharpness": 30.43,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 81
+   }
+  }
+ ]
+}

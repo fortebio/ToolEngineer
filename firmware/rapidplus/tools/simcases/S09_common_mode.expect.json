@@ -1,0 +1,181 @@
+{
+ "id": "S09_common_mode",
+ "title": "Shared wobble and shared steps across all ten wells, two of them positive",
+ "why": "probe_sensor_noise.py measured 64% common component on one unit and 9% on another. Calls are per well; a shared move must not become ten detections, and must not hide the two real ones.",
+ "loops": 90,
+ "interval_s": 20,
+ "slopes": [
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "wells": [
+  {
+   "expect": "P",
+   "note": "P under common-mode",
+   "ct": [
+    7.0,
+    9.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 8.0,
+    "increase": 91.0,
+    "sharpness": 33.87,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 21
+   }
+  },
+  {
+   "expect": "N",
+   "note": "shared only",
+   "mirror": {
+    "letter": "N",
+    "ct": 16.0,
+    "increase": 6.2,
+    "sharpness": 5.48,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "shared only",
+   "mirror": {
+    "letter": "N",
+    "ct": 15.67,
+    "increase": 8.5,
+    "sharpness": 6.91,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "shared only",
+   "mirror": {
+    "letter": "N",
+    "ct": 15.67,
+    "increase": 7.6,
+    "sharpness": 6.96,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 30
+   }
+  },
+  {
+   "expect": "P",
+   "note": "P under common-mode",
+   "ct": [
+    13.0,
+    15.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 14.0,
+    "increase": 67.0,
+    "sharpness": 24.93,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 40
+   }
+  },
+  {
+   "expect": "N",
+   "note": "shared only",
+   "mirror": {
+    "letter": "N",
+    "ct": 21.0,
+    "increase": 8.5,
+    "sharpness": 5.24,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 62
+   }
+  },
+  {
+   "expect": "N",
+   "note": "shared only",
+   "mirror": {
+    "letter": "N",
+    "ct": 15.67,
+    "increase": 7.3,
+    "sharpness": 6.07,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "shared only",
+   "mirror": {
+    "letter": "N",
+    "ct": 16.0,
+    "increase": 7.6,
+    "sharpness": 6.96,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 46
+   }
+  },
+  {
+   "expect": "N",
+   "note": "shared only",
+   "mirror": {
+    "letter": "N",
+    "ct": 16.0,
+    "increase": 5.3,
+    "sharpness": 5.28,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 60
+   }
+  },
+  {
+   "expect": "N",
+   "note": "shared only",
+   "mirror": {
+    "letter": "N",
+    "ct": 22.0,
+    "increase": 8.3,
+    "sharpness": 6.29,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  }
+ ]
+}

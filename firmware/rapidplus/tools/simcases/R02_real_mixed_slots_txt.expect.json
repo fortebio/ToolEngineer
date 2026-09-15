@@ -1,0 +1,177 @@
+{
+ "id": "R02_real_mixed_slots_txt",
+ "title": "Real calibrated run tools/slots.txt (10 x 120), one clean positive",
+ "why": "The run the web mock replays. Slot 6 is the reference positive; three creeping wells are reported, not asserted.",
+ "loops": 90,
+ "interval_s": 20,
+ "slopes": [
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "wells": [
+  {
+   "expect": "N",
+   "note": "flat 146",
+   "mirror": {
+    "letter": "N",
+    "ct": 9.0,
+    "increase": 4.4,
+    "sharpness": 4.68,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 28
+   }
+  },
+  {
+   "expect": "N",
+   "note": "flat 186, noisy",
+   "mirror": {
+    "letter": "N",
+    "ct": 14.0,
+    "increase": 1.8,
+    "sharpness": 2.05,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "?",
+   "note": "creep +47 with late knee: reader cannot call it",
+   "mirror": {
+    "letter": "N",
+    "ct": 28.33,
+    "increase": 8.9,
+    "sharpness": 8.64,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "flat 465 after warm-up",
+   "mirror": {
+    "letter": "N",
+    "ct": 19.33,
+    "increase": 4.4,
+    "sharpness": 3.76,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 58
+   }
+  },
+  {
+   "expect": "N",
+   "note": "flat 444",
+   "mirror": {
+    "letter": "N",
+    "ct": 24.33,
+    "increase": 3.3,
+    "sharpness": 3.34,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "P",
+   "note": "clean P, algorithm Ct ~4.3 (40%-of-peak-slope), rise 107",
+   "ct": [
+    3.5,
+    5.5
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 4.33,
+    "increase": 70.3,
+    "sharpness": 23.4,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "N",
+   "note": "flat 361 after warm-up",
+   "mirror": {
+    "letter": "N",
+    "ct": 4.67,
+    "increase": 2.4,
+    "sharpness": 2.61,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "?",
+   "note": "creep +20: reader cannot call it",
+   "mirror": {
+    "letter": "N",
+    "ct": 26.67,
+    "increase": 4.7,
+    "sharpness": 3.13,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "?",
+   "note": "creep +21: reader cannot call it",
+   "mirror": {
+    "letter": "N",
+    "ct": 28.33,
+    "increase": 2.8,
+    "sharpness": 3.24,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "flat 558",
+   "mirror": {
+    "letter": "N",
+    "ct": 26.0,
+    "increase": 4.0,
+    "sharpness": 4.14,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  }
+ ]
+}
