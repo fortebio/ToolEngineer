@@ -260,7 +260,7 @@ if ($haveB) { Say "  bo qua (da co)" "DarkGray" } else {
     [IO.File]::WriteAllLines($repFile, ($tokens | ForEach-Object { "$_==>***REMOVED***" }), (New-Object Text.ASCIIEncoding))
   }
   if (-not $SkipFilterRepo) {
-    G clone -q --mirror $SrcB $mirror
+    G clone -q --mirror --no-local $SrcB $mirror   # --no-local: filter-repo tu choi clone hardlink
     Write-Host ("  {0} -m git_filter_repo --invert-paths --path src/secrets.h   (trong {1})" -f $Python, $mirror) -ForegroundColor DarkGray
     if (-not $DryRun) {
       Push-Location $mirror
