@@ -843,6 +843,57 @@ def build_scenarios():
             well(negative(base=500, warm=0, steps=[(9, 45.0)]), "N", "shared only, step at round 9", climbs=1),
         ]))
 
+    # S10 - the Ct floor against the left-arm clamp. d7775b1 lowered MIN_CALLABLE_CT to 3.0 so
+    # that early risers report Positive, but find_sigmoidal_feature() still bounds the left-arm
+    # search at discard_index - 1 (Algo.cpp:774), i.e. 3.67 min at 20 s/round. For a logistic rise
+    # the 50%-of-peak arm sits 0.3/k min after the 40% crossing (the Ct), so an ordinary sigmoid
+    # with Ct < ~3.4 has its arm before the clamp, fails detected_shape() and is called E - the
+    # label the 11/09 change set out to abolish for real reactions. The mirror map (3 seeds x
+    # 5 slopes, k 0.8..3.0, A 40..140) puts the E/P edge at reported Ct 3.33/3.67 for k >= 1.0;
+    # F reason 2 is reachable only by wide rises (k <= 0.7) or two-stage shapes. Each well below
+    # is 35/35 on the mirror (7 seeds x 5 slopes); `known` records what the unit answers today.
+    PC = dict(A=140, k=1.5, base=380, warm=40)
+    S.append(dict(
+        id="S10_ct_floor_ladder",
+        title="Ct floor 3.0 vs the 3.67-min left-arm clamp: Ct x steepness ladder of a positive control",
+        why="MIN_CALLABLE_CT went 4.0 -> 3.0 (d7775b1) on 15 ERP wells with Ct 3.0..3.7 that reviewers "
+            "flipped to P. But the left arm is still searched only from discard_index-1 (3.67 min), so "
+            "a textbook sigmoid with Ct 3.0..3.33 fails the shape test and reads E, not P; below 3.0 it "
+            "reads E, not F/2. This ladder measures exactly where the unit's E/P edge is, per steepness.",
+        wells=[
+            well(positive(2.67, **PC), "F", "PC-like, reported Ct 2.33-2.67: real reaction under the floor -> intent F/2, unit E (arm before 3.67)", flag=2, ct=(1.5, 2.99), known="E"),
+            well(positive(3.0, **PC), "F", "PC-like, reported Ct 2.67: intent F/2, unit E", flag=2, ct=(1.5, 2.99), known="E"),
+            well(positive(3.33, **PC), "P", "PC-like, reported Ct 3.00 - ON the floor: intent P, unit E (arm at ~3.2 min < clamp)", ct=(3.0, 3.67), known="E"),
+            well(positive(3.67, **PC), "P", "PC-like, reported Ct 3.33: arm lands on index 11 -> P (first P of the ladder)", ct=(3.0, 3.67)),
+            well(positive(4.0, **PC), "P", "PC-like, reported Ct 3.67-4.0", ct=(3.33, 4.33)),
+            well(positive(4.33, **PC), "P", "PC-like, reported Ct 4.0", ct=(3.67, 4.33)),
+            well(positive(3.6, A=140, k=0.6, base=380, warm=40), "P", "wide rise (k 0.6): arm 0.5 min after Ct, clears the clamp although Ct reads 3.0-4.0 (noisy on a slow rise)", ct=(3.0, 4.0)),
+            well(positive(3.33, A=140, k=2.0, base=380, warm=40), "P", "steeper (k 2.0), reported Ct 3.00: intent P, unit E", ct=(3.0, 3.67), known="E"),
+            well(positive(3.67, A=140, k=3.0, base=380, warm=40), "P", "very steep (k 3.0), reported Ct 3.33: intent P, unit E - the clamp bites up to 3.33 here", ct=(3.0, 3.67), known="E"),
+            well(positive(4.0, A=140, k=3.0, base=380, warm=40), "P", "very steep (k 3.0), reported Ct 3.67: P", ct=(3.33, 4.0)),
+        ]))
+
+    # S11 - the same region with what the field adds to a curve.
+    S.append(dict(
+        id="S11_ct_floor_field",
+        title="Around the 3.0 floor with field shapes: noise, big warm-up, the 3-min sync step, a spike, two-stage, optical transient",
+        why="Positive controls are the fastest wells on the plate (12/15 of the ERP wells), so they meet "
+            "every instrument artefact at the worst time: the 3.0-min synchronous step of RPL01015 lands "
+            "right on their rise. Which artefacts move the verdict, which only move the Ct, and which "
+            "turn an E into a P by accident.",
+        wells=[
+            well(positive(3.8, A=150, k=1.3, base=380, warm=60, noise=3.0), "P", "PC, sigma 3.0: noise does not move the E/P edge", ct=(3.0, 4.0)),
+            well(positive(3.9, A=150, k=1.3, base=380, warm=250, warm_tau=2.5), "P", "PC under a 250-unit, tau 2.5 warm-up (large optical transient) - still P", ct=(3.0, 4.0)),
+            well(positive(3.7, A=150, k=1.3, base=380, warm=60, post=1.5), "P", "PC with 1.5/min creep after the plateau", ct=(3.0, 4.0)),
+            well(positive(3.7, A=150, k=1.3, base=380, warm=0, steps=[(9, 50.0)]), "P", "PC + RPL01015's +50 sync step at round 9 (flat start): repaired, Ct moves 3.33 -> 4.00", ct=(3.67, 4.33), climbs=1),
+            well(positive(3.3, A=150, k=1.3, base=380, warm=0, steps=[(9, 50.0)]), "P", "same rise as S10 slot 3 (E without the step): the repair pushes Ct to 4.0 and opens the P branch by accident", ct=(3.67, 4.33), climbs=1),
+            well(positive(4.0, A=150, k=1.3, base=380, warm=40, steps=[(9, 50.0)]), "F", "PC (Ct 4.0) + the same step but with a warm-up tail: the repair refuses, step+rise read as one -> F/2 with a bogus Ct 1.67 (flag right, number wrong); a noise-edge well, P Ct 4.0-4.33 in 25/35 mirror draws", flag=2, accept="P", climbs=0),
+            well(positive(3.7, A=150, k=1.3, base=380, warm=0, spikes=[(10, 40.0, 2)]), "P", "PC + two-round +40 spike at 3.33 min: repaired, Ct pushed late (4.33-5.0)", ct=(4.0, 5.33)),
+            well(dict(base=300, warm=40, noise=1.5, sig=[(50, 1.6, 3.4), (110, 2.2, 5.6)], post=0.8), "P", "weak lead-in (50) at 3.4 then the main rise at 5.6: the lead-in supplies the left arm -> P, Ct 3.33-3.67", ct=(3.0, 4.0)),
+            well(positive(5.0, A=150, k=1.3, base=380, warm=40, steps=[(9, 50.0)]), "P", "un-repaired 3-min step ahead of a 5.0 rise: harmless, P Ct 4.67-5.0", ct=(4.33, 5.33)),
+            well(negative(base=460, warm=300, warm_tau=3.0), "N", "optical warm-up transient alone, 300 units tau 3 rounds from 160 (derivative peak ~1 min) - the sub-3.0 noise source the 11/09 note names -> N"),
+        ]))
+
     return S
 
 
@@ -903,6 +954,44 @@ def real_scenarios(loops):
                 "wells are reported, not asserted.",
             wells=[dict(cal=rows[i][:loops], expect=exp[i], note=notes[i],
                         **({"ct": [3.5, 5.5]} if i == 5 else {})) for i in range(10)],
+            real=True))
+
+        # R03 - the same real positive moved earlier one round at a time. The most realistic
+        # Ct < 4 curve there is: a genuine rise (107 units, Ct 4.33 as the unit reads it) with
+        # its own noise and warm-up, and nothing synthetic about its shape. Dropping the first n
+        # samples and holding the last value pads the tail; the mirror puts the left arm on
+        # index 13 / 12 / 11 for shifts 0 / 1 / 2 and at -1 (E) from shift 3 on.
+        def shifted(row, n):
+            r = row[n:] + [row[-1]] * n
+            return r[:loops]
+        pos_row = rows[5]
+        shifts = [
+            (0, "P", (4.0, 4.67), None, "slot 6 as captured: Ct 4.33"),
+            (1, "P", (3.67, 4.33), None, "-0.33 min: Ct 4.0"),
+            (2, "P", (3.33, 4.0), None, "-0.67 min: Ct 3.67, left arm exactly at the clamp (index 11)"),
+            (3, "P", (3.0, 3.67), "E", "-1.0 min: Ct 3.33 - intent P (>= floor), unit E: arm before 3.67"),
+            (4, "P", (3.0, 3.33), "E", "-1.33 min: Ct 3.00 - ON the floor, intent P, unit E"),
+            (5, "F", (1.5, 2.99), "E", "-1.67 min: Ct 2.67 - intent F/2, unit E"),
+            (6, "F", (1.5, 2.99), "E", "-2.0 min: Ct 2.33 - intent F/2, unit E"),
+            (7, "F", (1.5, 2.99), "E", "-2.33 min: Ct 2.0 - intent F/2, unit E"),
+        ]
+        wells = []
+        for n, exp_, band, known, note in shifts:
+            w = dict(cal=shifted(pos_row, n), expect=exp_, note=note, ct=list(band))
+            if exp_ == "F":
+                w["flag"] = 2
+            if known:
+                w["known"] = known
+            wells.append(w)
+        wells.append(dict(cal=shifted(rows[0], 3), expect="N", note="slot 1 (flat 146) shifted 3: N"))
+        wells.append(dict(cal=shifted(rows[9], 6), expect="N", note="slot 10 (flat 558) shifted 6: N"))
+        S.append(dict(
+            id="R03_real_positive_shifted",
+            title="The real positive of tools/slots.txt moved earlier 0..7 rounds: Ct 4.33 -> 2.0 on a genuine shape",
+            why="S10 says it with synthetic sigmoids; this says it with the one real positive in the repo. "
+                "Two rounds earlier it is still P; from three rounds on (Ct 3.33 and below) the unit reads "
+                "E - the 3.0 floor never reaches this curve.",
+            wells=wells,
             real=True))
     return S
 

@@ -839,7 +839,12 @@ Tài liệu (đọc theo thứ tự này):
    `rise_width`, `window_rate`, `arm_width`, `suspect_score`, `climbs_fixed`, `climb_first_i`).
    Bằng chứng: 45 lượt sửa ERP 28/08–10/09, **15/16** giếng dính cổng Ct-sớm bị người duyệt lật sang
    `P`, tất cả Ct 3.0–3.7, 12/15 là chứng dương. ⚠ **Chưa phát lại bộ nhãn** (tool vắng trên nhánh),
-   **chưa có guard**, **chưa chạy máy thật**.
+   **chưa có guard**. **Đã chạy máy thật 15/09 và sàn 3,0 KHÔNG tới được sigmoid thường**: tay trái vẫn
+   bị kẹp ở `discard_index − 1` (3,67′, `Algo.cpp:774`) nên dương thường có Ct 3,0–3,33 (k ≥ 1,5) hay
+   3,33 (k ≥ 2) → `E`, dưới 3,0 → `E` chứ không `F`; sàn hữu dụng là **3,33–3,67′**. Đường dương thật
+   `slots.txt` dịch sớm 1,0′ đã `E`. Ứng viên (kẹp theo chỉ số `MIN_CALLABLE_CT`) trên mirror lật đúng
+   8 giếng ý đồ, 0 giếng khác — **chờ số trên bộ nhãn**, chưa sửa. Xem
+   [docs/history/2026-09-15-kich-ban-ct-duoi-4-va-kep-tay-trai.md](docs/history/2026-09-15-kich-ban-ct-duoi-4-va-kep-tay-trai.md).
 
 **Kế hoạch đang mở (2026-09-10) — chờ số:** (kế hoạch *điều kiện trả `!`* đã landed → doc 6 ở trên;
 file [docs/plan/2026-09-10-dieu-kien-tra-error-tang-som.md](docs/plan/2026-09-10-dieu-kien-tra-error-tang-som.md)
@@ -1726,11 +1731,11 @@ Confirm → **bấm Start** → amplification đủ 120 vòng → finished (char
 ### Kịch bản mô phỏng đánh giá KẾT QUẢ trên máy thật (COM) — `tools/sim_cases.py` + `tools/run_sim_cases.py`
 
 ```bash
-python tools/sim_cases.py list                    # 11 kịch bản × 10 giếng, ý đồ từng giếng
+python tools/sim_cases.py list                    # 14 kịch bản × 10 giếng, ý đồ từng giếng
 python tools/sim_cases.py screen -v               # MIRROR pre-screen: mọi giếng đúng nhánh ở CẢ 5 slope đội máy
 python tools/sim_cases.py gen                     # sinh lại tools/simcases/ (.cal.txt / .raw.txt / .expect.json / README.md)
 python tools/run_sim_cases.py COM7                # ~6 phút: ParaRead → nạp 10 slot/kịch bản → getResult → chấm → docs/reports/simcases/
-python tools/run_sim_cases.py COM7 --only S06     # một kịch bản
+python tools/run_sim_cases.py COM7 --only S06     # một kịch bản; --only S10,S11,R03 = nhiều
 python tools/run_sim_cases.py COM7 --regrade docs/reports/simcases/<log>.serial.log   # chấm lại log cũ, không cần máy
 python tools/run_sim_cases.py COM7 --restore-from docs/reports/simcases/<log>.serial.log   # trả lại record run thật từ log
 python tools/run_sim_cases.py COM7 --upload      # chấm xong mỗi kịch bản thì `uploadResult` → GAS + ingest + ERP THẬT (~15 s/kịch bản)
@@ -1760,8 +1765,17 @@ tính σ≈1,5 count, warm-up leo từ dưới, bậc đồng bộ vòng 6, trô
   `isBusy()` trong `dashboardLoop()` xoá nhãn slot trong ~10 ms, trước khi `postData_GoogleSheet` dựng payload
   (~1 s sau). Có từ 20/08 (reset nhãn theo run), **chưa sửa** — xem "Còn nợ" trong tài liệu trên.
 - **`--regrade` từng đặt kịch bản 0 lệch một section** khi log có cả backup read lẫn restore read (`offset` =
-  tổng getResult − số kịch bản) → **110/110 STALE** mà report chỉ nói "re-run on the unit". Nay nhận diện backup
-  read = getResult đầu không có injection trước nó; guard chấm lại log 12:01 phải ≥ 90 PASS.
+  tổng getResult − số kịch bản) → **110/110 STALE** mà report chỉ nói "re-run on the unit". Nay **khớp section
+  với kịch bản bằng echo** (máy in lại nguyên văn message nạp; section nào không trùng kịch bản nào thì bỏ qua,
+  kịch bản vắng trong log được liệt kê) — log cũ vẫn chấm được sau khi catalogue thêm/đảo thứ tự; guard chấm lại
+  log 12:01 phải ≥ 90 PASS.
+- **Vùng Ct < 4 (S10 · S11 · R03, 15/09 16:48: 20 PASS · 0 FAIL · 10 KNOWN-WEAK, máy = mirror 30/30)**: sàn
+  `MIN_CALLABLE_CT` 3,0 **chết với sigmoid thường** vì kẹp tay trái 3,67′ — Ct 3,00 → `E` (k 1,5 và 2,0, và
+  đường dương thật `slots.txt` dịch sớm), Ct 3,33 → `E` khi k ≥ 2; `F` lý do 2 chỉ với tới bằng hai pha, bậc 3,0′
+  không vá + sườn sớm (Ct 1,67 giả), hay sườn k ≤ 0,7. **Bậc 3,0′ của RPL01015 được vá đẩy Ct 3,3 → 4,00 và biến
+  `E` thành `P`**. Nhiễu σ3, warm-up 250, creep, xung hai vòng không dịch biên. `known="E"` giữ ý đồ trong
+  catalogue, sửa xong cột tự đổi. Chi tiết + ứng viên sửa:
+  [docs/history/2026-09-15-kich-ban-ct-duoi-4-va-kep-tay-trai.md](docs/history/2026-09-15-kich-ban-ct-duoi-4-va-kep-tay-trai.md).
 - **Nạp là ghi đè record run cuối trong EEPROM.** Runner đọc record cũ bằng `getResult` trước và nạp trả lại
   sau (`raw_data` in ra là **sau** `neutralise_climbs` → run cũ có climb thì trả lại bản đã vá, báo cáo ghi rõ).
   Không dùng `EEPROMRead` để backup: `sprintf(tmp[4], "%02X", (char)c)` tràn với byte ≥ 0x80.

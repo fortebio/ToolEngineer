@@ -157,6 +157,40 @@ probe_sensor_noise.py measured 64% common component on one unit and 9% on anothe
 | 9 | **N** |  |  | N | 15.7 | 6 | 5.3 | 1 | shared only, step at round 9 |
 | 10 | **N** |  |  | N | 22.0 | 8 | 6.3 | 1 | shared only, step at round 9 |
 
+## S10_ct_floor_ladder - Ct floor 3.0 vs the 3.67-min left-arm clamp: Ct x steepness ladder of a positive control
+
+MIN_CALLABLE_CT went 4.0 -> 3.0 (d7775b1) on 15 ERP wells with Ct 3.0..3.7 that reviewers flipped to P. But the left arm is still searched only from discard_index-1 (3.67 min), so a textbook sigmoid with Ct 3.0..3.33 fails the shape test and reads E, not P; below 3.0 it reads E, not F/2. This ladder measures exactly where the unit's E/P edge is, per steepness.
+
+| slot | kỳ vọng | chấp nhận | Ct (phút) | mirror | Ct | inc | sharp | climb | ghi chú |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | **F** |  (máy hiện nay: E) | 1.5..3.0 | E | 2.3 | 122 | 51.3 | 0 | PC-like, reported Ct 2.33-2.67: real reaction under the floor -> intent F/2, unit E (arm before 3.67) |
+| 2 | **F** |  (máy hiện nay: E) | 1.5..3.0 | E | 2.7 | 121 | 48.2 | 0 | PC-like, reported Ct 2.67: intent F/2, unit E |
+| 3 | **P** |  (máy hiện nay: E) | 3.0..3.7 | E | 3.0 | 118 | 48.5 | 0 | PC-like, reported Ct 3.00 - ON the floor: intent P, unit E (arm at ~3.2 min < clamp) |
+| 4 | **P** |  | 3.0..3.7 | P | 3.3 | 119 | 50.2 | 0 | PC-like, reported Ct 3.33: arm lands on index 11 -> P (first P of the ladder) |
+| 5 | **P** |  | 3.3..4.3 | P | 3.7 | 120 | 49.3 | 0 | PC-like, reported Ct 3.67-4.0 |
+| 6 | **P** |  | 3.7..4.3 | P | 4.0 | 125 | 47.1 | 0 | PC-like, reported Ct 4.0 |
+| 7 | **P** |  | 3.0..4.0 | P | 3.7 | 110 | 23.1 | 0 | wide rise (k 0.6): arm 0.5 min after Ct, clears the clamp although Ct reads 3.0-4.0 (noisy on a slow rise) |
+| 8 | **P** |  (máy hiện nay: E) | 3.0..3.7 | E | 3.0 | 124 | 64.6 | 0 | steeper (k 2.0), reported Ct 3.00: intent P, unit E |
+| 9 | **P** |  (máy hiện nay: E) | 3.0..3.7 | E | 3.3 | 134 | 80.5 | 0 | very steep (k 3.0), reported Ct 3.33: intent P, unit E - the clamp bites up to 3.33 here |
+| 10 | **P** |  | 3.3..4.0 | P | 3.7 | 126 | 81.3 | 0 | very steep (k 3.0), reported Ct 3.67: P |
+
+## S11_ct_floor_field - Around the 3.0 floor with field shapes: noise, big warm-up, the 3-min sync step, a spike, two-stage, optical transient
+
+Positive controls are the fastest wells on the plate (12/15 of the ERP wells), so they meet every instrument artefact at the worst time: the 3.0-min synchronous step of RPL01015 lands right on their rise. Which artefacts move the verdict, which only move the Ct, and which turn an E into a P by accident.
+
+| slot | kỳ vọng | chấp nhận | Ct (phút) | mirror | Ct | inc | sharp | climb | ghi chú |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | **P** |  | 3.0..4.0 | P | 3.7 | 123 | 47.9 | 0 | PC, sigma 3.0: noise does not move the E/P edge |
+| 2 | **P** |  | 3.0..4.0 | P | 3.0 | 141 | 46.2 | 0 | PC under a 250-unit, tau 2.5 warm-up (large optical transient) - still P |
+| 3 | **P** |  | 3.0..4.0 | P | 3.3 | 135 | 46.8 | 0 | PC with 1.5/min creep after the plateau |
+| 4 | **P** |  | 3.7..4.3 | P | 4.0 | 111 | 48.1 | 1 | PC + RPL01015's +50 sync step at round 9 (flat start): repaired, Ct moves 3.33 -> 4.00 |
+| 5 | **P** |  | 3.7..4.3 | P | 4.0 | 92 | 47.8 | 1 | same rise as S10 slot 3 (E without the step): the repair pushes Ct to 4.0 and opens the P branch by accident |
+| 6 | **F** | P |  | F | 1.7 | 196 | 45.7 | 0 | PC (Ct 4.0) + the same step but with a warm-up tail: the repair refuses, step+rise read as one -> F/2 with a bogus Ct 1.67 (flag right, number wrong); a noise-edge well, P Ct 4.0-4.33 in 25/35 mirror draws |
+| 7 | **P** |  | 4.0..5.3 | P | 4.3 | 98 | 53.5 | 1 | PC + two-round +40 spike at 3.33 min: repaired, Ct pushed late (4.33-5.0) |
+| 8 | **P** |  | 3.0..4.0 | P | 3.0 | 140 | 54.1 | 0 | weak lead-in (50) at 3.4 then the main rise at 5.6: the lead-in supplies the left arm -> P, Ct 3.33-3.67 |
+| 9 | **P** |  | 4.3..5.3 | P | 4.7 | 132 | 46.3 | 0 | un-repaired 3-min step ahead of a 5.0 rise: harmless, P Ct 4.67-5.0 |
+| 10 | **N** |  |  | N | 4.0 | 3 | 7.0 | 0 | optical warm-up transient alone, 300 units tau 3 rounds from 160 (derivative peak ~1 min) - the sub-3.0 noise source the 11/09 note names -> N |
+
 ## R01_real_all_negative_RPL250701 - Real run RPL250701 30-07-2025 (v2.2.9), all ten wells Negative
 
 Raw capture, its own slopes; the unit called N x10. Level 210..420 raw, +90 raw sync step at round 6, sigma ~1.5.
@@ -190,4 +224,21 @@ The run the web mock replays. Slot 6 is the reference positive; three creeping w
 | 8 | **?** |  |  | N | 26.7 | 5 | 3.1 | 0 | creep +20: reader cannot call it |
 | 9 | **?** |  |  | N | 28.3 | 3 | 3.2 | 0 | creep +21: reader cannot call it |
 | 10 | **N** |  |  | N | 26.0 | 4 | 4.1 | 0 | flat 558 |
+
+## R03_real_positive_shifted - The real positive of tools/slots.txt moved earlier 0..7 rounds: Ct 4.33 -> 2.0 on a genuine shape
+
+S10 says it with synthetic sigmoids; this says it with the one real positive in the repo. Two rounds earlier it is still P; from three rounds on (Ct 3.33 and below) the unit reads E - the 3.0 floor never reaches this curve.
+
+| slot | kỳ vọng | chấp nhận | Ct (phút) | mirror | Ct | inc | sharp | climb | ghi chú |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | **P** |  | 4.0..4.7 | P | 4.3 | 70 | 23.4 | 0 | slot 6 as captured: Ct 4.33 |
+| 2 | **P** |  | 3.7..4.3 | P | 4.0 | 70 | 23.4 | 0 | -0.33 min: Ct 4.0 |
+| 3 | **P** |  | 3.3..4.0 | P | 3.7 | 70 | 23.4 | 0 | -0.67 min: Ct 3.67, left arm exactly at the clamp (index 11) |
+| 4 | **P** |  (máy hiện nay: E) | 3.0..3.7 | E | 3.3 | 70 | 23.4 | 0 | -1.0 min: Ct 3.33 - intent P (>= floor), unit E: arm before 3.67 |
+| 5 | **P** |  (máy hiện nay: E) | 3.0..3.3 | E | 3.0 | 70 | 23.4 | 0 | -1.33 min: Ct 3.00 - ON the floor, intent P, unit E |
+| 6 | **F** |  (máy hiện nay: E) | 1.5..3.0 | E | 2.7 | 70 | 23.4 | 0 | -1.67 min: Ct 2.67 - intent F/2, unit E |
+| 7 | **F** |  (máy hiện nay: E) | 1.5..3.0 | E | 2.3 | 73 | 21.9 | 0 | -2.0 min: Ct 2.33 - intent F/2, unit E |
+| 8 | **F** |  (máy hiện nay: E) | 1.5..3.0 | E | 2.0 | 73 | 19.6 | 0 | -2.33 min: Ct 2.0 - intent F/2, unit E |
+| 9 | **N** |  |  | N | 8.0 | 4 | 4.7 | 0 | slot 1 (flat 146) shifted 3: N |
+| 10 | **N** |  |  | N | 24.0 | 4 | 4.1 | 0 | slot 10 (flat 558) shifted 6: N |
 

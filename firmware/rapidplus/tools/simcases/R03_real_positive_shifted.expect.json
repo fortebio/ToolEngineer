@@ -1,0 +1,213 @@
+{
+ "id": "R03_real_positive_shifted",
+ "title": "The real positive of tools/slots.txt moved earlier 0..7 rounds: Ct 4.33 -> 2.0 on a genuine shape",
+ "why": "S10 says it with synthetic sigmoids; this says it with the one real positive in the repo. Two rounds earlier it is still P; from three rounds on (Ct 3.33 and below) the unit reads E - the 3.0 floor never reaches this curve.",
+ "loops": 90,
+ "interval_s": 20,
+ "slopes": [
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "wells": [
+  {
+   "expect": "P",
+   "note": "slot 6 as captured: Ct 4.33",
+   "ct": [
+    4.0,
+    4.67
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 4.33,
+    "increase": 70.3,
+    "sharpness": 23.4,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "-0.33 min: Ct 4.0",
+   "ct": [
+    3.67,
+    4.33
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 4.0,
+    "increase": 70.3,
+    "sharpness": 23.4,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "-0.67 min: Ct 3.67, left arm exactly at the clamp (index 11)",
+   "ct": [
+    3.33,
+    4.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 3.67,
+    "increase": 70.3,
+    "sharpness": 23.4,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "-1.0 min: Ct 3.33 - intent P (>= floor), unit E: arm before 3.67",
+   "ct": [
+    3.0,
+    3.67
+   ],
+   "known": "E",
+   "mirror": {
+    "letter": "E",
+    "ct": 3.33,
+    "increase": 70.3,
+    "sharpness": 23.4,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "-1.33 min: Ct 3.00 - ON the floor, intent P, unit E",
+   "ct": [
+    3.0,
+    3.33
+   ],
+   "known": "E",
+   "mirror": {
+    "letter": "E",
+    "ct": 3.0,
+    "increase": 70.3,
+    "sharpness": 23.4,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "F",
+   "note": "-1.67 min: Ct 2.67 - intent F/2, unit E",
+   "ct": [
+    1.5,
+    2.99
+   ],
+   "flag": 2,
+   "known": "E",
+   "mirror": {
+    "letter": "E",
+    "ct": 2.67,
+    "increase": 70.3,
+    "sharpness": 23.4,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "F",
+   "note": "-2.0 min: Ct 2.33 - intent F/2, unit E",
+   "ct": [
+    1.5,
+    2.99
+   ],
+   "flag": 2,
+   "known": "E",
+   "mirror": {
+    "letter": "E",
+    "ct": 2.33,
+    "increase": 73.3,
+    "sharpness": 21.93,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "F",
+   "note": "-2.33 min: Ct 2.0 - intent F/2, unit E",
+   "ct": [
+    1.5,
+    2.99
+   ],
+   "flag": 2,
+   "known": "E",
+   "mirror": {
+    "letter": "E",
+    "ct": 2.0,
+    "increase": 73.3,
+    "sharpness": 19.59,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "N",
+   "note": "slot 1 (flat 146) shifted 3: N",
+   "mirror": {
+    "letter": "N",
+    "ct": 8.0,
+    "increase": 4.4,
+    "sharpness": 4.68,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 25
+   }
+  },
+  {
+   "expect": "N",
+   "note": "slot 10 (flat 558) shifted 6: N",
+   "mirror": {
+    "letter": "N",
+    "ct": 24.0,
+    "increase": 4.0,
+    "sharpness": 4.14,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 80
+   }
+  }
+ ]
+}

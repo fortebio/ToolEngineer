@@ -617,9 +617,11 @@ def grade_scenario(s, traces, res, P, slopes, origins, stale=None):
 
 def regrade(a, stamp, started):
     """Grade an earlier serial log again, without the unit. The log's ParaRead gives the unit's
-    numbers; its getResult sections are matched to the catalogue IN ORDER (the first one is the
-    backup read, the last one the restore's review, when present). Useful after a parser fix or
-    an expectation edit - the unit's answers do not change, only the reading of them."""
+    numbers; each getResult section is matched to the catalogue scenario whose materialised
+    wells it ECHOES (the unit prints every injected message back in full), so a log written
+    before the catalogue grew, shrank or was reordered still grades - a section whose echoes
+    match no scenario at all is reported and skipped. Useful after a parser fix or an
+    expectation edit: the unit's answers do not change, only the reading of them."""
     with open(a.regrade, "r", encoding="utf-8", errors="replace") as f:
         text = f.read()
     m = re.search(r'(\{"device ID".*?\})@', text, re.S)
@@ -628,44 +630,61 @@ def regrade(a, stamp, started):
         return 2
     P, slopes, origins, ident = unit_params(json.loads(m.group(1)))
     loops, interval = P["amplification_time"], int(round(P["timePerLoop"] / 1000.0))
-    scenarios = [s for s in sc.all_scenarios(loops) if not a.only or a.only.lower() in s["id"].lower()]
+    catalogue = [s for s in sc.all_scenarios(loops) if _wanted(s["id"], a.only)]
+    built = [(s, sc.materialise(s, loops, interval)) for s in catalogue]
+    fingerprints = []
+    for s, traces in built:
+        fingerprints.append({i: ",".join(str(v) for v in sc.to_raw(tr, slopes[i], origins[i]))
+                             for i, tr in enumerate(traces)})
     # all_secs[0] is everything before the first getResult; all_secs[j] (j >= 1) is the output of
     # getResult number j followed by whatever was sent next (the next scenario's injections, or an
-    # upload). A getResult that no injection precedes is the backup read, not a scenario: that
-    # decides where scenario 0 starts. Counting "extra sections" instead is ambiguous - a run with
-    # --restore-from has a trailing restore read and no backup read, a plain run has both - and
-    # the earlier formula (total minus catalogue) put scenario 0 one section late whenever a
-    # restore read existed, so every well compared against the NEXT scenario's echo and was STALE.
+    # upload). A getResult that no injection precedes is the backup read, not a scenario. The
+    # injections a section answers sit at the END of the section before it; a section is cut at
+    # the next command echo so an upload's output (it prints "Slot N:" again) does not fold in.
     all_secs = text.split(">>> getResult")
     lead = 0 if '{"Slot":[' in all_secs[0] else 1
-    secs = [sec.split("\n>>> ")[0] for sec in all_secs[lead + 1:lead + 1 + len(scenarios)]]
-    if len(secs) < len(scenarios):
-        print("%s has %d getResult sections after the backup read, catalogue needs %d"
-              % (a.regrade, len(secs), len(scenarios)))
-        return 2
-    print("regrading %s: unit %s, %d scenarios" % (a.regrade, ident["device"], len(scenarios)))
-    # The unit echoes every injected message in full ('{"Slot":[...]}N'), and the injections for
-    # scenario k sit in the log BEFORE its getResult - i.e. at the end of the previous section. A
-    # well is graded only if what was sent then is byte-for-byte what the catalogue builds now.
-    offset = lead      # index of the section holding scenario 0's injections
+    print("regrading %s: unit %s, %d getResult section(s) after the backup read, catalogue %d"
+          % (a.regrade, ident["device"], len(all_secs) - 1 - lead, len(catalogue)))
     results = []
-    for k, (s, sec) in enumerate(zip(scenarios, secs)):
-        traces = sc.materialise(s, loops, interval)
+    used = set()
+    for j in range(lead + 1, len(all_secs)):
+        sec = all_secs[j].split("\n>>> ")[0]
         # Other tasks' prints land inside the echo too (the stack report split " Control" from
         # "=2128/4096" around one of them on the first run), so an echo that does not read
         # cleanly proves nothing: only a CLEAN echo that differs marks the well stale.
-        block = _KNOWN_FRAGMENTS.sub("", all_secs[offset + k])
+        block = _KNOWN_FRAGMENTS.sub("", all_secs[j - 1])
         sent = {int(n): v for v, n in re.findall(r'^\{"Slot":\[([0-9,]+)\]\}(\d)\s*$', block, re.M)}
-        stale = []
-        for i, tr in enumerate(traces):
-            now = ",".join(str(v) for v in sc.to_raw(tr, slopes[i], origins[i]))
-            stale.append(i in sent and sent[i] != now)
+        if not sent:
+            continue                      # the restore's review, or a stray getResult
+        # the scenario this section answers: the one most of the clean echoes belong to; ties go
+        # to catalogue order, and a scenario is matched once (a retuned well still echoes the OLD
+        # bytes, which match nothing - that is what STALE is for)
+        best, best_n = -1, 0
+        for k, fp in enumerate(fingerprints):
+            if k in used:
+                continue
+            n = sum(1 for i, v in sent.items() if fp.get(i) == v)
+            if n > best_n:
+                best, best_n = k, n
+        if best < 0:
+            print("\n-- getResult section %d echoes no catalogue scenario (%d wells sent); skipped" % (j - lead, len(sent)))
+            continue
+        used.add(best)
+        s, traces = built[best]
+        stale = [i in sent and sent[i] != fingerprints[best][i] for i in range(len(traces))]
         print("\n== %s  %s%s" % (s["id"], s["title"], ("  [%d well(s) STALE]" % sum(stale)) if any(stale) else ""))
         results.append(grade_scenario(s, traces, parse_results(sec), P, slopes, origins, stale))
+    missing = [s["id"] for k, s in enumerate(catalogue) if k not in used]
+    if missing:
+        print("\nnot in this log: %s" % ", ".join(missing))
+    if not results:
+        print("nothing to grade")
+        return 2
     dev = re.sub(r"[^A-Za-z0-9_-]+", "_", ident["device"]) or "unit"
     md = os.path.join(a.out, "%s-%s-regrade.md" % (stamp, dev))
     js = os.path.join(a.out, "%s-%s-regrade.json" % (stamp, dev))
-    note = "Chấm lại từ log `%s` (không nạp lại máy)." % os.path.basename(a.regrade)
+    note = "Chấm lại từ log `%s` (không nạp lại máy)." % os.path.basename(a.regrade) + (
+        " Không có trong log: %s." % ", ".join(missing) if missing else "")
     write_report(md, js, ident, P, slopes, origins, results, note, started)
     n_fail = sum(1 for s in results for w in s["wells"] if w["status"] == "FAIL")
     n_pass = sum(1 for s in results for w in s["wells"] if w["status"] == "PASS")
@@ -675,11 +694,18 @@ def regrade(a, stamp, started):
 
 
 # --------------------------------------------------------------------------- main
+def _wanted(sid, only):
+    """--only: one substring, or several separated by commas."""
+    if not only:
+        return True
+    return any(part.strip().lower() in sid.lower() for part in only.split(",") if part.strip())
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("port", help="COM port of the unit, e.g. COM7")
     ap.add_argument("--baud", type=int, default=115200)
-    ap.add_argument("--only", default=None, help="substring of a scenario id")
+    ap.add_argument("--only", default=None, help="substring of a scenario id, or several separated by commas (S10,S11,R03)")
     ap.add_argument("--file", default=None, help="a calibrated file (one slot per line) instead of the catalogue")
     ap.add_argument("--keep", action="store_true", help="leave the last scenario in the unit; skip the restore")
     ap.add_argument("--no-backup", action="store_true", help="do not read the stored run first")
@@ -705,7 +731,7 @@ def main():
         P = dict(sc.PARAMS)
         loops, interval = P["amplification_time"], P["timePerLoop"] // 1000
         for s in sc.all_scenarios(loops):
-            if a.only and a.only.lower() not in s["id"].lower():
+            if not _wanted(s["id"], a.only):
                 continue
             traces = sc.materialise(s, loops, interval)
             sizes = [len('{"Slot":[' + ",".join(str(v) for v in sc.to_raw(t, 1.4, 0)) + "]}0#") for t in traces]
@@ -754,7 +780,7 @@ def main():
                 wells[i].update({k: w[k] for k in ("expect", "note", "ct", "accept", "climbs", "flag", "known") if k in w})
         scenarios = [dict(id=sid, title="file " + a.file, why="", wells=wells, real=True)]
     else:
-        scenarios = [s for s in sc.all_scenarios(loops) if not a.only or a.only.lower() in s["id"].lower()]
+        scenarios = [s for s in sc.all_scenarios(loops) if _wanted(s["id"], a.only)]
     if not scenarios:
         print("no scenario matches --only %s" % a.only)
         return 2

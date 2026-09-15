@@ -1,0 +1,220 @@
+{
+ "id": "S10_ct_floor_ladder",
+ "title": "Ct floor 3.0 vs the 3.67-min left-arm clamp: Ct x steepness ladder of a positive control",
+ "why": "MIN_CALLABLE_CT went 4.0 -> 3.0 (d7775b1) on 15 ERP wells with Ct 3.0..3.7 that reviewers flipped to P. But the left arm is still searched only from discard_index-1 (3.67 min), so a textbook sigmoid with Ct 3.0..3.33 fails the shape test and reads E, not P; below 3.0 it reads E, not F/2. This ladder measures exactly where the unit's E/P edge is, per steepness.",
+ "loops": 90,
+ "interval_s": 20,
+ "slopes": [
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "wells": [
+  {
+   "expect": "F",
+   "note": "PC-like, reported Ct 2.33-2.67: real reaction under the floor -> intent F/2, unit E (arm before 3.67)",
+   "ct": [
+    1.5,
+    2.99
+   ],
+   "flag": 2,
+   "known": "E",
+   "mirror": {
+    "letter": "E",
+    "ct": 2.33,
+    "increase": 122.2,
+    "sharpness": 51.28,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "F",
+   "note": "PC-like, reported Ct 2.67: intent F/2, unit E",
+   "ct": [
+    1.5,
+    2.99
+   ],
+   "flag": 2,
+   "known": "E",
+   "mirror": {
+    "letter": "E",
+    "ct": 2.67,
+    "increase": 120.8,
+    "sharpness": 48.2,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "PC-like, reported Ct 3.00 - ON the floor: intent P, unit E (arm at ~3.2 min < clamp)",
+   "ct": [
+    3.0,
+    3.67
+   ],
+   "known": "E",
+   "mirror": {
+    "letter": "E",
+    "ct": 3.0,
+    "increase": 118.0,
+    "sharpness": 48.51,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "PC-like, reported Ct 3.33: arm lands on index 11 -> P (first P of the ladder)",
+   "ct": [
+    3.0,
+    3.67
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 3.33,
+    "increase": 119.5,
+    "sharpness": 50.15,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "PC-like, reported Ct 3.67-4.0",
+   "ct": [
+    3.33,
+    4.33
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 3.67,
+    "increase": 120.0,
+    "sharpness": 49.34,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "PC-like, reported Ct 4.0",
+   "ct": [
+    3.67,
+    4.33
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 4.0,
+    "increase": 125.0,
+    "sharpness": 47.09,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "wide rise (k 0.6): arm 0.5 min after Ct, clears the clamp although Ct reads 3.0-4.0 (noisy on a slow rise)",
+   "ct": [
+    3.0,
+    4.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 3.67,
+    "increase": 110.1,
+    "sharpness": 23.07,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "steeper (k 2.0), reported Ct 3.00: intent P, unit E",
+   "ct": [
+    3.0,
+    3.67
+   ],
+   "known": "E",
+   "mirror": {
+    "letter": "E",
+    "ct": 3.0,
+    "increase": 123.6,
+    "sharpness": 64.62,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "very steep (k 3.0), reported Ct 3.33: intent P, unit E - the clamp bites up to 3.33 here",
+   "ct": [
+    3.0,
+    3.67
+   ],
+   "known": "E",
+   "mirror": {
+    "letter": "E",
+    "ct": 3.33,
+    "increase": 133.8,
+    "sharpness": 80.51,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "very steep (k 3.0), reported Ct 3.67: P",
+   "ct": [
+    3.33,
+    4.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 3.67,
+    "increase": 126.4,
+    "sharpness": 81.25,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  }
+ ]
+}
