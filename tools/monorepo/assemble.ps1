@@ -261,6 +261,7 @@ if ($haveB) { Say "  bo qua (da co)" "DarkGray" } else {
   }
   if (-not $SkipFilterRepo) {
     G clone -q --mirror --no-local $SrcB $mirror   # --no-local: filter-repo tu choi clone hardlink
+    if (-not $DryRun) { GQ -C $mirror update-ref -d refs/stash | Out-Null }   # mirror mang ca refs/stash cua nguon -> filter-repo tu choi ("has stashed changes"); stash khong phai lich su
     Write-Host ("  {0} -m git_filter_repo --invert-paths --path src/secrets.h   (trong {1})" -f $Python, $mirror) -ForegroundColor DarkGray
     if (-not $DryRun) {
       Push-Location $mirror
