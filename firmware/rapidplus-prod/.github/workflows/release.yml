@@ -1,0 +1,73 @@
+name: release
+
+# Firmware vào máy chẩn đoán đã bán = blast radius rất lớn (phải cử người bay tới
+# phòng lab cắm USB nếu hỏng). CHỈ chạy khi gắn tag `v*`.
+#
+# KỶ LUẬT: tag `vX.Y.Z` PHẢI khớp FBT_FW_VERSION trong include/version.h.
+# Cloud đọc version từ binary làm nguồn canonical — lệch nghĩa là bản phát hành
+# tự nhận sai phiên bản, và rollout/rollback/hỗ trợ khách đều sai theo.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: cài PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Guard — tag khop FBT_FW_VERSION
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          FW=$(grep -E '#define[[:space:]]+FBT_FW_VERSION' include/version.h \
+                 | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "tag=$TAG  version.h=$FW"
+          if [ "$TAG" != "$FW" ]; then
+            echo "::error::Tag v$TAG khong khop FBT_FW_VERSION=$FW trong include/version.h"
+            exit 1
+          fi
+
+      # Test an toàn là ĐIỀU KIỆN PHÁT HÀNH, không phải bước tham khảo.
+      - name: test logic an toan
+        run: pio test -e native -v
+
+      - name: build firmware
+        run: pio run -e esp32dev
+
+      - name: sha256 cua anh
+        shell: bash
+        run: |
+          BIN=.pio/build/esp32dev/firmware.bin
+          sha256sum "$BIN" | tee firmware.sha256
+          echo "Kich thuoc: $(stat -c%s "$BIN") byte"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ github.ref_name }}
+          path: |
+            .pio/build/esp32dev/firmware.bin
+            .pio/build/esp32dev/firmware.elf
+            firmware.sha256
+
+      # TODO: upload lên cloud + tạo rollout.
+      # Bắt buộc khi hiện thực (docs/OTA.md):
+      #   - Gắn pcb_version vào manifest → máy từ chối nếu không khớp
+      #   - RolloutPercent BẮT ĐẦU 5–10%, KHÔNG phải 100%
+      #   - Có đường tạm dừng rollout
+      #   - Secrets: FBT_CLOUD_URL, FBT_FIRMWARE_TOKEN

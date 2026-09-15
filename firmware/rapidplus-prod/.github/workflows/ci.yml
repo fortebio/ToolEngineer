@@ -1,0 +1,100 @@
+name: ci
+
+# Cổng bắt buộc trước khi merge.
+#
+# Job `native-tests` là job quan trọng nhất: nó chạy toàn bộ logic an toàn
+# (hard-limit nhiệt, validate config, verify OTA) trên host, trong vài giây,
+# không cần phần cứng. Đó là lý do logic đó được tách khỏi Arduino ngay từ đầu.
+#
+# ĐỪNG bỏ job này cho "nhanh". Đây là thiết bị chẩn đoán — xem AGENTS.md §0.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  native-tests:
+    name: test logic an toàn (host)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/.cache
+            ~/.cache/pip
+          key: pio-native-${{ hashFiles('platformio.ini') }}
+      - name: cài PlatformIO
+        run: pip install --upgrade platformio
+      - name: pio test -e native
+        run: pio test -e native -v
+
+  guard-pure-modules:
+    name: module thuan khong duoc dinh Arduino
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: kiem tra
+        shell: bash
+        run: |
+          # Bất biến kiến trúc cốt lõi (AGENTS.md §3): logic quyết định an toàn
+          # phải test được trên host. Dính Arduino.h là mất khả năng đó, và logic
+          # an toàn quay về trạng thái "chỉ test được bằng máy thật" — tức thực
+          # tế không ai test. Chặn ở CI vì đây là loại vi phạm rất dễ lọt khi vội.
+          if grep -rnE '^[[:space:]]*#include[[:space:]]*<Arduino\.h>' \
+               src/safety src/config src/ota include; then
+            echo "::error::Module thuan KHONG duoc include <Arduino.h> — xem docs/ARCHITECTURE.md"
+            exit 1
+          fi
+          echo "OK: module thuan sach Arduino"
+
+  build-firmware:
+    name: build firmware production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/.cache
+            ~/.cache/pip
+          key: pio-esp32-${{ hashFiles('platformio.ini') }}
+      - name: cài PlatformIO
+        run: pip install --upgrade platformio
+      - name: pio run -e esp32dev
+        run: pio run -e esp32dev
+      - name: bao cao kich thuoc
+        run: pio run -e esp32dev -t size
+
+  guard-safety-limits:
+    name: canh bao thay doi nguong an toan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: kiem tra safety_limits.h
+        shell: bash
+        run: |
+          # Không chặn PR — chỉ bắt buộc người review nhìn thấy. Đổi ngưỡng an
+          # toàn cần team nhiệt/sinh học duyệt bằng văn bản (docs/SAFETY.md).
+          BASE="${{ github.event.pull_request.base.sha }}"
+          if git diff --name-only "$BASE" HEAD | grep -q 'include/safety_limits.h'; then
+            echo "::warning file=include/safety_limits.h::PR nay doi NGUONG AN TOAN. Bat buoc: (1) team nhiet/sinh hoc duyet bang van ban, (2) ghi CHANGELOG muc Security/Safety, (3) test tren may that."
+            git diff "$BASE" HEAD -- include/safety_limits.h
+          else
+            echo "khong doi nguong an toan"
+          fi

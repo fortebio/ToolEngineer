@@ -1,0 +1,19 @@
+# Bảng partition — flash 8 MB, hai app slot để OTA rollback được.
+#
+# ⚠️ ĐỔI BẢNG NÀY = máy đã bán KHÔNG OTA sang được, phải nạp USB từng cái ở
+# phòng lab của khách. Cân nhắc kỹ, ghi vào CHANGELOG.md kèm cảnh báo rõ ràng.
+# Xem AGENTS.md §6 và docs/OTA.md.
+#
+# Một app slot = OTA hỏng là brick, không có đường lùi. Hai slot là bắt buộc
+# với thiết bị đã giao cho khách.
+#
+# ota_0/ota_1 mỗi slot 3 MiB → ota::kMaxImageBytes trong src/ota/ota_verify.h
+# PHẢI khớp con số này. Lệch = ảnh quá lớn ghi tràn sang partition kế bên.
+#
+# Name,     Type, SubType,  Offset,   Size,     Flags
+nvs,        data, nvs,      0x9000,   0x5000,
+otadata,    data, ota,      0xe000,   0x2000,
+app0,       app,  ota_0,    0x10000,  0x300000,
+app1,       app,  ota_1,    0x310000, 0x300000,
+spiffs,     data, spiffs,   0x610000, 0x1E0000,
+coredump,   data, coredump, 0x7F0000, 0x10000,

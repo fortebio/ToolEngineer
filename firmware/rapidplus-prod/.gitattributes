@@ -1,0 +1,17 @@
+# Chuẩn hoá xuống dòng. Dev trên Windows, CI chạy Linux — script CRLF sẽ lỗi
+# "bad interpreter: /usr/bin/env bash^M" và rất khó đoán ra.
+* text=auto eol=lf
+
+*.sh    text eol=lf
+*.bash  text eol=lf
+
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+*.bin   binary
+*.elf   binary
+*.png   binary
+*.jpg   binary
+*.xlsx  binary
+*.pdf   binary

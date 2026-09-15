@@ -1,0 +1,47 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+.clang_complete
+.gcc-flags.json
+compile_commands.json
+
+# Build artifacts — KHÔNG commit (AGENTS.md §1.8)
+*.bin
+*.elf
+*.map
+*.o
+*.obj
+*.a
+build/
+out/
+release/
+artifacts/
+
+# Secrets — KHÔNG commit (AGENTS.md §1.7)
+.env
+.env.*
+!.env.example
+secrets.h
+credentials.h
+*.pem
+*.key
+*.p12
+*.der
+certs/
+keys/
+**/keys/
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+.claude/
+Thumbs.db
+desktop.ini
+
+# Logs / tmp
+logs/
+tmp/
+*.log
+*.bak
