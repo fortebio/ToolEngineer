@@ -122,9 +122,7 @@ def main():
             stale.append(name + " (missing)")
             continue
         # autocrlf is on in this repo: a fresh checkout hands back CRLF while gen writes LF.
-        norm = lambda path: open(path, "rb").read().replace(b"
-", b"
-")  # noqa: E731
+        norm = lambda path: open(path, "rb").read().replace(b"\r\n", b"\n")  # noqa: E731
         if norm(a) != norm(b):
             stale.append(name)
     check(not stale, "tools/simcases/ matches `sim_cases.py gen` (%s)" % (", ".join(stale) if stale else "all current"))
