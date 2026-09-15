@@ -121,7 +121,11 @@ def main():
         if not os.path.isfile(b):
             stale.append(name + " (missing)")
             continue
-        if open(a, "rb").read() != open(b, "rb").read():
+        # autocrlf is on in this repo: a fresh checkout hands back CRLF while gen writes LF.
+        norm = lambda path: open(path, "rb").read().replace(b"
+", b"
+")  # noqa: E731
+        if norm(a) != norm(b):
             stale.append(name)
     check(not stale, "tools/simcases/ matches `sim_cases.py gen` (%s)" % (", ".join(stale) if stale else "all current"))
     if stale:
