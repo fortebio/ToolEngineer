@@ -37,7 +37,8 @@ Hai sự thật quyết định cách làm:
 - **Sản phẩm phủ** (khoá `product`): `rapidplus` (+ `rapidplus-a` = build `SHAPE_RULE_NEGATIVE`,
   `rapidplus-prod` = firmware viết lại), `reader`, `readermax`; mô hình mở cho Delta/Tray…; DxD hub
   KHÔNG vào registry (legacy 2024).
-- **Giữ lịch sử git** bằng `git subtree` (không copy sạch), rewrite lịch sử **chỉ vì bảo mật**.
+- **Giữ lịch sử git** (không copy sạch); rewrite lịch sử chỉ để tẩy bí mật và đổi path prefix
+  (`git filter-repo`, xem mục 4), không rewrite vì file to.
 - `pubspec name: RapidPlusApp` **không đổi** (đổi = đổi mọi `package:` import).
 
 ## 3. Kiến trúc đích
@@ -78,25 +79,44 @@ của app lên gốc (link tương đối trong CLAUDE.md/README app sẽ gãy);
 ## 4. Cách lắp (P0 — `tools/monorepo/assemble.ps1`)
 
 Chạy cục bộ, **KHÔNG push**, repo nguồn chỉ đọc (trừ một commit vào A chứa chính 6 file P0 để chúng
-đi theo lịch sử). `-DryRun` in mọi lệnh trước.
+đi theo lịch sử). `-DryRun` in mọi lệnh trước; chạy tiếp được sau khi một bước hỏng (`-Force`, bỏ
+qua bước đã có file mốc).
+
+> **Đổi cơ chế 2026-09-15: `git filter-repo --to-subdirectory-filter` + `git merge
+> --allow-unrelated-histories`, KHÔNG dùng `git subtree add`.** Lắp thử bằng subtree xong mới thấy:
+> commit cũ còn nguyên nhưng file trong đó vẫn nằm ở path gốc (`src/define.h`), nên
+> `git log -- firmware/rapidplus/src/define.h` chỉ ra **1** commit (73 commit nằm ở path cũ; `blame`
+> thì vẫn lần được). Đó đúng là điều phương án hứa. Vì B đã bắt buộc qua filter-repo (tẩy token),
+> thêm `--to-subdirectory-filter` cho cả ba nguồn là miễn phí: mọi commit cũ mang path đã prefix →
+> `git log -- <file>`, `blame`, cherry-pick từ nhánh archive đều chạy thẳng. Đánh đổi: hash commit
+> của A và R trong monorepo **khác** repo gốc (B thì đã khác vì tẩy token).
 
 1. **Commit gốc**: README, `.gitignore` (`**/secrets.h`, `.pio/`, `server/OTA/`…), `.gitattributes`
    **chỉ đánh dấu binary** — không `text=auto` để khỏi renormalize hàng loạt blob đã import.
-2. **Repo A** → `git subtree add --prefix=_import/app` rồi `git mv` ra đúng chỗ trong MỘT commit
-   (`server/`, `legacy/{sheet,server-cf}`, `.claude/ .agents/ .codex/`, `system/`, `tools/`,
-   `docs/plan/monorepo-…`, phần còn lại → `apps/fbt_rapid/`). Chọn cách này thay vì `subtree split`
-   server trước: một lần import, lịch sử server không bị nhân đôi, `git log --follow` vẫn lần qua
-   rename; cái mất là không `subtree push` ngược — không cần vì repo cũ sẽ đóng băng.
-3. **Repo B**: `git clone --mirror` vào scratch → `git filter-repo --invert-paths --path src/secrets.h`
-   → kiểm `git log --all -- src/secrets.h` rỗng + `git grep -F -f tokens.txt $(git rev-list --all)`
-   rỗng (giá trị token trích từ `secrets.h` cây làm việc, **không in ra**; còn sót → `--replace-text`)
-   → `git subtree add --prefix=firmware/rapidplus <nhánh hiện tại của B>` → tag `fw/rapidplus/<ver>`
-   và `fw/rapidplus-a/<ver>` đọc từ `src/define.h` (2 nhánh `#ifdef SHAPE_RULE_NEGATIVE`/`#else`)
-   → **mọi nhánh cũ** giữ dưới `refs/archive/fbt-dxd/<tên>` (ẩn khỏi `git branch`, không gc, push
-   riêng khi cần); nhánh nào có commit riêng không nằm trong nhánh import → thêm tag
-   `archive/fbt-dxd/<tên>` để nhìn thấy được. Hash B **đổi** → clone cũ FBT-DXD phải clone lại.
-4. **Repo R** → `git subtree add --prefix=firmware/reader`, tag `fw/reader/v2.6.6`.
+2. **Repo A** → mirror clone (`--no-local`, bỏ `refs/stash`) → filter-repo lần 1: bỏ blob
+   `server/OTA/firmware.bin` khỏi lịch sử + `--to-subdirectory-filter apps/fbt_rapid`; lần 2
+   (`--force`): `--path-rename` đưa `server/`, `legacy/{sheet,server-cf}`, `.claude/ .agents/ .codex/`,
+   `system/`, `tools/`, `docs/plan/monorepo-…` ra gốc → `git merge --allow-unrelated-histories --no-ff`.
+   Không còn commit "restructure"; `git log -- server/app/main.py` ra đủ lịch sử.
+3. **Repo B**: mirror → `git filter-repo --invert-paths --path src/secrets.h --to-subdirectory-filter
+   firmware/rapidplus` → kiểm `git log --all -- …/secrets.h` rỗng + `git grep -F -f tokens.txt
+   $(git rev-list --all)` rỗng (giá trị token trích từ `secrets.h` cây làm việc, **không in ra**;
+   còn sót → `--replace-text`/`--replace-message`) → merge nhánh hiện tại của B → tag
+   `fw/rapidplus/<ver>` và `fw/rapidplus-a/<ver>` đọc từ `src/define.h` (2 nhánh `#ifdef
+   SHAPE_RULE_NEGATIVE`/`#else`; tag ghi "version tại commit import", KHÔNG khẳng định đó là bản trên
+   fleet) → **mọi nhánh cũ** giữ dưới `refs/archive/fbt-dxd/<tên>` (ẩn khỏi `git branch`, không gc,
+   push riêng khi cần); nhánh nào có commit riêng không nằm trong nhánh import → thêm tag
+   `archive/fbt-dxd/<tên>`; path trong đó đã prefix nên `git cherry-pick -x <sha>` chạy thẳng.
+4. **Repo R** → mirror → `--to-subdirectory-filter firmware/reader` → merge, tag `fw/reader/v2.6.6`.
 5. **Repo C** → `robocopy` sạch (bỏ `.git .pio .vscode`), commit import.
+
+Ba bẫy môi trường đã dính khi chạy (đều đã xử lý trong script): (a) **Python 3.14 bản Python
+Install Manager/Store bị Windows ảo hoá `AppData\Local`** — thư mục git vừa tạo ở `%LOCALAPPDATA%`
+hiện với PowerShell/Bash nhưng Python và git-con-của-Python báo "No such file or directory" → scratch
+đặt ở `%TEMP%`, script probe trước; (b) filter-repo từ chối mirror clone cục bộ (hardlink) →
+`--no-local`, và từ chối repo có `refs/stash` → xoá ref đó trong mirror tạm; (c) PowerShell 5.1: hàm
+có `param` bind `git add -A` vào tham số `$a` (khớp tiền tố) → hàm bọc git dùng `$args`; stderr của
+git bị người gọi redirect `2>&1` thành lỗi dừng → hàm bọc hạ `ErrorActionPreference`, chỉ tin exit code.
 
 Sau đó 3 commit tay: `fix(paths)` (mục 5) → `docs: tách CLAUDE.md` (mục 6) → `ci:` (mục 7), rồi bộ
 kiểm chứng mục 9.
@@ -152,8 +172,9 @@ Nội dung/luật xem chú thích đầu file. Tiêu thụ theo pha:
 
 ## 9. Kiểm chứng P0 (box ADM — không có Visual Studio, chỉ analyze/test/web)
 
-1. Lịch sử: `git log --follow -- server/app/main.py`, `-- apps/fbt_rapid/lib/main.dart` > 1 commit;
-   `git log -- firmware/rapidplus/src/define.h` nhiều commit; `git tag -l "fw/*"`; `refs/archive/` ≈ 45.
+1. Lịch sử: `git log -- server/app/main.py`, `-- apps/fbt_rapid/lib/main.dart`,
+   `-- firmware/rapidplus/src/define.h` đều ra NHIỀU commit (không cần `--follow`); `git tag -l "fw/*"`;
+   `refs/archive/` ≈ 42.
 2. Token: `git log --all -- firmware/rapidplus/src/secrets.h` rỗng; `-- src/secrets.h` rỗng;
    `git grep -I -l -F -f tokens.txt $(git rev-list --all)` rỗng → xoá `tokens.txt`.
 3. `python tools/registry_check.py` ĐẠT.
