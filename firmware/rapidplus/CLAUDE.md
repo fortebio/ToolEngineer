@@ -1756,11 +1756,15 @@ tính σ≈1,5 count, warm-up leo từ dưới, bậc đồng bộ vòng 6, trô
 - **Serial máy đan xen ở mức BYTE**: `[stack]` là 8 lần `Serial.print` riêng (`main.cpp:471-480`), cùng
   `[len]`, `finish one round maintenance`, `[dash]` rơi vào giữa hai chữ số của JSON (9/120 record lần đầu).
   Parser gỡ mảnh **biết trước** (không có xuống dòng) rồi quét tiền tố JSON theo schema → 120/120.
-- **Đo được trên RPL01015 (15/09)**: 110 giếng cùng chữ với mirror, Ct lệch ≤ 1 vòng; `MIN_CALLABLE_CT` 3,0
-  sống (Ct 3,33 → P); **bậc +32 sạch → N đã vá, KHÔNG phải B** — `B` chỉ còn khi `2,5×range ≤ jump <
-  4×range` (nền nhiễu, +32 σ3 → B); **+40 σ4,5 → P** (`known`, họ lỗi RPL01004 trên giếng nhiễu);
-  **rise xong trước 4′ → N vô hình**; Ct thuật toán ≈ chân sườn (`slots.txt` slot 6 = 4,33, không phải ~6,7).
-  Chi tiết + còn nợ (6 giếng đổi recipe chờ nạp lại, record RPL01015 chưa trả):
+- **Đo được trên RPL01015 (15/09, 12:01): 106 PASS · 0 FAIL · 1 KNOWN-WEAK · 3 INFO / 110 giếng**, cùng
+  chữ với mirror 110/110, Ct lệch ≤ 1 vòng. `MIN_CALLABLE_CT` 3,0 sống (Ct 3,33 → P); **F lý do 2 đã kích**
+  (hai giếng hai pha Ct 1,67 / 2,67 → F, flag 2); **bậc +32 sạch → N đã vá, KHÔNG phải B** — `B` chỉ còn
+  khi `2,5×range ≤ jump < 4×range` (nền nhiễu, +32 σ3 → B); **+40 σ4,5 → P** (`known`, họ lỗi RPL01004
+  trên giếng nhiễu); **rise xong trước 4′ → N vô hình**; Ct thuật toán ≈ chân sườn (`slots.txt` slot 6 =
+  4,33, không phải ~6,7). **Run thật của chính máy đó có bậc đồng bộ +45…58 ở phút 3,0 trên cả 10 kênh
+  (kênh 1–3 trễ một vòng — đọc tuần tự) và `neutralise_climbs` vá ×10**; cùng bậc mà có đuôi warm-up
+  trong 8 điểm nhìn lại thì thành **B** — S09 chép đúng mẫu đó. Record trả lại là bản **đã vá** (report
+  ghi rõ). Chi tiết:
   [docs/history/2026-09-15-kich-ban-mo-phong-danh-gia-ket-qua.md](docs/history/2026-09-15-kich-ban-mo-phong-danh-gia-ket-qua.md).
 
 ### Trên máy thật

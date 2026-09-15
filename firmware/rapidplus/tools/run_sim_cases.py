@@ -653,8 +653,12 @@ def main():
         if len(res) == 10 and all("raw_data" in r and len(r["raw_data"]) >= loops for r in res.values()):
             backup = [[min(65535, max(0, int(round(v * slopes[i] + origins[i])))) for v in res[i]["raw_data"][:loops]]
                       for i in range(10)]
-            backup_note = "Record run cũ lấy từ log `%s` (getResult đầu tiên) và nạp trả lại sau khi chạy." % os.path.basename(a.restore_from)
-            print("stored run taken from %s" % a.restore_from)
+            repaired = [i + 1 for i in range(10) if res[i].get("climbs", 0)]
+            backup_note = ("Record run cũ lấy từ log `%s` (getResult đầu tiên) và nạp trả lại sau khi chạy." % os.path.basename(a.restore_from) +
+                           (" ⚠ Slot %s của run cũ có climb đã vá (`neutralised`) — bản trả lại là bản ĐÃ VÁ, "
+                            "không phải raw gốc." % ", ".join(str(i) for i in repaired) if repaired else ""))
+            print("stored run taken from %s (%s)" % (a.restore_from,
+                  ("repaired climbs on slots %s" % repaired) if repaired else "no climb repairs"))
         else:
             print("[!] %s has no complete first getResult; nothing to restore from" % a.restore_from)
     elif not a.no_backup and not a.keep:

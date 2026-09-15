@@ -810,24 +810,37 @@ def build_scenarios():
         ]))
 
     # S09 - common-mode: all ten wells move together.
+    #
+    # The sync step sits at 3.0 min (round 9), not at round 6 as in S02: that is where RPL01015's
+    # own stored run had it (+45..58 units on every channel, read back on 2026-09-15), and round 9
+    # is PAST CLIMB_START_INDEX (7), so neutralise_climbs repairs it on every well - the unit
+    # reported "neutralised 1" x10 on that real run. Channels 1-3 take the step one round later
+    # than 4-10, because the ten channels are read sequentially inside a round and the light
+    # source moved between two of the reads. Both details are copied from that capture, and so
+    # is warm=0: that run is FLAT from round 0 (the 15-min opto preheat had settled the optics).
+    # It matters: with a warm-up tail inside the 8-point look-back window, 4 x range exceeds the
+    # step, the climb gate refuses it, and checkJump then calls the same step a BREAK. Whether a
+    # 3-min sync step is repaired or breaks the well depends on what the first rounds look like.
     S.append(dict(
         id="S09_common_mode",
-        title="Shared wobble and shared steps across all ten wells, two of them positive",
+        title="Shared wobble, and the 3.0-min synchronous step of a real unit, two wells positive",
         why="probe_sensor_noise.py measured 64% common component on one unit and 9% on "
-            "another. Calls are per well; a shared move must not become ten detections, and "
-            "must not hide the two real ones.",
-        cm=dict(steps=[(6, 40.0), (50, 6.0)], wobble=1.2, drift=0.3),
+            "another, and RPL01015's stored run carried a +45 step at 3.0 min on all ten channels "
+            "that the climb repair took out ten times over. Calls are per well: the shared move must "
+            "not become ten detections, must not hide the two real ones, and the repair must not "
+            "move a Ct.",
+        cm=dict(steps=[(50, 6.0)], wobble=1.2, drift=0.3),
         wells=[
-            well(positive(8.0, A=110, k=1.2, base=300, warm=30), "P", "P under common-mode", ct=ct_band(8.0)),
-            well(negative(base=250, warm=30), "N", "shared only"),
-            well(negative(base=330, warm=30), "N", "shared only"),
-            well(negative(base=410, warm=30), "N", "shared only"),
-            well(positive(14.0, A=80, k=1.0, base=290, warm=30), "P", "P under common-mode", ct=ct_band(14.0)),
-            well(negative(base=190, warm=30), "N", "shared only"),
-            well(negative(base=300, warm=30), "N", "shared only"),
-            well(negative(base=360, warm=30), "N", "shared only"),
-            well(negative(base=280, warm=30), "N", "shared only"),
-            well(negative(base=500, warm=30), "N", "shared only"),
+            well(positive(8.0, A=110, k=1.2, base=300, warm=0, steps=[(10, 45.0)]), "P", "P, sync step one round late (channel 1-3)", ct=ct_band(8.0), climbs=1),
+            well(negative(base=250, warm=0, steps=[(10, 48.0)]), "N", "shared only, step at round 10", climbs=1),
+            well(negative(base=330, warm=0, steps=[(10, 42.0)]), "N", "shared only, step at round 10", climbs=1),
+            well(negative(base=410, warm=0, steps=[(9, 45.0)]), "N", "shared only, step at round 9", climbs=1),
+            well(positive(14.0, A=80, k=1.0, base=290, warm=0, steps=[(9, 45.0)]), "P", "P, sync step at round 9", ct=ct_band(14.0), climbs=1),
+            well(negative(base=190, warm=0, steps=[(9, 58.0)]), "N", "shared only, step at round 9", climbs=1),
+            well(negative(base=300, warm=0, steps=[(9, 58.0)]), "N", "shared only, step at round 9", climbs=1),
+            well(negative(base=360, warm=0, steps=[(9, 45.0)]), "N", "shared only, step at round 9", climbs=1),
+            well(negative(base=280, warm=0, steps=[(9, 52.0)]), "N", "shared only, step at round 9", climbs=1),
+            well(negative(base=500, warm=0, steps=[(9, 45.0)]), "N", "shared only, step at round 9", climbs=1),
         ]))
 
     return S

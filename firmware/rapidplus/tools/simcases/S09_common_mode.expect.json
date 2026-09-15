@@ -1,7 +1,7 @@
 {
  "id": "S09_common_mode",
- "title": "Shared wobble and shared steps across all ten wells, two of them positive",
- "why": "probe_sensor_noise.py measured 64% common component on one unit and 9% on another. Calls are per well; a shared move must not become ten detections, and must not hide the two real ones.",
+ "title": "Shared wobble, and the 3.0-min synchronous step of a real unit, two wells positive",
+ "why": "probe_sensor_noise.py measured 64% common component on one unit and 9% on another, and RPL01015's stored run carried a +45 step at 3.0 min on all ten channels that the climb repair took out ten times over. Calls are per well: the shared move must not become ten detections, must not hide the two real ones, and the repair must not move a Ct.",
  "loops": 90,
  "interval_s": 20,
  "slopes": [
@@ -31,17 +31,18 @@
  "wells": [
   {
    "expect": "P",
-   "note": "P under common-mode",
+   "note": "P, sync step one round late (channel 1-3)",
    "ct": [
     7.0,
     9.0
    ],
+   "climbs": 1,
    "mirror": {
     "letter": "P",
     "ct": 8.0,
     "increase": 91.0,
     "sharpness": 33.87,
-    "climbs": 0,
+    "climbs": 1,
     "flag": 0,
     "break_i": 0,
     "rising_i": 21
@@ -49,13 +50,14 @@
   },
   {
    "expect": "N",
-   "note": "shared only",
+   "note": "shared only, step at round 10",
+   "climbs": 1,
    "mirror": {
     "letter": "N",
     "ct": 16.0,
     "increase": 6.2,
-    "sharpness": 5.48,
-    "climbs": 0,
+    "sharpness": 5.67,
+    "climbs": 1,
     "flag": 0,
     "break_i": 0,
     "rising_i": 0
@@ -63,13 +65,14 @@
   },
   {
    "expect": "N",
-   "note": "shared only",
+   "note": "shared only, step at round 10",
+   "climbs": 1,
    "mirror": {
     "letter": "N",
     "ct": 15.67,
-    "increase": 8.5,
+    "increase": 8.7,
     "sharpness": 6.91,
-    "climbs": 0,
+    "climbs": 1,
     "flag": 0,
     "break_i": 0,
     "rising_i": 0
@@ -77,13 +80,14 @@
   },
   {
    "expect": "N",
-   "note": "shared only",
+   "note": "shared only, step at round 9",
+   "climbs": 1,
    "mirror": {
     "letter": "N",
     "ct": 15.67,
     "increase": 7.6,
     "sharpness": 6.96,
-    "climbs": 0,
+    "climbs": 1,
     "flag": 0,
     "break_i": 0,
     "rising_i": 30
@@ -91,17 +95,18 @@
   },
   {
    "expect": "P",
-   "note": "P under common-mode",
+   "note": "P, sync step at round 9",
    "ct": [
     13.0,
     15.0
    ],
+   "climbs": 1,
    "mirror": {
     "letter": "P",
     "ct": 14.0,
     "increase": 67.0,
     "sharpness": 24.93,
-    "climbs": 0,
+    "climbs": 1,
     "flag": 0,
     "break_i": 0,
     "rising_i": 40
@@ -109,13 +114,14 @@
   },
   {
    "expect": "N",
-   "note": "shared only",
+   "note": "shared only, step at round 9",
+   "climbs": 1,
    "mirror": {
     "letter": "N",
     "ct": 21.0,
-    "increase": 8.5,
-    "sharpness": 5.24,
-    "climbs": 0,
+    "increase": 8.3,
+    "sharpness": 4.96,
+    "climbs": 1,
     "flag": 0,
     "break_i": 0,
     "rising_i": 62
@@ -123,13 +129,14 @@
   },
   {
    "expect": "N",
-   "note": "shared only",
+   "note": "shared only, step at round 9",
+   "climbs": 1,
    "mirror": {
     "letter": "N",
     "ct": 15.67,
-    "increase": 7.3,
-    "sharpness": 6.07,
-    "climbs": 0,
+    "increase": 7.2,
+    "sharpness": 6.19,
+    "climbs": 1,
     "flag": 0,
     "break_i": 0,
     "rising_i": 0
@@ -137,13 +144,14 @@
   },
   {
    "expect": "N",
-   "note": "shared only",
+   "note": "shared only, step at round 9",
+   "climbs": 1,
    "mirror": {
     "letter": "N",
     "ct": 16.0,
     "increase": 7.6,
     "sharpness": 6.96,
-    "climbs": 0,
+    "climbs": 1,
     "flag": 0,
     "break_i": 0,
     "rising_i": 46
@@ -151,13 +159,14 @@
   },
   {
    "expect": "N",
-   "note": "shared only",
+   "note": "shared only, step at round 9",
+   "climbs": 1,
    "mirror": {
     "letter": "N",
-    "ct": 16.0,
-    "increase": 5.3,
-    "sharpness": 5.28,
-    "climbs": 0,
+    "ct": 15.67,
+    "increase": 5.7,
+    "sharpness": 5.26,
+    "climbs": 1,
     "flag": 0,
     "break_i": 0,
     "rising_i": 60
@@ -165,13 +174,14 @@
   },
   {
    "expect": "N",
-   "note": "shared only",
+   "note": "shared only, step at round 9",
+   "climbs": 1,
    "mirror": {
     "letter": "N",
     "ct": 22.0,
     "increase": 8.3,
     "sharpness": 6.29,
-    "climbs": 0,
+    "climbs": 1,
     "flag": 0,
     "break_i": 0,
     "rising_i": 0

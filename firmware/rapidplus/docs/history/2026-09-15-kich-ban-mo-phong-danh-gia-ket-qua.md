@@ -98,21 +98,27 @@ Hai điều pre-screen bắt buộc, học từ chính lần chạy đầu:
 - **Quét 5 slope** (1,0 / 1,3 / 1,5 / 1,74 / 2,2): lượng tử hoá khác nhau theo slope, recipe phải đứng
   vững ở mọi máy nó có thể gặp. Bậc thang 3×15 trượt ở slope 2,2 → nâng thành 3×18.
 
-## Bằng chứng — RPL01015, 15/09/2026, 11:23 (para V1.301015, 90 × 20 s, ngưỡng khớp `define.h`; `ParaRead` không nói version firmware — hành vi Ct 3,33 → P cho thấy bản có `d7775b1`)
+## Bằng chứng — RPL01015, 15/09/2026 (para V1.301015, 90 × 20 s, ngưỡng khớp `define.h`; `ParaRead` không nói version firmware — hành vi Ct 3,33 → P cho thấy bản có `d7775b1`)
 
-Log: [`docs/reports/simcases/2026-09-15-1123-RPL01015.serial.log`](../reports/simcases/2026-09-15-1123-RPL01015.serial.log)
-· báo cáo chấm lại: [`2026-09-15-1146-RPL01015-regrade.md`](../reports/simcases/2026-09-15-1146-RPL01015-regrade.md).
+Ba lần nạp cùng ngày: **11:23** (lần đầu, catalogue bản đầu — log giữ lại vì nó chứa record run thật
+của máy trước khi bị ghi đè), 11:35 rớt COM giữa chừng, **12:01** (catalogue như đã commit, có trả
+record). Lần cuối là bằng chứng:
+[`docs/reports/simcases/2026-09-15-1201-RPL01015.md`](../reports/simcases/2026-09-15-1201-RPL01015.md)
+· log serial [`…1201-RPL01015.serial.log`](../reports/simcases/2026-09-15-1201-RPL01015.serial.log)
+· record gốc [`…1123-RPL01015.serial.log`](../reports/simcases/2026-09-15-1123-RPL01015.serial.log).
 
-**110 giếng: 100 PASS · 0 FAIL · 1 KNOWN-WEAK · 3 INFO · 6 STALE** (6 giếng đã đổi recipe sau khi
-đo, chờ nạp lại — với dữ liệu cũ cả 6 đều đúng chữ, chỉ thiếu biên hoặc thiếu nhánh F/2). Máy và mirror **cùng chữ ở 110/110**, cùng Ct tới một vòng ở mọi giếng P/S/F/E
-(một ca lệch đúng một vòng: S01 slot 7, 18,00 vs 17,67); Ct của giếng N lệch tuỳ ý vì đó chỉ là đỉnh
-nhiễu, và float32 quyết định bump nào là đỉnh.
+**110 giếng: 106 PASS · 0 FAIL · 1 KNOWN-WEAK · 3 INFO.** Máy và mirror **cùng chữ ở 110/110**, cùng Ct
+tới một vòng ở mọi giếng P/S/F/E; Ct của giếng N lệch tuỳ ý vì đó chỉ là đỉnh nhiễu, và float32 quyết
+định bump nào là đỉnh. Sáu giếng đổi recipe sau lần 11:23 (S05 3, 8 · S06 2, 6 · S07 1, 8 — thiếu biên
+hoặc thiếu nhánh) và S09 viết lại (xem mục 8) đều **PASS ở lần 12:01**.
 
 Những điều máy nói mà tài liệu trước đây chỉ suy luận:
 
 1. **`MIN_CALLABLE_CT = 3.0` đang sống trên máy**: Ct 3,33 → **P**, Ct 3,00 → **P** (`d7775b1`).
-   Nhánh F lý do 2 **chưa** được kích — giếng hai pha bản đầu rơi đúng Ct 3,00; hai giếng mới (Ct ~1,7
-   và ~2,7, robust qua 5 seed × 5 slope trên mirror) **chờ nạp lại**.
+   **Nhánh F lý do 2 (EARLY_RISE) đã kích trên máy**: hai giếng hai pha (dẫn nhập ở 2,8′, sườn chính
+   ở 5,6′) cho **Ct 1,67 và 2,67 → `F`, `shape_flag 2`**, có tay trái, increase 150/176, sharpness
+   45/64. Giếng hai pha bản đầu rơi đúng Ct 3,00 → P — recipe robust phải dò qua 5 seed × 5 slope
+   trên mirror, chỉ 5/648 tổ hợp đứng vững.
 2. **Bậc +32 sạch trên nền phẳng → N (đã vá), KHÔNG phải B.** `neutralise_climbs` chạy trước
    `check_breakData` và không có trần trên (`CLIMB_MIN_STEP` 8, không có max) nên vá luôn. `B` chỉ còn
    với tới được khi bậc nằm trong dải **`2,5×range ≤ jump < 4×range`** của 8 điểm trước nó (nền nhiễu):
@@ -134,6 +140,17 @@ Những điều máy nói mà tài liệu trước đây chỉ suy luận:
    maintenance`, `[dash] heap…` rơi vào **giữa hai chữ số** của JSON; lần đầu 9/120 record đọc hỏng.
    Parser nay: gỡ các mảnh **biết trước** rồi quét tiền tố JSON theo schema (mảng phẳng, chuỗi chỉ
    `[A-Za-z0-9_ ]`) để cắt đúng chỗ text lạ bắt đầu và nối phần còn lại ở dòng sau → 120/120.
+8. **Run thật gần nhất của RPL01015 có bậc đồng bộ +45…58 đơn vị ở phút 3,0 trên cả 10 kênh, và
+   `neutralise_climbs` vá nó ở CẢ 10 giếng** (`neutralised 1` ×10 khi đọc record gốc). Kênh 1–3 nhận
+   bậc **trễ một vòng** so với kênh 4–10 — 10 kênh đọc tuần tự trong một vòng, nguồn sáng dịch giữa hai
+   lần đọc. Và run đó **phẳng từ vòng 0** (preheat quang 15′ đã làm xong việc warm-up). S09 nay chép
+   đúng ba đặc tính này (`warm=0`, bậc ở vòng 9/10 lệch theo kênh, biên độ 45–58): **10/10 PASS, climbs
+   1 ×10, hai Ct không dịch**. Đo được cái giá của warm-up: cùng bậc đó **có** đuôi warm-up trong cửa sổ
+   8 điểm nhìn lại thì `4×range` vượt bậc → cổng climb từ chối → `checkJump` gọi **B**. Vá hay gãy
+   phụ thuộc vào mấy vòng đầu trông thế nào, không phụ thuộc vào bậc.
+9. **Record trả lại là bản ĐÃ VÁ.** Vì mục 8, `raw_data` mà `getResult` in ra đã mất bậc 3,0′; runner
+   nạp trả bản đó (kết luận vẫn N×10, sai lệch ≤ 1 count ở mọi điểm khác). Report ghi rõ khi xảy ra.
+   Backup đúng raw cần đường khác (`GET /curve` qua WiFi đọc thẳng RAM, chưa làm).
 
 ## Đã loại
 
@@ -147,10 +164,7 @@ Những điều máy nói mà tài liệu trước đây chỉ suy luận:
 
 ## Còn nợ
 
-- **Nạp lại 6 giếng đã đổi recipe** (S05 slot 3, 8 · S06 slot 2, 6 · S07 slot 1, 8) — COM7 rớt giữa
-  lần chạy thứ hai (11:35). Record run thật của RPL01015 hiện **chưa được trả lại** (lần 1 backup
-  hỏng vì parser): `python tools/run_sim_cases.py COM7 --restore-from
-  docs/reports/simcases/2026-09-15-1123-RPL01015.serial.log` sẽ nạp cả catalogue rồi trả record.
+- **Backup record bằng `GET /curve`** khi máy có mạng, để trả lại raw gốc thay vì bản đã vá (mục 9).
 - Dời hai dòng gán `climbs_fixed`/`climb_first_i` lên trước `toJSON()` trong `bResultGet()`.
 - Nhánh `a` (`SHAPE_RULE_NEGATIVE`): mirror có `--variant a`, chưa có máy nào cắm bản đó để đo.
 - ASF: S04 slot 4 (sharp 6,6, inc 52) → **F** đúng như [2026-08-21](2026-08-21-asf-va-quy-tac-hinh-dang.md)

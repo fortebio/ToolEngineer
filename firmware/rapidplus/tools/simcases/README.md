@@ -140,22 +140,22 @@ min_sharpness 8.0 was set where pure noise never reaches (P(>8.0) = 0.000% at to
 | 9 | **N** |  |  | N | 22.0 | 9 | 7.0 | 0 | low level 150, sigma 3 |
 | 10 | **N** |  |  | N | 7.3 | 3 | 5.0 | 0 | high level 560, sigma 3 |
 
-## S09_common_mode - Shared wobble and shared steps across all ten wells, two of them positive
+## S09_common_mode - Shared wobble, and the 3.0-min synchronous step of a real unit, two wells positive
 
-probe_sensor_noise.py measured 64% common component on one unit and 9% on another. Calls are per well; a shared move must not become ten detections, and must not hide the two real ones.
+probe_sensor_noise.py measured 64% common component on one unit and 9% on another, and RPL01015's stored run carried a +45 step at 3.0 min on all ten channels that the climb repair took out ten times over. Calls are per well: the shared move must not become ten detections, must not hide the two real ones, and the repair must not move a Ct.
 
 | slot | kỳ vọng | chấp nhận | Ct (phút) | mirror | Ct | inc | sharp | climb | ghi chú |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | **P** |  | 7.0..9.0 | P | 8.0 | 91 | 33.9 | 0 | P under common-mode |
-| 2 | **N** |  |  | N | 16.0 | 6 | 5.5 | 0 | shared only |
-| 3 | **N** |  |  | N | 15.7 | 9 | 6.9 | 0 | shared only |
-| 4 | **N** |  |  | N | 15.7 | 8 | 7.0 | 0 | shared only |
-| 5 | **P** |  | 13.0..15.0 | P | 14.0 | 67 | 24.9 | 0 | P under common-mode |
-| 6 | **N** |  |  | N | 21.0 | 8 | 5.2 | 0 | shared only |
-| 7 | **N** |  |  | N | 15.7 | 7 | 6.1 | 0 | shared only |
-| 8 | **N** |  |  | N | 16.0 | 8 | 7.0 | 0 | shared only |
-| 9 | **N** |  |  | N | 16.0 | 5 | 5.3 | 0 | shared only |
-| 10 | **N** |  |  | N | 22.0 | 8 | 6.3 | 0 | shared only |
+| 1 | **P** |  | 7.0..9.0 | P | 8.0 | 91 | 33.9 | 1 | P, sync step one round late (channel 1-3) |
+| 2 | **N** |  |  | N | 16.0 | 6 | 5.7 | 1 | shared only, step at round 10 |
+| 3 | **N** |  |  | N | 15.7 | 9 | 6.9 | 1 | shared only, step at round 10 |
+| 4 | **N** |  |  | N | 15.7 | 8 | 7.0 | 1 | shared only, step at round 9 |
+| 5 | **P** |  | 13.0..15.0 | P | 14.0 | 67 | 24.9 | 1 | P, sync step at round 9 |
+| 6 | **N** |  |  | N | 21.0 | 8 | 5.0 | 1 | shared only, step at round 9 |
+| 7 | **N** |  |  | N | 15.7 | 7 | 6.2 | 1 | shared only, step at round 9 |
+| 8 | **N** |  |  | N | 16.0 | 8 | 7.0 | 1 | shared only, step at round 9 |
+| 9 | **N** |  |  | N | 15.7 | 6 | 5.3 | 1 | shared only, step at round 9 |
+| 10 | **N** |  |  | N | 22.0 | 8 | 6.3 | 1 | shared only, step at round 9 |
 
 ## R01_real_all_negative_RPL250701 - Real run RPL250701 30-07-2025 (v2.2.9), all ten wells Negative
 
