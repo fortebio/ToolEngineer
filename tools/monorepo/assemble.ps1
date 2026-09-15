@@ -58,7 +58,7 @@ $tokens = @()
 function Say($msg, $color = "Cyan") { Write-Host $msg -ForegroundColor $color }
 function Step($title) { $script:StepNo++; Write-Host ""; Write-Host ("=== [{0}] {1}" -f $script:StepNo, $title) -ForegroundColor Yellow }
 
-# Ham THUONG (khong param block): moi tham so nam trong $args, ke ca -A/-a/-C/-q — neu khai bao
+# Ham THUONG (khong param block): moi tham so nam trong $args, ke ca -A/-a/-C/-q - neu khai bao
 # param thi PowerShell bind `-A` vao tham so ten `$a` (khop tien to, khong phan biet hoa/thuong).
 function G {
   $a = @($args)
