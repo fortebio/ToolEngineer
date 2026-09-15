@@ -1,0 +1,23 @@
+# --- bi mat: KHONG BAO GIO commit ---
+**/secrets.h
+!**/secrets.example.h
+*.env
+!*.env.example
+# --- build / cache ---
+.pio/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.venv/
+node_modules/
+server/OTA/
+# --- anh chup / tam ---
+_smoke.png
+_web.png
+*.zip
+*.rar
+*.tmp
+Thumbs.db
+.DS_Store
+.idea/

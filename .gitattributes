@@ -1,0 +1,10 @@
+# Chi danh dau BINARY. KHONG dat 'text=auto' o day: se renormalize hang loat blob da import.
+*.bin -text
+*.png -text
+*.jpg -text
+*.ico -text
+*.ttf -text
+*.otf -text
+*.docx -text
+*.pdf -text
+*.gz -text
