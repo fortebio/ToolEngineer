@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "author": "Uri Shaked",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 96,
+      "left": -158.36,
+      "attrs": { "fastTLS": "1" }
+    },
+    {
+      "type": "wokwi-ili9341",
+      "id": "lcd1",
+      "top": 34.2,
+      "left": 88.1,
+      "rotate": 90,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": 332.6,
+      "left": 153.6,
+      "attrs": { "color": "red", "label": "RED" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn2",
+      "top": 332.6,
+      "left": 249.6,
+      "attrs": { "color": "green", "label": "GREEN" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn3",
+      "top": 332.6,
+      "left": 336,
+      "attrs": { "color": "white", "label": "WHITE" }
+    }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "lcd1:GND", "esp:GND.2", "black", [ "h-19.2", "v91.54" ] ],
+    [ "lcd1:RST", "esp:17", "purple", [ "h-48", "v67.2" ] ],
+    [ "lcd1:D/C", "esp:21", "#8f4814", [ "h-28.8", "v44.14" ] ],
+    [ "lcd1:SCK", "esp:18", "gray", [ "v-0.01", "h-48", "v-19.2" ] ],
+    [ "lcd1:MISO", "esp:19", "orange", [ "h-67.2", "v-9.61", "h0", "v-19.2" ] ],
+    [ "lcd1:MOSI", "esp:23", "green", [ "h-38.4", "v-67.31" ] ],
+    [ "esp:5V", "lcd1:VCC", "red", [ "h-21.83", "v-206.3", "h201.6", "v48.5" ] ],
+    [ "lcd1:CS", "esp:22", "violet", [ "h-57.6", "v105.6" ] ],
+    [ "esp:GND.2", "btn1:2.l", "black", [ "h76.8", "v278.4", "h134.4" ] ],
+    [ "esp:13", "btn1:1.l", "green", [ "h-9.45", "v96", "h153.3", "v-48" ] ],
+    [ "esp:GND.2", "btn2:2.l", "black", [ "h76.8", "v278.4", "h211.2" ] ],
+    [ "esp:16", "btn2:1.l", "blue", [ "h57.6", "v96", "h230.4" ] ],
+    [ "esp:GND.2", "btn3:2.l", "black", [ "h76.8", "v278.4", "h316.8" ] ],
+    [ "esp:4", "btn3:1.l", "white", [ "h38.4", "v67.2", "h355.2" ] ]
+  ],
+  "dependencies": {}
+}
