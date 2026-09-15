@@ -1,0 +1,198 @@
+{
+ "id": "S08_noise_stress",
+ "title": "Flat wells at sigma 1 .. 6 calibrated units, plus positives under the same noise",
+ "why": "min_sharpness 8.0 was set where pure noise never reaches (P(>8.0) = 0.000% at today's sigma ~2). Sigma 4..6 is 2-3x worse than any fleet unit; a flat well there may legitimately trip a gate, so those two only tolerate N or F.",
+ "loops": 90,
+ "interval_s": 20,
+ "slopes": [
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "wells": [
+  {
+   "expect": "N",
+   "note": "sigma 1.0",
+   "mirror": {
+    "letter": "N",
+    "ct": 17.33,
+    "increase": 1.1,
+    "sharpness": 1.52,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "sigma 2.0 (fleet typical)",
+   "mirror": {
+    "letter": "N",
+    "ct": 14.67,
+    "increase": 2.3,
+    "sharpness": 3.46,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 69
+   }
+  },
+  {
+   "expect": "N",
+   "note": "sigma 3.0",
+   "mirror": {
+    "letter": "N",
+    "ct": 17.67,
+    "increase": 6.9,
+    "sharpness": 5.32,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "sigma 4.0",
+   "accept": [
+    "N",
+    "F"
+   ],
+   "mirror": {
+    "letter": "N",
+    "ct": 15.67,
+    "increase": 7.1,
+    "sharpness": 8.97,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 46
+   }
+  },
+  {
+   "expect": "N",
+   "note": "sigma 6.0 - stress",
+   "accept": [
+    "N",
+    "F",
+    "B"
+   ],
+   "mirror": {
+    "letter": "N",
+    "ct": 14.0,
+    "increase": 8.2,
+    "sharpness": 10.44,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "P",
+   "note": "P at sigma 2",
+   "ct": [
+    9.0,
+    11.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 10.0,
+    "increase": 82.3,
+    "sharpness": 23.87,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 23
+   }
+  },
+  {
+   "expect": "P",
+   "note": "P at sigma 4",
+   "ct": [
+    9.0,
+    11.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 10.0,
+    "increase": 87.7,
+    "sharpness": 24.63,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 29
+   }
+  },
+  {
+   "expect": "P",
+   "note": "weak P (A 45) at sigma 4",
+   "ct": [
+    9.0,
+    11.0
+   ],
+   "accept": [
+    "P",
+    "F"
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 9.67,
+    "increase": 28.2,
+    "sharpness": 18.75,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 29
+   }
+  },
+  {
+   "expect": "N",
+   "note": "low level 150, sigma 3",
+   "mirror": {
+    "letter": "N",
+    "ct": 22.0,
+    "increase": 9.2,
+    "sharpness": 7.01,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 79
+   }
+  },
+  {
+   "expect": "N",
+   "note": "high level 560, sigma 3",
+   "mirror": {
+    "letter": "N",
+    "ct": 7.33,
+    "increase": 3.2,
+    "sharpness": 5.03,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 13
+   }
+  }
+ ]
+}

@@ -1,0 +1,118 @@
+{
+  "device ID": "RPL",
+  "para version": "V1.3",
+  "PCB version": "V1.3",
+  "opto calibration": {
+    "slopes": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "origins": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "LED power": [
+    150,
+    150,
+    150,
+    150,
+    150,
+    150,
+    150,
+    150,
+    150,
+    150
+  ],
+  "parameters": {
+    "min increase": 20,
+    "min sharpness": 5,
+    "min slight positive time": 22,
+    "detect shape": true,
+    "detection margin time": 4,
+    "arm percentile": 0.9,
+    "transition percentile": 0.4,
+    "sg order": 2,
+    "sg window": 4,
+    "baseline start": 3,
+    "baseline range": 4
+  },
+  "units": "nM FAM",
+  "lysis duration": 600,
+  "opto preheat time": 900,
+  "LED Duration": 200,
+  "time per loop": 20000,
+  "amplification time": 120,
+  "lysis temperature": 82,
+  "amplification temperature": 65.8,
+  "bottom temperature sensor seq": [
+    2,
+    0,
+    1
+  ],
+  "top temperature sensor seq": [
+    0,
+    2,
+    1
+  ],
+  "PID parameter": [
+    30,
+    0.1,
+    30
+  ],
+  "PID2 parameter": [
+    60,
+    0.1,
+    40
+  ],
+  "PID3 parameter": [
+    60,
+    0.1,
+    40
+  ],
+  "Bottom overheat value": [
+    5,
+    5,
+    5
+  ],
+  "Top overheat value": [
+    20,
+    20
+  ],
+  "temperature value calibration": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "top heater PWM": [
+    [
+      40,
+      100
+    ],
+    [
+      40,
+      100
+    ]
+  ],
+  "buzzer": "On",
+  "kitId": 0
+}

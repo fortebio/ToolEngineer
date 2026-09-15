@@ -1,0 +1,6 @@
+{
+    "versionCode": 20,
+    "fileName": "firmware.bin",
+    "version": "2.4.4",
+    "content": "OTA moves to the engineer server; 6h update poll; web upload verifies MD5"
+}

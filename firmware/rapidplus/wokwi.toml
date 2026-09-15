@@ -1,0 +1,12 @@
+# Wokwi for VS Code — TFT simulation (see docs/history/2026-08-07-wokwi-tft-simulation.md)
+# Build first: pio run -e esp32dev   (Wokwi loads bootloader.bin/partitions.bin from the same dir)
+[wokwi]
+version = 1
+firmware = ".pio/build/esp32dev/firmware.bin"
+elf = ".pio/build/esp32dev/firmware.elf"
+
+# Dashboard reachable only once the firmware has STA creds for "Wokwi-GUEST"
+# (enter via Serial JSON config). Then open http://localhost:8180/
+[[net.forward]]
+from = "localhost:8180"
+to = "target:80"

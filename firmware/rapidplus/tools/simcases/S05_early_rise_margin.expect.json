@@ -1,0 +1,225 @@
+{
+ "id": "S05_early_rise_margin",
+ "title": "Rises at and before the 4-min detection margin and the 3.0-min Ct floor",
+ "why": "Three different answers live within two minutes of each other: P (Ct >= 3.0 with a lag phase), F/2 (real reaction, Ct < 3.0), E (no left arm - the rise was already under way when measurement began). This is the branch d7775b1 moved; it has never been exercised on a unit.",
+ "loops": 90,
+ "interval_s": 20,
+ "slopes": [
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "wells": [
+  {
+   "expect": "P",
+   "note": "Ct 4.0 - on the margin",
+   "ct": [
+    3.0,
+    5.0
+   ],
+   "accept": [
+    "P",
+    "F"
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 3.67,
+    "increase": 119.7,
+    "sharpness": 49.28,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "Ct 3.4 - inside the ERP-corrected band 3.0..3.7",
+   "ct": [
+    2.4,
+    4.4
+   ],
+   "accept": [
+    "P",
+    "F",
+    "E"
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 3.33,
+    "increase": 112.8,
+    "sharpness": 43.81,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "F",
+   "note": "two-stage rise: lead-in at 2.8, main rise at 5.6 -> Ct ~1.7 with a left arm -> F reason 2",
+   "ct": [
+    1.0,
+    2.9
+   ],
+   "flag": 2,
+   "mirror": {
+    "letter": "F",
+    "ct": 1.67,
+    "increase": 149.5,
+    "sharpness": 45.07,
+    "climbs": 0,
+    "flag": 2,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "E",
+   "note": "rising from t=0, saturating by 10 min: peak at the margin, no left arm",
+   "accept": [
+    "E",
+    "F"
+   ],
+   "mirror": {
+    "letter": "E",
+    "ct": 4.0,
+    "increase": 46.3,
+    "sharpness": 18.66,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "E",
+   "note": "same shape, smaller (A 90): increase ~20 -> may fall to N",
+   "accept": [
+    "E",
+    "N",
+    "F"
+   ],
+   "mirror": {
+    "letter": "N",
+    "ct": 4.0,
+    "increase": 12.4,
+    "sharpness": 8.11,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 14
+   }
+  },
+  {
+   "expect": "P",
+   "note": "Ct 6.0 under a big warm-up (150)",
+   "ct": [
+    5.0,
+    7.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 5.67,
+    "increase": 102.9,
+    "sharpness": 43.97,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 13
+   }
+  },
+  {
+   "expect": "E",
+   "note": "Ct 2.0: still rising at the margin, left arm before it -> E",
+   "accept": [
+    "E",
+    "N"
+   ],
+   "mirror": {
+    "letter": "E",
+    "ct": 1.67,
+    "increase": 172.8,
+    "sharpness": 61.0,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "F",
+   "note": "two-stage rise, Ct ~2.7: the last round under the 3.0 floor -> F reason 2",
+   "ct": [
+    2.0,
+    2.99
+   ],
+   "accept": [
+    "F",
+    "P"
+   ],
+   "flag": 2,
+   "mirror": {
+    "letter": "F",
+    "ct": 2.67,
+    "increase": 176.3,
+    "sharpness": 64.39,
+    "climbs": 0,
+    "flag": 2,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "N",
+   "note": "warm-up only (200, tau 2.5 rounds)",
+   "mirror": {
+    "letter": "N",
+    "ct": 4.67,
+    "increase": 3.1,
+    "sharpness": 2.77,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 62
+   }
+  },
+  {
+   "expect": "N",
+   "note": "Ct 2.0, k 2.5: the whole rise is over before 4 min -> invisible, N",
+   "accept": [
+    "N",
+    "E"
+   ],
+   "mirror": {
+    "letter": "N",
+    "ct": 4.0,
+    "increase": 5.7,
+    "sharpness": 19.25,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  }
+ ]
+}

@@ -1,0 +1,24 @@
+{
+  "para version": "V1.3",
+  "PCB version": "V1.3",
+  "parameters": {
+    "min increase": 20,
+    "min sharpness": 5,
+    "min slight positive time": 22.0,
+    "detect shape": true,
+    "detection margin time": 4,
+    "arm percentile": 0.9,
+    "transition percentile": 0.4,
+    "sg order": 2,
+    "sg window": 4,
+    "baseline start": 3,
+    "baseline range": 4
+  },
+  "units": "nM FAM",
+  "device ID": "proto 1",
+  "lysis duration": 600,
+  "opto preheat time": 900,
+  "LED Duration": 200,
+  "time per loop": 20000,
+  "amplification time": 120
+}

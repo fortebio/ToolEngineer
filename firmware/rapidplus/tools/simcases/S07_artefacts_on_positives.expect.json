@@ -1,0 +1,226 @@
+{
+ "id": "S07_artefacts_on_positives",
+ "title": "Positives that also carry a step, spike, dropout or tail step",
+ "why": "Repair exists so a well with real amplification underneath keeps a readable result instead of a Break, and a break inside the plateau trims the end instead of the reaction. Ct must survive every repair.",
+ "loops": 90,
+ "interval_s": 20,
+ "slopes": [
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "wells": [
+  {
+   "expect": "P",
+   "note": "offset +18 at 5 min, then P at Ct 9",
+   "ct": [
+    8.0,
+    10.0
+   ],
+   "climbs": 1,
+   "mirror": {
+    "letter": "P",
+    "ct": 8.67,
+    "increase": 86.5,
+    "sharpness": 24.01,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 21
+   }
+  },
+  {
+   "expect": "P",
+   "note": "dropout in the plateau",
+   "ct": [
+    8.0,
+    10.0
+   ],
+   "climbs": 1,
+   "mirror": {
+    "letter": "P",
+    "ct": 9.0,
+    "increase": 81.8,
+    "sharpness": 26.81,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 16
+   }
+  },
+  {
+   "expect": "P",
+   "note": "step in the last 5 readings: Ct must not slide to the end",
+   "ct": [
+    8.0,
+    10.0
+   ],
+   "climbs": 1,
+   "mirror": {
+    "letter": "P",
+    "ct": 8.67,
+    "increase": 83.0,
+    "sharpness": 25.47,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 24
+   }
+  },
+  {
+   "expect": "P",
+   "note": "+40 at 20 min after the plateau: end-trim, P kept",
+   "ct": [
+    7.0,
+    9.0
+   ],
+   "accept": [
+    "P",
+    "B"
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 8.0,
+    "increase": 81.1,
+    "sharpness": 26.08,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 22
+   }
+  },
+  {
+   "expect": "P",
+   "note": "+40 at 8 min BEFORE the rise: start-trim, P kept",
+   "ct": [
+    15.0,
+    17.0
+   ],
+   "accept": [
+    "P",
+    "B"
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 16.0,
+    "increase": 79.9,
+    "sharpness": 25.02,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 43
+   }
+  },
+  {
+   "expect": "P",
+   "note": "+25 spike on the rising flank",
+   "ct": [
+    8.0,
+    10.0
+   ],
+   "accept": [
+    "P",
+    "B",
+    "F"
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 10.0,
+    "increase": 65.7,
+    "sharpness": 28.91,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 25
+   }
+  },
+  {
+   "expect": "P",
+   "note": "sigma 4 noise on a real rise",
+   "ct": [
+    8.0,
+    10.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 9.0,
+    "increase": 79.8,
+    "sharpness": 25.46,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 19
+   }
+  },
+  {
+   "expect": "P",
+   "note": "-18 at 5 min then P",
+   "ct": [
+    8.0,
+    10.0
+   ],
+   "climbs": 1,
+   "mirror": {
+    "letter": "P",
+    "ct": 8.67,
+    "increase": 84.7,
+    "sharpness": 24.23,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 21
+   }
+  },
+  {
+   "expect": "P",
+   "note": "control P",
+   "ct": [
+    8.0,
+    10.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 9.0,
+    "increase": 83.2,
+    "sharpness": 24.59,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 24
+   }
+  },
+  {
+   "expect": "N",
+   "note": "control N",
+   "mirror": {
+    "letter": "N",
+    "ct": 17.0,
+    "increase": 1.7,
+    "sharpness": 2.48,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 49
+   }
+  }
+ ]
+}

@@ -1,0 +1,173 @@
+{
+ "id": "S02_negative_field",
+ "title": "Ten negatives as the fleet actually records them",
+ "why": "Nothing here amplifies. Each well is one negative behaviour measured on real captures: creep, late knee, big warm-up, sync step, high noise, a small bump.",
+ "loops": 90,
+ "interval_s": 20,
+ "slopes": [
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "wells": [
+  {
+   "expect": "N",
+   "note": "flat, sync step at round 6",
+   "mirror": {
+    "letter": "N",
+    "ct": 3.33,
+    "increase": 2.2,
+    "sharpness": 2.28,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "creep +21 over 30 min (slots.txt 9)",
+   "mirror": {
+    "letter": "N",
+    "ct": 23.0,
+    "increase": 3.6,
+    "sharpness": 2.88,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "creep with a late knee (slots.txt 3)",
+   "mirror": {
+    "letter": "N",
+    "ct": 26.0,
+    "increase": 6.8,
+    "sharpness": 4.06,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 81
+   }
+  },
+  {
+   "expect": "N",
+   "note": "near-flat, low noise",
+   "mirror": {
+    "letter": "N",
+    "ct": 16.33,
+    "increase": 2.0,
+    "sharpness": 1.83,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "warm-up 27 -> 148 (slots.txt 3)",
+   "mirror": {
+    "letter": "N",
+    "ct": 5.0,
+    "increase": 2.3,
+    "sharpness": 3.46,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "noisy, sigma 3.8",
+   "mirror": {
+    "letter": "N",
+    "ct": 13.33,
+    "increase": 6.5,
+    "sharpness": 6.63,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "slow downward drift",
+   "mirror": {
+    "letter": "N",
+    "ct": 17.33,
+    "increase": 0.8,
+    "sharpness": 1.0,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "2-min bump of +7 at 15 min",
+   "mirror": {
+    "letter": "N",
+    "ct": 13.67,
+    "increase": 9.1,
+    "sharpness": 6.33,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "quadratic creep, +18 by the end",
+   "mirror": {
+    "letter": "N",
+    "ct": 19.0,
+    "increase": 4.2,
+    "sharpness": 4.41,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "high level 558, flat",
+   "mirror": {
+    "letter": "N",
+    "ct": 21.67,
+    "increase": 3.3,
+    "sharpness": 4.93,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 25
+   }
+  }
+ ]
+}

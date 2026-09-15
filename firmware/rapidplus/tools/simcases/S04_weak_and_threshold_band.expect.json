@@ -1,0 +1,203 @@
+{
+ "id": "S04_weak_and_threshold_band",
+ "title": "Weak amplification around min_increase 25 / min_sharpness 8 and the v2.4.3 band",
+ "why": "F (threshold band) exists for wells that were Positive under 20/5 and are not under 25/8. Each well is placed on one side of one gate with a margin the pre-screen reports. ASF-like kinetics (sharpness 4..8, increase 40..70) are here because docs 2026-08-21 says they must read F on this build - that is the documented cost.",
+ "loops": 90,
+ "interval_s": 20,
+ "slopes": [
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "wells": [
+  {
+   "expect": "P",
+   "note": "weak-but-clear: sharp 17, inc 45",
+   "ct": [
+    9.0,
+    11.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 9.67,
+    "increase": 56.2,
+    "sharpness": 20.25,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 26
+   }
+  },
+  {
+   "expect": "P",
+   "note": "just above both gates: sharp ~12, inc ~31",
+   "ct": [
+    9.0,
+    11.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 10.0,
+    "increase": 34.4,
+    "sharpness": 15.45,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 29
+   }
+  },
+  {
+   "expect": "F",
+   "note": "increase in (20,25), sharp ~10 -> band",
+   "accept": [
+    "F",
+    "N"
+   ],
+   "flag": 1,
+   "mirror": {
+    "letter": "F",
+    "ct": 9.67,
+    "increase": 22.7,
+    "sharpness": 9.24,
+    "climbs": 0,
+    "flag": 1,
+    "break_i": 0,
+    "rising_i": 25
+   }
+  },
+  {
+   "expect": "F",
+   "note": "ASF-like: sharp 5..8, inc ~55 -> band",
+   "accept": [
+    "F",
+    "P"
+   ],
+   "flag": 1,
+   "mirror": {
+    "letter": "F",
+    "ct": 11.0,
+    "increase": 49.1,
+    "sharpness": 6.57,
+    "climbs": 0,
+    "flag": 1,
+    "break_i": 0,
+    "rising_i": 37
+   }
+  },
+  {
+   "expect": "N",
+   "note": "sharp ~3.5 fails legacy 5 too -> N",
+   "accept": [
+    "N",
+    "F"
+   ],
+   "mirror": {
+    "letter": "N",
+    "ct": 22.0,
+    "increase": 7.6,
+    "sharpness": 3.7,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 69
+   }
+  },
+  {
+   "expect": "N",
+   "note": "increase ~12 fails legacy 20 too -> N",
+   "mirror": {
+    "letter": "N",
+    "ct": 10.0,
+    "increase": 14.4,
+    "sharpness": 6.42,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 29
+   }
+  },
+  {
+   "expect": "P",
+   "note": "strong control: sharp 75, inc 150",
+   "ct": [
+    7.0,
+    9.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 7.67,
+    "increase": 168.7,
+    "sharpness": 70.62,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 18
+   }
+  },
+  {
+   "expect": "P",
+   "note": "slow but real: sharp ~7.5-8.5 -> BORDERLINE, either",
+   "accept": [
+    "P",
+    "F"
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 11.67,
+    "increase": 43.6,
+    "sharpness": 9.48,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 30
+   }
+  },
+  {
+   "expect": "N",
+   "note": "creep +27 over the run, no knee",
+   "mirror": {
+    "letter": "N",
+    "ct": 18.0,
+    "increase": 3.5,
+    "sharpness": 3.32,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "flat",
+   "mirror": {
+    "letter": "N",
+    "ct": 17.33,
+    "increase": 1.3,
+    "sharpness": 1.72,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 29
+   }
+  }
+ ]
+}

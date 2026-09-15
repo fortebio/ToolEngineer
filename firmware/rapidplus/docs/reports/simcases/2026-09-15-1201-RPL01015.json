@@ -1,0 +1,3940 @@
+{
+ "device": {
+  "device": "RPL01015",
+  "para_version": "V1.301015",
+  "pcb": "V1.3"
+ },
+ "params": {
+  "min_increase": 25.0,
+  "min_sharpness": 8.0,
+  "min_slight_positive_time": 22.0,
+  "detect_shape": true,
+  "detection_margin_time": 4.0,
+  "arm_percentile": 0.5,
+  "transition_percentile": 0.4,
+  "sg_order": 2,
+  "sg_window": 4,
+  "baseline_start": 2,
+  "baseline_range": 2,
+  "amplification_time": 90,
+  "timePerLoop": 20000
+ },
+ "slopes": [
+  1.508,
+  1.622,
+  1.504,
+  1.73,
+  1.542,
+  1.743,
+  1.617,
+  1.59,
+  1.294,
+  1.511
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "started": "2026-09-15 12:01",
+ "scenarios": [
+  {
+   "id": "S01_positive_ladder",
+   "title": "Dilution ladder: eight clean positives Ct 5..20 min, two NTC",
+   "wells": [
+    {
+     "slot": 1,
+     "expect": "P",
+     "note": "Ct 5.0, PC-like",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 4.67,
+      "increase": 119.3,
+      "sharpness": 49.57,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 4.666667,
+      "json": true,
+      "ct": 4.666666667,
+      "ct_i": 14,
+      "increase": 119.3031092,
+      "sharpness": 49.56680258,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 32.13596763,
+      "rise_width": 3.0,
+      "arm_width": 2.666666667,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      4.0,
+      6.0
+     ]
+    },
+    {
+     "slot": 2,
+     "expect": "P",
+     "note": "Ct 7.0, slots.txt slot 6",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 6.67,
+      "increase": 94.0,
+      "sharpness": 34.42,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 6.666667,
+      "json": true,
+      "ct": 6.666666667,
+      "ct_i": 20,
+      "increase": 93.95167271,
+      "sharpness": 34.42117864,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 23.48791818,
+      "rise_width": 3.666666667,
+      "arm_width": 3.0,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      6.0,
+      8.0
+     ]
+    },
+    {
+     "slot": 3,
+     "expect": "P",
+     "note": "Ct 9.0",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 8.67,
+      "increase": 86.5,
+      "sharpness": 24.39,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 8.666667,
+      "json": true,
+      "ct": 8.666666667,
+      "ct_i": 26,
+      "increase": 86.47933564,
+      "sharpness": 24.38518812,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.2005988,
+      "rise_width": 4.666666667,
+      "arm_width": 4.0,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      8.0,
+      10.0
+     ]
+    },
+    {
+     "slot": 4,
+     "expect": "P",
+     "note": "Ct 11.0",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 11.0,
+      "increase": 80.4,
+      "sharpness": 24.88,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 11.0,
+      "json": true,
+      "ct": 11.0,
+      "ct_i": 33,
+      "increase": 80.41188941,
+      "sharpness": 24.87800479,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.40920485,
+      "rise_width": 4.0,
+      "arm_width": 3.666666667,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      10.0,
+      12.0
+     ]
+    },
+    {
+     "slot": 5,
+     "expect": "P",
+     "note": "Ct 13.0, high level",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 12.67,
+      "increase": 79.0,
+      "sharpness": 20.14,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 12.666667,
+      "json": true,
+      "ct": 12.66666667,
+      "ct_i": 38,
+      "increase": 79.03659758,
+      "sharpness": 20.14166062,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 17.7273004,
+      "rise_width": 4.666666667,
+      "arm_width": 4.666666667,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      12.0,
+      14.0
+     ]
+    },
+    {
+     "slot": 6,
+     "expect": "P",
+     "note": "Ct 15.0, low level",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 14.67,
+      "increase": 75.4,
+      "sharpness": 20.99,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 14.666667,
+      "json": true,
+      "ct": 14.66666667,
+      "ct_i": 44,
+      "increase": 75.3788219,
+      "sharpness": 20.98561195,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 16.071087,
+      "rise_width": 5.0,
+      "arm_width": 5.0,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      14.0,
+      16.0
+     ]
+    },
+    {
+     "slot": 7,
+     "expect": "P",
+     "note": "Ct 18.0",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 18.0,
+      "increase": 69.2,
+      "sharpness": 19.0,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 18.0,
+      "json": true,
+      "ct": 18.0,
+      "ct_i": 54,
+      "increase": 69.21319593,
+      "sharpness": 19.00265087,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 15.83151886,
+      "rise_width": 4.666666667,
+      "arm_width": 4.666666667,
+      "suspect": 1,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      17.0,
+      19.0
+     ]
+    },
+    {
+     "slot": 8,
+     "expect": "P",
+     "note": "Ct 20.0, last P before S",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 20.0,
+      "increase": 64.3,
+      "sharpness": 20.99,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 20.0,
+      "json": true,
+      "ct": 20.0,
+      "ct_i": 60,
+      "increase": 64.28707569,
+      "sharpness": 20.98749948,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 15.41493037,
+      "rise_width": 5.333333333,
+      "arm_width": 3.666666667,
+      "suspect": 1,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      19.0,
+      21.0
+     ]
+    },
+    {
+     "slot": 9,
+     "expect": "N",
+     "note": "NTC flat",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 13.67,
+      "increase": 3.3,
+      "sharpness": 2.83,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 13.666667,
+      "json": true,
+      "ct": 13.66666667,
+      "ct_i": 41,
+      "increase": 3.268520603,
+      "sharpness": 2.830265986,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.830511547,
+      "rise_width": 5.333333333,
+      "arm_width": 1.333333333,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 10,
+     "expect": "N",
+     "note": "NTC flat, noisy",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 23.33,
+      "increase": 4.2,
+      "sharpness": 4.94,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 23.333333,
+      "json": true,
+      "ct": 23.33333333,
+      "ct_i": 70,
+      "increase": 4.234461004,
+      "sharpness": 4.937818849,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.076521242,
+      "rise_width": 7.333333333,
+      "arm_width": 1.0,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": "S02_negative_field",
+   "title": "Ten negatives as the fleet actually records them",
+   "wells": [
+    {
+     "slot": 1,
+     "expect": "N",
+     "note": "flat, sync step at round 6",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 20.33,
+      "increase": 2.8,
+      "sharpness": 2.23,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 20.333333,
+      "json": true,
+      "ct": 20.33333333,
+      "ct_i": 61,
+      "increase": 2.844854049,
+      "sharpness": 2.226226014,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.421272872,
+      "rise_width": 4.333333333,
+      "arm_width": 1.666666667,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 2,
+     "expect": "N",
+     "note": "creep +21 over 30 min (slots.txt 9)",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 23.0,
+      "increase": 3.7,
+      "sharpness": 3.04,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 23.0,
+      "json": true,
+      "ct": 23.0,
+      "ct_i": 69,
+      "increase": 3.653766715,
+      "sharpness": 3.042577372,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.142301122,
+      "rise_width": 7.333333333,
+      "arm_width": 1.333333333,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 3,
+     "expect": "N",
+     "note": "creep with a late knee (slots.txt 3)",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 22.33,
+      "increase": 5.6,
+      "sharpness": 4.08,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 22.333333,
+      "json": true,
+      "ct": 22.33333333,
+      "ct_i": 67,
+      "increase": 5.583966144,
+      "sharpness": 4.080038095,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 2.081746859,
+      "rise_width": 7.333333333,
+      "arm_width": 2.0,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 4,
+     "expect": "N",
+     "note": "near-flat, low noise",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 16.33,
+      "increase": 1.8,
+      "sharpness": 1.78,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 16.333333,
+      "json": true,
+      "ct": 16.33333333,
+      "ct_i": 49,
+      "increase": 1.826685786,
+      "sharpness": 1.779141909,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.511722251,
+      "rise_width": 7.666666667,
+      "arm_width": 1.333333333,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 5,
+     "expect": "N",
+     "note": "warm-up 27 -> 148 (slots.txt 3)",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 7.67,
+      "increase": 2.4,
+      "sharpness": 3.49,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 7.666667,
+      "json": true,
+      "ct": 7.666666667,
+      "ct_i": 23,
+      "increase": 2.380673429,
+      "sharpness": 3.486788861,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.979782121,
+      "rise_width": 6.0,
+      "arm_width": 1.0,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 6,
+     "expect": "N",
+     "note": "noisy, sigma 3.8",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 13.33,
+      "increase": 6.4,
+      "sharpness": 6.69,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 13.333333,
+      "json": true,
+      "ct": 13.33333333,
+      "ct_i": 40,
+      "increase": 6.370567157,
+      "sharpness": 6.687228512,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.275976866,
+      "rise_width": 4.666666667,
+      "arm_width": 1.0,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 7,
+     "expect": "N",
+     "note": "slow downward drift",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 17.33,
+      "increase": 0.8,
+      "sharpness": 1.05,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 17.333333,
+      "json": true,
+      "ct": 17.33333333,
+      "ct_i": 52,
+      "increase": 0.808507482,
+      "sharpness": 1.048115916,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.0,
+      "rise_width": 3.333333333,
+      "arm_width": 1.0,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 8,
+     "expect": "N",
+     "note": "2-min bump of +7 at 15 min",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 13.67,
+      "increase": 8.9,
+      "sharpness": 6.28,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 13.666667,
+      "json": true,
+      "ct": 13.66666667,
+      "ct_i": 41,
+      "increase": 8.938430852,
+      "sharpness": 6.277051059,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 2.405452745,
+      "rise_width": 3.0,
+      "arm_width": 1.666666667,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 9,
+     "expect": "N",
+     "note": "quadratic creep, +18 by the end",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 19.0,
+      "increase": 4.4,
+      "sharpness": 4.47,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 19.0,
+      "json": true,
+      "ct": 19.0,
+      "ct_i": 57,
+      "increase": 4.392562668,
+      "sharpness": 4.466162347,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.609156621,
+      "rise_width": 5.333333333,
+      "arm_width": 1.333333333,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 10,
+     "expect": "N",
+     "note": "high level 558, flat",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 21.67,
+      "increase": 3.3,
+      "sharpness": 4.91,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 21.666667,
+      "json": true,
+      "ct": 21.66666667,
+      "ct_i": 65,
+      "increase": 3.274684361,
+      "sharpness": 4.912026542,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.752776241,
+      "rise_width": 4.0,
+      "arm_width": 0.666666667,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": "S03_slight_positive_boundary",
+   "title": "Late risers straddling min_slight_positive_time = 22 min",
+   "wells": [
+    {
+     "slot": 1,
+     "expect": "P",
+     "note": "Ct 20.5",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 20.33,
+      "increase": 82.3,
+      "sharpness": 24.98,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 20.333333,
+      "json": true,
+      "ct": 20.33333333,
+      "ct_i": 61,
+      "increase": 82.26831702,
+      "sharpness": 24.97933029,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.8285937,
+      "rise_width": 4.333333333,
+      "arm_width": 3.666666667,
+      "suspect": 1,
+      "letter": "P",
+      "climbs": 0
+     },
+     "accept": [
+      "P",
+      "S"
+     ],
+     "ct": [
+      19.5,
+      21.5
+     ]
+    },
+    {
+     "slot": 2,
+     "expect": "P",
+     "note": "Ct 21.3 - boundary",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 21.33,
+      "increase": 77.5,
+      "sharpness": 26.11,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 21.333333,
+      "json": true,
+      "ct": 21.33333333,
+      "ct_i": 64,
+      "increase": 77.4656849,
+      "sharpness": 26.11414446,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.36642122,
+      "rise_width": 4.333333333,
+      "arm_width": 3.666666667,
+      "suspect": 1,
+      "letter": "P",
+      "climbs": 0
+     },
+     "accept": [
+      "P",
+      "S"
+     ],
+     "ct": [
+      20.3,
+      22.3
+     ]
+    },
+    {
+     "slot": 3,
+     "expect": "S",
+     "note": "Ct 22.7 - boundary",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "S",
+      "ct": 22.67,
+      "increase": 77.0,
+      "sharpness": 27.58,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Slight Positive",
+      "ct_line": 22.666667,
+      "json": true,
+      "ct": 22.66666667,
+      "ct_i": 68,
+      "increase": 76.96070538,
+      "sharpness": 27.58444135,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.24017635,
+      "rise_width": 4.333333333,
+      "arm_width": 3.333333333,
+      "suspect": 1,
+      "letter": "S",
+      "climbs": 0
+     },
+     "accept": [
+      "S",
+      "P"
+     ],
+     "ct": [
+      21.7,
+      23.7
+     ]
+    },
+    {
+     "slot": 4,
+     "expect": "S",
+     "note": "Ct 24.0",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "S",
+      "ct": 23.67,
+      "increase": 85.4,
+      "sharpness": 27.09,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Slight Positive",
+      "ct_line": 23.666667,
+      "json": true,
+      "ct": 23.66666667,
+      "ct_i": 71,
+      "increase": 85.44903247,
+      "sharpness": 27.08504952,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.39231295,
+      "rise_width": 5.0,
+      "arm_width": 3.666666667,
+      "suspect": 2,
+      "letter": "S",
+      "climbs": 0
+     },
+     "ct": [
+      23.0,
+      25.0
+     ]
+    },
+    {
+     "slot": 5,
+     "expect": "S",
+     "note": "Ct 26.0, plateau not reached",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "S",
+      "ct": 26.33,
+      "increase": 69.5,
+      "sharpness": 27.19,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Slight Positive",
+      "ct_line": 26.333333,
+      "json": true,
+      "ct": 26.33333333,
+      "ct_i": 79,
+      "increase": 69.51167869,
+      "sharpness": 27.19103588,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 18.63633569,
+      "rise_width": 3.666666667,
+      "arm_width": -1.0,
+      "suspect": 2,
+      "letter": "S",
+      "climbs": 0
+     },
+     "ct": [
+      25.0,
+      27.0
+     ]
+    },
+    {
+     "slot": 6,
+     "expect": "S",
+     "note": "Ct 27.5, rise cut by end of run",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "S",
+      "ct": 27.0,
+      "increase": 54.1,
+      "sharpness": 28.55,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Slight Positive",
+      "ct_line": 27.0,
+      "json": true,
+      "ct": 27.0,
+      "ct_i": 81,
+      "increase": 54.11726661,
+      "sharpness": 28.54535217,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 14.88477054,
+      "rise_width": 2.666666667,
+      "arm_width": -1.0,
+      "suspect": 4,
+      "letter": "S",
+      "climbs": 0
+     },
+     "accept": [
+      "S",
+      "N"
+     ],
+     "ct": [
+      26.2,
+      28.8
+     ]
+    },
+    {
+     "slot": 7,
+     "expect": "S",
+     "note": "Ct 24.0, weak (A 45)",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "S",
+      "ct": 23.67,
+      "increase": 41.6,
+      "sharpness": 12.46,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Slight Positive",
+      "ct_line": 23.666667,
+      "json": true,
+      "ct": 23.66666667,
+      "ct_i": 71,
+      "increase": 41.60073628,
+      "sharpness": 12.45692701,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 9.958449062,
+      "rise_width": 4.0,
+      "arm_width": 4.0,
+      "suspect": 3,
+      "letter": "S",
+      "climbs": 0
+     },
+     "ct": [
+      23.0,
+      25.0
+     ]
+    },
+    {
+     "slot": 8,
+     "expect": "P",
+     "note": "Ct 19.0, control P",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 19.0,
+      "increase": 84.2,
+      "sharpness": 27.44,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 19.0,
+      "json": true,
+      "ct": 19.0,
+      "ct_i": 57,
+      "increase": 84.2086648,
+      "sharpness": 27.43608153,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 20.24694362,
+      "rise_width": 4.333333333,
+      "arm_width": 3.666666667,
+      "suspect": 1,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      18.0,
+      20.0
+     ]
+    },
+    {
+     "slot": 9,
+     "expect": "N",
+     "note": "creep, no rise",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 20.33,
+      "increase": 3.8,
+      "sharpness": 2.66,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 20.333333,
+      "json": true,
+      "ct": 20.33333333,
+      "ct_i": 61,
+      "increase": 3.847255954,
+      "sharpness": 2.664642928,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.942577709,
+      "rise_width": 8.0,
+      "arm_width": 2.0,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 10,
+     "expect": "N",
+     "note": "flat",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 20.0,
+      "increase": 2.1,
+      "sharpness": 3.36,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 20.0,
+      "json": true,
+      "ct": 20.0,
+      "ct_i": 60,
+      "increase": 2.088576808,
+      "sharpness": 3.356333646,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.611675642,
+      "rise_width": 4.666666667,
+      "arm_width": 1.0,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": "S04_weak_and_threshold_band",
+   "title": "Weak amplification around min_increase 25 / min_sharpness 8 and the v2.4.3 band",
+   "wells": [
+    {
+     "slot": 1,
+     "expect": "P",
+     "note": "weak-but-clear: sharp 17, inc 45",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 9.67,
+      "increase": 56.2,
+      "sharpness": 20.29,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 9.666667,
+      "json": true,
+      "ct": 9.666666667,
+      "ct_i": 29,
+      "increase": 56.17083872,
+      "sharpness": 20.28575273,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 14.04270968,
+      "rise_width": 3.666666667,
+      "arm_width": 3.333333333,
+      "suspect": 1,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      9.0,
+      11.0
+     ]
+    },
+    {
+     "slot": 2,
+     "expect": "P",
+     "note": "just above both gates: sharp ~12, inc ~31",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 10.0,
+      "increase": 34.1,
+      "sharpness": 15.38,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 10.0,
+      "json": true,
+      "ct": 10.0,
+      "ct_i": 30,
+      "increase": 34.10359859,
+      "sharpness": 15.37703794,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 9.716909499,
+      "rise_width": 3.0,
+      "arm_width": 2.333333333,
+      "suspect": 1,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      9.0,
+      11.0
+     ]
+    },
+    {
+     "slot": 3,
+     "expect": "F",
+     "note": "increase in (20,25), sharp ~10 -> band",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "F",
+      "ct": 9.67,
+      "increase": 23.9,
+      "sharpness": 9.23,
+      "climbs": 0,
+      "flag": 1
+     },
+     "unit": {
+      "word": "Flagged",
+      "ct_line": 9.666667,
+      "json": true,
+      "ct": 9.666666667,
+      "ct_i": 29,
+      "increase": 23.91026537,
+      "sharpness": 9.230798895,
+      "flag": 1,
+      "climb_first": -1,
+      "window_rate": 6.086222067,
+      "rise_width": 3.333333333,
+      "arm_width": 3.333333333,
+      "suspect": 2,
+      "letter": "F",
+      "climbs": 0
+     },
+     "accept": [
+      "F",
+      "N"
+     ],
+     "flag": 1
+    },
+    {
+     "slot": 4,
+     "expect": "F",
+     "note": "ASF-like: sharp 5..8, inc ~55 -> band",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "F",
+      "ct": 11.0,
+      "increase": 52.2,
+      "sharpness": 6.64,
+      "climbs": 0,
+      "flag": 1
+     },
+     "unit": {
+      "word": "Flagged",
+      "ct_line": 11.0,
+      "json": true,
+      "ct": 11.0,
+      "ct_i": 33,
+      "increase": 52.1532462,
+      "sharpness": 6.636146644,
+      "flag": 1,
+      "climb_first": -1,
+      "window_rate": 5.448789654,
+      "rise_width": 15.0,
+      "arm_width": 9.333333333,
+      "suspect": 4,
+      "letter": "F",
+      "climbs": 0
+     },
+     "accept": [
+      "F",
+      "P"
+     ],
+     "flag": 1
+    },
+    {
+     "slot": 5,
+     "expect": "N",
+     "note": "sharp ~3.5 fails legacy 5 too -> N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 16.67,
+      "increase": 12.9,
+      "sharpness": 3.5,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 16.666667,
+      "json": true,
+      "ct": 16.66666667,
+      "ct_i": 50,
+      "increase": 12.89436664,
+      "sharpness": 3.495204579,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 2.6986082,
+      "rise_width": 18.0,
+      "arm_width": 2.666666667,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     },
+     "accept": [
+      "N",
+      "F"
+     ]
+    },
+    {
+     "slot": 6,
+     "expect": "N",
+     "note": "increase ~12 fails legacy 20 too -> N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 10.0,
+      "increase": 14.5,
+      "sharpness": 6.57,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 10.0,
+      "json": true,
+      "ct": 10.0,
+      "ct_i": 30,
+      "increase": 14.53433267,
+      "sharpness": 6.568016151,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 4.099268331,
+      "rise_width": 4.333333333,
+      "arm_width": 2.666666667,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 7,
+     "expect": "P",
+     "note": "strong control: sharp 75, inc 150",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 7.67,
+      "increase": 168.7,
+      "sharpness": 70.42,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 7.666667,
+      "json": true,
+      "ct": 7.666666667,
+      "ct_i": 23,
+      "increase": 168.737477,
+      "sharpness": 70.4246301,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 45.50541315,
+      "rise_width": 3.0,
+      "arm_width": 2.666666667,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      7.0,
+      9.0
+     ]
+    },
+    {
+     "slot": 8,
+     "expect": "P",
+     "note": "slow but real: sharp ~7.5-8.5 -> BORDERLINE, either",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 11.67,
+      "increase": 43.7,
+      "sharpness": 9.05,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 11.666667,
+      "json": true,
+      "ct": 11.66666667,
+      "ct_i": 35,
+      "increase": 43.72295231,
+      "sharpness": 9.045985631,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 7.749327127,
+      "rise_width": 8.0,
+      "arm_width": 4.333333333,
+      "suspect": 4,
+      "letter": "P",
+      "climbs": 0
+     },
+     "accept": [
+      "P",
+      "F"
+     ]
+    },
+    {
+     "slot": 9,
+     "expect": "N",
+     "note": "creep +27 over the run, no knee",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 18.0,
+      "increase": 3.6,
+      "sharpness": 3.39,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 18.0,
+      "json": true,
+      "ct": 18.0,
+      "ct_i": 54,
+      "increase": 3.599693397,
+      "sharpness": 3.38725796,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.569011341,
+      "rise_width": 8.333333333,
+      "arm_width": 1.333333333,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 10,
+     "expect": "N",
+     "note": "flat",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 17.33,
+      "increase": 1.5,
+      "sharpness": 1.74,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 17.333333,
+      "json": true,
+      "ct": 17.33333333,
+      "ct_i": 52,
+      "increase": 1.509850572,
+      "sharpness": 1.740483272,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.42831487,
+      "rise_width": 6.666666667,
+      "arm_width": 1.333333333,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": "S05_early_rise_margin",
+   "title": "Rises at and before the 4-min detection margin and the 3.0-min Ct floor",
+   "wells": [
+    {
+     "slot": 1,
+     "expect": "P",
+     "note": "Ct 4.0 - on the margin",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 3.67,
+      "increase": 119.4,
+      "sharpness": 49.03,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 3.666667,
+      "json": true,
+      "ct": 3.666666667,
+      "ct_i": 11,
+      "increase": 119.4236771,
+      "sharpness": 49.03286446,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 31.06376328,
+      "rise_width": 3.333333333,
+      "arm_width": 3.0,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 0
+     },
+     "accept": [
+      "P",
+      "F"
+     ],
+     "ct": [
+      3.0,
+      5.0
+     ]
+    },
+    {
+     "slot": 2,
+     "expect": "P",
+     "note": "Ct 3.4 - inside the ERP-corrected band 3.0..3.7",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 3.33,
+      "increase": 112.9,
+      "sharpness": 43.71,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 3.333333,
+      "json": true,
+      "ct": 3.333333333,
+      "ct_i": 10,
+      "increase": 112.9330958,
+      "sharpness": 43.70906998,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 27.41924976,
+      "rise_width": 3.333333333,
+      "arm_width": 3.0,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 0
+     },
+     "accept": [
+      "P",
+      "F",
+      "E"
+     ],
+     "ct": [
+      2.4,
+      4.4
+     ]
+    },
+    {
+     "slot": 3,
+     "expect": "F",
+     "note": "two-stage rise: lead-in at 2.8, main rise at 5.6 -> Ct ~1.7 with a left arm -> F reason 2",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "F",
+      "ct": 1.67,
+      "increase": 149.9,
+      "sharpness": 45.04,
+      "climbs": 0,
+      "flag": 2
+     },
+     "unit": {
+      "word": "Flagged",
+      "ct_line": 1.666667,
+      "json": true,
+      "ct": 1.666666667,
+      "ct_i": 5,
+      "increase": 149.9205501,
+      "sharpness": 45.04438366,
+      "flag": 2,
+      "climb_first": -1,
+      "window_rate": 24.51111074,
+      "rise_width": 3.0,
+      "arm_width": 2.333333333,
+      "suspect": 1,
+      "letter": "F",
+      "climbs": 0
+     },
+     "ct": [
+      1.0,
+      2.9
+     ],
+     "flag": 2
+    },
+    {
+     "slot": 4,
+     "expect": "E",
+     "note": "rising from t=0, saturating by 10 min: peak at the margin, no left arm",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "E",
+      "ct": 4.0,
+      "increase": 46.3,
+      "sharpness": 18.58,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Error",
+      "ct_line": 4.0,
+      "json": true,
+      "ct": 4.0,
+      "ct_i": 12,
+      "increase": 46.26780641,
+      "sharpness": 18.58344576,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 12.69299429,
+      "rise_width": 5.0,
+      "arm_width": -1.0,
+      "suspect": 1,
+      "letter": "E",
+      "climbs": 0
+     },
+     "accept": [
+      "E",
+      "F"
+     ]
+    },
+    {
+     "slot": 5,
+     "expect": "E",
+     "note": "same shape, smaller (A 90): increase ~20 -> may fall to N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 4.0,
+      "increase": 12.3,
+      "sharpness": 7.95,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 4.0,
+      "json": true,
+      "ct": 4.0,
+      "ct_i": 12,
+      "increase": 12.27111856,
+      "sharpness": 7.946343558,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 4.293207276,
+      "rise_width": 4.0,
+      "arm_width": -1.0,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     },
+     "accept": [
+      "E",
+      "N",
+      "F"
+     ]
+    },
+    {
+     "slot": 6,
+     "expect": "P",
+     "note": "Ct 6.0 under a big warm-up (150)",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 5.67,
+      "increase": 103.1,
+      "sharpness": 43.61,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 5.666667,
+      "json": true,
+      "ct": 5.666666667,
+      "ct_i": 17,
+      "increase": 103.0541353,
+      "sharpness": 43.61416269,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 27.72499771,
+      "rise_width": 3.0,
+      "arm_width": 3.0,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      5.0,
+      7.0
+     ]
+    },
+    {
+     "slot": 7,
+     "expect": "E",
+     "note": "Ct 2.0: still rising at the margin, left arm before it -> E",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "E",
+      "ct": 1.67,
+      "increase": 172.8,
+      "sharpness": 61.17,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Error",
+      "ct_line": 1.666667,
+      "json": true,
+      "ct": 1.666666667,
+      "ct_i": 5,
+      "increase": 172.8201718,
+      "sharpness": 61.16825787,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 15.47478845,
+      "rise_width": 1.333333333,
+      "arm_width": -1.0,
+      "suspect": 0,
+      "letter": "E",
+      "climbs": 0
+     },
+     "accept": [
+      "E",
+      "N"
+     ]
+    },
+    {
+     "slot": 8,
+     "expect": "F",
+     "note": "two-stage rise, Ct ~2.7: the last round under the 3.0 floor -> F reason 2",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "F",
+      "ct": 2.67,
+      "increase": 176.2,
+      "sharpness": 64.31,
+      "climbs": 0,
+      "flag": 2
+     },
+     "unit": {
+      "word": "Flagged",
+      "ct_line": 2.666667,
+      "json": true,
+      "ct": 2.666666667,
+      "ct_i": 8,
+      "increase": 176.1768807,
+      "sharpness": 64.30614045,
+      "flag": 2,
+      "climb_first": -1,
+      "window_rate": 36.09409692,
+      "rise_width": 3.0,
+      "arm_width": 2.666666667,
+      "suspect": 1,
+      "letter": "F",
+      "climbs": 0
+     },
+     "accept": [
+      "F",
+      "P"
+     ],
+     "ct": [
+      2.0,
+      2.99
+     ],
+     "flag": 2
+    },
+    {
+     "slot": 9,
+     "expect": "N",
+     "note": "warm-up only (200, tau 2.5 rounds)",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 4.67,
+      "increase": 3.0,
+      "sharpness": 2.7,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 4.666667,
+      "json": true,
+      "ct": 4.666666667,
+      "ct_i": 14,
+      "increase": 2.964059805,
+      "sharpness": 2.699770048,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.635633592,
+      "rise_width": 4.666666667,
+      "arm_width": 1.0,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 10,
+     "expect": "N",
+     "note": "Ct 2.0, k 2.5: the whole rise is over before 4 min -> invisible, N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 4.0,
+      "increase": 5.8,
+      "sharpness": 19.22,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 4.0,
+      "json": true,
+      "ct": 4.0,
+      "ct_i": 12,
+      "increase": 5.750043993,
+      "sharpness": 19.21837804,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 2.0405933,
+      "rise_width": 0.666666667,
+      "arm_width": -1.0,
+      "suspect": 1,
+      "letter": "N",
+      "climbs": 0
+     },
+     "accept": [
+      "N",
+      "E"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "S06_breaks_and_climbs",
+   "title": "Steps, spikes and dropouts on negatives: Break vs neutralised climb",
+   "wells": [
+    {
+     "slot": 1,
+     "expect": "N",
+     "note": "+32 at 10 min on a quiet trace: repaired as an offset, NOT a Break (repair runs first, no upper size)",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 9.0,
+      "increase": 2.6,
+      "sharpness": 2.43,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 9.0,
+      "json": true,
+      "ct": 9.0,
+      "ct_i": 27,
+      "increase": 2.631003045,
+      "sharpness": 2.430768793,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.775808822,
+      "rise_width": 6.333333333,
+      "arm_width": 1.333333333,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    },
+    {
+     "slot": 2,
+     "expect": "N",
+     "note": "+12 at 10 min (sigma 0.7) -> offset repaired",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 22.67,
+      "increase": 1.0,
+      "sharpness": 1.63,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 22.666667,
+      "json": true,
+      "ct": 22.66666667,
+      "ct_i": 68,
+      "increase": 1.032880511,
+      "sharpness": 1.633391343,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.373649894,
+      "rise_width": 5.333333333,
+      "arm_width": 1.0,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    },
+    {
+     "slot": 3,
+     "expect": "N",
+     "note": "RPL01004 s2: +19.3 at 5 min, sigma 0.8 -> repaired, not P",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 26.33,
+      "increase": 1.4,
+      "sharpness": 1.44,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 26.333333,
+      "json": true,
+      "ct": 26.33333333,
+      "ct_i": 79,
+      "increase": 1.433408729,
+      "sharpness": 1.442044444,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.208679942,
+      "rise_width": 4.333333333,
+      "arm_width": 1.333333333,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    },
+    {
+     "slot": 4,
+     "expect": "N",
+     "note": "+26 single-reading spike -> repaired",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 10.33,
+      "increase": 2.0,
+      "sharpness": 2.66,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 10.333333,
+      "json": true,
+      "ct": 10.33333333,
+      "ct_i": 31,
+      "increase": 2.021865911,
+      "sharpness": 2.6649594,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.570526519,
+      "rise_width": 5.0,
+      "arm_width": 1.0,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    },
+    {
+     "slot": 5,
+     "expect": "N",
+     "note": "dropout -40 for 3 readings -> repaired",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 12.67,
+      "increase": 2.9,
+      "sharpness": 2.99,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 12.666667,
+      "json": true,
+      "ct": 12.66666667,
+      "ct_i": 38,
+      "increase": 2.944965313,
+      "sharpness": 2.986723615,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.80712775,
+      "rise_width": 3.666666667,
+      "arm_width": 1.333333333,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    },
+    {
+     "slot": 6,
+     "expect": "N",
+     "note": "staircase 3 x +18 -> repaired",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 20.33,
+      "increase": 1.3,
+      "sharpness": 1.6,
+      "climbs": 3,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 3,
+      "word": "Negative",
+      "ct_line": 20.333333,
+      "json": true,
+      "ct": 20.33333333,
+      "ct_i": 61,
+      "increase": 1.333714076,
+      "sharpness": 1.596358658,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.300518581,
+      "rise_width": 4.0,
+      "arm_width": 1.0,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 3
+     },
+     "climbs": 3
+    },
+    {
+     "slot": 7,
+     "expect": "N",
+     "note": "-30 at 10 min: invisible to checkJump, repaired",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 5.0,
+      "increase": 2.6,
+      "sharpness": 2.49,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 5.0,
+      "json": true,
+      "ct": 5.0,
+      "ct_i": 15,
+      "increase": 2.610237815,
+      "sharpness": 2.493780557,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.473861166,
+      "rise_width": 6.0,
+      "arm_width": 0.666666667,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    },
+    {
+     "slot": 8,
+     "expect": "N",
+     "note": "+25 in the last 6 readings -> tail hold",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 5.0,
+      "increase": 3.5,
+      "sharpness": 2.59,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 5.0,
+      "json": true,
+      "ct": 5.0,
+      "ct_i": 15,
+      "increase": 3.471366321,
+      "sharpness": 2.585152762,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.433582587,
+      "rise_width": 7.666666667,
+      "arm_width": 1.666666667,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    },
+    {
+     "slot": 9,
+     "expect": "B",
+     "note": "+32 on sigma 3: 2.5x < jump < 4x local range -> Break",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "B",
+      "ct": 0.0,
+      "increase": -1.0,
+      "sharpness": -1.0,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Break",
+      "ct_line": -0.333333,
+      "json": true,
+      "ct": -1.0,
+      "ct_i": -1,
+      "increase": -1.0,
+      "sharpness": -1.0,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": -1.0,
+      "rise_width": -1.0,
+      "arm_width": -1.0,
+      "suspect": 0,
+      "letter": "B",
+      "climbs": 0
+     },
+     "accept": [
+      "B",
+      "N"
+     ]
+    },
+    {
+     "slot": 10,
+     "expect": "B",
+     "note": "+40 on sigma 4.5: dodges the climb gate (4x range) AND checkJump (post-step slope > 1.0) -> the scorer reads the smoothed edge as a rise",
+     "status": "KNOWN-WEAK",
+     "why": [
+      "documented: current algorithm answers P, intent is B"
+     ],
+     "mirror": {
+      "letter": "P",
+      "ct": 16.67,
+      "increase": 48.0,
+      "sharpness": 30.54,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 16.666667,
+      "json": true,
+      "ct": 16.66666667,
+      "ct_i": 50,
+      "increase": 47.96857799,
+      "sharpness": 30.54224842,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 11.03451951,
+      "rise_width": 1.666666667,
+      "arm_width": 2.0,
+      "suspect": 1,
+      "letter": "P",
+      "climbs": 0
+     },
+     "accept": [
+      "B",
+      "N"
+     ],
+     "known": "P"
+    }
+   ]
+  },
+  {
+   "id": "S07_artefacts_on_positives",
+   "title": "Positives that also carry a step, spike, dropout or tail step",
+   "wells": [
+    {
+     "slot": 1,
+     "expect": "P",
+     "note": "offset +18 at 5 min, then P at Ct 9",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 8.67,
+      "increase": 86.6,
+      "sharpness": 24.49,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Positive",
+      "ct_line": 8.666667,
+      "json": true,
+      "ct": 8.666666667,
+      "ct_i": 26,
+      "increase": 86.55999439,
+      "sharpness": 24.48844652,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.23651344,
+      "rise_width": 4.666666667,
+      "arm_width": 4.333333333,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 1
+     },
+     "ct": [
+      8.0,
+      10.0
+     ],
+     "climbs": 1
+    },
+    {
+     "slot": 2,
+     "expect": "P",
+     "note": "dropout in the plateau",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 9.0,
+      "increase": 81.6,
+      "sharpness": 26.61,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Positive",
+      "ct_line": 9.0,
+      "json": true,
+      "ct": 9.0,
+      "ct_i": 27,
+      "increase": 81.6238838,
+      "sharpness": 26.61056281,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.70204153,
+      "rise_width": 4.0,
+      "arm_width": 3.666666667,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 1
+     },
+     "ct": [
+      8.0,
+      10.0
+     ],
+     "climbs": 1
+    },
+    {
+     "slot": 3,
+     "expect": "P",
+     "note": "step in the last 5 readings: Ct must not slide to the end",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 8.67,
+      "increase": 83.0,
+      "sharpness": 25.43,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Positive",
+      "ct_line": 8.666667,
+      "json": true,
+      "ct": 8.666666667,
+      "ct_i": 26,
+      "increase": 83.03398284,
+      "sharpness": 25.42569525,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.32220961,
+      "rise_width": 4.333333333,
+      "arm_width": 4.0,
+      "suspect": 1,
+      "letter": "P",
+      "climbs": 1
+     },
+     "ct": [
+      8.0,
+      10.0
+     ],
+     "climbs": 1
+    },
+    {
+     "slot": 4,
+     "expect": "P",
+     "note": "+40 at 20 min after the plateau: end-trim, P kept",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 8.0,
+      "increase": 81.1,
+      "sharpness": 25.84,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Positive",
+      "ct_line": 8.0,
+      "json": true,
+      "ct": 8.0,
+      "ct_i": 24,
+      "increase": 81.14004411,
+      "sharpness": 25.83889156,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.48552132,
+      "rise_width": 4.333333333,
+      "arm_width": 4.0,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 1
+     },
+     "accept": [
+      "P",
+      "B"
+     ],
+     "ct": [
+      7.0,
+      9.0
+     ]
+    },
+    {
+     "slot": 5,
+     "expect": "P",
+     "note": "+40 at 8 min BEFORE the rise: start-trim, P kept",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 16.0,
+      "increase": 79.7,
+      "sharpness": 24.83,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Positive",
+      "ct_line": 16.0,
+      "json": true,
+      "ct": 16.0,
+      "ct_i": 48,
+      "increase": 79.67669717,
+      "sharpness": 24.83281837,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.25031205,
+      "rise_width": 4.333333333,
+      "arm_width": 3.666666667,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 1
+     },
+     "accept": [
+      "P",
+      "B"
+     ],
+     "ct": [
+      15.0,
+      17.0
+     ]
+    },
+    {
+     "slot": 6,
+     "expect": "P",
+     "note": "+25 spike on the rising flank",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 10.0,
+      "increase": 65.5,
+      "sharpness": 28.76,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 10.0,
+      "json": true,
+      "ct": 10.0,
+      "ct_i": 30,
+      "increase": 65.51623073,
+      "sharpness": 28.75695563,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 17.75376043,
+      "rise_width": 4.0,
+      "arm_width": 2.666666667,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 0
+     },
+     "accept": [
+      "P",
+      "B",
+      "F"
+     ],
+     "ct": [
+      8.0,
+      10.0
+     ]
+    },
+    {
+     "slot": 7,
+     "expect": "P",
+     "note": "sigma 4 noise on a real rise",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 9.0,
+      "increase": 80.0,
+      "sharpness": 25.28,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 9.0,
+      "json": true,
+      "ct": 9.0,
+      "ct_i": 27,
+      "increase": 79.95941743,
+      "sharpness": 25.27528302,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.11039922,
+      "rise_width": 5.666666667,
+      "arm_width": 3.333333333,
+      "suspect": 1,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      8.0,
+      10.0
+     ]
+    },
+    {
+     "slot": 8,
+     "expect": "P",
+     "note": "-18 at 5 min then P",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 8.67,
+      "increase": 84.1,
+      "sharpness": 24.59,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Positive",
+      "ct_line": 8.666667,
+      "json": true,
+      "ct": 8.666666667,
+      "ct_i": 26,
+      "increase": 84.14060439,
+      "sharpness": 24.58548192,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.50298441,
+      "rise_width": 4.666666667,
+      "arm_width": 4.0,
+      "suspect": 1,
+      "letter": "P",
+      "climbs": 1
+     },
+     "ct": [
+      8.0,
+      10.0
+     ],
+     "climbs": 1
+    },
+    {
+     "slot": 9,
+     "expect": "P",
+     "note": "control P",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 9.0,
+      "increase": 83.2,
+      "sharpness": 24.71,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 9.0,
+      "json": true,
+      "ct": 9.0,
+      "ct_i": 27,
+      "increase": 83.17776727,
+      "sharpness": 24.7144706,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.16688323,
+      "rise_width": 4.666666667,
+      "arm_width": 4.0,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      8.0,
+      10.0
+     ]
+    },
+    {
+     "slot": 10,
+     "expect": "N",
+     "note": "control N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 17.0,
+      "increase": 1.5,
+      "sharpness": 2.29,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 17.0,
+      "json": true,
+      "ct": 17.0,
+      "ct_i": 51,
+      "increase": 1.529910001,
+      "sharpness": 2.294865001,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.438343395,
+      "rise_width": 8.0,
+      "arm_width": 0.666666667,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": "S08_noise_stress",
+   "title": "Flat wells at sigma 1 .. 6 calibrated units, plus positives under the same noise",
+   "wells": [
+    {
+     "slot": 1,
+     "expect": "N",
+     "note": "sigma 1.0",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 17.33,
+      "increase": 1.2,
+      "sharpness": 1.5,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 17.333333,
+      "json": true,
+      "ct": 17.33333333,
+      "ct_i": 52,
+      "increase": 1.156890209,
+      "sharpness": 1.498504044,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.231807593,
+      "rise_width": 4.666666667,
+      "arm_width": 1.0,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 2,
+     "expect": "N",
+     "note": "sigma 2.0 (fleet typical)",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 14.33,
+      "increase": 2.0,
+      "sharpness": 3.31,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 14.333333,
+      "json": true,
+      "ct": 14.33333333,
+      "ct_i": 43,
+      "increase": 1.98034047,
+      "sharpness": 3.306804508,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.543793682,
+      "rise_width": 5.666666667,
+      "arm_width": 0.666666667,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 3,
+     "expect": "N",
+     "note": "sigma 3.0",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 17.67,
+      "increase": 7.0,
+      "sharpness": 5.33,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 17.666667,
+      "json": true,
+      "ct": 17.66666667,
+      "ct_i": 53,
+      "increase": 6.951157871,
+      "sharpness": 5.327771472,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.890120403,
+      "rise_width": 4.333333333,
+      "arm_width": 1.333333333,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 4,
+     "expect": "N",
+     "note": "sigma 4.0",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 15.67,
+      "increase": 7.1,
+      "sharpness": 9.0,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 15.666667,
+      "json": true,
+      "ct": 15.66666667,
+      "ct_i": 47,
+      "increase": 7.114086465,
+      "sharpness": 9.000834477,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.69406914,
+      "rise_width": 4.0,
+      "arm_width": 1.333333333,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     },
+     "accept": [
+      "N",
+      "F"
+     ]
+    },
+    {
+     "slot": 5,
+     "expect": "N",
+     "note": "sigma 6.0 - stress",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 14.0,
+      "increase": 8.1,
+      "sharpness": 10.28,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 14.0,
+      "json": true,
+      "ct": 14.0,
+      "ct_i": 42,
+      "increase": 8.102144712,
+      "sharpness": 10.27927428,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.81638389,
+      "rise_width": 5.333333333,
+      "arm_width": 1.0,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     },
+     "accept": [
+      "N",
+      "F",
+      "B"
+     ]
+    },
+    {
+     "slot": 6,
+     "expect": "P",
+     "note": "P at sigma 2",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 9.67,
+      "increase": 84.7,
+      "sharpness": 23.96,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 9.666667,
+      "json": true,
+      "ct": 9.666666667,
+      "ct_i": 29,
+      "increase": 84.72231395,
+      "sharpness": 23.95854722,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 19.73633536,
+      "rise_width": 4.666666667,
+      "arm_width": 4.0,
+      "suspect": 1,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      9.0,
+      11.0
+     ]
+    },
+    {
+     "slot": 7,
+     "expect": "P",
+     "note": "P at sigma 4",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 10.0,
+      "increase": 87.7,
+      "sharpness": 24.54,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 10.0,
+      "json": true,
+      "ct": 10.0,
+      "ct_i": 30,
+      "increase": 87.65631434,
+      "sharpness": 24.54440545,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 20.50320289,
+      "rise_width": 4.333333333,
+      "arm_width": 4.333333333,
+      "suspect": 1,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      9.0,
+      11.0
+     ]
+    },
+    {
+     "slot": 8,
+     "expect": "P",
+     "note": "weak P (A 45) at sigma 4",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 9.67,
+      "increase": 28.1,
+      "sharpness": 18.78,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 9.666667,
+      "json": true,
+      "ct": 9.666666667,
+      "ct_i": 29,
+      "increase": 28.13307633,
+      "sharpness": 18.77807617,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 10.72449708,
+      "rise_width": 3.666666667,
+      "arm_width": 2.0,
+      "suspect": 1,
+      "letter": "P",
+      "climbs": 0
+     },
+     "accept": [
+      "P",
+      "F"
+     ],
+     "ct": [
+      9.0,
+      11.0
+     ]
+    },
+    {
+     "slot": 9,
+     "expect": "N",
+     "note": "low level 150, sigma 3",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 22.0,
+      "increase": 9.2,
+      "sharpness": 7.09,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 22.0,
+      "json": true,
+      "ct": 22.0,
+      "ct_i": 66,
+      "increase": 9.193273965,
+      "sharpness": 7.090663959,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.975483188,
+      "rise_width": 3.333333333,
+      "arm_width": 1.666666667,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 10,
+     "expect": "N",
+     "note": "high level 560, sigma 3",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 7.33,
+      "increase": 3.2,
+      "sharpness": 5.07,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 7.333333,
+      "json": true,
+      "ct": 7.333333333,
+      "ct_i": 22,
+      "increase": 3.220258176,
+      "sharpness": 5.071044526,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.903907743,
+      "rise_width": 6.666666667,
+      "arm_width": 1.0,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": "S09_common_mode",
+   "title": "Shared wobble, and the 3.0-min synchronous step of a real unit, two wells positive",
+   "wells": [
+    {
+     "slot": 1,
+     "expect": "P",
+     "note": "P, sync step one round late (channel 1-3)",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 8.0,
+      "increase": 91.2,
+      "sharpness": 34.04,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Positive",
+      "ct_line": 8.0,
+      "json": true,
+      "ct": 8.0,
+      "ct_i": 24,
+      "increase": 91.24209146,
+      "sharpness": 34.04354403,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 23.53824322,
+      "rise_width": 3.333333333,
+      "arm_width": 3.333333333,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 1
+     },
+     "ct": [
+      7.0,
+      9.0
+     ],
+     "climbs": 1
+    },
+    {
+     "slot": 2,
+     "expect": "N",
+     "note": "shared only, step at round 10",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 16.0,
+      "increase": 5.9,
+      "sharpness": 5.51,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 16.0,
+      "json": true,
+      "ct": 16.0,
+      "ct_i": 48,
+      "increase": 5.874318177,
+      "sharpness": 5.512681045,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 2.494783971,
+      "rise_width": 7.333333333,
+      "arm_width": 1.666666667,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    },
+    {
+     "slot": 3,
+     "expect": "N",
+     "note": "shared only, step at round 10",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 15.67,
+      "increase": 8.6,
+      "sharpness": 6.86,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 15.666667,
+      "json": true,
+      "ct": 15.66666667,
+      "ct_i": 47,
+      "increase": 8.568768918,
+      "sharpness": 6.856166691,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 2.570343183,
+      "rise_width": 4.666666667,
+      "arm_width": 1.666666667,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    },
+    {
+     "slot": 4,
+     "expect": "N",
+     "note": "shared only, step at round 9",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 15.67,
+      "increase": 7.6,
+      "sharpness": 7.11,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 15.666667,
+      "json": true,
+      "ct": 15.66666667,
+      "ct_i": 47,
+      "increase": 7.61204258,
+      "sharpness": 7.109072599,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 2.306511223,
+      "rise_width": 6.0,
+      "arm_width": 1.666666667,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    },
+    {
+     "slot": 5,
+     "expect": "P",
+     "note": "P, sync step at round 9",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 14.0,
+      "increase": 67.2,
+      "sharpness": 25.09,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Positive",
+      "ct_line": 14.0,
+      "json": true,
+      "ct": 14.0,
+      "ct_i": 42,
+      "increase": 67.19501697,
+      "sharpness": 25.08969513,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 17.34549498,
+      "rise_width": 3.666666667,
+      "arm_width": 3.333333333,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 1
+     },
+     "ct": [
+      13.0,
+      15.0
+     ],
+     "climbs": 1
+    },
+    {
+     "slot": 6,
+     "expect": "N",
+     "note": "shared only, step at round 9",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 21.0,
+      "increase": 7.8,
+      "sharpness": 5.0,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 21.0,
+      "json": true,
+      "ct": 21.0,
+      "ct_i": 63,
+      "increase": 7.783768427,
+      "sharpness": 4.995872993,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 2.318491783,
+      "rise_width": 8.0,
+      "arm_width": 2.333333333,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    },
+    {
+     "slot": 7,
+     "expect": "N",
+     "note": "shared only, step at round 9",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 15.67,
+      "increase": 7.4,
+      "sharpness": 6.21,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 15.666667,
+      "json": true,
+      "ct": 15.66666667,
+      "ct_i": 47,
+      "increase": 7.39974936,
+      "sharpness": 6.212415225,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 2.412141478,
+      "rise_width": 5.333333333,
+      "arm_width": 1.333333333,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    },
+    {
+     "slot": 8,
+     "expect": "N",
+     "note": "shared only, step at round 9",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 16.0,
+      "increase": 7.5,
+      "sharpness": 6.95,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 16.0,
+      "json": true,
+      "ct": 16.0,
+      "ct_i": 48,
+      "increase": 7.522671126,
+      "sharpness": 6.946834416,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 2.737617955,
+      "rise_width": 5.0,
+      "arm_width": 1.333333333,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    },
+    {
+     "slot": 9,
+     "expect": "N",
+     "note": "shared only, step at round 9",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 15.67,
+      "increase": 5.5,
+      "sharpness": 5.21,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 15.666667,
+      "json": true,
+      "ct": 15.66666667,
+      "ct_i": 47,
+      "increase": 5.486518761,
+      "sharpness": 5.213868178,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 2.768351567,
+      "rise_width": 7.333333333,
+      "arm_width": 1.333333333,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    },
+    {
+     "slot": 10,
+     "expect": "N",
+     "note": "shared only, step at round 9",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 22.0,
+      "increase": 8.4,
+      "sharpness": 6.29,
+      "climbs": 1,
+      "flag": 0
+     },
+     "unit": {
+      "climbs_line": 1,
+      "word": "Negative",
+      "ct_line": 22.0,
+      "json": true,
+      "ct": 22.0,
+      "ct_i": 66,
+      "increase": 8.443133466,
+      "sharpness": 6.29152729,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 2.93948285,
+      "rise_width": 5.666666667,
+      "arm_width": 1.666666667,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 1
+     },
+     "climbs": 1
+    }
+   ]
+  },
+  {
+   "id": "R01_real_all_negative_RPL250701",
+   "title": "Real run RPL250701 30-07-2025 (v2.2.9), all ten wells Negative",
+   "wells": [
+    {
+     "slot": 1,
+     "expect": "N",
+     "note": "unit said N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 10.67,
+      "increase": 4.9,
+      "sharpness": 3.82,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 10.666667,
+      "json": true,
+      "ct": 10.66666667,
+      "ct_i": 32,
+      "increase": 4.868699441,
+      "sharpness": 3.823764553,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.831067321,
+      "rise_width": 3.666666667,
+      "arm_width": 1.666666667,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 2,
+     "expect": "N",
+     "note": "unit said N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 25.67,
+      "increase": 4.3,
+      "sharpness": 4.36,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 25.666667,
+      "json": true,
+      "ct": 25.66666667,
+      "ct_i": 77,
+      "increase": 4.345019188,
+      "sharpness": 4.35569783,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.228374894,
+      "rise_width": 5.333333333,
+      "arm_width": 1.333333333,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 3,
+     "expect": "N",
+     "note": "unit said N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 25.33,
+      "increase": 6.5,
+      "sharpness": 5.28,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 25.333333,
+      "json": true,
+      "ct": 25.33333333,
+      "ct_i": 76,
+      "increase": 6.542433305,
+      "sharpness": 5.284603565,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.870693329,
+      "rise_width": 5.0,
+      "arm_width": 1.666666667,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 4,
+     "expect": "N",
+     "note": "unit said N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 3.33,
+      "increase": 4.5,
+      "sharpness": 3.6,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 3.333333,
+      "json": true,
+      "ct": 3.333333333,
+      "ct_i": 10,
+      "increase": 4.501654423,
+      "sharpness": 3.603325386,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.248652338,
+      "rise_width": 6.0,
+      "arm_width": -1.0,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 5,
+     "expect": "N",
+     "note": "unit said N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 10.33,
+      "increase": 3.3,
+      "sharpness": 3.02,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 10.333333,
+      "json": true,
+      "ct": 10.33333333,
+      "ct_i": 31,
+      "increase": 3.293074703,
+      "sharpness": 3.015136322,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.951708013,
+      "rise_width": 5.0,
+      "arm_width": 1.333333333,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 6,
+     "expect": "N",
+     "note": "unit said N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 25.33,
+      "increase": 5.6,
+      "sharpness": 5.05,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 25.333333,
+      "json": true,
+      "ct": 25.33333333,
+      "ct_i": 76,
+      "increase": 5.598162102,
+      "sharpness": 5.051752858,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.962414069,
+      "rise_width": 5.0,
+      "arm_width": 1.333333333,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 7,
+     "expect": "N",
+     "note": "unit said N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 20.33,
+      "increase": 2.5,
+      "sharpness": 2.26,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 20.333333,
+      "json": true,
+      "ct": 20.33333333,
+      "ct_i": 61,
+      "increase": 2.537961621,
+      "sharpness": 2.256860114,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.985875877,
+      "rise_width": 7.666666667,
+      "arm_width": 1.333333333,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 8,
+     "expect": "N",
+     "note": "unit said N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 20.0,
+      "increase": 5.8,
+      "sharpness": 4.03,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 20.0,
+      "json": true,
+      "ct": 20.0,
+      "ct_i": 60,
+      "increase": 5.842791933,
+      "sharpness": 4.034965218,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.307551958,
+      "rise_width": 5.0,
+      "arm_width": 2.0,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 9,
+     "expect": "N",
+     "note": "unit said N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 25.33,
+      "increase": 2.7,
+      "sharpness": 2.37,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 25.333333,
+      "json": true,
+      "ct": 25.33333333,
+      "ct_i": 76,
+      "increase": 2.652933889,
+      "sharpness": 2.368571492,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.767778471,
+      "rise_width": 8.333333333,
+      "arm_width": 1.333333333,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 10,
+     "expect": "N",
+     "note": "unit said N",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 25.33,
+      "increase": 4.8,
+      "sharpness": 4.59,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 25.333333,
+      "json": true,
+      "ct": 25.33333333,
+      "ct_i": 76,
+      "increase": 4.847586628,
+      "sharpness": 4.585429402,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.845172535,
+      "rise_width": 3.333333333,
+      "arm_width": 1.666666667,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": "R02_real_mixed_slots_txt",
+   "title": "Real calibrated run tools/slots.txt (10 x 120), one clean positive",
+   "wells": [
+    {
+     "slot": 1,
+     "expect": "N",
+     "note": "flat 146",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 9.0,
+      "increase": 4.4,
+      "sharpness": 4.52,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 9.0,
+      "json": true,
+      "ct": 9.0,
+      "ct_i": 27,
+      "increase": 4.395030496,
+      "sharpness": 4.517031484,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.385109559,
+      "rise_width": 5.333333333,
+      "arm_width": 1.333333333,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 2,
+     "expect": "N",
+     "note": "flat 186, noisy",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 7.0,
+      "increase": 2.0,
+      "sharpness": 2.07,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 7.0,
+      "json": true,
+      "ct": 7.0,
+      "ct_i": 21,
+      "increase": 2.017707197,
+      "sharpness": 2.065751212,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.713270691,
+      "rise_width": 5.0,
+      "arm_width": 1.0,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 3,
+     "expect": "?",
+     "note": "creep +47 with late knee: reader cannot call it",
+     "status": "INFO",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 28.33,
+      "increase": 8.9,
+      "sharpness": 8.6,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 28.333333,
+      "json": true,
+      "ct": 28.33333333,
+      "ct_i": 85,
+      "increase": 8.852010329,
+      "sharpness": 8.601306846,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 4.491918945,
+      "rise_width": 6.666666667,
+      "arm_width": -1.0,
+      "suspect": 4,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 4,
+     "expect": "N",
+     "note": "flat 465 after warm-up",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 19.0,
+      "increase": 4.8,
+      "sharpness": 3.9,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 19.0,
+      "json": true,
+      "ct": 19.0,
+      "ct_i": 57,
+      "increase": 4.764426888,
+      "sharpness": 3.896122127,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.37314751,
+      "rise_width": 6.666666667,
+      "arm_width": 1.333333333,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 5,
+     "expect": "N",
+     "note": "flat 444",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 24.33,
+      "increase": 3.6,
+      "sharpness": 3.71,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 24.333333,
+      "json": true,
+      "ct": 24.33333333,
+      "ct_i": 73,
+      "increase": 3.568212336,
+      "sharpness": 3.714200899,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.837307026,
+      "rise_width": 6.0,
+      "arm_width": 1.0,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 6,
+     "expect": "P",
+     "note": "clean P, algorithm Ct ~4.3 (40%-of-peak-slope), rise 107",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "P",
+      "ct": 4.33,
+      "increase": 63.5,
+      "sharpness": 23.34,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Positive",
+      "ct_line": 4.333333,
+      "json": true,
+      "ct": 4.333333333,
+      "ct_i": 13,
+      "increase": 63.54670616,
+      "sharpness": 23.34011623,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 15.99906079,
+      "rise_width": 4.666666667,
+      "arm_width": 3.666666667,
+      "suspect": 0,
+      "letter": "P",
+      "climbs": 0
+     },
+     "ct": [
+      3.5,
+      5.5
+     ]
+    },
+    {
+     "slot": 7,
+     "expect": "N",
+     "note": "flat 361 after warm-up",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 4.67,
+      "increase": 2.5,
+      "sharpness": 2.66,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 4.666667,
+      "json": true,
+      "ct": 4.666666667,
+      "ct_i": 14,
+      "increase": 2.508528804,
+      "sharpness": 2.658448851,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 0.874767122,
+      "rise_width": 5.666666667,
+      "arm_width": 1.333333333,
+      "suspect": 2,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 8,
+     "expect": "?",
+     "note": "creep +20: reader cannot call it",
+     "status": "INFO",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 26.67,
+      "increase": 4.7,
+      "sharpness": 3.22,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 26.666667,
+      "json": true,
+      "ct": 26.66666667,
+      "ct_i": 80,
+      "increase": 4.700362855,
+      "sharpness": 3.218157682,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.723702607,
+      "rise_width": 8.0,
+      "arm_width": 2.0,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 9,
+     "expect": "?",
+     "note": "creep +21: reader cannot call it",
+     "status": "INFO",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 28.33,
+      "increase": 3.1,
+      "sharpness": 3.51,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 28.333333,
+      "json": true,
+      "ct": 28.33333333,
+      "ct_i": 85,
+      "increase": 3.068425325,
+      "sharpness": 3.505677379,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.014508136,
+      "rise_width": 5.666666667,
+      "arm_width": -1.0,
+      "suspect": 4,
+      "letter": "N",
+      "climbs": 0
+     }
+    },
+    {
+     "slot": 10,
+     "expect": "N",
+     "note": "flat 558",
+     "status": "PASS",
+     "why": [],
+     "mirror": {
+      "letter": "N",
+      "ct": 26.0,
+      "increase": 4.1,
+      "sharpness": 4.15,
+      "climbs": 0,
+      "flag": 0
+     },
+     "unit": {
+      "word": "Negative",
+      "ct_line": 26.0,
+      "json": true,
+      "ct": 26.0,
+      "ct_i": 78,
+      "increase": 4.114122531,
+      "sharpness": 4.147083233,
+      "flag": 0,
+      "climb_first": -1,
+      "window_rate": 1.293545678,
+      "rise_width": 5.333333333,
+      "arm_width": 1.333333333,
+      "suspect": 3,
+      "letter": "N",
+      "climbs": 0
+     }
+    }
+   ]
+  }
+ ]
+}

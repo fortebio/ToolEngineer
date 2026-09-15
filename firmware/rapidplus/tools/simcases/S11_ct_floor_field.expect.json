@@ -1,0 +1,212 @@
+{
+ "id": "S11_ct_floor_field",
+ "title": "Around the 3.0 floor with field shapes: noise, big warm-up, the 3-min sync step, a spike, two-stage, optical transient",
+ "why": "Positive controls are the fastest wells on the plate (12/15 of the ERP wells), so they meet every instrument artefact at the worst time: the 3.0-min synchronous step of RPL01015 lands right on their rise. Which artefacts move the verdict, which only move the Ct, and which turn an E into a P by accident.",
+ "loops": 90,
+ "interval_s": 20,
+ "slopes": [
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "wells": [
+  {
+   "expect": "P",
+   "note": "PC, sigma 3.0: noise does not move the E/P edge",
+   "ct": [
+    3.0,
+    4.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 3.67,
+    "increase": 122.7,
+    "sharpness": 47.89,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "PC under a 250-unit, tau 2.5 warm-up (large optical transient) - still P",
+   "ct": [
+    3.0,
+    4.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 3.0,
+    "increase": 141.1,
+    "sharpness": 46.18,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "PC with 1.5/min creep after the plateau",
+   "ct": [
+    3.0,
+    4.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 3.33,
+    "increase": 135.3,
+    "sharpness": 46.76,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "PC + RPL01015's +50 sync step at round 9 (flat start): repaired, Ct moves 3.33 -> 4.00",
+   "ct": [
+    3.67,
+    4.33
+   ],
+   "climbs": 1,
+   "mirror": {
+    "letter": "P",
+    "ct": 4.0,
+    "increase": 111.3,
+    "sharpness": 48.07,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "same rise as S10 slot 3 (E without the step): the repair pushes Ct to 4.0 and opens the P branch by accident",
+   "ct": [
+    3.67,
+    4.33
+   ],
+   "climbs": 1,
+   "mirror": {
+    "letter": "P",
+    "ct": 4.0,
+    "increase": 92.3,
+    "sharpness": 47.83,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "F",
+   "note": "PC (Ct 4.0) + the same step but with a warm-up tail: the repair refuses, step+rise read as one -> F/2 with a bogus Ct 1.67 (flag right, number wrong); a noise-edge well, P Ct 4.0-4.33 in 25/35 mirror draws",
+   "accept": [
+    "P"
+   ],
+   "climbs": 0,
+   "flag": 2,
+   "mirror": {
+    "letter": "F",
+    "ct": 1.67,
+    "increase": 196.3,
+    "sharpness": 45.73,
+    "climbs": 0,
+    "flag": 2,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "PC + two-round +40 spike at 3.33 min: repaired, Ct pushed late (4.33-5.0)",
+   "ct": [
+    4.0,
+    5.33
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 4.33,
+    "increase": 98.3,
+    "sharpness": 53.53,
+    "climbs": 1,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "weak lead-in (50) at 3.4 then the main rise at 5.6: the lead-in supplies the left arm -> P, Ct 3.33-3.67",
+   "ct": [
+    3.0,
+    4.0
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 3.0,
+    "increase": 140.0,
+    "sharpness": 54.05,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "P",
+   "note": "un-repaired 3-min step ahead of a 5.0 rise: harmless, P Ct 4.67-5.0",
+   "ct": [
+    4.33,
+    5.33
+   ],
+   "mirror": {
+    "letter": "P",
+    "ct": 4.67,
+    "increase": 132.4,
+    "sharpness": 46.28,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 12
+   }
+  },
+  {
+   "expect": "N",
+   "note": "optical warm-up transient alone, 300 units tau 3 rounds from 160 (derivative peak ~1 min) - the sub-3.0 noise source the 11/09 note names -> N",
+   "mirror": {
+    "letter": "N",
+    "ct": 4.0,
+    "increase": 2.6,
+    "sharpness": 6.95,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  }
+ ]
+}

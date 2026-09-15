@@ -1,0 +1,173 @@
+{
+ "id": "R01_real_all_negative_RPL250701",
+ "title": "Real run RPL250701 30-07-2025 (v2.2.9), all ten wells Negative",
+ "why": "Raw capture, its own slopes; the unit called N x10. Level 210..420 raw, +90 raw sync step at round 6, sigma ~1.5.",
+ "loops": 90,
+ "interval_s": 20,
+ "slopes": [
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4,
+  1.4
+ ],
+ "origins": [
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0,
+  0.0
+ ],
+ "wells": [
+  {
+   "expect": "N",
+   "note": "unit said N",
+   "mirror": {
+    "letter": "N",
+    "ct": 25.33,
+    "increase": 2.3,
+    "sharpness": 3.61,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "unit said N",
+   "mirror": {
+    "letter": "N",
+    "ct": 25.67,
+    "increase": 4.8,
+    "sharpness": 4.86,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 41
+   }
+  },
+  {
+   "expect": "N",
+   "note": "unit said N",
+   "mirror": {
+    "letter": "N",
+    "ct": 25.33,
+    "increase": 6.5,
+    "sharpness": 5.02,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 62
+   }
+  },
+  {
+   "expect": "N",
+   "note": "unit said N",
+   "mirror": {
+    "letter": "N",
+    "ct": 3.33,
+    "increase": 4.5,
+    "sharpness": 3.59,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "unit said N",
+   "mirror": {
+    "letter": "N",
+    "ct": 10.0,
+    "increase": 3.3,
+    "sharpness": 2.99,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "unit said N",
+   "mirror": {
+    "letter": "N",
+    "ct": 25.33,
+    "increase": 6.1,
+    "sharpness": 5.45,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 31
+   }
+  },
+  {
+   "expect": "N",
+   "note": "unit said N",
+   "mirror": {
+    "letter": "N",
+    "ct": 3.67,
+    "increase": 1.9,
+    "sharpness": 2.77,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "unit said N",
+   "mirror": {
+    "letter": "N",
+    "ct": 20.0,
+    "increase": 5.9,
+    "sharpness": 4.12,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 60
+   }
+  },
+  {
+   "expect": "N",
+   "note": "unit said N",
+   "mirror": {
+    "letter": "N",
+    "ct": 25.33,
+    "increase": 2.2,
+    "sharpness": 2.1,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  },
+  {
+   "expect": "N",
+   "note": "unit said N",
+   "mirror": {
+    "letter": "N",
+    "ct": 25.33,
+    "increase": 4.9,
+    "sharpness": 4.61,
+    "climbs": 0,
+    "flag": 0,
+    "break_i": 0,
+    "rising_i": 0
+   }
+  }
+ ]
+}
