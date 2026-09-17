@@ -64,6 +64,9 @@ Hệ NGOÀI repo (chỉ khai báo hợp đồng trong `system/products.yaml` ›
   **không có pip** → tool Python của repo (`registry_check.py`, pytest server) chạy bằng venv IDF
   `C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe` (đã cài pyyaml/jsonschema/pytest/httpx 2026-09-17);
   venv `%LOCALAPPDATA%\fbt-localtest` KHÔNG có trên máy này.
+  Git trên máy này **không có user.name/email toàn cục** → `git commit` fail ("Author identity unknown")
+  nhưng lệnh `git push` nối sau vẫn đẩy HEAD CŨ lên (trông như thành công) — đã đặt identity cục bộ cho
+  repo (`git config user.email fbt.engineer@gmail.com`, 2026-09-17); sau commit phải kiểm `git log -1`.
 - Node 24, Docker 29 (daemon không tự chạy), Git 2.50 (`git subtree` có; `git filter-repo` cài
   `pip install --user git-filter-repo`, gọi `python -m git_filter_repo`).
 
