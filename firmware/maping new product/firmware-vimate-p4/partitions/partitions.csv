@@ -1,0 +1,19 @@
+# Partition table — VIMATE ESP32-S3 N16R8 (16MB flash).
+#
+# Dual OTA cho rollback an toàn. App slot 4.5MB mỗi cái (4M→4.5M 12/06 để có
+# chỗ cho AFE 2-mic AEC/BSS/NS ~253KB; binary 4.19M → dư ~520KB). Bù lại bằng
+# lesson_spiffs 3M→2M (cache ảnh bài học, đã có SD cache backup).
+# NVS (0x9000, TRƯỚC ota_0) giữ token/WiFi qua reflash. ⚠ Đổi bảng partition =
+# OTA cũ KHÔNG tự chuyển; thiết bị đã giao phải flash USB 1 lần (lúc đổi: chưa
+# giao máy nào). Tổng từ 0x20000: 4.5+4.5+3+2+0.5+1=15.5M, dư 384KB cuối 16MB.
+#
+# Name,         Type, SubType,  Offset,   Size,    Flags
+nvs,            data, nvs,      0x9000,   0x6000
+otadata,        data, ota,      0xf000,   0x2000
+phy_init,       data, phy,      0x11000,  0x1000
+ota_0,          app,  ota_0,    0x20000,  0x480000
+ota_1,          app,  ota_1,    ,         0x480000
+asset_spiffs,   data, spiffs,   ,         3M
+lesson_spiffs,  data, spiffs,   ,         2M
+emo_spiffs,     data, spiffs,   ,         512K
+model,          data, ,         ,         1M

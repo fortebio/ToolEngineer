@@ -1,0 +1,248 @@
+# Kconfig — settings VIMATE expose qua `idf.py menuconfig`.
+# Cho phép override server URL, OTA interval, intervals reconnect.
+
+menu "VIMATE Configuration"
+
+    config VIMATE_SERVER_BASE
+        string "VIMATE server base URL"
+        default "https://vimate.vn"
+        help
+            Base URL của VIMATE Core Server.
+            Production: https://vimate.vn
+            Local dev:  http://192.168.1.100:8080
+
+    config VIMATE_OTA_INTERVAL_SEC
+        int "OTA poll interval (seconds)"
+        default 21600
+        range 60 86400
+        help
+            Mỗi N giây firmware query /ota/v1/ để check version mới.
+
+    config VIMATE_WS_RECONNECT_BASE_MS
+        int "WebSocket reconnect base delay (ms)"
+        default 5000
+        help
+            Exponential backoff base — bắt đầu từ N ms, x2 mỗi lần fail.
+
+    config VIMATE_WS_RECONNECT_MAX_MS
+        int "WebSocket reconnect max delay (ms)"
+        default 120000
+        help
+            Cap exponential backoff.
+
+    # Board chọn qua choice — đúng MỘT board active. Mỗi option depends on đúng
+    # target của nó nên `idf.py set-target` quyết định danh sách hợp lệ:
+    # esp32p4 → chỉ P4_43LCD; esp32s3 → 3 board S3 như cây firmware-vimate gốc.
+    choice VIMATE_BOARD
+        prompt "Hardware board"
+        default VIMATE_BOARD_P4_43LCD if IDF_TARGET_ESP32P4
+        default VIMATE_BOARD_28LCD
+        help
+            Chọn board phần cứng. P4_43LCD = ESP32-P4 + LCD 4.3" ST7102 MIPI-DSI.
+
+        config VIMATE_BOARD_P4_43LCD
+            bool "ESP32-P4 + 4.3\" LCD ST7102 MIPI-DSI 480x800 (bring-up)"
+            depends on IDF_TARGET_ESP32P4
+            help
+                Board FBT ESP32-P4: panel ST7102 qua MIPI-DSI 2 lane 480x800,
+                touch ST7123 I2C (SDA=7/SCL=8), camera SC2336 MIPI-CSI (chưa bật),
+                WiFi qua co-processor ESP32-C6 (esp_hosted / esp_wifi_remote).
+                Audio/SD/servo chưa có schematic → khoá runtime, xem README-P4.md.
+
+        config VIMATE_BOARD_28LCD
+            bool "ESP32-S3 + 2.8\" LCD (edu, default)"
+            depends on IDF_TARGET_ESP32S3
+            help
+                Board chuẩn ESP32-S3 với LCD 320x240 + I2S mic/speaker (sản phẩm edu).
+
+        config VIMATE_BOARD_GENU_GPIO_V6
+            bool "GENU-ROBOT GPIO Pin v6.0 (VIMATE edu official)"
+            depends on IDF_TARGET_ESP32S3
+            help
+                Official VIMATE edu hardware: ESP32-S3, ST7796S SPI LCD,
+                ES8311 speaker DAC + ES7210 mic ADC, capacitive touch pads,
+                SDMMC 1-bit card slot, servos, and WS2812.
+
+        config VIMATE_BOARD_S3_35LCD
+            bool "ESP32-S3 + 3.5\" LCD ST7796 (Freenove FNK0104, edu)"
+            depends on IDF_TARGET_ESP32S3
+            help
+                Board CYD Freenove FNK0104 (ESP32-S3) biến thể panel 3.5" ST7796
+                480x320 + ES8311 mic/speaker + touch FT6336. Cùng pinout board 2.8"
+                (VIMATE_BOARD_28LCD), chỉ khác panel + độ phân giải. Sản phẩm edu.
+    endchoice
+
+    config VIMATE_LESSON_IMAGE_BACKGROUND_SYNC
+        bool "Prefetch lesson images in background"
+        default n
+        help
+            Disabled by default for production. Bulk HTTPS downloads after
+            WebSocket connect can starve WakeNet/audio and LVGL on SPI LCD
+            boards. Runtime still loads the current lesson image on demand.
+
+    config VIMATE_DELTA_OTA
+        bool "Delta/differential OTA (apply bsdiff patch)"
+        default n
+        help
+            EXPERIMENTAL — default OFF (must verify on real board first).
+            When ON, the OTA client may use the server "deltaUrl" (bsdiff/
+            esp_delta_ota patch from the running version) instead of the full
+            image to save bandwidth. ALWAYS falls back to the full "url" if
+            the patch is missing, the source partition hash mismatches, or
+            apply fails — so a wrong patch can never brick the device.
+            Requires the esp_delta_ota component + a device test pass before
+            enabling. See docs/DELTA-OTA.md. Leaving OFF = full OTA as today.
+
+    menu "Audio DSP"
+
+        config VIMATE_WAKE_WORD_ENABLE
+            bool "Enable local WakeNet wake word"
+            default y
+            depends on SPIRAM
+            depends on IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4
+            help
+                Enable ESP-SR WakeNet detection while the robot is idle.
+                The selected model is configured in ESP Speech Recognition
+                settings and stored in the fixed model partition. For the
+                shared base device this is currently wn9_hilili_tts
+                ("Hi Lily").
+
+        config MIC_HIGH_PASS_FILTER_ENABLE
+            bool "Enable high-pass filter for audio input"
+            default y
+            help
+                Enable high-pass filtering for microphone input to reduce DC,
+                rumble, wind/handling noise, and other low-frequency noise
+                before Opus encoding and VAD.
+
+        config MIC_HIGH_PASS_FILTER_CUTOFF_HZ
+            int "Mic high-pass filter cutoff frequency (Hz)"
+            depends on MIC_HIGH_PASS_FILTER_ENABLE
+            default 120
+            range 60 300
+            help
+                Cutoff frequency for the second-order Butterworth high-pass
+                filter. 120 Hz is a conservative default for child speech on
+                the ESP32-S3 LCD device: it removes low-frequency rumble while
+                keeping the important voice band intact.
+
+        config MIC_HIGH_PASS_FILTER_GAIN
+            int "Mic input gain after filtering (percent, 100 = no change)"
+            depends on MIC_HIGH_PASS_FILTER_ENABLE
+            default 100
+            range 50 500
+            help
+                Linear gain applied to the microphone signal after high-pass
+                filtering, expressed as a percentage. 100 means unity gain (no
+                amplification), 200 means 2x (+6 dB), 300 means 3x (+9.5 dB),
+                etc. Increase this value if the microphone signal is too weak.
+
+    endmenu
+
+    config VIMATE_SD_CACHE_ENABLE
+        bool "Enable SD-card course media cache"
+        default y
+        help
+            Download media của khóa học đã mua từ /course-cache xuống thẻ SD.
+            Nếu chân SD chưa cấu hình hoặc mount thất bại, firmware tự fallback
+            sang cache SPIFFS /lesson-images.
+
+    config VIMATE_SD_SPI_MOSI
+        int "SD card SPI MOSI GPIO"
+        default -1
+        depends on VIMATE_SD_CACHE_ENABLE
+
+    config VIMATE_SD_SPI_MISO
+        int "SD card SPI MISO GPIO"
+        default -1
+        depends on VIMATE_SD_CACHE_ENABLE
+
+    config VIMATE_SD_SPI_SCLK
+        int "SD card SPI SCLK GPIO"
+        default -1
+        depends on VIMATE_SD_CACHE_ENABLE
+
+    config VIMATE_SD_SPI_CS
+        int "SD card SPI CS GPIO"
+        default -1
+        depends on VIMATE_SD_CACHE_ENABLE
+
+    config VIMATE_COURSE_CACHE_MAX_ASSETS
+        int "Max course media URL mappings kept in RAM"
+        default 96
+        range 16 512
+        depends on VIMATE_SD_CACHE_ENABLE
+        help
+            Số asset tối đa trong manifest active course được index để runtime
+            resolve URL sang file local.
+
+    config VIMATE_MP4_PLAYER_ENABLE
+        bool "Enable SD-card MP4 player"
+        depends on VIMATE_SD_CACHE_ENABLE
+        default n
+        help
+            Bật player MP4 local trên thẻ SD dùng esp_extractor + av_render.
+            File phải được cache sẵn xuống /sdcard (course-cache).
+            Profile hiện hỗ trợ an toàn: video H264 baseline
+            hoặc MJPEG, RGB565 output, audio AAC/MP3/FLAC decode ra PCM16
+            mono/stereo cùng sample rate BOARD_SPK_SAMPLE_RATE.
+
+    config VIMATE_DIAG_ENABLE
+        bool "Enable runtime diagnostics task"
+        default y
+        help
+            Log reset reason and periodic heap/minimum-heap telemetry for
+            soak testing and field diagnostics.
+
+    config VIMATE_DIAG_INTERVAL_SEC
+        int "Diagnostics log interval seconds"
+        default 60
+        range 10 3600
+        depends on VIMATE_DIAG_ENABLE
+
+    config VIMATE_BARGE_IN_ENABLE
+        bool "Voice barge-in: ngắt lời khi robot đang nói (AEC + VAD)"
+        default n
+        help
+            Phát hiện trẻ nói TRONG lúc robot phát TTS để ngắt lượt (giống trợ lý
+            thật). Dùng ESP-SR AEC khử echo loa khỏi mic rồi VAD. MẶC ĐỊNH TẮT:
+            cần loa+mic + tinh chỉnh ngưỡng/độ trễ trên THIẾT BỊ THẬT. Khi tắt:
+            toàn bộ no-op, KHÔNG ảnh hưởng đường chạy hiện tại.
+
+    config VIMATE_BARGE_IN_AEC_FILTER_LEN
+        int "AEC filter length"
+        default 4
+        range 1 8
+        depends on VIMATE_BARGE_IN_ENABLE
+        help
+            Số tap bộ lọc AEC. Khuyến nghị 4. Lớn hơn = khử echo tốt hơn nhưng tốn
+            CPU/RAM.
+
+    config VIMATE_BARGE_IN_RMS_THRESHOLD
+        int "Barge-in RMS threshold (post-AEC, int16)"
+        default 600
+        range 100 4000
+        depends on VIMATE_BARGE_IN_ENABLE
+        help
+            RMS tối thiểu của mic SAU khử echo để coi là trẻ đang nói. Cao hơn VAD
+            thường (~160) vì còn residual echo. Tinh chỉnh trên thiết bị thật.
+
+    config VIMATE_BARGE_IN_SPEECH_FRAMES
+        int "Consecutive speech frames to trigger"
+        default 6
+        range 1 30
+        depends on VIMATE_BARGE_IN_ENABLE
+        help
+            Số frame 32ms liên tục vượt ngưỡng để kích hoạt (6 ≈ 192ms). Cao hơn =
+            đỡ trigger nhầm do tiếng động ngắn.
+
+    config VIMATE_BARGE_IN_REF_DELAY_FRAMES
+        int "Echo reference delay (frames of 32ms)"
+        default 1
+        range 0 7
+        depends on VIMATE_BARGE_IN_ENABLE
+        help
+            Độ trễ loa→mic tính theo frame 32ms để căn tín hiệu tham chiếu cho AEC.
+            Tinh chỉnh để AEC hội tụ tốt nhất trên phần cứng cụ thể.
+
+endmenu

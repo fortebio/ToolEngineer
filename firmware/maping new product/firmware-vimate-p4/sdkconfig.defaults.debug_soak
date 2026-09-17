@@ -1,0 +1,24 @@
+# Debug/soak overlay for overnight testing on real devices.
+#
+# Build with:
+#   SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.debug_soak" idf.py -B build-soak build
+
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/partitions.debug.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions/partitions.debug.csv"
+
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y
+CONFIG_LOG_COLORS=y
+
+# Capture crashes to flash for post-mortem during lab soak tests only.
+CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
+CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF=y
+CONFIG_ESP_COREDUMP_CHECKSUM_SHA256=y
+CONFIG_ESP_COREDUMP_MAX_TASKS_NUM=32
+
+# Keep security eFuse features off in debug soak profile.
+CONFIG_SECURE_BOOT=n
+CONFIG_SECURE_FLASH_ENC_ENABLED=n
+CONFIG_NVS_ENCRYPTION=n
+CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK=n
+

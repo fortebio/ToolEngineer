@@ -1,0 +1,15 @@
+# Partition table — VIMATE production ESP32-S3 N16R8 (16MB flash).
+#
+# Adds encrypted NVS key storage for Flash Encryption + NVS Encryption.
+# Keep app slots at 4MB so OTA rollback remains safe.
+#
+# Name,         Type, SubType,  Offset,   Size,    Flags
+nvs,            data, nvs,      0x9000,   0x6000
+otadata,        data, ota,      0xf000,   0x2000
+phy_init,       data, phy,      0x11000,  0x1000
+nvs_key,        data, nvs_keys, 0x12000,  0x1000, encrypted
+ota_0,          app,  ota_0,    0x20000,  4M
+ota_1,          app,  ota_1,    ,         4M
+asset_spiffs,   data, spiffs,   ,         3M
+lesson_spiffs,  data, spiffs,   ,         3M
+emo_spiffs,     data, spiffs,   ,         512K

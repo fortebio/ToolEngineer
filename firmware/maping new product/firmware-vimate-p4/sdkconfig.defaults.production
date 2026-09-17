@@ -1,0 +1,46 @@
+# Production hardening overlay.
+#
+# Build with:
+#   SDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.production" idf.py -B build-prod build
+#
+# IMPORTANT:
+# - Secure Boot and Flash Encryption burn eFuse on first secure flash/provision.
+# - Use scripts/prepare_production_keys.sh and scripts/build_production.sh.
+# - Do not flash this profile to a development board unless you are ready for
+#   release-mode security restrictions.
+
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/partitions.prod.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions/partitions.prod.csv"
+
+# Signed apps + Secure Boot V2.
+CONFIG_SECURE_BOOT=y
+CONFIG_SECURE_BOOT_V2_ENABLED=y
+CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES=y
+CONFIG_SECURE_BOOT_SIGNING_KEY="keys/secure_boot_signing_key.pem"
+CONFIG_SECURE_BOOT_ENABLE_AGGRESSIVE_KEY_REVOKE=y
+
+# Flash Encryption in release mode.
+CONFIG_SECURE_FLASH_ENC_ENABLED=y
+CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE=y
+CONFIG_SECURE_FLASH_ENCRYPTION_AES256=y
+
+# NVS Encryption: protects WiFi credentials and per-device token.
+CONFIG_NVS_ENCRYPTION=y
+CONFIG_NVS_SEC_KEY_PROTECT_USING_FLASH_ENC=y
+
+# Anti-rollback. Increase BOOTLOADER_APP_SECURE_VERSION only for security
+# releases that must block older vulnerable images.
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK=y
+CONFIG_BOOTLOADER_APP_SECURE_VERSION=1
+CONFIG_BOOTLOADER_APP_SEC_VER_SIZE_EFUSE_FIELD=16
+
+# Production logs: reduce sensitive runtime surface and UART overhead.
+CONFIG_LOG_DEFAULT_LEVEL_WARN=y
+# CONFIG_LOG_DEFAULT_LEVEL_INFO is not set
+CONFIG_LOG_MAXIMUM_LEVEL_WARN=y
+CONFIG_LOG_COLORS=n
+
+# No persistent coredump in customer production; it can contain RAM secrets.
+CONFIG_ESP_COREDUMP_ENABLE_TO_NONE=y
+

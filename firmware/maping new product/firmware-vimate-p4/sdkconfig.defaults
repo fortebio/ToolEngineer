@@ -1,0 +1,188 @@
+# sdkconfig defaults - VIMATE firmware ESP32-P4 (16MB flash, PSRAM 200MHz).
+#
+# LUU Y: file nay PHAI la ASCII thuan. kconfgen cua ESP-IDF doc file config
+# bang locale he thong (cp1252 tren Windows VN) nen cac ky tu tieng Viet nhu
+# "o." (UTF-8 E1 BB 8D) lam build fail voi UnicodeDecodeError. Vi vay comment
+# o day viet khong dau; giai thich day du nam trong README-P4.md.
+#
+# File nay la ban P4 cua `firmware-vimate/sdkconfig.defaults`. Moi knob
+# BOARD-AGNOSTIC (mbedtls, WebSocket, SPIFFS, LVGL, log, compiler, bootloader,
+# VIMATE_*) giu NGUYEN GIA TRI voi cay S3 de hanh vi firmware khong doi. Chi
+# phan phu thuoc SoC (target/flash/PSRAM/BT/WiFi/CPU) la khac.
+
+# --- Target ---
+CONFIG_IDF_TARGET="esp32p4"
+CONFIG_IDF_TARGET_ESP32P4=y
+# --- Chip revision cua P4 ---
+# KHONG dat CONFIG_ESP32P4_SELECTS_REV_LESS_V3 o day.
+# Symbol do KHONG ton tai trong ESP-IDF 5.5.1 (kconfgen bao
+# "unknown kconfig symbol ... assigned to y") nen chi la dong rac gay warning.
+# Board dang dung silicon P4 rev v1.3 (bootloader in "chip revision: v1.3") nen
+# esp-sr phai nap thu vien lib/esp32p4_less_v3. Tren 5.5.1 no TU CHON dung nhu
+# vay: CMakeLists cua esp-sr lay _less_v3 khi IDF_VERSION_PATCH < 3.
+#   -- TARGET_LIB_PATH is set to: esp32p4_less_v3
+# CANH BAO khi nang ESP-IDF:
+#   - Len 5.5.3+ : dieu kien tu dong het hieu luc -> PHAI them tay
+#     CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y (luc do symbol moi ton tai), neu
+#     khong esp-sr nap nham lib cua rev >= v3.
+#   - Len 6.0    : esp-sr bao FATAL_ERROR, khong ho tro P4 rev < v3.
+# (Ba project demo cua hang dat co nay vi build bang IDF khac.)
+
+# SPIRAM_SPEED_200M + XIP_FROM_PSRAM nam sau co experimental.
+CONFIG_IDF_EXPERIMENTAL_FEATURES=y
+
+# --- Flash ---
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+
+# --- PSRAM ---
+# P4 khong co che do OCT nhu S3; dung 200MHz + XIP nhu moi demo cua board.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_SPEED_200M=y
+CONFIG_SPIRAM_XIP_FROM_PSRAM=y
+CONFIG_SPIRAM_USE_MALLOC=y
+CONFIG_CACHE_L2_CACHE_256KB=y
+# L2 cache line 64B, KHONG phai 128B (demo cua hang dat 128B, ta da chep theo).
+# Ly do doi: ESP-Hosted cap MOI buffer transport voi HOSTED_MEM_ALIGNMENT_64
+# (can 64 byte), trong khi ESP32-P4 bat buoc buffer dua cho SDMMC phai can theo
+# DUNG cache line - sdmmc_host_check_buffer_alignment():
+#     alignment = cache line cua vung nho (L1=64 cho RAM noi, L2 cho PSRAM)
+#     is_aligned = (ptr % alignment == 0) && (size % alignment == 0)
+# Voi L2 line = 128B, buffer PSRAM can 64 se KHONG BAO GIO thoa ptr % 128 == 0
+# -> sdmmc_io_write_blocks tra ESP_ERR_INVALID_ARG (258). Do tren board that:
+#   E H_SDIO_DRV: sdio_write_task: 0: Failed to send data: 258 70 70
+#   E H_SDIO_DRV: Unrecoverable host sdio state
+#   I os_wrapper_esp: Restarting host
+# Chi xay ra KHI CO TRAM KET NOI (goi du lieu that), con luc bat tay RPC thi khong.
+# Ha xuong 64B thi ca RAM noi lan PSRAM deu yeu cau 64 = dung muc ESP-Hosted cap.
+# 64B cung LA MAC DINH cua ESP-IDF khi L2 cache = 256KB.
+CONFIG_CACHE_L2_CACHE_LINE_64B=y
+
+# --- Bluetooth ---
+# ESP32-P4 KHONG co radio Bluetooth (SOC_BT_SUPPORTED=0). NimBLE khong build
+# duoc -> ble_wifi_prov.c tu roi ve stub tra ESP_ERR_NOT_SUPPORTED va app_main
+# dung provisioning qua SoftAP. Xem README-P4.md.
+# CONFIG_BT_ENABLED is not set
+
+# --- WiFi qua co-processor ESP32-C6 (ESP-Hosted) ---
+# P4 khong co radio WiFi. esp_wifi_remote map API esp_wifi_* sang ESP-Hosted
+# chay tren C6. CANH BAO: chan SDIO/SPI noi C6 CHUA XAC NHAN cho board FBT -
+# dang de mac dinh cua component, phai chinh trong menuconfig (Component config
+# -> ESP-Hosted) sau khi co schematic. Xem README-P4.md muc "WiFi".
+CONFIG_ESP_WIFI_REMOTE_ENABLED=y
+CONFIG_ESP_WIFI_REMOTE_LIBRARY_HOSTED=y
+
+# --- Partition table ---
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions/partitions.csv"
+
+# --- FreeRTOS ---
+# Main task stack 3584 (mac dinh) -> 10240.
+# Do tren board that: app panic "Stack protection fault" trong task "main" ngay
+# sau touch_init, tai lv_tjpgd.c:decoder_info() - ham nay cap
+#   uint8_t workb[TJPGD_WORKBUFF_SIZE];   // 4096 byte NGAY TREN STACK
+# cong voi struct JDEC, goi tu display_setup_ui() -> lv_image_decoder_get_info()
+# khi LVGL do file anh .jpg. 4KB > ca cai stack 3584 nen tran chac chan.
+# Diag truoc do bao main task chi con 2732 byte trong.
+# 10240 la dung gia tri ca 3 demo P4 chinh chu cua board dat.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=10240
+CONFIG_FREERTOS_HZ=1000
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=n
+# Giu nguyen phan bo core nhu cay S3: WiFi + LWIP sang Core 1, UI + input +
+# main task o Core 0 (P4 cung 2 nhan).
+CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_1=y
+CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU1=y
+CONFIG_FREERTOS_WATCHPOINT_END_OF_STACK=y
+CONFIG_FREERTOS_USE_TRACE_FACILITY=y
+
+# --- LWIP / TCP ---
+CONFIG_LWIP_MAX_SOCKETS=6
+CONFIG_LWIP_SO_RCVBUF=y
+
+# --- HTTP / HTTPS (giong het cay S3) ---
+CONFIG_ESP_TLS_USING_MBEDTLS=y
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
+# FULL bundle (~140 CA) - bundle CMN nho hon nhung thieu Let's Encrypt R13
+# (CA cua vimate.vn) -> cert verify fail.
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y
+# CONFIG_MBEDTLS_DYNAMIC_BUFFER is not set
+# CONFIG_MBEDTLS_DYNAMIC_FREE_CONFIG_DATA is not set
+CONFIG_MBEDTLS_SSL_MAX_CONTENT_LEN=4096
+CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=1024
+CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=98304
+# CONFIG_MBEDTLS_HARDWARE_AES is not set
+CONFIG_MBEDTLS_HARDWARE_SHA=y
+CONFIG_MBEDTLS_HARDWARE_MPI=y
+CONFIG_LWIP_TCP_SND_BUF_DEFAULT=2880
+CONFIG_LWIP_TCP_WND_DEFAULT=2880
+CONFIG_ESP_HTTPS_OTA_DECRYPT_CB=n
+CONFIG_ESP_HTTPS_OTA_ALLOW_HTTP=n
+
+# --- WebSocket ---
+CONFIG_WS_BUFFER_SIZE=3072
+CONFIG_WS_DYNAMIC_BUFFER=y
+CONFIG_ESP_WS_CLIENT_SEPARATE_TX_LOCK=y
+CONFIG_ESP_WS_CLIENT_TX_LOCK_TIMEOUT_MS=2000
+
+# --- SPIFFS ---
+CONFIG_SPIFFS_OBJ_NAME_LEN=64
+CONFIG_SPIFFS_USE_MAGIC=y
+
+# --- LVGL FS posix (cho lv_image_set_src("S:/...")) ---
+CONFIG_LV_USE_FS_POSIX=y
+CONFIG_LV_FS_POSIX_LETTER=83
+
+# --- LVGL image decoders + decompression ---
+CONFIG_LV_USE_LODEPNG=y
+CONFIG_LV_USE_TJPGD=y
+CONFIG_LV_USE_LZ4_INTERNAL=y
+CONFIG_LV_USE_LZ4=y
+CONFIG_LV_BIN_DECODER_RAM_LOAD=y
+CONFIG_LV_USE_GIF=y
+
+# --- LVGL QR code (cho WiFi provisioning) ---
+CONFIG_LV_USE_QRCODE=y
+
+# --- LVGL stdlib: clib (malloc/free ESP-IDF -> PSRAM) thay pool 64KB built-in ---
+# CONFIG_LV_USE_BUILTIN_MALLOC is not set
+CONFIG_LV_USE_CLIB_MALLOC=y
+# CONFIG_LV_USE_BUILTIN_STRING is not set
+CONFIG_LV_USE_CLIB_STRING=y
+# CONFIG_LV_USE_BUILTIN_SPRINTF is not set
+CONFIG_LV_USE_CLIB_SPRINTF=y
+
+# --- LVGL fonts (enable du size minh dung) ---
+CONFIG_LV_FONT_MONTSERRAT_14=y
+CONFIG_LV_FONT_MONTSERRAT_18=y
+CONFIG_LV_FONT_MONTSERRAT_24=y
+CONFIG_LV_FONT_MONTSERRAT_48=y
+
+# --- Log ---
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_LOG_COLORS=y
+
+# --- Compiler ---
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+CONFIG_COMPILER_CXX_EXCEPTIONS=n
+
+# --- Bootloader (rollback an toan) ---
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK=n
+
+# --- VIMATE specific (custom Kconfig) - GIU NGUYEN nhu cay S3 ---
+CONFIG_VIMATE_SERVER_BASE="https://vimate.vn"
+CONFIG_VIMATE_OTA_INTERVAL_SEC=21600
+CONFIG_VIMATE_WS_RECONNECT_BASE_MS=5000
+CONFIG_VIMATE_WS_RECONNECT_MAX_MS=120000
+CONFIG_MIC_HIGH_PASS_FILTER_ENABLE=y
+CONFIG_MIC_HIGH_PASS_FILTER_CUTOFF_HZ=120
+CONFIG_MIC_HIGH_PASS_FILTER_GAIN=100
+
+# --- ESP-SR WakeNet ---
+# TAT o ban bring-up: audio chua co pinout nen WakeNet khong co duong mic.
+# esp-sr co san thu vien esp32p4 / esp32p4_less_v3 -> bat lai cung luc voi audio.
+# CONFIG_VIMATE_WAKE_WORD_ENABLE is not set

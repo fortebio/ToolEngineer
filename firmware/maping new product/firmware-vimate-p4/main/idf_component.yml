@@ -1,0 +1,96 @@
+# IDF Component Manager dependencies. Resolved khi build (`idf.py reconfigure`).
+dependencies:
+  idf:
+    version: ">=5.2.0"
+
+  # LVGL 9 cho UI
+  lvgl/lvgl:
+    version: "^9.2.0"
+  espressif/esp_lvgl_port:
+    # GHIM 2.8.x cho cay P4. Ban 2.9.0 doi callback DPI theo IDF 5.5.2
+    # (`on_refresh_done` -> `on_frame_buf_complete`), ma may build dang dung
+    # ESP-IDF 5.5.1 -> esp_lvgl_port_disp.c khong bien dich duoc:
+    #   error: 'esp_lcd_dpi_panel_event_callbacks_t' has no member named
+    #          'on_frame_buf_complete'
+    # Nang len ^2.9 CHI khi da nang ESP-IDF len >= 5.5.2.
+    version: "~2.8.0"
+
+  # LCD driver — EDU boards: ILI9341 (2.8"), ST7796 (genu-v6), ST77922 (3.5").
+  espressif/esp_lcd_ili9341:
+    version: "^2.0.0"
+  espressif/esp_lcd_st7796:
+    version: "1.3.5"
+    rules:
+      - if: "target in [esp32, esp32s2, esp32s3, esp32p4]"
+  # ST77922 QSPI panel — board EDU 3.5" 320x480 (LCDwiki 3.5inch ESP32-S3 Display).
+  espressif/esp_lcd_st77922:
+    version: "^2.0.0"
+    rules:
+      - if: "target == esp32s3"
+
+  # ESP32-P4 has no native WiFi radio. Waveshare P4 examples use
+  # esp_wifi_remote + esp_hosted to expose WiFi through the companion radio.
+  espressif/esp_wifi_remote:
+    version: "0.14.*"
+    rules:
+      - if: "target == esp32p4"
+  # esp_hosted 2.12.x (khong phai 1.4.x nhu cay S3 khai ban dau).
+  # Ly do: co-processor tren board FBT la ESP32-C5, KHONG phai C6. Ban 1.4.7
+  # chi cho SDIO khi slave la ESP32 hoac C6 -> chon C5 la no ep sang SPI, ma
+  # board di day SDIO. Ban 2.12 co ESP_HOSTED_CP_TARGET_ESP32C5 trong
+  # ESP_HOSTED_PRIV_SDIO_OPTION nen chay duoc C5 + SDIO.
+  espressif/esp_hosted:
+    version: "2.12.*"
+    rules:
+      - if: "target == esp32p4"
+
+  # Audio codec dev (I2S abstraction)
+  espressif/esp_codec_dev:
+    version: "^1.3.0"
+
+  # ESP-DSP: optimized biquad IIR filter for mic high-pass / noise cleanup.
+  espressif/esp-dsp:
+    version: "^1.6.0"
+
+  # ESP-SR: local WakeNet wake word engine. We only enable the selected
+  # WakeNet model in sdkconfig.defaults; model data is flashed to the
+  # fixed "model" partition.
+  espressif/esp-sr:
+    version: "2.4.6"
+
+  # Opus codec — micro-opus là port libopus chuẩn cho ESP-IDF (enc + dec API)
+  esphome/micro-opus:
+    version: "^0.4.0"
+
+  # WebSocket client (đã tách khỏi ESP-IDF core từ v5)
+  espressif/esp_websocket_client:
+    version: "^1.5.0"
+
+  # JPEG decoder — software JPG → RGB565. Dùng để decode lesson image từ
+  # HTTPS, in-memory thay vì qua SPIFFS + LVGL TJPGD (pattern xiaozhi).
+  espressif/esp_new_jpeg:
+    version: "^0.6.1"
+
+  # MP4 lesson/ad playback tu the SD (esp_extractor + esp_audio_codec +
+  # esp_video_codec + av_render). Cung 4 dependency va cung version voi
+  # genu-v6 tren cay S3; tat ca deu ship lib cho esp32p4 (esp_h264 con co HAL
+  # decoder phan cung cua P4).
+  #
+  # BAT BUOC build tu duong dan KHONG co dau cach. esp_extractor, esp_audio_codec
+  # va esp_audio_effects khai "-L ${CMAKE_CURRENT_SOURCE_DIR}/lib/..." khong boc
+  # nhay, nen o duong dan repo "FBT- ESP-IDF 5 4.3LCD..." linker cat thanh nhieu
+  # doi so:
+  #   ld.exe: cannot find 4.3LCD+SC2336: No such file or directory
+  #   ld.exe: cannot find -lesp_audio_effects
+  # Da xu ly trong CMakeLists.txt goc: go chuoi "-L <dir>" khoi thuoc tinh link
+  # cua 3 target do va dua <dir> vao target_link_directories() cua ELF (CMake tu
+  # boc nhay). Khong can doi repo. Ten ngan 8.3 (DOWNLO~1/FBT-ES~1.3LC) KHONG
+  # giup: idf.py/CMake chuan hoa ve duong dan dai truoc khi sinh build.
+  espressif/esp_extractor:
+    version: "^1.0.1"
+  espressif/esp_audio_codec:
+    version: "^2.3.0"
+  espressif/esp_video_codec:
+    version: "^0.5.5"
+  tempotian/av_render:
+    version: "^0.9.1"

@@ -1,0 +1,26 @@
+# Partition table - board FBT ESP32-P4C5 + LCD 4.3" (flash 16MB), tach tu
+# partitions.csv (S3) ngay 15/09/2026 de chua bo GIF "mat robot" toan man:
+#   emo_spiffs 512K -> 0x560000 (5,375 MB): 32 clip 400x240, 1561 khung, 3,9 MB
+#   (16 mau, san 40 ms/khung, tools/build_face_gifs.py), SPIFFS dung duoc ~93 %.
+#   (15/09 sang: 0x3E0000 cho bo 32 khung/clip; 15/09 toi: nguoi dung dua bo 128
+#   khung/clip -> 3,9 MB sau khi gop khung < 40 ms -> mo rong.)
+# Bu bang ba phan vung con du tren P4:
+#   asset_spiffs 3M -> 512K (pack premium - chi mount, chua co sync)
+#   lesson_spiffs 2M -> 512K (cache anh bai hoc; da co SD cache + tai theo nhu cau)
+#   model 1M -> 512K (srmodels.bin = WakeNet hilili + NS/VAD webrtc = 291 KB; them
+#   MultiNet thi phai mo lai - esptool bao loi ngay khi bin > partition)
+# App slot giu 4.5MB x2 (app ~4,0 MB). NVS/otadata/phy giu nguyen offset de token +
+# WiFi song qua reflash. Tong: 0x20000 + 4.5+4.5+0.5+0.5+5.375+0.5 = dung 16 MB.
+# DOI BANG PARTITION = phai nap USB mot lan (idf.py flash), OTA khong tu chuyen.
+# File nay ASCII thuan.
+#
+# Name,         Type, SubType,  Offset,   Size,     Flags
+nvs,            data, nvs,      0x9000,   0x6000
+otadata,        data, ota,      0xf000,   0x2000
+phy_init,       data, phy,      0x11000,  0x1000
+ota_0,          app,  ota_0,    0x20000,  0x480000
+ota_1,          app,  ota_1,    ,         0x480000
+asset_spiffs,   data, spiffs,   ,         512K
+lesson_spiffs,  data, spiffs,   ,         512K
+emo_spiffs,     data, spiffs,   ,         0x560000
+model,          data, ,         ,         512K

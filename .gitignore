@@ -20,4 +20,18 @@ _web.png
 *.tmp
 Thumbs.db
 .DS_Store
-.idea/
+.idea/# --- ESP-IDF (firmware/rapid4p + cay tham chieu firmware-vimate-p4) ---
+firmware/rapid4p/build/
+firmware/rapid4p/managed_components/
+firmware/rapid4p/sdkconfig
+firmware/rapid4p/sdkconfig.old
+firmware/maping new product/firmware-vimate-p4/build_*/
+firmware/maping new product/firmware-vimate-p4/managed_components/
+firmware/maping new product/firmware-vimate-p4/sdkconfig
+firmware/maping new product/firmware-vimate-p4/sdkconfig.old
+firmware/maping new product/**/.pio/
+# Cay tham chieu firmware-vimate-p4: bo ~100 MB anh/GIF mat robot (khong lien quan Rapid4P)
+firmware/maping new product/firmware-vimate-p4/docs/01_gif/
+firmware/maping new product/firmware-vimate-p4/docs/02_png/
+firmware/maping new product/firmware-vimate-p4/spiffs_*_image/
+firmware/maping new product/firmware-vimate-p4/tools/emo_backup_chuppy_128/

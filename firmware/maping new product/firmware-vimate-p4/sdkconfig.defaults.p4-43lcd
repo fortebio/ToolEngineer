@@ -1,0 +1,155 @@
+# sdkconfig.defaults.p4-43lcd - board FBT ESP32-P4 + LCD 4.3" ST7102 MIPI-DSI.
+#
+# LUU Y: file PHAI la ASCII thuan (kconfgen doc bang locale cp1252 tren Windows).
+#
+# Build:
+#   idf.py -B build_p4_43lcd \
+#     -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.defaults.p4-43lcd" \
+#     set-target esp32p4 && idf.py -B build_p4_43lcd build
+#   (hoac chay scripts/build_p4_43lcd.sh)
+
+CONFIG_VIMATE_BOARD_P4_43LCD=y
+CONFIG_VIMATE_SERVER_BASE="https://vimate.vn"
+
+# --- Bang partition rieng cua P4 (15/09/2026, ban 2) ---
+# emo_spiffs 5,375 MB cho 32 clip GIF "mat robot" toan man (bo 128 khung -> 3,9 MB);
+# lay tu asset_spiffs 3M->512K, lesson_spiffs 2M->512K, model 1M->512K (srmodels 291 KB).
+# NVS giu offset. Doi bang = nap USB mot lan; chi tiet trong partitions/partitions.p4-43lcd.csv.
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/partitions.p4-43lcd.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions/partitions.p4-43lcd.csv"
+
+# --- CPU ---
+# P4 chay 360MHz (muc cao nhat on dinh voi PSRAM 200M). Panel 480x800 RGB565
+# can LVGL rasterize 768KB/khung - CPU la nut co chai chinh o bring-up.
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_360=y
+
+# --- LVGL cho panel 480x800 ---
+# 1 draw unit - GIONG cay S3. Demo chinh chu cua board dat 2 don vi ve song
+# song, nhung LVGL bat buoc LV_OS_FREERTOS khi > 1 ("OS support is required when
+# more than one SW rendering units are enabled"), ma bat LV_OS_FREERTOS doi mo
+# hinh khoa cua LVGL so voi cay S3 dang chay on dinh. De 1 o ban bring-up; muon
+# +50% toc do rasterize thi bat CA HAI dong duoi va soak lai:
+#   CONFIG_LV_OS_FREERTOS=y
+#   CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=2
+CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=1
+# Refresh 16ms (60Hz) - bang cay S3 de GIF cam xuc + UI muot nhu nhau.
+CONFIG_LV_DEF_REFR_PERIOD=16
+CONFIG_LV_DRAW_SW_CIRCLE_CACHE_SIZE=8
+# LVGL task doc/ghi buffer 768KB trong PSRAM -> can IRAM cho ham ve nong.
+CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM=y
+# 15/09/2026: TAT decoder JPG cua LVGL. lv_tjpgd.c decoder_info() khai
+# uint8_t workb[4096] tren stack, frame nay duoc cap NGAY KHI VAO HAM du nguon anh
+# khong phai file .jpg, va LVGL goi no cho MOI lv_image_set_src (ke ca canvas QR).
+# Task nao con < ~4,5 KB stack luc dat anh la "Stack protection fault": da ep main
+# task len 10240 (README-P4 muc 8), toi 15/09 den luot vimate_main (6144) chet o man
+# WiFi setup (QR). Firmware giai JPG bang esp_new_jpeg (util/jpeg_to_image.c), khong
+# bao gio dua duong dan .jpg cho LVGL -> tat, khong mat gi.
+# CONFIG_LV_USE_TJPGD is not set
+
+# --- Bang VFS ---
+# console + USB-JTAG + eventfd + 3 SPIFFS (+ FAT neu co SD) = day bang mac dinh
+# 8 -> mount thu 9 luon tra ESP_ERR_NO_MEM bat ke con heap. Cost 16B.
+# (Root-cause da xac dinh tren genu-v6; P4 cung so partition nen cung rui ro.)
+CONFIG_VFS_MAX_COUNT=12
+
+# --- Ngan sach RAM WiFi ---
+# Cung budget da verify tren cay S3. Voi ESP-Hosted, buffer nam o phia host nen
+# van co tac dung dieu tiet; chinh lai sau khi do tren board that.
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=6
+CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=4
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=16
+CONFIG_ESP_WIFI_RX_BA_WIN=12
+
+# --- WiFi co-processor: ESP32-C5 qua SDIO ---
+# DO TREN BOARD THAT (log boot): ESP-Hosted enumerate SDIO thanh cong roi bao
+#   E transport: Identified slave [esp32c5] != Expected [esp32c6]
+#   assert failed: verify_host_config_for_slave transport_drv.c:500
+# -> co-processor la ESP32-C5, khong phai C6. Day SDIO dung pinout mac dinh cua
+# ESP-IDF cho P4: CLK=18 CMD=19 D0=14 D1=15 D2=16 D3=17 RESET_SLAVE=54, 4-bit
+# 40MHz (log da liet ke va enumerate OK), nen KHONG chon preset dev-board nao
+# (cac preset dung chan 47-53).
+CONFIG_SLAVE_IDF_TARGET_ESP32C5=y
+CONFIG_ESP_HOSTED_CP_TARGET_ESP32C5=y
+CONFIG_ESP_HOSTED_P4_DEV_BOARD_NONE=y
+CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y
+# Cap buffer transport tu PSRAM thay vi RAM noi.
+# Do tren board that: khong bat knob nay thi ESP-Hosted chet ngay truoc app_main
+#   E HS_MP: mempool create failed: no mem
+#   assert failed: sdio_mempool_create sdio_drv.c:258 (buf_mp_g)
+# mempool xin 1 khoi lien tuc (20 + 11) * 1536 ~ 48KB, align 64, cap
+# MALLOC_CAP_INTERNAL|MALLOC_CAP_DMA. Cau hinh RAM cua ta rat chat tay
+# (SPIRAM_MALLOC_RESERVE_INTERNAL=96KB, phan con lai danh cho TLS/LVGL/lwip).
+# Tren P4 GDMA doc duoc PSRAM qua cache nen day sang PSRAM la hop le va giu
+# duoc RAM noi. Component se tu fallback ve RAM noi neu PSRAM khong cap duoc.
+CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM=y
+
+# --- Socket cho captive portal ---
+# Base (giong cay S3) de LWIP_MAX_SOCKETS=6, va httpd chi duoc 2 socket.
+# Qua chat: trinh duyet mo song song nhieu ket noi keep-alive nen fetch('/scan')
+# khong xin duoc socket -> trang cau hinh treo o "Dang quet...". Gio can
+# 4 (httpd) + 1 (ctrl socket cua httpd) + 1 (DNS captive portal) = 6, nang len
+# 10 de con du phong. P4 co 32MB PSRAM nen chi phi khong dang ke.
+CONFIG_LWIP_MAX_SOCKETS=10
+
+# --- Chan doan ---
+# Board dang bring-up -> GIU diag bat de doc heap/reset reason qua serial.
+CONFIG_VIMATE_DIAG_ENABLE=y
+CONFIG_VIMATE_DIAG_INTERVAL_SEC=60
+
+# ==================== The nho ====================
+# Khe TF chay SDMMC slot 0 qua IOMUX (CLK43 CMD44 D0-3 39-42), VDD tu LDO noi
+# kenh 4. KHONG xung dot voi ESP-Hosted: C5 di SDIO slot 1.
+# (Ghi chu cu o day noi hai thu dung chung SDIO -> SAI, da sua.)
+CONFIG_VIMATE_SD_CACHE_ENABLE=y
+# 15/09/2026: the SDHC 4GB da mount (slot 0, 4-bit, 20 MHz). Buffer stdio cua newlib
+# cho file FAT mac dinh 1 KB -> moi fread = lenh doc 2 sector, the re tre ~4 ms/lenh
+# -> 126-181 KB/s. 16 KB = mot cum (allocation_unit 16 KB) -> mot lenh nhieu block qua
+# bounce buffer can 64 (course_media_cache.c). Buffer cap tu PSRAM (malloc > 1 KB),
+# toi da max_files (8) x 16 KB. Chi ap dung file FAT (SD), khong dung SPIFFS.
+CONFIG_FATFS_VFS_FSTAT_BLKSIZE=16384
+
+# ==================== WakeNet - tu danh thuc "Hi Lily" ====================
+# Cung bo model va cung cong tac voi cay S3 (firmware-vimate/sdkconfig.defaults).
+# esp-sr co thu vien rieng cho esp32p4 nen model chay duoc; srmodels.bin ~291KB,
+# nam gon trong phan vung `model` 1MB.
+CONFIG_MODEL_IN_FLASH=y
+CONFIG_SR_NSN_WEBRTC=y
+CONFIG_SR_VADN_WEBRTC=y
+CONFIG_SR_WN_WN9_HILILI_TTS=y
+CONFIG_SR_MN_CN_NONE=y
+CONFIG_SR_MN_EN_NONE=y
+CONFIG_VIMATE_WAKE_WORD_ENABLE=y
+
+# ==================== MP4 player (giong genu-v6) ====================
+# 3 component cua no (esp_extractor, esp_audio_codec, esp_audio_effects) sinh co
+# "-L <duong dan>" khong boc nhay -> vo o duong dan repo co dau cach. Da xu ly
+# trong CMakeLists.txt goc (chuyen sang target_link_directories), khong can doi
+# repo. Ten ngan 8.3 KHONG giup: idf.py/CMake chuan hoa ve duong dan dai.
+CONFIG_VIMATE_MP4_PLAYER_ENABLE=y
+# Chi giu decoder audio theo profile ghi trong Kconfig VIMATE_MP4_PLAYER_ENABLE
+# (AAC / MP3 / FLAC, + PCM). Bat het nhu genu-v6 thi libesp_audio_codec.a chiem
+# 475KB va app con 6% slot 4.5MB. Encoder KHONG can tat: mp4_player.cpp khong
+# goi esp_audio_enc_register_default() nen linker khong keo vao.
+# CONFIG_AUDIO_DECODER_G711_SUPPORT is not set
+# CONFIG_AUDIO_DECODER_AMRNB_SUPPORT is not set
+# CONFIG_AUDIO_DECODER_AMRWB_SUPPORT is not set
+# CONFIG_AUDIO_DECODER_OPUS_SUPPORT is not set
+# CONFIG_AUDIO_DECODER_VORBIS_SUPPORT is not set
+# CONFIG_AUDIO_DECODER_ADPCM_SUPPORT is not set
+# CONFIG_AUDIO_DECODER_ALAC_SUPPORT is not set
+# CONFIG_AUDIO_DECODER_SBC_SUPPORT is not set
+# CONFIG_AUDIO_DECODER_LC3_SUPPORT is not set
+# P4 co JPEG codec phan cung -> khong can decoder MJPEG mem (genu-v6 cung tat).
+# CONFIG_VIDEO_DECODER_SW_MJPEG_SUPPORT is not set
+
+# ==================== RTC/LP RAM KHONG dua vao heap ====================
+# Do tren board 12/09/2026: khi RAM noi con ~100KB, esp-sr (WakeNet trong AFE) xin
+# buffer bang MALLOC_CAP_8BIT va nhan duoc vung RTCRAM 0x50108xxx; lenh SIMD trong
+# dl_esp32p4_sr_pointwise_conv1d_*.S doc vung do -> "Load access fault"
+# (MTVAL=0x50108cc0) -> panic. Mat 31KB heap nhung khong bao gio dinh lai.
+CONFIG_ESP_SYSTEM_ALLOW_RTC_FAST_MEM_AS_HEAP=n
+
+# KHONG bat CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: voi esp_wifi_remote/ESP-Hosted no lam
+# esp_wifi_init (RPC 0x216) tra ESP_ERR_NO_MEM -> khong len duoc WiFi, boot-loop 30s
+# (dinh 12/09/2026 khi tim cach giam RAM noi cho AFE).
