@@ -1,5 +1,10 @@
 # AGENTS.md — FBT_RAPID App (Flutter / Windows)
 
+> **Từ 2026-09-15 app nằm trong monorepo `ToolEngineer` tại `apps/fbt_rapid/`** — chạy mọi lệnh
+> `flutter` từ đó; server ở `server/` (gốc), firmware ở `firmware/<product>/`, registry sản phẩm
+> `system/products.yaml`. Bản đầy đủ + gotcha: `CLAUDE.md` cùng thư mục; quy tắc toàn hệ: `AGENTS.md`
+> và `CLAUDE.md` ở gốc monorepo.
+
 Hướng dẫn cho AI/người phát triển. Danh sách **tính năng đầy đủ** xem [README.md](README.md);
 file này tập trung vào **kiến trúc, lệnh, quy ước, và các cạm bẫy (gotchas)**.
 
@@ -23,7 +28,7 @@ flutter analyze lib/<file>...          # lint nhanh vài file (đừng analyze c
 Đóng gói installer (Inno Setup) — **phải `--release` TRƯỚC** vì script trỏ vào thư mục Release:
 ```powershell
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" "C:\Users\nvdat\Downloads\app\installer.iss"
-# → C:\Users\nvdat\Downloads\FBT_RAPID-Setup-vX.Y.Z.exe
+# → <OutputDir trong installer.iss>\FBT_RAPID-Setup-vX.Y.Z.exe
 ```
 **Chạy + chụp màn hình tự động** (cho AI/agent — GUI không có curl/Playwright): skill
 `.Codex/skills/run-fbt-rapid/` (`driver.ps1`) build/launch `fbt_dxd_app.exe` rồi chụp ĐÚNG cửa
@@ -93,7 +98,7 @@ sổ ra PNG. Vd `& .Codex\skills\run-fbt-rapid\driver.ps1` (launch Debug → ch�
 - **Đồ thị** (`fl_chart`): `widgets/ct_chart.dart` (CT), `widgets/temp_chart.dart` (nhiệt). Lưu ảnh =
   bọc `RepaintBoundary` rồi `util/chart_capture.dart::captureBoundaryPng` (chụp off-screen qua Overlay).
 
-## Backend (2 Apps Script RIÊNG, file trong `sheet/`)
+## Backend Apps Script (LEGACY — file ở `legacy/sheet/` gốc monorepo; getData.js còn được fleet cũ gọi)
 - `getData.js` — `doPost` (firmware đẩy kết quả) + `doGet` (app đọc lịch sử: ids/runs/run/peek).
 - `userAuth.js` — accounts/auth, web app + Google Sheet **riêng**, `doPost {action: login | changePassword
   | changeEmail | listUsers | saveUser | deleteUser}`. Schema tab `Accounts`:
@@ -104,54 +109,23 @@ sổ ra PNG. Vd `& .Codex\skills\run-fbt-rapid\driver.ps1` (launch Debug → ch�
   Đổi deploy → sửa hằng → build lại.
 - **Sửa script → phải Deploy lại** (Manage deployments → Edit → New version) thì `/exec` mới cập nhật.
 
-### Server tự host (Docker, `server/`) — backend ĐỘC LẬP (app KHÔNG còn gọi)
+### Engineer Server (`server/` ở GỐC monorepo) — backend CHÍNH của app
 
-> **App đã BỎ nguồn self-hosted** (chỉ còn Google + RAPID ERP). `server/` vẫn giữ làm backend
-> đứng riêng (firmware vẫn POST `/ingest` được); muốn app đọc lại thì khôi phục `CloudSource.selfHosted`.
-- Stack: **Postgres 16 + Node/Express** (`api/`). Public ra ngoài (miễn phí, không thẻ) bằng **DuckDNS
-  (DNS động) + Caddy (HTTPS Let's Encrypt tự động)** dưới profile `duckdns` → cần **mở port 80/443** ở
-  router (`https://<tên>.duckdns.org`). Chạy trên máy luôn-bật ở nhà. Lệnh: `cp .env.example .env` → điền
-  `ADMIN_TOKEN/DEVICE_KEY/POSTGRES_PASSWORD` + `DUCKDNS_*`/`PUBLIC_HOST` → `docker compose up -d --build`
-  (local) hoặc `docker compose --profile duckdns up -d --build` (public). **Mọi lệnh `docker compose`
-  PHẢI chạy TỪ TRONG `app/server/`** (nơi có `docker-compose.yml`) — chạy ở gốc `app/` báo lỗi
-  `no configuration file provided: not found`. **Docker CÓ sẵn trên box** (Docker 29.5.3 + Compose
-  v5.1.4) — server chạy trong container nên **KHỎI cài Node cục bộ**.
-- **GOTCHA "domain free + Cloudflare Tunnel" KHÔNG khả thi (đã kiểm chứng 2026)**: domain free `.eu.org`
-  **không add được vào Cloudflare gói Free** (Error 1049 — không trong ICANN Public Suffix List), mà
-  Cloudflare Tunnel named hostname BẮT BUỘC domain là zone trên Cloudflare; Freenom (.tk/.ml…) đã chết
-  2023; Quick Tunnel URL đổi mỗi lần chạy. → Muốn Cloudflare Tunnel phải **mua** domain (`--profile tunnel`,
-  `cloudflared` vẫn còn trong compose); miễn phí thì đi DuckDNS+mở port (ở trên) hoặc ngrok free static.
-- **Compose interpolate CẢ file lúc parse** (kể cả service ở profile chưa bật) → biến của service profile
-  `${VAR:?...}` sẽ làm hỏng `docker compose up` mặc định nếu chưa set; dùng default `${VAR:-...}` thay vì `:?`.
-- **Hợp đồng GIỐNG HỆT Apps Script doGet** để app tái dùng `cloud_history_api.dart`: `GET /api?action=ids|
-  runs|run` (admin, header `Authorization: Bearer <ADMIN_TOKEN>`); `POST /ingest` (firmware, header
-  `X-Device-Key`). Bảng `runs` lưu **RAW JSONB** + cột rút ra; `UNIQUE(device_id,run_time)` → POST lại
-  idempotent. `transform.js` đổi RAW firmware → "app shape": `result "-- | N"` → chữ `N/P/S/E`, `CT_value`
-  → `ct`, **`amplification` (chuỗi "a,b,c,…") gán THẲNG vào `curves`** (app `_parseRawCurve` tự tách).
-  `action=runs` KHÔNG kèm curves; `action=run` kèm. `time` trả nguyên chuỗi gốc (app parse được cả
-  dd-MM-yyyy); riêng `ids.latest` PHẢI ISO (`CloudDevice.fromJson` chỉ `DateTime.tryParse`).
-- **GOTCHA payload firmware THẬT khác sample**: bản upload **"Manual"** (vd máy RPL02013) **KHÔNG có
-  field `time`** và dùng `record_out` (mảng `{Slot_N:{peak_features,outcome}}`) thay vì `outcome[]`/
-  `peak_features[]` top-level, thêm `type_Upload`, `kitId` dạng **chuỗi** `"0.00"`. → `/ingest` ban đầu
-  bắt buộc `time` nên **400 "bad time"**; đã sửa: thiếu/sai `time` → **dùng `new Date()` (giờ server)**
-  (đánh đổi: mất idempotent theo time, mỗi POST = 1 bản ghi). `record_out`/`type_Upload` chỉ lưu raw,
-  transform bỏ qua (app cũng bỏ). `result "22.3 | N"` → vẫn ra chữ `N` đúng.
-- **Firmware** (`../FBT-DXD/src/`) muốn đẩy vào server này phải POST THÊM tới `/ingest` (song song POST
-  Apps Script cũ) — thay đổi firmware tách biệt, chưa làm. Test app không cần firmware: `curl --data
-  @server/sample_run.json` bơm 1 run mẫu là đủ.
-- **GOTCHA "firmware POST mà app KHÔNG nhận" — debug từ NGOÀI vào, KHÔNG mổ code trước**: server-side
-  (`/ingest`→DB→`/api`) hầu như luôn OK; nghẽn nằm ở **lớp public**. `docker compose up` THƯỜNG chỉ chạy
-  `api` (bind **`127.0.0.1:3000`**) + `db` — **`caddy`+`duckdns` nằm dưới `--profile duckdns` nên KHÔNG tự
-  lên** → không ai nghe **80/443** → firmware POST `https://<host>/ingest` rơi vào hư không. **Test 1 dòng:
-  `curl -m15 https://<host>/health` ra `HTTP 000`** = lớp public chưa chạy (phải `docker compose --profile
-  duckdns up -d --build` + forward 80/443 ở router). Xác minh server vô can: POST payload firmware vào
-  `127.0.0.1:3000/ingest?key=<DEVICE_KEY>` rồi `GET /api?action=ids` (Bearer `ADMIN_TOKEN`) — thấy device
-  là server OK. **`.env`: `DUCKDNS_SUBDOMAIN` PHẢI trùng host firmware/app dùng** (đã gặp lệch
-  `fbtrapidtest` vs `PUBLIC_HOST=fbtrapid.duckdns.org` → DuckDNS cập nhật IP cho **sai** subdomain). Firmware
-  HTTPS phải `WiFiClientSecure`+`setInsecure()` (hoặc CA), nếu `WiFiClient` thường thì `http.POST` trả -1.
-  **Hairpin NAT**: app/thiết bị Ở CÙNG LAN gọi `https://<host>.duckdns.org` (= IP công khai của chính
-  mình) thường **timeout** (`errno 121 semaphore`) DÙ mọi thứ đúng → test URL public từ **4G/ngoài LAN**;
-  còn app chạy CÙNG máy server thì trỏ app thẳng `http://localhost:3000/api` (bỏ qua Caddy/DuckDNS).
+> Mục cũ ở đây tả `server/` là "Docker + Node/Express, app KHÔNG gọi" — **sai từ 2026-07**. Thực tế:
+> `server/` là **FBT Home Server = Engineer Server** (Python **FastAPI + PostgreSQL 17**, systemd
+> `fbt-receiver` cổng 8080 trên MiniPC Debian, public qua Tailscale Funnel `fbt.basa-luma.ts.net` và
+> Cloudflare Tunnel `hub.fortebio.tech`), và app gọi nó rất nhiều: `POST /auth` (đăng nhập, cấp
+> `apiToken` theo vai trò) · `/devices` `/sessions` (lịch sử, nguồn `engineer`) · `/ota/*` (tab Quản lý
+> máy) · `/ate/*` (tab Sản xuất) · `PUT /devices/{id}/logs` (CSKH) · `/monitor` (tab Giám sát).
+> Kiến trúc, route, deploy, gotcha server: **`server/CLAUDE.md`** và `server/README.md`. Bản port
+> Cloudflare Workers (`legacy/server-cf/`, chưa deploy) và bộ Docker Node/DuckDNS cũ KHÔNG còn dùng.
+- Luật dùng chung app↔server hay quên: (1) **mọi thao tác ghi dùng PUT/DELETE** — `POST /{path}`
+  catch-all nuốt hết POST thành payload thiết bị; (2) route chưa deploy trả **405** chứ không 404;
+  (3) token nhân sự (`OTA_ADMIN_TOKEN`) mở mọi route, token thiết bị (`RECEIVER_TOKEN`) chỉ đọc + ghi
+  hồ sơ ATE; (4) app lọc quyền xem máy ở CLIENT (`canSee`), server không phân biệt vai trò ở route Bearer.
+- Test local cả bộ (Postgres portable + server + web): `server\scripts\localtest.ps1` (mục Gotchas
+  "Công thức TEST LOCAL"). Deploy: `server\scripts\deploy.ps1 -Server -Web` (bản web lấy từ
+  `apps/fbt_rapid/build/web_prod`).
 
 ## Quy ước
 - **Comment & UI bằng tiếng Việt.** Giữ nguyên phong cách này khi sửa.
@@ -278,7 +252,8 @@ sổ ra PNG. Vd `& .Codex\skills\run-fbt-rapid\driver.ps1` (launch Debug → ch�
   còn latent — thêm khi log nhiệt cũng reset máy). Config chỉ áp lúc **mở cổng** → phải đóng/mở lại mới ăn.
   Nếu reset **CHỈ khi gửi** (không reset lúc mở) thì là **firmware tự reboot theo lệnh nhận được** (crash/
   watchdog/lệnh reset), sửa ở firmware FBT-DXD — không phải app; xem RX có banner boot để phân biệt.
-- **Backend nằm TRONG repo app**: Apps Script ở `app/sheet/` (getData/userAuth/accounts) **và** server
-  tự host (Docker) ở `app/server/` — đã GOM từ `FBT-DXD/` về `app/` (doc tham chiếu `sheet/`, `server/`,
-  KHÔNG còn `../FBT-DXD/`). **`FBT-DXD/` chỉ còn là repo FIRMWARE RIÊNG** (PlatformIO/ESP —
-  `src/ lib/ platformio.ini`), KHÔNG trộn vào app; firmware POST kết quả lên cả Apps Script lẫn `server/`.
+- **Vị trí các phần trong monorepo (từ 2026-09-15)**: app này ở `apps/fbt_rapid/`; Engineer Server ở
+  `server/` (gốc); Apps Script cũ ở `legacy/sheet/` (getData.js CÒN được fleet cũ + reader gọi);
+  firmware Rapid+ ở `firmware/rapidplus/` (không còn là repo `FBT-DXD` riêng), Reader ở `firmware/reader/`;
+  registry sản phẩm `system/products.yaml`. Đường dẫn `lib/… test/… build/…` trong file này tính từ
+  `apps/fbt_rapid/`; đường dẫn tới phần khác viết từ gốc monorepo.

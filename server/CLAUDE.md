@@ -1,5 +1,10 @@
 # CLAUDE.md — hướng dẫn cho Claude trong dự án này
 
+> **Từ 2026-09-15 nằm trong monorepo `ToolEngineer` tại `server/`.** App ở `apps/fbt_rapid/`
+> (bản web build ra `apps/fbt_rapid/build/web_prod`), firmware ở `firmware/<product>/`, registry sản
+> phẩm `system/products.yaml` (khoá `product`, tiền tố mã máy → `OTA_LEGACY_PRODUCT_BY_PREFIX`,
+> mẫu env `deploy/fbt-receiver.env.example`, kiểm bằng `python tools/registry_check.py`).
+
 ## Dự án
 **FBT Home Server** — MiniPC dựng thành server 24/7 (Debian headless + PostgreSQL), nhận data từ thiết bị và cho code từ xa. Repo này chứa tài liệu vận hành + code nhận data.
 
@@ -34,7 +39,7 @@ scripts/               # CLI dùng lại logic của app/
   reconcile.py         #   Nạp bù file data_plus/ vào DB (idempotent qua dedup nội dung)
   import_accounts.py   #   Di cư tài khoản từ CSV (export Google Sheet Accounts) vào bảng users
   import_drive_backup.py #  Nạp log Drive vào kho backup `drive_sessions` (TÁCH khỏi sessions)
-  deploy.ps1           #   scp CẢ app/*.py + scripts/migrate_ota.py (+ bản web build/web_prod) lên box; -DryRun in lệnh
+  deploy.ps1           #   scp CẢ app/*.py + scripts/migrate_ota.py (+ bản web apps/fbt_rapid/build/web_prod, -WebProd đổi) lên box; -DryRun in lệnh
   localtest.ps1        #   Bật/tắt bộ test local: Postgres portable :5433 + uvicorn :8080 + tài khoản test
 tests/                 # test_logic.py + test_monitor.py (thuần) + test_api.py (smoke, TestClient) + test_auth_roles.py (phạm vi
                        #   quản lý tài khoản, thay app.db bằng kho RAM) + test_ota_products.py (kho OTA theo sản
@@ -52,7 +57,7 @@ docs/plan/             # Các kế hoạch phát triển dự án (.md)
   KE_HOACH_PHAT_TRIEN.md    # Kế hoạch chính thức (3 giai đoạn + thứ tự làm)
   ate-ho-so-nghiem-thu.md   # Phần server của trạm ATE (/ate/*) — vì sao lưu file, khi nào chuyển sang bảng
   ota-nhieu-san-pham.md     # Phần server của OTA nhiều sản phẩm: hợp đồng /ota/*, bố cục kho, env; bản đầy đủ
-                            #   (firmware + app + lộ trình 4 giai đoạn) ở repo app `docs/plan/ota-nhieu-san-pham.md`
+                            #   (firmware + app + lộ trình 4 giai đoạn) ở `apps/fbt_rapid/docs/plan/ota-nhieu-san-pham.md`
   HUONG_DAN_DUNG_SERVER.md  # Runbook dựng lại server từ đầu trên máy mới
   plan.txt                  # Ý tưởng sơ bộ gốc của chủ dự án
 docs/history/          # Lịch sử chỉnh sửa (mỗi ngày 1 file YYYY-MM-DD.md)
@@ -92,3 +97,88 @@ docs/data_sample/      # Mẫu dữ liệu thiết bị gửi lên (data_RPL.jso
 - Trả lời bằng tiếng Việt.
 - Kế hoạch phát triển: [docs/plan/KE_HOACH_PHAT_TRIEN.md](docs/plan/KE_HOACH_PHAT_TRIEN.md).
 - Dựng lại server từ đầu: [docs/plan/HUONG_DAN_DUNG_SERVER.md](docs/plan/HUONG_DAN_DUNG_SERVER.md) (thay `KE_HOACH_DUNG_SERVER.md` đã thất lạc).
+
+## Gotchas server / deploy / box (chuyển từ CLAUDE.md app 2026-09-15 — đã gặp thật)
+
+- **Deploy từ box ADM — ĐÃ MỞ SSH thẳng 2026-09-12** (trước đó bị Tailscale SSH chặn: `tailnet policy
+  does not permit you to SSH`; LAN 22 timeout; tên ngắn `fbt` không resolve → dùng IP `100.109.127.87`
+  hoặc `fbt.basa-luma.ts.net`). Cách mở: trên box `sudo tailscale set --ssh=false` (OpenSSH nhận lại
+  cổng 22) + thêm `~/.ssh/id_ed25519.pub` của ADM vào `authorized_keys` của `engineer` — người dùng tự
+  làm qua **Cockpit** `https://100.109.127.87:9090` (cổng 9090 KHÔNG dính chính sách Tailscale SSH;
+  có Terminal trong trình duyệt). Không SSH được thì chuyển file qua Cockpit bằng cách dán `base64` của
+  `tar.gz` (KHÔNG zip của PowerShell 5.1 — nó ghi path bằng `\`, giải nén Linux ra tên hỏng). Quy trình
+  gói sẵn trong **`server\scripts\deploy.ps1`** (`-Server` scp CẢ `app/*.py` + `scripts/migrate_ota.py`,
+  tự `cp -a app app.bak.<stamp>` trên box trước; `-Web` scp NỘI DUNG `build\web_prod` đúng gotcha
+  `scp -O`; `-DryRun` chỉ in lệnh); restart `fbt-receiver` vẫn phải tự chạy (sudo cần mật khẩu, `-t`).
+  Bản web production build ra **`build\web_prod`** (`--output build/web_prod`, KHÔNG dart-define) để
+  không đè bản test local ở `build\web`. Windows OpenSSH hỏi host key rồi KHÔNG nhận "yes" (lặp vô hạn)
+  → thêm `-o StrictHostKeyChecking=accept-new`. Ba bẫy trong chính `deploy.ps1` (dính 17:44 cùng ngày):
+  `Run` đi qua `Invoke-Expression` nên lệnh remote KHÔNG được chứa `$(…)`/`$biến` (PowerShell diễn giải
+  lại — `2>/dev/null` thành `C:\dev
+ull`), dùng `xargs -I{}`; dọn `web.bak.*` phải xếp theo TÊN
+  (`sort -r`) vì `cp -a` giữ mtime → `ls -t` coi bản vừa chép là cũ nhất và xoá nó; bak cũ có thư mục
+  `dr-x` → `chmod -R u+rwX` trước `rm`, và bước dọn kết thúc bằng `; true` để không chặn deploy.
+  Sau deploy web, kiểm bằng **`fbt.basa-luma.ts.net`** (thẳng box); `hub.fortebio.tech` qua Cloudflare
+  có thể còn `cf-cache-status: HIT` bản cũ tới hết TTL 4 h nếu object được cache TRƯỚC khi origin phát
+  `no-cache` — purge trên dashboard hoặc đợi, không phải lỗi deploy. **Kiểm deploy KHÔNG cần token** (đủ để kết luận): (1)
+  `curl …/openapi.json` rồi so `json.dumps(sort_keys)` với `app.openapi()` sinh từ code local (TestClient
+  env tạm) — giống hệt = đúng code đang chạy, khác = liệt kê route lệch; (2) route mới phải **401** khi
+  thiếu token (có route, gác nguyên); (3) web: md5 `main.dart.js` tải từ `/app/` == `build/web_prod` ==
+  file trên box, và `grep -c` khoá i18n đặc trưng (`nav.monitor`, `statusError`, `binGone`) trong bundle.
+  ⚠️ `md5sum` in dấu `\` ĐẦU DÒNG khi path có backslash (Windows) → so md5 bằng mắt/`uniq` sau khi bỏ
+  ký tự đó, đừng `cut -c1-32` rồi kết luận "khác". Và so file trên box với **file trong cây làm việc**,
+  KHÔNG với `git show HEAD:file | md5sum`: git lưu LF, checkout Windows ra CRLF và scp đẩy bản CRLF lên
+  box → md5 blob git luôn "khác" dù nội dung y hệt (`monitor.py` trùng vì file đó vốn LF). **Trước khi bảo người dùng restart** (sudo, tay):
+  `ssh … 'cd ~/fbt_server && venv/bin/python -c "import app.main"'` — import bằng venv THẬT của box bắt
+  được thiếu package/lỗi cú pháp mà không phải hạ service (`__init__.py` nạp trễ nên import không có
+  tác dụng phụ). Handler FastAPI `async def` (cần `await request.body()`) mà làm việc chặn (băm/ghi
+  MB) thì `await run_in_threadpool(...)` — worker duy nhất, treo loop là treo cả `/ingest`.
+- **Box production KHÔNG chắc chạy code của `main` — kiểm trước khi deploy** (dính thật 2026-09-12):
+  box nhận code nhánh `origin/ota-rollout-docs-tests` (28/08: `server/app/monitor.py` + route
+  `/monitor`, app có `monitor_screen.dart`, tải hàng loạt, CSV rollout) mà clone ADM chưa merge; scp từ
+  `main` ghi đè `main.py`/`db.py`/`__init__.py` → tab Giám sát của bản web gãy ~35 phút. Dấu vết: file
+  trên box **không có trong local** (`monitor.py` mtime cũ + `.pyc`). Đã ghép lại 4 file server từ commit
+  `8bc627d`, rồi **merge cả nhánh vào `main`** (`7687b80`, 2026-09-12) và build+deploy web từ cây đã merge
+  (bản `/app/` giờ có đủ Giám sát + tải hàng loạt + CSKH + ATE). Luật: `git fetch` + `git branch -r
+  --no-merged` + so `ls app/*.py` trên box với local trước mọi lần deploy. Khi merge: tab Giám sát gác
+  `isRoot` chứ KHÔNG `canManageUsers` (từ 09-07 manager cũng quản lý được tài khoản); `saveTextFileDialog`
+  có cả `label` lẫn `extensions`, `label` trống = suy từ đuôi.
+- **Test server `GET /ota/../../note.md` trả 405 chứ không 404 với httpx mới**: httpx chuẩn hoá `..`
+  TRƯỚC khi gửi → request thành `GET /note.md` → khớp catch-all `POST /{path}` sai method → 405.
+  Không phải lỗi server (path không tới handler, không lộ file) — assert nên là `in (404, 405)`.
+- **`server/app/main.py` KHÔNG được có tác dụng phụ ghi đĩa lúc import** (ngoài `mkdir`):
+  `app/__init__.py` import `app.main`, nên MỌI script/test import `app.*` đều chạy main.py —
+  đặt `ota.migrate_legacy()` dưới `FastAPI(...)` làm `scripts/migrate_ota.py --dry-run` dời file
+  THẬT (đã dính 2026-09-11). Việc "chạy một lần lúc khởi động" đặt trong `lifespan` (chỉ tiến
+  trình uvicorn thật chạy; `TestClient` không dùng `with` thì cũng không chạy).
+- **Web sau deploy: icon MỚI hiện thành ô trống, icon cũ vẫn hiện = FONT ICON CŨ bị cache, không phải
+  lỗi build** (2026-09-12): Flutter tree-shake `MaterialIcons-Regular.otf` theo bộ icon của TỪNG build
+  nhưng phát ở CÙNG URL; Cloudflare (`hub.fortebio.tech`) gắn `max-age=14400` cho file tĩnh → trình
+  duyệt/CDN giữ font của bản trước 4 giờ trong khi `main.dart.js` đã mới. Chẩn đoán đúng thứ tự:
+  (1) `curl` md5 font trên server so với `build/web_prod` (giống = server đúng); (2) `fonttools`
+  (`TTFont(...).getBestCmap()`) so codepoint từ `packages/flutter/lib/src/material/icons.dart` → font mới
+  có đủ glyph; (3) kết luận cache. Sửa gốc: middleware `Cache-Control: no-cache` cho `/app/*`
+  (`main.py::_web_no_cache`, có test) — trình duyệt/CDN hỏi lại bằng ETag → 304, deploy xong thấy ngay;
+  người dùng đang kẹt thì `Ctrl+Shift+R` hoặc Clear site data. Cảnh báo build "Expected to find fonts
+  for … CupertinoIcons" là của framework, vô hại.
+- **Server: `pathlib.Path.glob('*.bin')` KHỚP CẢ dotfile** (khác glob của shell) → file tạm `.tmp-<name>.bin`
+  của upload bị ngắt bị liệt kê/di cư như ảnh thật; mọi chỗ glob kho phải lọc `not p.name.startswith('.')`.
+  Và **việc "chạy một lần lúc khởi động" trong `lifespan` phải bọc `try/except` + log** — ném lỗi ở đó là
+  uvicorn không lên, mất luôn `/ingest` của cả fleet vì một thao tác dọn dẹp (code-review 2026-09-12).
+- **Route server mới KHÔNG được là POST** (đã ghi ở mục OTA, lặp lại vì dễ quên): `POST /{path}`
+  catch-all ingest nuốt mọi POST → 400 "invalid". Log CSKH dùng `PUT /devices/{id}/logs`; tên file
+  trả về dài hơn 64 ký tự nên `GET /logs/{file}` kiểm tên bằng regex riêng, KHÔNG `safe_name` (cắt 64
+  ký tự → đổi tên → 404 sai).
+- **"Deploy rồi mà web chưa thấy tính năng" — dò theo CHUỖI THAM CHIẾU, đừng đoán cache**:
+  `curl /app/` xem `index.html` trỏ bootstrap nào → `curl` bootstrap đó lấy `mainJsPath` →
+  `curl` file `main.<hash>.dart.js` đó rồi so **md5 với `build/web/main.dart.js`** và grep khoá
+  i18n. Khớp hết = server đúng, lỗi ở TRÌNH DUYỆT người dùng: `index.html` được trả **KHÔNG kèm
+  `Cache-Control`** (chỉ `Last-Modified`) nên tab đang mở giữ JS cũ vô thời hạn → Ctrl+Shift+R,
+  hoặc thử **cửa sổ ẩn danh** (phép thử dứt điểm). Service worker KHÔNG phải thủ phạm: Flutter đời
+  này sinh bản "tự huỷ" (815 B, `unregister()` + reload) nên không cache app; nó giống nhau mọi
+  lần build, deploy script bỏ qua là ĐÚNG.
+- **Engineer Server trả 500 = tầng Postgres trên box chưa sẵn sàng** (đúng token vẫn 500): bảng
+  `sessions`/role chưa tạo (chưa chạy `deploy/schema.sql`) hoặc Postgres/psycopg thiếu — KHÔNG phải
+  lỗi app. `/ingest` vẫn 200 (file-first, catch lỗi DB) nên thiết bị đẩy được mà app không đọc được.
+  Chẩn đoán trên box: `journalctl -u fbt-receiver -n 30`; sau khi tạo schema phải chạy
+  `reconcile.py` nạp file JSON cũ vào DB, không thì `/devices` trả danh sách RỖNG.

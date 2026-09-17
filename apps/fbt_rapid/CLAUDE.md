@@ -1,5 +1,10 @@
 # CLAUDE.md — FBT_RAPID App (Flutter / Windows)
 
+> **Từ 2026-09-15 app nằm trong monorepo `ToolEngineer` tại `apps/fbt_rapid/`** (server ở `server/`,
+> firmware ở `firmware/<product>/`, registry sản phẩm `system/products.yaml`; quy tắc toàn hệ ở
+> `CLAUDE.md` gốc). Mọi lệnh `flutter` trong file này chạy TỪ `apps/fbt_rapid/`; đường dẫn
+> `lib/… test/… build/…` tính từ đó, đường dẫn `server/… legacy/sheet/… .claude/…` tính từ gốc.
+
 Hướng dẫn cho AI/người phát triển. Danh sách **tính năng đầy đủ** xem [README.md](README.md);
 file này tập trung vào **kiến trúc, lệnh, quy ước, và các cạm bẫy (gotchas)**.
 
@@ -17,6 +22,7 @@ Drive), **theo dõi nhiệt độ realtime qua UART/COM**, lưu kết quả/đ�
 
 ## Lệnh hay dùng (PowerShell)
 ```powershell
+cd apps\fbt_rapid                      # MỌI lệnh flutter chạy từ đây (monorepo từ 2026-09-15)
 flutter pub get
 flutter run -d windows                 # chạy có hot reload
 flutter build windows --debug          # build nhanh để test  → build\windows\x64\runner\Debug\fbt_dxd_app.exe
@@ -30,16 +36,16 @@ flutter build web --release            # build WEB → build\web (host tĩnh ở
 "N issues found" — đọc thành "sạch". Đã suýt commit code không biên dịch được vì cái này
 (2026-08-28). Luôn lọc `grep -E "error|warning"` rồi mới xem tổng số.
 Đóng gói installer (Inno Setup) — **phải `--release` TRƯỚC** vì script trỏ vào thư mục Release.
-`installer.iss` nằm ở **gốc repo app** (source/icon/vendor dùng path tương đối `AddBackslash(SourcePath)`
+`installer.iss` nằm ở **gốc thư mục app (`apps/fbt_rapid/`)** (source/icon/vendor dùng path tương đối `AddBackslash(SourcePath)`
 — đừng hardcode đường dẫn tuyệt đối); mỗi lần phát hành nhớ nâng `MyAppVersion` trong file.
 Version phát hành = `MyAppVersion` (khớp tag commit `vX.Y.Z`); `pubspec.yaml` KHÔNG đồng bộ (vẫn 1.0.2) — đừng lấy đó làm chuẩn:
 ```powershell
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer.iss
-# → C:\Users\nvdat\Downloads\FBT_RAPID-Setup-vX.Y.Z.exe
+# → <OutputDir trong installer.iss>\FBT_RAPID-Setup-vX.Y.Z.exe
 ```
 **Chạy + chụp màn hình tự động** (cho AI/agent — GUI không có curl/Playwright): skill
-`.claude/skills/run-fbt-rapid/` (`driver.ps1`) build/launch `fbt_dxd_app.exe` rồi chụp ĐÚNG cửa
-sổ ra PNG. Vd `& .claude\skills\run-fbt-rapid\driver.ps1` (launch Debug → chụp `_smoke.png` →
+`.claude/skills/run-fbt-rapid/` (ở GỐC monorepo; `driver.ps1`, mặc định trỏ `apps\fbt_rapid`) build/launch `fbt_dxd_app.exe` rồi chụp ĐÚNG cửa
+sổ ra PNG. Vd `& ..\..\.claude\skills\run-fbt-rapid\driver.ps1` (launch Debug → chụp `_smoke.png` →
 đóng; cờ `-KeepOpen`/`-Attach`/`-Release`). Muốn **bấm nút** trong app (driver chỉ chụp): script
 PS `SetForegroundWindow` → `GetWindowRect` → `SetCursorPos(rect + offset-theo-ảnh-PNG)` →
 `mouse_event` down/up — offset lấy thẳng từ toạ độ pixel trên PNG vừa chụp (PrintWindow 1:1 với
@@ -319,7 +325,7 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   `flutter create` sinh khác vẫn ignore. Sinh lại `web/` thì title/manifest + thẻ script esptool
   trong index.html sẽ bị ghi đè — lấy lại từ git.
 
-## Backend (2 Apps Script RIÊNG, file trong `sheet/`)
+## Backend Apps Script (LEGACY — file ở `legacy/sheet/` gốc monorepo; getData.js còn được fleet cũ gọi)
 - `getData.js` — `doPost` (firmware đẩy kết quả) + `doGet` (app đọc lịch sử: ids/runs/run/peek).
 - `userAuth.js` — accounts/auth, web app + Google Sheet **riêng**, `doPost {action: login | changePassword
   | changeEmail | listUsers | saveUser | deleteUser}`. Schema tab `Accounts`:
@@ -330,55 +336,23 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   Đổi deploy → sửa hằng → build lại.
 - **Sửa script → phải Deploy lại** (Manage deployments → Edit → New version) thì `/exec` mới cập nhật.
 
-### Server tự host (Docker, `server/`) — backend ĐỘC LẬP (app KHÔNG gọi)
+### Engineer Server (`server/` ở GỐC monorepo) — backend CHÍNH của app
 
-> App KHÔNG đọc `server/` (nguồn **Engineer Server** trong app trỏ **FBT Home Server**
-> `../Server/app.py` — project khác, xem bullet `fbt_api.dart` ở trên). `server/` vẫn là backend
-> đứng riêng (firmware POST `/ingest` được); muốn app đọc thì viết client theo hợp đồng `/api`.
-- Stack: **Postgres 16 + Node/Express** (`api/`). Public ra ngoài (miễn phí, không thẻ) bằng **DuckDNS
-  (DNS động) + Caddy (HTTPS Let's Encrypt tự động)** dưới profile `duckdns` → cần **mở port 80/443** ở
-  router (`https://<tên>.duckdns.org`). Chạy trên máy luôn-bật ở nhà. Lệnh: `cp .env.example .env` → điền
-  `ADMIN_TOKEN/DEVICE_KEY/POSTGRES_PASSWORD` + `DUCKDNS_*`/`PUBLIC_HOST` → `docker compose up -d --build`
-  (local) hoặc `docker compose --profile duckdns up -d --build` (public). **Mọi lệnh `docker compose`
-  PHẢI chạy TỪ TRONG `app/server/`** (nơi có `docker-compose.yml`) — chạy ở gốc `app/` báo lỗi
-  `no configuration file provided: not found`. **Docker CÓ sẵn trên box** (Docker 29.5.3 + Compose
-  v5.1.4) — server chạy trong container nên **KHỎI cài Node cục bộ**.
-- **GOTCHA "domain free + Cloudflare Tunnel" KHÔNG khả thi (đã kiểm chứng 2026)**: domain free `.eu.org`
-  **không add được vào Cloudflare gói Free** (Error 1049 — không trong ICANN Public Suffix List), mà
-  Cloudflare Tunnel named hostname BẮT BUỘC domain là zone trên Cloudflare; Freenom (.tk/.ml…) đã chết
-  2023; Quick Tunnel URL đổi mỗi lần chạy. → Muốn Cloudflare Tunnel phải **mua** domain (`--profile tunnel`,
-  `cloudflared` vẫn còn trong compose); miễn phí thì đi DuckDNS+mở port (ở trên) hoặc ngrok free static.
-- **Compose interpolate CẢ file lúc parse** (kể cả service ở profile chưa bật) → biến của service profile
-  `${VAR:?...}` sẽ làm hỏng `docker compose up` mặc định nếu chưa set; dùng default `${VAR:-...}` thay vì `:?`.
-- **Hợp đồng GIỐNG HỆT Apps Script doGet** để app tái dùng `cloud_history_api.dart`: `GET /api?action=ids|
-  runs|run` (admin, header `Authorization: Bearer <ADMIN_TOKEN>`); `POST /ingest` (firmware, header
-  `X-Device-Key`). Bảng `runs` lưu **RAW JSONB** + cột rút ra; `UNIQUE(device_id,run_time)` → POST lại
-  idempotent. `transform.js` đổi RAW firmware → "app shape": `result "-- | N"` → chữ `N/P/S/E`, `CT_value`
-  → `ct`, **`amplification` (chuỗi "a,b,c,…") gán THẲNG vào `curves`** (app `_parseRawCurve` tự tách).
-  `action=runs` KHÔNG kèm curves; `action=run` kèm. `time` trả nguyên chuỗi gốc (app parse được cả
-  dd-MM-yyyy); riêng `ids.latest` PHẢI ISO (`CloudDevice.fromJson` chỉ `DateTime.tryParse`).
-- **GOTCHA payload firmware THẬT khác sample**: bản upload **"Manual"** (vd máy RPL02013) **KHÔNG có
-  field `time`** và dùng `record_out` (mảng `{Slot_N:{peak_features,outcome}}`) thay vì `outcome[]`/
-  `peak_features[]` top-level, thêm `type_Upload`, `kitId` dạng **chuỗi** `"0.00"`. → `/ingest` ban đầu
-  bắt buộc `time` nên **400 "bad time"**; đã sửa: thiếu/sai `time` → **dùng `new Date()` (giờ server)**
-  (đánh đổi: mất idempotent theo time, mỗi POST = 1 bản ghi). `record_out`/`type_Upload` chỉ lưu raw,
-  transform bỏ qua (app cũng bỏ). `result "22.3 | N"` → vẫn ra chữ `N` đúng.
-- **Firmware** (`../FBT-DXD/src/`) muốn đẩy vào server này phải POST THÊM tới `/ingest` (song song POST
-  Apps Script cũ) — thay đổi firmware tách biệt, chưa làm. Test app không cần firmware: `curl --data
-  @server/sample_run.json` bơm 1 run mẫu là đủ.
-- **GOTCHA "firmware POST mà app KHÔNG nhận" — debug từ NGOÀI vào, KHÔNG mổ code trước**: server-side
-  (`/ingest`→DB→`/api`) hầu như luôn OK; nghẽn nằm ở **lớp public**. `docker compose up` THƯỜNG chỉ chạy
-  `api` (bind **`127.0.0.1:3000`**) + `db` — **`caddy`+`duckdns` nằm dưới `--profile duckdns` nên KHÔNG tự
-  lên** → không ai nghe **80/443** → firmware POST `https://<host>/ingest` rơi vào hư không. **Test 1 dòng:
-  `curl -m15 https://<host>/health` ra `HTTP 000`** = lớp public chưa chạy (phải `docker compose --profile
-  duckdns up -d --build` + forward 80/443 ở router). Xác minh server vô can: POST payload firmware vào
-  `127.0.0.1:3000/ingest?key=<DEVICE_KEY>` rồi `GET /api?action=ids` (Bearer `ADMIN_TOKEN`) — thấy device
-  là server OK. **`.env`: `DUCKDNS_SUBDOMAIN` PHẢI trùng host firmware/app dùng** (đã gặp lệch
-  `fbtrapidtest` vs `PUBLIC_HOST=fbtrapid.duckdns.org` → DuckDNS cập nhật IP cho **sai** subdomain). Firmware
-  HTTPS phải `WiFiClientSecure`+`setInsecure()` (hoặc CA), nếu `WiFiClient` thường thì `http.POST` trả -1.
-  **Hairpin NAT**: app/thiết bị Ở CÙNG LAN gọi `https://<host>.duckdns.org` (= IP công khai của chính
-  mình) thường **timeout** (`errno 121 semaphore`) DÙ mọi thứ đúng → test URL public từ **4G/ngoài LAN**;
-  còn app chạy CÙNG máy server thì trỏ app thẳng `http://localhost:3000/api` (bỏ qua Caddy/DuckDNS).
+> Mục cũ ở đây tả `server/` là "Docker + Node/Express, app KHÔNG gọi" — **sai từ 2026-07**. Thực tế:
+> `server/` là **FBT Home Server = Engineer Server** (Python **FastAPI + PostgreSQL 17**, systemd
+> `fbt-receiver` cổng 8080 trên MiniPC Debian, public qua Tailscale Funnel `fbt.basa-luma.ts.net` và
+> Cloudflare Tunnel `hub.fortebio.tech`), và app gọi nó rất nhiều: `POST /auth` (đăng nhập, cấp
+> `apiToken` theo vai trò) · `/devices` `/sessions` (lịch sử, nguồn `engineer`) · `/ota/*` (tab Quản lý
+> máy) · `/ate/*` (tab Sản xuất) · `PUT /devices/{id}/logs` (CSKH) · `/monitor` (tab Giám sát).
+> Kiến trúc, route, deploy, gotcha server: **`server/CLAUDE.md`** và `server/README.md`. Bản port
+> Cloudflare Workers (`legacy/server-cf/`, chưa deploy) và bộ Docker Node/DuckDNS cũ KHÔNG còn dùng.
+- Luật dùng chung app↔server hay quên: (1) **mọi thao tác ghi dùng PUT/DELETE** — `POST /{path}`
+  catch-all nuốt hết POST thành payload thiết bị; (2) route chưa deploy trả **405** chứ không 404;
+  (3) token nhân sự (`OTA_ADMIN_TOKEN`) mở mọi route, token thiết bị (`RECEIVER_TOKEN`) chỉ đọc + ghi
+  hồ sơ ATE; (4) app lọc quyền xem máy ở CLIENT (`canSee`), server không phân biệt vai trò ở route Bearer.
+- Test local cả bộ (Postgres portable + server + web): `server\scripts\localtest.ps1` (mục Gotchas
+  "Công thức TEST LOCAL"). Deploy: `server\scripts\deploy.ps1 -Server -Web` (bản web lấy từ
+  `apps/fbt_rapid/build/web_prod`).
 
 ## Quy ước
 - **Comment & UI bằng tiếng Việt.** Giữ nguyên phong cách này khi sửa.
@@ -410,6 +384,9 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   mỗi lượt (chống lặp bằng cờ `stop_hook_active`). Vì vậy hãy giữ file này luôn cập nhật.
 
 ## Gotchas (đã gặp thật — đừng dẫm lại)
+> Gotchas về **server / deploy / box** đã chuyển sang `server/CLAUDE.md` (mục "Gotchas server /
+> deploy / box"); gotchas **môi trường máy dev** (BOM `.ps1`, backslash, classifier, jq…) sang
+> `CLAUDE.md` gốc monorepo. Ở đây chỉ còn gotcha của chính app Flutter.
 - **ATE — máy giả phải trả UART theo TỪNG MẨU, không phải cả khối** (bài học đắt 2026-09-09): bộ nghe
   BOOT-01 ngắt ngay khi thấy banner ROM (`ets `/`rst:0x`), trên bo thật log về từng ~30 byte nên nó
   cắt đúng ở `ets Jul 29 2019 12:21:46 / rst:` rồi chấm "không thấy version" — **14 hồ sơ đầu tiên
@@ -515,80 +492,6 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   11-09 trong khi `main` đã merge thêm tab Giám sát/tải hàng loạt; server serve file trên đĩa nên
   người dùng test bản thiếu tính năng mà không có dấu hiệu gì. Cũ thì build lại rồi mới đưa URL. Click trong Flutter web (canvas) thỉnh thoảng TRƯỢT không báo lỗi → chụp lại xác nhận
   trước khi kết luận (gặp thật: nút Đóng dialog + đổi tab).
-- **Deploy từ box ADM — ĐÃ MỞ SSH thẳng 2026-09-12** (trước đó bị Tailscale SSH chặn: `tailnet policy
-  does not permit you to SSH`; LAN 22 timeout; tên ngắn `fbt` không resolve → dùng IP `100.109.127.87`
-  hoặc `fbt.basa-luma.ts.net`). Cách mở: trên box `sudo tailscale set --ssh=false` (OpenSSH nhận lại
-  cổng 22) + thêm `~/.ssh/id_ed25519.pub` của ADM vào `authorized_keys` của `engineer` — người dùng tự
-  làm qua **Cockpit** `https://100.109.127.87:9090` (cổng 9090 KHÔNG dính chính sách Tailscale SSH;
-  có Terminal trong trình duyệt). Không SSH được thì chuyển file qua Cockpit bằng cách dán `base64` của
-  `tar.gz` (KHÔNG zip của PowerShell 5.1 — nó ghi path bằng `\`, giải nén Linux ra tên hỏng). Quy trình
-  gói sẵn trong **`server\scripts\deploy.ps1`** (`-Server` scp CẢ `app/*.py` + `scripts/migrate_ota.py`,
-  tự `cp -a app app.bak.<stamp>` trên box trước; `-Web` scp NỘI DUNG `build\web_prod` đúng gotcha
-  `scp -O`; `-DryRun` chỉ in lệnh); restart `fbt-receiver` vẫn phải tự chạy (sudo cần mật khẩu, `-t`).
-  Bản web production build ra **`build\web_prod`** (`--output build/web_prod`, KHÔNG dart-define) để
-  không đè bản test local ở `build\web`. Windows OpenSSH hỏi host key rồi KHÔNG nhận "yes" (lặp vô hạn)
-  → thêm `-o StrictHostKeyChecking=accept-new`. Ba bẫy trong chính `deploy.ps1` (dính 17:44 cùng ngày):
-  `Run` đi qua `Invoke-Expression` nên lệnh remote KHÔNG được chứa `$(…)`/`$biến` (PowerShell diễn giải
-  lại — `2>/dev/null` thành `C:\dev
-ull`), dùng `xargs -I{}`; dọn `web.bak.*` phải xếp theo TÊN
-  (`sort -r`) vì `cp -a` giữ mtime → `ls -t` coi bản vừa chép là cũ nhất và xoá nó; bak cũ có thư mục
-  `dr-x` → `chmod -R u+rwX` trước `rm`, và bước dọn kết thúc bằng `; true` để không chặn deploy.
-  Sau deploy web, kiểm bằng **`fbt.basa-luma.ts.net`** (thẳng box); `hub.fortebio.tech` qua Cloudflare
-  có thể còn `cf-cache-status: HIT` bản cũ tới hết TTL 4 h nếu object được cache TRƯỚC khi origin phát
-  `no-cache` — purge trên dashboard hoặc đợi, không phải lỗi deploy. **Kiểm deploy KHÔNG cần token** (đủ để kết luận): (1)
-  `curl …/openapi.json` rồi so `json.dumps(sort_keys)` với `app.openapi()` sinh từ code local (TestClient
-  env tạm) — giống hệt = đúng code đang chạy, khác = liệt kê route lệch; (2) route mới phải **401** khi
-  thiếu token (có route, gác nguyên); (3) web: md5 `main.dart.js` tải từ `/app/` == `build/web_prod` ==
-  file trên box, và `grep -c` khoá i18n đặc trưng (`nav.monitor`, `statusError`, `binGone`) trong bundle.
-  ⚠️ `md5sum` in dấu `\` ĐẦU DÒNG khi path có backslash (Windows) → so md5 bằng mắt/`uniq` sau khi bỏ
-  ký tự đó, đừng `cut -c1-32` rồi kết luận "khác". Và so file trên box với **file trong cây làm việc**,
-  KHÔNG với `git show HEAD:file | md5sum`: git lưu LF, checkout Windows ra CRLF và scp đẩy bản CRLF lên
-  box → md5 blob git luôn "khác" dù nội dung y hệt (`monitor.py` trùng vì file đó vốn LF). **Trước khi bảo người dùng restart** (sudo, tay):
-  `ssh … 'cd ~/fbt_server && venv/bin/python -c "import app.main"'` — import bằng venv THẬT của box bắt
-  được thiếu package/lỗi cú pháp mà không phải hạ service (`__init__.py` nạp trễ nên import không có
-  tác dụng phụ). Handler FastAPI `async def` (cần `await request.body()`) mà làm việc chặn (băm/ghi
-  MB) thì `await run_in_threadpool(...)` — worker duy nhất, treo loop là treo cả `/ingest`.
-- **Box production KHÔNG chắc chạy code của `main` — kiểm trước khi deploy** (dính thật 2026-09-12):
-  box nhận code nhánh `origin/ota-rollout-docs-tests` (28/08: `server/app/monitor.py` + route
-  `/monitor`, app có `monitor_screen.dart`, tải hàng loạt, CSV rollout) mà clone ADM chưa merge; scp từ
-  `main` ghi đè `main.py`/`db.py`/`__init__.py` → tab Giám sát của bản web gãy ~35 phút. Dấu vết: file
-  trên box **không có trong local** (`monitor.py` mtime cũ + `.pyc`). Đã ghép lại 4 file server từ commit
-  `8bc627d`, rồi **merge cả nhánh vào `main`** (`7687b80`, 2026-09-12) và build+deploy web từ cây đã merge
-  (bản `/app/` giờ có đủ Giám sát + tải hàng loạt + CSKH + ATE). Luật: `git fetch` + `git branch -r
-  --no-merged` + so `ls app/*.py` trên box với local trước mọi lần deploy. Khi merge: tab Giám sát gác
-  `isRoot` chứ KHÔNG `canManageUsers` (từ 09-07 manager cũng quản lý được tài khoản); `saveTextFileDialog`
-  có cả `label` lẫn `extensions`, `label` trống = suy từ đuôi.
-- **File `.ps1` có tiếng Việt PHẢI lưu UTF-8 CÓ BOM**: PowerShell 5.1 đọc file không BOM theo ANSI →
-  chuỗi vỡ → lỗi parse "ma" ở dòng vô can (`token '&&' is not a valid statement separator`, "missing
-  terminator"). Tool Write ghi KHÔNG BOM → sau khi viết phải thêm BOM
-  (`[IO.File]::WriteAllText(p, t, (New-Object Text.UTF8Encoding($true)))`); kiểm nhanh bằng
-  `[Management.Automation.Language.Parser]::ParseFile` (ANSI) so với `ParseInput` (UTF-8).
-- **Test server `GET /ota/../../note.md` trả 405 chứ không 404 với httpx mới**: httpx chuẩn hoá `..`
-  TRƯỚC khi gửi → request thành `GET /note.md` → khớp catch-all `POST /{path}` sai method → 405.
-  Không phải lỗi server (path không tới handler, không lộ file) — assert nên là `in (404, 405)`.
-- **`server/app/main.py` KHÔNG được có tác dụng phụ ghi đĩa lúc import** (ngoài `mkdir`):
-  `app/__init__.py` import `app.main`, nên MỌI script/test import `app.*` đều chạy main.py —
-  đặt `ota.migrate_legacy()` dưới `FastAPI(...)` làm `scripts/migrate_ota.py --dry-run` dời file
-  THẬT (đã dính 2026-09-11). Việc "chạy một lần lúc khởi động" đặt trong `lifespan` (chỉ tiến
-  trình uvicorn thật chạy; `TestClient` không dùng `with` thì cũng không chạy).
-- **Web sau deploy: icon MỚI hiện thành ô trống, icon cũ vẫn hiện = FONT ICON CŨ bị cache, không phải
-  lỗi build** (2026-09-12): Flutter tree-shake `MaterialIcons-Regular.otf` theo bộ icon của TỪNG build
-  nhưng phát ở CÙNG URL; Cloudflare (`hub.fortebio.tech`) gắn `max-age=14400` cho file tĩnh → trình
-  duyệt/CDN giữ font của bản trước 4 giờ trong khi `main.dart.js` đã mới. Chẩn đoán đúng thứ tự:
-  (1) `curl` md5 font trên server so với `build/web_prod` (giống = server đúng); (2) `fonttools`
-  (`TTFont(...).getBestCmap()`) so codepoint từ `packages/flutter/lib/src/material/icons.dart` → font mới
-  có đủ glyph; (3) kết luận cache. Sửa gốc: middleware `Cache-Control: no-cache` cho `/app/*`
-  (`main.py::_web_no_cache`, có test) — trình duyệt/CDN hỏi lại bằng ETag → 304, deploy xong thấy ngay;
-  người dùng đang kẹt thì `Ctrl+Shift+R` hoặc Clear site data. Cảnh báo build "Expected to find fonts
-  for … CupertinoIcons" là của framework, vô hại.
-- **Server: `pathlib.Path.glob('*.bin')` KHỚP CẢ dotfile** (khác glob của shell) → file tạm `.tmp-<name>.bin`
-  của upload bị ngắt bị liệt kê/di cư như ảnh thật; mọi chỗ glob kho phải lọc `not p.name.startswith('.')`.
-  Và **việc "chạy một lần lúc khởi động" trong `lifespan` phải bọc `try/except` + log** — ném lỗi ở đó là
-  uvicorn không lên, mất luôn `/ingest` của cả fleet vì một thao tác dọn dẹp (code-review 2026-09-12).
-- **Route server mới KHÔNG được là POST** (đã ghi ở mục OTA, lặp lại vì dễ quên): `POST /{path}`
-  catch-all ingest nuốt mọi POST → 400 "invalid". Log CSKH dùng `PUT /devices/{id}/logs`; tên file
-  trả về dài hơn 64 ký tự nên `GET /logs/{file}` kiểm tên bằng regex riêng, KHÔNG `safe_name` (cắt 64
-  ký tự → đổi tên → 404 sai).
 - **Phân trang + lọc quyền `canSee` ở CLIENT → user hạn chế kẹt ở trang rỗng**: màn tải theo trang
   rồi lọc `canSee` (vd `json_files_screen`) — 1 trang có thể TOÀN máy không-được-xem → lọc ra RỖNG.
   Nếu coi `_items.isEmpty` là "hết" (nút Tải thêm nằm trong ListView, không hiện) thì user chỉ được
@@ -621,14 +524,8 @@ ull`), dùng `xargs -I{}`; dọn `web.bak.*` phải xếp theo TÊN
   `file_selector_windows_plugin.dll`): do **1 instance app đang CHẠY khoá DLL**. Tắt trước rồi build lại:
   `Get-Process fbt_dxd_app -ErrorAction SilentlyContinue | Stop-Process -Force`. (Khác lỗi ephemeral
   `cpp_client_wrapper/*.cc` thiếu → cái đó dùng `flutter clean` + `pub get`.)
-- **`mv`/`rm -rf` thư mục báo `Device or resource busy` (Windows)**: do **shell Bash đang `cd` BÊN TRONG** thư
-  mục đó (CWD persist giữa các call) hoặc IDE/Docker giữ handle. Cách xử lý: `cd` ra ngoài hẳn → `cp -r` sang
-  đích (copy đọc được dù bị giữ) → xoá nguồn bằng **PowerShell `Remove-Item -Recurse -Force`** (qua được khoá
-  mà `rm -rf` của Git Bash không qua).
 - **`installer.iss`**: `MyAppExeName` **phải** = `fbt_dxd_app.exe`; `MySource` **phải** trỏ
   `...\runner\Release` (KHÔNG trỏ thư mục dự án — sẽ gói cả mã nguồn, chậm + bộ cài hỏng).
-- **Shell môi trường KHÔNG có `jq`** — viết hook/script xử lý JSON bằng **bash thuần** (`case`/`grep`)
-  hoặc node/python, đừng phụ thuộc `jq`. (Windows `python` cũng không hiểu path `/tmp` của Git Bash.)
 - **Engineer Server trả 405 = URL trong Cài đặt THỪA path** (vd `.../api`): `app.py` có route
   `POST` catch-all `/{_path}` nên GET vào path lạ ra **405 thay vì 404** (`GET /devices` đúng → 401
   khi thiếu token). Lưu ý gốc rễ: **URL đã lưu trong `shared_preferences` KHÔNG tự đổi khi đổi hằng
@@ -657,45 +554,6 @@ ull`), dùng `xargs -I{}`; dọn `web.bak.*` phải xếp theo TÊN
   trong bundle — âm tính giả, suýt kết luận sai 2026-08-26. Dò bằng **khoá i18n** (`dl.tooltip`)
   hoặc bản tiếng Anh. Đối chứng nhanh: grep một chuỗi tiếng Việt CŨ chắc chắn có; ra 0 nghĩa là
   phép grep sai chứ không phải bundle thiếu.
-- **"Deploy rồi mà web chưa thấy tính năng" — dò theo CHUỖI THAM CHIẾU, đừng đoán cache**:
-  `curl /app/` xem `index.html` trỏ bootstrap nào → `curl` bootstrap đó lấy `mainJsPath` →
-  `curl` file `main.<hash>.dart.js` đó rồi so **md5 với `build/web/main.dart.js`** và grep khoá
-  i18n. Khớp hết = server đúng, lỗi ở TRÌNH DUYỆT người dùng: `index.html` được trả **KHÔNG kèm
-  `Cache-Control`** (chỉ `Last-Modified`) nên tab đang mở giữ JS cũ vô thời hạn → Ctrl+Shift+R,
-  hoặc thử **cửa sổ ẩn danh** (phép thử dứt điểm). Service worker KHÔNG phải thủ phạm: Flutter đời
-  này sinh bản "tự huỷ" (815 B, `unregister()` + reload) nên không cache app; nó giống nhau mọi
-  lần build, deploy script bỏ qua là ĐÚNG.
-- **Engineer Server trả 500 = tầng Postgres trên box chưa sẵn sàng** (đúng token vẫn 500): bảng
-  `sessions`/role chưa tạo (chưa chạy `deploy/schema.sql`) hoặc Postgres/psycopg thiếu — KHÔNG phải
-  lỗi app. `/ingest` vẫn 200 (file-first, catch lỗi DB) nên thiết bị đẩy được mà app không đọc được.
-  Chẩn đoán trên box: `journalctl -u fbt-receiver -n 30`; sau khi tạo schema phải chạy
-  `reconcile.py` nạp file JSON cũ vào DB, không thì `/devices` trả danh sách RỖNG.
-- **KHÔNG dán token/API key trần vào lệnh inline** (vd `curl -H "Authorization: Bearer <token>"`):
-  classifier permission của box sẽ CHẶN vì lộ credential trong transcript. Cách qua: đọc từ file vào
-  biến trong CÙNG lệnh — `TOK=$(grep -oP 'RECEIVER_TOKEN=\K\S+' note.md) && curl -H "Authorization:
-  Bearer $TOK" …`. Áp dụng khi test RAPID ERP key / RECEIVER_TOKEN Engineer Server.
-- **Inline `sed`/`node -e` NUỐT dấu `\` trong box này** — chuỗi `\\n` trong lệnh 1 dòng bị gom còn
-  newline thật: `sed 's|\\n|…|'` KHÔNG khớp (không thay gì), còn `node -e '…split("\\n")…'` lại cắt
-  theo **newline** → đã biến cả file `.md` thành 1 dòng (HỎNG). Cần xử lý text chứa `\` (vd đổi `\n`
-  literal → `<br/>`) thì dùng **Write/Edit tool** hoặc ghi script ra FILE rồi chạy, ĐỪNG nhúng
-  backslash vào lệnh inline. (`grep '\\n'` ở đây cũng cho kết quả sai — kiểm bằng `grep -F '\n'`.)
-  **Heredoc `<<'EOF'` trong Bash tool CŨNG nuốt** (2026-09-11: regex `[^/\\]` ghi ra file thành `[^/\]`
-  → lỗi compile) → file Python/regex có `\` phải ghi bằng Write tool. Python in tiếng Việt ra console
-  dính cp1252 → đặt `PYTHONIOENCODING=utf-8` trước lệnh.
-- **Classifier permission của box chặn 3 việc "trông nguy hiểm" dù vô hại** (gặp 2026-09-12): (1) mở
-  HTTP server ra mạng (`python -m http.server --bind <IP tailnet>`); (2) ghi FILE hướng dẫn có chứa lệnh
-  kiểu `mv/rm … /path/*` hoặc `echo key >> authorized_keys` — mô tả bằng lời trong chat thì được;
-  (3) Bash gọi `Remove-Item -Force` qua chuỗi. Đừng loay hoay lách; chuyển sang đường khác (dán base64
-  qua terminal, để người dùng tự chạy lệnh đổi cấu hình bảo mật).
-- **Node.js + Docker GIỜ ĐÃ CÓ trên máy dev** (Node v24, Docker v29 — kiểm `node --version`/`docker --version`).
-  Docker **daemon KHÔNG tự chạy** (lỗi `npipe:... dockerDesktopLinuxEngine` = chưa bật): khởi động bằng
-  `Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"` rồi poll `docker info` tới khi exit 0
-  (thường vài giây). Python cũng có (3.12) nhưng KHÔNG có fastapi/pytest global — test project `Server/`
-  thì tạo venv trong scratchpad (`python -m venv` + pip fastapi/httpx/psycopg[binary]/uvicorn); in tiếng Việt
-  từ python ra console Windows dính `UnicodeEncodeError` cp1252 (chỉ lỗi ở print — assert trước đó vẫn tính).
-  (Trước đây box chỉ có Flutter; nếu gặp box thiếu Node thì `winget install -e --id OpenJS.NodeJS.LTS`
-  rồi nạp lại PATH tại chỗ: `$env:Path = [Environment]::GetEnvironmentVariable('Path','Machine') + ';' +
-  [Environment]::GetEnvironmentVariable('Path','User')`.)
 - **Kiểm i18n tự động trước khi review/phát hành**: script Python ngắn — regex `^\s{2}'(key)':` trong
   `lib/util/i18n.dart` lấy khoá đã khai, `\btr\(\s*'([^']+)'` quét `lib/**` lấy khoá dùng → in khoá THIẾU
   (`tr()` trả nguyên key) và khoá không có `'en'`. Khoá động `tr('ate.step.$code')` bỏ qua. ⚠️ Thân entry
@@ -779,10 +637,11 @@ ull`), dùng `xargs -I{}`; dọn `web.bak.*` phải xếp theo TÊN
   Config chỉ áp lúc **mở cổng** → phải đóng/mở lại mới ăn.
   Nếu reset **CHỈ khi gửi** (không reset lúc mở) thì là **firmware tự reboot theo lệnh nhận được** (crash/
   watchdog/lệnh reset), sửa ở firmware FBT-DXD — không phải app; xem RX có banner boot để phân biệt.
-- **Backend nằm TRONG repo app**: Apps Script ở `app/sheet/` (getData/userAuth/accounts) **và** server
-  tự host (Docker) ở `app/server/` — đã GOM từ `FBT-DXD/` về `app/` (doc tham chiếu `sheet/`, `server/`,
-  KHÔNG còn `../FBT-DXD/`). **`FBT-DXD/` chỉ còn là repo FIRMWARE RIÊNG** (PlatformIO/ESP —
-  `src/ lib/ platformio.ini`), KHÔNG trộn vào app; firmware POST kết quả lên cả Apps Script lẫn `server/`.
+- **Vị trí các phần trong monorepo (từ 2026-09-15)**: app này ở `apps/fbt_rapid/`; Engineer Server ở
+  `server/` (gốc); Apps Script cũ ở `legacy/sheet/` (getData.js CÒN được fleet cũ + reader gọi);
+  firmware Rapid+ ở `firmware/rapidplus/` (không còn là repo `FBT-DXD` riêng), Reader ở `firmware/reader/`;
+  registry sản phẩm `system/products.yaml`. Đường dẫn `lib/… test/… build/…` trong file này tính từ
+  `apps/fbt_rapid/`; đường dẫn tới phần khác viết từ gốc monorepo.
 - **`flutter create --platforms web .` từ chối tên pubspec `RapidPlusApp`** (không phải tên package
   Dart hợp lệ): đổi TẠM `name: rapidplusapp` → chạy create → đổi lại. Create cũng đụng
   `.plugin_symlinks` (lỗi OneDrive như trên — kệ, build windows sau đó vẫn chạy) và sinh
@@ -791,7 +650,7 @@ ull`), dùng `xargs -I{}`; dọn `web.bak.*` phải xếp theo TÊN
   Chrome/Edge composite bằng GPU nên PrintWindow không thấy. Fix: launch trình duyệt với
   **`--disable-gpu`** (+ `--app=<url>` để có cửa sổ riêng title = `<title>` trang, chờ title
   `FBT_RAPID*`) rồi chụp như driver.ps1. Đã đóng gói sẵn:
-  `& .claude\skills\run-fbt-rapid\webshot.ps1 -Out web.png` (tự serve `build\web` bằng
+  `& ..\..\.claude\skills\run-fbt-rapid\webshot.ps1 -Out web.png` (tự serve `build\web` bằng
   `web-server.js` node tĩnh cùng thư mục — không cần `flutter run -d web-server`; build web trước).
   Chụp bản web đang HOST THẬT: thêm `-Url https://fbt.basa-luma.ts.net/app/` (bỏ bước serve cục bộ).
 - **`IndexedStack` DỰNG MỌI TAB ngay khi đăng nhập — `initState` của màn chưa ai mở VẪN chạy**:
