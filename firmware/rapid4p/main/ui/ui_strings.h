@@ -26,7 +26,7 @@ typedef enum {
     STR_CHOOSE_SAMPLE,      /* "Chọn Mẫu Để Đo" */
     STR_MEASURING,          /* "Đang Đo" */
     STR_PLEASE_WAIT,        /* "Vui Lòng Chờ Trong Giây Lát..." */
-    STR_PREPARE_PUT_TUBE,   /* "Đặt Ống Vào Máy Và Đậy Nắp" */
+    STR_PREPARE_PUT_TUBE,   /* có %d = số khe */   /* "Đặt Ống Vào Máy Và Đậy Nắp" */
     STR_PREPARE_PRESS,      /* "Nhấn ĐO để đo!" */
     STR_RESULT_TUBE,        /* "Ống: " */
     STR_RESULT,             /* "Kết Quả" */
@@ -66,6 +66,13 @@ typedef enum {
     STR_UPLOADED,           /* "Đã gửi" */
     STR_NO_UPDATE,          /* "Không có bản mới" */
     STR_DEVICE_ID,          /* "Mã máy" */
+    STR_NO_WIFI,            /* "Chưa có WiFi - vào Thiết lập > Wifi" */
+    STR_NO_TOKEN,           /* "Chưa có token máy chủ - nhập qua trang WiFi" */
+    STR_CONFIRM,            /* "Xác nhận" */
+    STR_CLEAR_CALIB_ASK,    /* "Xoá toàn bộ dữ liệu cân chỉnh 4 khe?" */
+    STR_STEP,               /* "Bước" (Bước 1/3) */
+    STR_SENSORS,            /* "Cảm biến" (chip "Cảm biến 4/4") */
+    STR_SENSOR_NONE_HINT,   /* "Không có cảm biến - kiểm tra bo cảm biến" */
     STR_COUNT
 } r4p_str_t;
 

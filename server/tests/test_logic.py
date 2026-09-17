@@ -38,6 +38,13 @@ def test_validate():
     assert validate([1, 2]) == "missing id_device"
     assert validate({"id_device": "X", "CT_value": [1.0] * 9}) is not None   # thiếu phần tử
     assert validate({"id_device": "X", "result": "abc"}) is not None         # sai kiểu
+    # Sản phẩm N khe: mảng slot_* phải đúng `slots` phần tử (rapid4p 5 khe, 2026-09-17)
+    r4p = {"id_device": "R4P01", "slots": 5, "slot_value": [1] * 5, "slot_result": [2] * 5, "slot_positive": [False] * 5}
+    assert validate(r4p) is None
+    assert validate({**r4p, "slot_result": [2] * 4}) is not None             # thiếu 1 khe
+    assert validate({**r4p, "slots": 0}) is not None
+    assert validate({**r4p, "slots": True}) is not None                      # bool không phải int
+    assert validate({"id_device": "R4P01", "slots": 4, "slot_value": [1] * 4}) is None   # 4 khe vẫn hợp lệ
 
 
 def test_canonical_sha256():

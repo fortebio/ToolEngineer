@@ -114,6 +114,8 @@ MAX_LOG_TEXT = 4 * 1024 * 1024
 
 # Các mảng theo-slot của dữ liệu RPL: nếu có mặt thì phải đủ 10 phần tử
 ARRAY_FIELDS = ("CT_value", "result", "record_out", "amplification")
+# Mảng theo khe của sản phẩm N khe (rapid4p): độ dài = payload["slots"], không ghim số cứng.
+SLOT_ARRAY_FIELDS = ("slot_value", "slot_result", "slot_positive", "calib_min", "calib_max")
 
 # Thư mục hồ sơ TRẠM ATE (app: tab "Sản xuất"): mỗi máy qua trạm = 1 file JSON
 # `<sn>_<started_at UTC>_<hash>.json` {sn, station, operator, verdict, steps[]…}.

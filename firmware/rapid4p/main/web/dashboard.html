@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10202A">
+<title>Rapid4P</title>
+<style>
+/* Token: system/brand/tokens.json (bộ nền sáng cho web) — không bịa mã màu ở đây. */
+:root{
+  --brand:#26C5CF;--brand-dark:#17A6BF;--green:#1BD1A5;--mint:#6FE6C3;--on-brand:#06262A;
+  --amber:#FFB300;--red:#EF5350;
+  --navy-950:#0A1418;--navy-900:#10202A;--navy-800:#152A35;--navy-700:#1F3A46;
+  --bg:#F4FBFC;--card:#FFFFFF;--ink:#10202A;--muted:#4B5F6A;--hairline:#CFE3E8;
+  --brand-ink:#137A81; /* teal đủ tối cho chữ trên nền trắng 5,2:1 */
+  --radius:14px;--nav-h:64px;--maxw:520px;
+  --shadow:0 1px 2px rgba(16,32,42,.04),0 4px 14px rgba(16,32,42,.06);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important} /* display:flex/grid không được đè thuộc tính hidden */
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Montserrat,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button{font:inherit}
+.header{background:var(--navy-900);color:#F2F8F9;border-bottom:2px solid var(--brand);position:sticky;top:0;z-index:5}
+.header .in{max-width:var(--maxw);margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
+.header svg{width:44px;height:39px;flex:none}
+.header .t{display:flex;flex-direction:column;line-height:1.2}
+.header .t b{font-size:17px;letter-spacing:.02em;color:var(--brand)}
+.header .t small{color:#A9BCC4;font-size:12px}
+.conn{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:#A9BCC4}
+.conn i{width:10px;height:10px;border-radius:50%;background:var(--red);display:inline-block}
+.conn.on i{background:var(--green)}
+main{max-width:var(--maxw);margin:0 auto;padding:12px 16px calc(var(--nav-h) + 16px)}
+.screen{display:none}.screen.active{display:block}
+.card{background:var(--card);border:1px solid var(--hairline);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px;margin-bottom:12px}
+.card h2{margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.status{display:flex;align-items:center;gap:12px}
+.status .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:#E6F7F8;color:var(--brand-ink);font-size:22px;flex:none}
+.status .tt{font-weight:700;font-size:18px}
+.status .st{color:var(--muted);font-size:14px}
+.status.measuring .ic{background:#FFF4D6;color:#8A5A00}
+.status.result .ic{background:#DDF8F0;color:#0B7A5E}
+.status.calib .ic{background:#FFF4D6;color:#8A5A00}
+.progress{margin-top:10px;height:10px;border-radius:6px;background:#E6EEF1;overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--brand-dark),var(--brand),var(--mint));transition:width .4s ease}
+.pl{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:4px}
+.slots{display:grid;grid-template-columns:repeat(var(--n,4),1fr);gap:6px}
+.slot{border:2px solid var(--hairline);border-radius:12px;padding:8px 2px;text-align:center;background:#FAFDFD;min-width:0}
+.slot .n{font-size:11px;color:var(--muted);letter-spacing:.04em}
+.slot .v{font-size:clamp(18px,6vw,26px);font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}
+.slot .r{font-size:11px;font-weight:600;min-height:1.2em}
+.slot.pos{border-color:var(--red)} .slot.pos .r{color:#B3261E}
+.slot.neg{border-color:var(--green)} .slot.neg .r{color:#0B7A5E}
+.slot.run{border-color:var(--amber)} .slot.off{opacity:.55}
+.rounds{font-size:11px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--hairline);border-radius:20px;padding:4px 12px;font-size:13px;background:#fff}
+.chip.ok{border-color:var(--green)} .chip.warn{border-color:var(--amber)} .chip.err{border-color:var(--red)}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{min-height:56px;border:0;border-radius:12px;font-weight:700;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:transform .12s,filter .12s;touch-action:manipulation}
+.btn:active{transform:scale(.98);filter:brightness(.92)}
+.btn.primary{background:var(--brand);color:var(--on-brand)}
+.btn.secondary{background:#E6EEF1;color:var(--ink)}
+.btn.danger{background:var(--red);color:#fff}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}
+.hint{font-size:12px;color:var(--muted);margin-top:8px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--hairline);text-align:left}
+th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:700}
+.pill.pos{background:#FDE3E1;color:#B3261E}.pill.neg{background:#DDF8F0;color:#0B7A5E}.pill.na{background:#EEF2F4;color:var(--muted)}
+.kv{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px}
+.kv b{font-weight:600;color:var(--muted)}
+.thr{display:grid;grid-template-columns:1fr 110px 90px;gap:8px;align-items:center;margin:6px 0}
+.thr input{width:100%;min-height:44px;border:1.5px solid var(--hairline);border-radius:10px;padding:6px 10px;font:inherit;font-variant-numeric:tabular-nums}
+.thr input:focus{outline:2px solid var(--brand);outline-offset:1px;border-color:var(--brand)}
+.thr .btn{min-height:44px;font-size:14px}
+.saved{color:#0B7A5E;font-size:12px}.failed{color:#B3261E;font-size:12px}
+.bottom-nav{position:fixed;left:0;right:0;bottom:0;height:var(--nav-h);background:#fff;border-top:1px solid var(--hairline);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+.bottom-nav .in{max-width:var(--maxw);margin:0 auto;display:flex;width:100%}
+.nav-item{flex:1;border:0;background:none;color:var(--muted);font-size:12px;font-weight:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;min-height:56px}
+.nav-item svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.nav-item.active{color:var(--brand-ink)}
+.nav-item:focus-visible,.btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+@media (min-width:860px){:root{--maxw:820px}.slots{gap:12px}.slot .v{font-size:32px}}
+@media (prefers-reduced-motion:reduce){.progress i,.btn{transition:none}}
+</style>
+</head>
+<body>
+<header class="header"><div class="in">
+  <!-- Logo vector từ system/brand/tokens.json › logo.shapes (khung 2000×1780) -->
+  <svg viewBox="0 0 2000 1780" aria-label="Forte Biotech" role="img">
+    <polygon points="762,117 2000,0 762,627" fill="#17A6BF"/>
+    <polygon points="50,547 690,117 690,880" fill="#26C5CF"/>
+    <polygon points="5,630 690,1010 5,1330" fill="#26C5CF"/>
+    <polygon points="95,1442 690,1092 690,1780" fill="#1BD1A5"/>
+    <polygon points="762,1402 1290,1362 762,1790" fill="#6FE6C3"/>
+  </svg>
+  <div class="t"><b id="prodName">RAPID READER</b><small id="devLine">Rapid4P</small></div>
+  <div class="conn" id="conn"><i></i><span>Mất kết nối</span></div>
+</div></header>
+
+<main>
+  <section id="screen-home" class="screen active">
+    <div class="card">
+      <h2>Trạng thái máy</h2>
+      <div class="status" id="statusBox">
+        <div class="ic" id="stIcon">●</div>
+        <div><div class="tt" id="stTitle">Đang kết nối…</div><div class="st" id="stSub">&nbsp;</div></div>
+      </div>
+      <div class="progress" id="progWrap" hidden><i id="progBar"></i></div>
+      <div class="pl" id="progLbl" hidden><span id="progRound"></span><span id="progPct"></span></div>
+    </div>
+
+    <div class="card">
+      <h2>Khe đo</h2>
+      <div class="slots" id="slots"></div>
+      <div class="chips" id="homeChips"></div>
+    </div>
+
+    <div class="card">
+      <h2>Điều khiển (như nút trên máy)</h2>
+      <div class="btns">
+        <button type="button" class="btn secondary" id="btnBack">‹ Quay lại</button>
+        <button type="button" class="btn primary" id="btnMeasure">▶ ĐO</button>
+      </div>
+      <div class="hint" id="ctlHint">Nút ĐO = nút ĐO trên máy: Trang chủ → chọn mẫu; màn chuẩn bị → bắt đầu đo. Quay lại = nút BOOT.</div>
+    </div>
+  </section>
+
+  <section id="screen-result" class="screen">
+    <div class="card">
+      <h2>Kết quả lần đo gần nhất</h2>
+      <div class="kv" id="resMeta"></div>
+      <table id="resTable" style="margin-top:8px">
+        <thead><tr><th>Khe</th><th class="num">V1</th><th class="num">V2</th><th class="num">V3</th><th class="num">TB</th><th>Kết luận</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="hint" id="resHint"></div>
+    </div>
+    <div class="card">
+      <h2>Gửi máy chủ</h2>
+      <div class="kv" id="upKv"></div>
+    </div>
+  </section>
+
+  <section id="screen-setting" class="screen">
+    <div class="card">
+      <h2>Ngưỡng dương tính</h2>
+      <div id="thrList"></div>
+      <div class="hint">Giá trị 0–9999, lưu vào máy (NVS) và áp dụng cho lần đo kế tiếp.</div>
+    </div>
+    <div class="card">
+      <h2>Thiết bị</h2>
+      <div class="kv" id="devKv"></div>
+    </div>
+  </section>
+</main>
+
+<nav class="bottom-nav"><div class="in">
+  <button type="button" class="nav-item active" data-screen="home" aria-label="Trang chủ">
+    <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Trang chủ</button>
+  <button type="button" class="nav-item" data-screen="result" aria-label="Kết quả">
+    <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z M8 12l3 3 5-6"/></svg>Kết quả</button>
+  <button type="button" class="nav-item" data-screen="setting" aria-label="Cài đặt">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Cài đặt</button>
+</div></nav>
+
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+let SLOTS=0;                      /* đọc từ sensors.total — máy là nguồn sự thật về số khe */
+let last=null, thrBuilt=false, failures=0;
+
+/* ===== điều hướng tab (giữ lịch sử trình duyệt: #home/#result/#setting) ===== */
+function showScreen(name,push){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.toggle("active",s.id==="screen-"+name));
+  document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.screen===name));
+  if(push) history.replaceState(null,"","#"+name);
+}
+document.querySelectorAll(".nav-item").forEach(b=>b.addEventListener("click",()=>showScreen(b.dataset.screen,true)));
+showScreen((location.hash||"#home").slice(1),false);
+window.addEventListener("hashchange",()=>showScreen((location.hash||"#home").slice(1),false));
+
+/* ===== khung N khe (dựng lại khi máy báo số khe khác) ===== */
+const slotsEl=$("slots");
+function buildSlots(n){
+  SLOTS=n; slotsEl.innerHTML=""; slotsEl.style.setProperty("--n",n);
+  for(let i=0;i<n;i++){
+    const d=document.createElement("div"); d.className="slot"; d.id="slot"+i;
+    d.innerHTML='<div class="n">KHE '+(i+1)+'</div><div class="v">–</div><div class="r"></div><div class="rounds"></div>';
+    slotsEl.appendChild(d);
+  }
+  $("prodName").textContent="RAPID READER "+n+" SLOT";
+  document.querySelector("#screen-home .card:nth-of-type(2) h2").textContent=n+" khe đo";
+}
+
+const PHASE={
+  idle:     {ic:"●", t:"Sẵn sàng",      s:"Nhấn ĐO để bắt đầu"},
+  choose:   {ic:"☰", t:"Đang chọn",     s:"Chọn mẫu và ống trên máy"},
+  prepare:  {ic:"▶", t:"Chuẩn bị đo",   s:"Đặt ống vào 4 khe, đậy nắp rồi nhấn ĐO"},
+  measuring:{ic:"⏱", t:"Đang đo",       s:"Vui lòng chờ"},
+  result:   {ic:"✓", t:"Có kết quả",    s:"Xem tab Kết quả"},
+  calib:    {ic:"⚙", t:"Đang cân chỉnh", s:"Thao tác trên máy"},
+  wifi:     {ic:"⌁", t:"Cài đặt WiFi",  s:"Máy đang ở màn WiFi"}
+};
+
+function setConn(on){ const c=$("conn"); c.classList.toggle("on",on); c.querySelector("span").textContent=on?"Đã kết nối":"Mất kết nối"; }
+
+function renderHome(d){
+  const ph=PHASE[d.phase]||PHASE.idle, m=d.measure;
+  if(d.sensors.total!==SLOTS) buildSlots(d.sensors.total);
+  const box=$("statusBox"); box.className="status "+d.phase;
+  $("stIcon").textContent=ph.ic; $("stTitle").textContent=ph.t;
+  let sub=ph.s;
+  if(d.phase==="measuring") sub="Vòng "+m.round+"/"+m.rounds+" · Khe "+(m.slot+1)+" · "+m.sick_label+" · "+m.sample_label;
+  else if(d.phase==="result"||d.phase==="prepare") sub=m.sick_label+" · "+m.sample_label+(d.phase==="prepare"?" — nhấn ĐO":"");
+  $("stSub").textContent=sub;
+  const running=d.phase==="measuring";
+  $("progWrap").hidden=!running; $("progLbl").hidden=!running;
+  if(running){ $("progBar").style.width=m.progress+"%"; $("progPct").textContent=m.progress+"%"; $("progRound").textContent="Vòng "+m.round+"/"+m.rounds; }
+
+  const show=running||d.phase==="result";
+  for(let i=0;i<SLOTS;i++){
+    const s=m.slots[i], el=$("slot"+i), v=el.querySelector(".v"), r=el.querySelector(".r"), ro=el.querySelector(".rounds");
+    el.className="slot";
+    if(!s.ok&&d.sensors.alive<SLOTS){ el.classList.add("off"); }
+    if(d.phase==="result"){ v.textContent=s.avg; el.classList.add(s.positive?"pos":"neg"); r.textContent=s.positive?"⚠ Dương tính":"✓ Âm tính"; }
+    else if(running){
+      const cur=(m.slot===i);
+      const lastVal=s.r[m.round-1]||s.r[m.round-2]||0;
+      v.textContent=cur?"…":(lastVal?lastVal:"–"); if(cur) el.classList.add("run"); r.textContent=cur?"đang đọc":"";
+    } else { v.textContent="–"; r.textContent=""; }
+    ro.textContent=show?s.r.filter(x=>x>0).join(" · "):"";
+  }
+  const chips=$("homeChips"); chips.innerHTML="";
+  const al=d.sensors.alive, tot=d.sensors.total;
+  chips.appendChild(chip((al===tot?"✓":"⚠")+" Cảm biến "+al+"/"+tot, al===tot?"ok":(al?"warn":"err")));
+  const calOk=m.slots.every(s=>s.calibrated);
+  chips.appendChild(chip(calOk?"✓ Đã cân chỉnh":"⚠ Chưa cân chỉnh", calOk?"ok":"warn"));
+  if(d.upload.pending>0) chips.appendChild(chip("⇧ Chờ gửi "+d.upload.pending,"warn"));
+
+  const canMeasure=(d.phase==="idle"&&al>0)||d.phase==="prepare"||d.phase==="result"||d.phase==="calib";
+  $("btnMeasure").disabled=!canMeasure||running;
+  $("btnBack").disabled=(d.phase==="idle");
+}
+function chip(text,cls){ const c=document.createElement("span"); c.className="chip "+(cls||""); c.textContent=text; return c; }
+
+function renderResult(d){
+  const m=d.measure, meta=$("resMeta");
+  if(!m.has_result){ meta.innerHTML="<b>Chưa có lần đo nào</b><span></span>"; $("resTable").querySelector("tbody").innerHTML=""; $("resHint").textContent=""; }
+  else{
+    meta.innerHTML="<b>Ống</b><span>"+esc(m.sick_label)+" ("+esc(m.sick)+")</span><b>Mẫu</b><span>"+esc(m.sample_label)+"</span><b>Ngưỡng</b><span>"+m.threshold+"</span>";
+    const tb=$("resTable").querySelector("tbody"); tb.innerHTML="";
+    m.slots.forEach((s,i)=>{
+      const tr=document.createElement("tr");
+      tr.innerHTML="<td>Khe "+(i+1)+"</td>"+s.r.map(x=>'<td class="num">'+(x||"–")+"</td>").join("")+'<td class="num"><b>'+s.avg+"</b></td><td>"+
+        (s.ok?'<span class="pill '+(s.positive?"pos":"neg")+'">'+(s.positive?"Dương tính":"Âm tính")+"</span>":'<span class="pill na">Lỗi cảm biến</span>')+"</td>";
+      tb.appendChild(tr);
+    });
+    $("resHint").textContent="Dương tính khi trung bình ≥ ngưỡng. Máy là nguồn sự thật: mở trang muộn vẫn thấy đúng lần đo gần nhất còn trong máy.";
+  }
+  $("upKv").innerHTML="<b>Chờ gửi</b><span>"+d.upload.pending+"</span><b>Đã gửi</b><span>"+d.upload.sent+"</span>";
+}
+
+function renderSetting(d){
+  const dev=d.device;
+  $("devKv").innerHTML="<b>Mã máy</b><span>"+(esc(dev.id)||"—")+"</span><b>Firmware</b><span>"+esc(dev.fw)+"</span><b>IP</b><span>"+esc(dev.ip)+"</span><b>Ngôn ngữ máy</b><span>"+esc(dev.lang)+"</span><b>Heap</b><span>"+Math.round(dev.heap/1024)+" KB</span><b>Bật máy</b><span>"+fmtUp(dev.uptime_s)+"</span>";
+  $("devLine").textContent="Rapid4P · "+(dev.id||"chưa có mã máy")+" · "+dev.fw;
+  if(thrBuilt) return; thrBuilt=true;
+  const list=$("thrList"); list.innerHTML="";
+  Object.keys(d.thresholds).forEach(k=>{
+    const t=d.thresholds[k], row=document.createElement("div"); row.className="thr";
+    row.innerHTML='<label for="thr_'+k+'">'+esc(t.label)+' <small style="color:var(--muted)">('+k+')</small></label>'+
+      '<input id="thr_'+k+'" type="number" inputmode="numeric" min="0" max="9999" step="10" value="'+t.value+'">'+
+      '<button type="button" class="btn primary" data-sick="'+k+'">Lưu</button><span class="saved" style="grid-column:1/-1"></span>';
+    list.appendChild(row);
+    row.querySelector("button").addEventListener("click",async ev=>{
+      const b=ev.currentTarget, inp=row.querySelector("input"), msg=row.querySelector("span.saved,span.failed");
+      const v=Math.max(0,Math.min(9999,parseInt(inp.value||"0",10)));
+      b.disabled=true; msg.className="saved"; msg.textContent="Đang lưu…";
+      try{ const r=await fetch("/api/threshold?sick="+encodeURIComponent(k)+"&value="+v,{method:"POST"}); const j=await r.json();
+        msg.className=j.ok?"saved":"failed"; msg.textContent=j.ok?"✓ Đã lưu "+v:"✗ Lưu thất bại"; }
+      catch(e){ msg.className="failed"; msg.textContent="✗ Mất kết nối"; }
+      b.disabled=false; setTimeout(()=>{msg.textContent="";},3000);
+    });
+  });
+}
+function fmtUp(s){ s=Math.floor(s); const h=Math.floor(s/3600), mi=Math.floor(s%3600/60); return (h?h+" giờ ":"")+mi+" phút"; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ===== nút điều khiển: phản hồi ngay, trạng thái thật quay về qua poll ===== */
+async function control(btn,el){
+  el.disabled=true; const old=el.textContent; el.textContent="…";
+  try{ await fetch("/api/control?btn="+btn,{method:"POST"}); } catch(e){}
+  setTimeout(()=>{ el.textContent=old; poll(); },300);
+}
+$("btnMeasure").addEventListener("click",e=>control("measure",e.currentTarget));
+$("btnBack").addEventListener("click",e=>control("back",e.currentTarget));
+
+/* ===== poll 1 s (thay SSE của Rapid+): máy là nguồn sự thật, client không giữ trạng thái ===== */
+async function poll(){
+  try{
+    const r=await fetch("/api/state",{cache:"no-store"}); if(!r.ok) throw 0;
+    const d=await r.json(); last=d; failures=0; setConn(true);
+    renderHome(d); renderResult(d); renderSetting(d);
+  }catch(e){ if(++failures>=2) setConn(false); }
+}
+poll(); setInterval(poll,1000);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) poll(); });
+})();
+</script>
+</body>
+</html>

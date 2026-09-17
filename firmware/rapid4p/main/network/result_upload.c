@@ -19,7 +19,7 @@
  * Đầy → bỏ bản ghi CŨ nhất (giữ kết quả mới). 8 × ~700 B ≈ 6 KB (NVS 24 KB còn chỗ cho WiFi
  * blob, calib, token; 16 bản ≈ 15 KB là quá sát). */
 #define RQ_CAP        8
-#define RQ_MAX_JSON   900
+#define RQ_MAX_JSON   1100   /* 5 khe: 5 mảng × 5 phần tử ≈ 1 KB; NVS 8 × 1,1 KB ≈ 9 KB */
 #define UPLOAD_PATH   "/rapid4p/results"   /* server POST catch-all: path chỉ để log */
 #define RETRY_BASE_MS 15000
 #define RETRY_MAX_MS  300000

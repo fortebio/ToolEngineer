@@ -7,7 +7,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from app import config as _cfg
-from app.config import ARRAY_FIELDS
+from app.config import ARRAY_FIELDS, SLOT_ARRAY_FIELDS
 
 _VN = timezone(timedelta(hours=7))
 # Thời điểm đo nằm trong TÊN FILE. Khớp cả 2 kiểu phân tách giờ: ':' (gốc Drive) và '_' (tải trên Windows).
@@ -63,6 +63,15 @@ def validate(data) -> str | None:
     for f in ARRAY_FIELDS:
         if f in data and not (isinstance(data[f], list) and len(data[f]) == 10):
             return f"{f} must be a list of 10 items"
+    # Sản phẩm N khe (rapid4p, system/contracts/ingest-rapid4p.schema.json): máy tự khai `slots`,
+    # mọi mảng slot_*/calib_* phải có đúng `slots` phần tử (JSON Schema không ràng chéo được).
+    if "slots" in data:
+        n = data["slots"]
+        if not isinstance(n, int) or isinstance(n, bool) or not 1 <= n <= 16:
+            return "slots must be an integer 1..16"
+        for f in SLOT_ARRAY_FIELDS:
+            if f in data and not (isinstance(data[f], list) and len(data[f]) == n):
+                return f"{f} must be a list of {n} items (= slots)"
     return None
 
 

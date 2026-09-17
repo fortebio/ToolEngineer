@@ -33,6 +33,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
+#include "network/dashboard.h"   /* dashboard nhường cổng 80 cho portal */
 
 static bool s_connected = false;
 static bool s_wifi_initialized = false;
@@ -1374,6 +1375,7 @@ static void prov_forget_stale_sta_config(void) {
 }
 
 esp_err_t wifi_mgr_start_provisioning(void) {
+    dashboard_suspend();   /* portal và dashboard cùng cổng 80 — loại trừ nhau (như Rapid+ dashboard/TLS) */
     /* AP "<brand>-Setup-XXXX" với XXXX = MAC suffix */
     char ap_ssid[24];
     const char *mac = system_info_get_mac_str();
@@ -1552,6 +1554,7 @@ esp_err_t wifi_mgr_stop_provisioning(void) {
         }
         s_prov_httpd = NULL;
     }
+    dashboard_resume();    /* dash_task tự bật lại khi STA có IP */
 
     esp_err_t er = esp_wifi_set_mode(WIFI_MODE_STA);
     if (er != ESP_OK && er != ESP_ERR_WIFI_NOT_INIT) {

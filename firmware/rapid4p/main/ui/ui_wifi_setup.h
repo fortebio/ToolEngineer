@@ -13,6 +13,7 @@
  */
 #pragma once
 #include "esp_err.h"
+#include "lvgl.h"
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -49,6 +50,10 @@ void ui_wifi_setup_set_client_count(int clients);
 
 /** true khi màn provisioning đã dựng và đang là màn hoạt động. */
 bool ui_wifi_setup_is_active(void);
+
+/** Footer (thanh hành động, cao FOOTER_H) của màn này — ui_reader gắn nút "Quay lại" vào đây
+ *  (LV_ALIGN_LEFT_MID) để cùng quy ước với các màn khác. NULL nếu màn chưa dựng. */
+lv_obj_t *ui_wifi_setup_footer(void);
 
 #ifdef __cplusplus
 }

@@ -8,7 +8,7 @@ static const char *const s_vi[STR_COUNT] = {
     [STR_CHOOSE_SAMPLE]     = "Chọn Mẫu Để Đo",
     [STR_MEASURING]         = "Đang Đo",
     [STR_PLEASE_WAIT]       = "Vui lòng chờ trong giây lát...",
-    [STR_PREPARE_PUT_TUBE]  = "Đặt ống vào 4 khe và đậy nắp",
+    [STR_PREPARE_PUT_TUBE]  = "Đặt ống vào %d khe và đậy nắp",
     [STR_PREPARE_PRESS]     = "Nhấn ĐO để đo!",
     [STR_RESULT_TUBE]       = "Ống: ",
     [STR_RESULT]            = "Kết Quả",
@@ -48,6 +48,13 @@ static const char *const s_vi[STR_COUNT] = {
     [STR_UPLOADED]          = "Đã gửi",
     [STR_NO_UPDATE]         = "Không có bản mới",
     [STR_DEVICE_ID]         = "Mã máy",
+    [STR_NO_WIFI]           = "Chưa có WiFi - vào Thiết lập > Wifi",
+    [STR_NO_TOKEN]          = "Chưa có token máy chủ - nhập ở trang WiFi",
+    [STR_CONFIRM]           = "Xác nhận",
+    [STR_CLEAR_CALIB_ASK]   = "Xoá toàn bộ dữ liệu cân chỉnh %d khe?",
+    [STR_STEP]              = "Bước",
+    [STR_SENSORS]           = "Cảm biến",
+    [STR_SENSOR_NONE_HINT]  = "Không có cảm biến - kiểm tra bo cảm biến rồi khởi động lại",
 };
 
 static const char *const s_en[STR_COUNT] = {
@@ -56,7 +63,7 @@ static const char *const s_en[STR_COUNT] = {
     [STR_CHOOSE_SAMPLE]     = "SELECT SAMPLE",
     [STR_MEASURING]         = "In process",
     [STR_PLEASE_WAIT]       = "Waiting...",
-    [STR_PREPARE_PUT_TUBE]  = "Put tubes in 4 slots and close the lid",
+    [STR_PREPARE_PUT_TUBE]  = "Put tubes in %d slots and close the lid",
     [STR_PREPARE_PRESS]     = "Press MEASURE!",
     [STR_RESULT_TUBE]       = "Tube: ",
     [STR_RESULT]            = "Result",
@@ -96,6 +103,13 @@ static const char *const s_en[STR_COUNT] = {
     [STR_UPLOADED]          = "Uploaded",
     [STR_NO_UPDATE]         = "No update available",
     [STR_DEVICE_ID]         = "Device ID",
+    [STR_NO_WIFI]           = "No WiFi - open Settings > Wifi",
+    [STR_NO_TOKEN]          = "No server token - enter it on the WiFi page",
+    [STR_CONFIRM]           = "Confirm",
+    [STR_CLEAR_CALIB_ASK]   = "Clear calibration data of all %d slots?",
+    [STR_STEP]              = "Step",
+    [STR_SENSORS]           = "Sensors",
+    [STR_SENSOR_NONE_HINT]  = "No sensors found - check the sensor board and restart",
 };
 
 /* Giữ nguyên chuỗi ZH của bản gốc; chuỗi mới (nút chạm) dịch ngắn gọn. */
@@ -105,7 +119,7 @@ static const char *const s_zh[STR_COUNT] = {
     [STR_CHOOSE_SAMPLE]     = "选择样本",
     [STR_MEASURING]         = "进行中",
     [STR_PLEASE_WAIT]       = "请稍等...",
-    [STR_PREPARE_PUT_TUBE]  = "将试管放入并关闭盖子",
+    [STR_PREPARE_PUT_TUBE]  = "将试管放入%d个槽位并关闭盖子",
     [STR_PREPARE_PRESS]     = "按测量键!",
     [STR_RESULT_TUBE]       = "试管: ",
     [STR_RESULT]            = "平均值",
@@ -145,6 +159,13 @@ static const char *const s_zh[STR_COUNT] = {
     [STR_UPLOADED]          = "已上传",
     [STR_NO_UPDATE]         = "没有更新",
     [STR_DEVICE_ID]         = "设备 ID",
+    [STR_NO_WIFI]           = "未连接WiFi - 请到设置 > Wifi",
+    [STR_NO_TOKEN]          = "缺少服务器令牌 - 请在WiFi页面输入",
+    [STR_CONFIRM]           = "确认",
+    [STR_CLEAR_CALIB_ASK]   = "删除全部%d个槽位的校准数据?",
+    [STR_STEP]              = "步骤",
+    [STR_SENSORS]           = "传感器",
+    [STR_SENSOR_NONE_HINT]  = "未检测到传感器 - 请检查传感器板后重启",
 };
 
 static const char *const *table_for(r4p_lang_t lang)

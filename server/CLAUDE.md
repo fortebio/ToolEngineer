@@ -100,6 +100,12 @@ docs/data_sample/      # Mẫu dữ liệu thiết bị gửi lên (data_RPL.jso
 
 ## Gotchas server / deploy / box (chuyển từ CLAUDE.md app 2026-09-15 — đã gặp thật)
 
+- **Sản phẩm N khe (rapid4p, 2026-09-17)**: `logic.validate` KHÔNG ghim độ dài mảng bằng số cứng như Rapid+
+  (`ARRAY_FIELDS` = 10) mà đọc `payload["slots"]` (1..16) và đòi mọi mảng `SLOT_ARRAY_FIELDS`
+  (`slot_value/slot_result/slot_positive/calib_min/calib_max`, config.py) đúng `slots` phần tử. Hợp đồng:
+  `system/contracts/ingest-rapid4p.schema.json`; đổi số khe = đổi `BOARD_SENSOR_SLOTS` firmware + registry
+  `optical_slots`, server không cần sửa.
+
 - **Deploy từ box ADM — ĐÃ MỞ SSH thẳng 2026-09-12** (trước đó bị Tailscale SSH chặn: `tailnet policy
   does not permit you to SSH`; LAN 22 timeout; tên ngắn `fbt` không resolve → dùng IP `100.109.127.87`
   hoặc `fbt.basa-luma.ts.net`). Cách mở: trên box `sudo tailscale set --ssh=false` (OpenSSH nhận lại

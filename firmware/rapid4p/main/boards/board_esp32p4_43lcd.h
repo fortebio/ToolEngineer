@@ -336,17 +336,17 @@ extern "C" {
 #define BOARD_PMIC_I2C_ADDR          0x34   /* tư liệu — chưa có driver */
 #define BOARD_PMIC_IRQ_GPIO          21     /* tư liệu — chưa có driver */
 
-/* ========================== Bo cảm biến quang 4 slot (JP1) ==========================
+/* ========================== Bo cảm biến quang N slot (JP1) ==========================
  *
  * CHƯA CÓ SCHEMATIC bo con (MAPPING-Rapid4P.md §5 mục 1). Số chân dưới đây là ĐỀ XUẤT
  * 2026-09-17, chọn trên header JP1 (2×10, mỗi GPIO có 100 R nối tiếp — HARDWARE-PINOUT
  * §11.5) để không đụng bus I2C chung GPIO7/8 (7 thiết bị, touch quét 10 ms):
  *   JP1 chân 12 = GPIO26 → SDA bus riêng I2C_NUM_1
  *   JP1 chân 13 = GPIO27 → SCL bus riêng I2C_NUM_1
- *   JP1 chân 14/15/16/11 = GPIO28/29/30/45 → enable LED chiếu slot 1..4
+ *   JP1 chân 14/15/16/11 = GPIO28/29/30/45 → enable LED chiếu slot 1..4; GPIO47 → slot 5 (ĐỀ XUẤT)
  *   JP1 chân 9  = GPIO46 → PWM độ sáng LED chung (LEDC)
  *   JP1 chân 4  = VCC3V3, chân 3/10 = GND
- * Còn dư GPIO47/48/49/50 trên JP1. Khi có schematic thật: sửa Ở ĐÂY, không sửa driver.
+ * Còn dư GPIO48/49/50 trên JP1. Khi có schematic thật: sửa Ở ĐÂY, không sửa driver.
  *
  * Bo con kế thừa từ FBT-ReaderPlus-1.0: mux TCA9548A 0x70 (A0–A2 = GND), 4 kênh 0..3
  * mỗi kênh một TCS34725 (địa chỉ cố định 0x29, ID 0x44/0x4D). LED chiếu: enable riêng
@@ -359,9 +359,12 @@ extern "C" {
 #define BOARD_SENSOR_I2C_FREQ_HZ     100000
 #define BOARD_SENSOR_MUX_ADDR        0x70
 #define BOARD_SENSOR_TCS_ADDR        0x29
-#define BOARD_SENSOR_SLOTS           4
-#define BOARD_SENSOR_MUX_CHANNELS    { 0, 1, 2, 3 }
-#define BOARD_SLOT_LED_GPIOS         { 28, 29, 30, 45 }
+/* 5 KHE (kế hoạch docs/plan/rapid4p-5-slot.md, 2026-09-17): khe 5 = mux kênh 4, LED enable
+ * GPIO47 (JP1 còn 48/49/50). Đây là NGUỒN SỰ THẬT về số khe: R4P_SLOTS, bố cục LCD, payload,
+ * dashboard đều suy ra từ đây — đổi số khe chỉ sửa 3 dòng này + bo mạch. */
+#define BOARD_SENSOR_SLOTS           5
+#define BOARD_SENSOR_MUX_CHANNELS    { 0, 1, 2, 3, 4 }
+#define BOARD_SLOT_LED_GPIOS         { 28, 29, 30, 45, 47 }
 #define BOARD_SLOT_LED_ON_LEVEL      1
 #define BOARD_SLOT_LED_PWM_GPIO      46
 #define BOARD_SLOT_LED_PWM_FREQ_HZ   5000

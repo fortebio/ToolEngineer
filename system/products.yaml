@@ -137,11 +137,12 @@ products:
       features: []
     endpoints: [google_apps_script]
 
-  # Reader 4 slot trên phần cứng ESP32-P4C5 + LCD 4.3" (board tham chiếu của firmware-vimate-p4).
+  # Reader 5 slot (4 → 5 từ 2026-09-17, docs/plan/rapid4p-5-slot.md; khoá `rapid4p` GIỮ vì chưa phát hành —
+  # Q1 đổi tên thương mại còn mở) trên phần cứng ESP32-P4C5 + LCD 4.3" (board tham chiếu của firmware-vimate-p4).
   # Khảo sát + quyết định: firmware/maping new product/MAPPING-Rapid4P.md. Firmware ESP-IDF
   # native (build_system: idf) — sản phẩm đầu tiên không dùng PlatformIO.
   rapid4p:
-    name: Forte Rapid4P (Rapid Reader 4 Slot)
+    name: Forte Rapid4P (Rapid Reader 5 Slot)
     status: dev
     chip: esp32p4
     id_prefix: R4P                # TODO xác nhận với ERP device_registry — firmware tự khai product nên không cần legacy prefix
@@ -161,11 +162,11 @@ products:
       ota: true                   # GET /ota/check?product=rapid4p&hw=… (network/ota_client.c)
       embeds_image_tag: false     # TODO: nhúng FBTIMG1 khi server bắt buộc cho kho rapid4p
     channels:
-      optical_slots: 4
+      optical_slots: 5              # = BOARD_SENSOR_SLOTS trong firmware (registry_check kiểm khớp)
       temp_channels: 0
     payload:
-      contract: null              # TODO P2: system/contracts/ingest-rapid4p.schema.json (network/result_upload.h mô tả)
-      array_fields: [slot_value, slot_result, slot_positive, calib_min, calib_max]   # 4 phần tử — KHÔNG trùng ARRAY_FIELDS 10 của Rapid+
+      contract: system/contracts/ingest-rapid4p.schema.json
+      array_fields: [slot_value, slot_result, slot_positive, calib_min, calib_max]   # N = channels.optical_slots phần tử (máy tự khai `slots`) — KHÔNG trùng ARRAY_FIELDS 10 của Rapid+
     app:
       features: []
     endpoints: [engineer_ingest, engineer_ota_check]

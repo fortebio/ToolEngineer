@@ -8,11 +8,13 @@ set(SOURCES
     core/system_info.c
     core/captive_dns.c
     core/wifi_mgr.c
+    core/dev_console.c
 
     # Mạng: Engineer Server
     network/engineer_api.c
     network/ota_client.c
     network/result_upload.c
+    network/dashboard.c
 
     # UI (LVGL 9) — font tiếng Việt kế thừa (symbol lv_font_vimate_*)
     ui/fonts/lv_font_vimate_14.c
@@ -22,6 +24,7 @@ set(SOURCES
     ui/display.c
     ui/ui_strings.c
     ui/ui_reader.c
+    ui/ui_logo.c
     ui/ui_wifi_setup.c
 
     # Input
@@ -42,11 +45,12 @@ set(SOURCES
 idf_component_register(
     SRCS ${SOURCES}
     INCLUDE_DIRS "." "core" "network" "ui" "input" "sensor" "app" "boards"
+    EMBED_TXTFILES "web/dashboard.html"
     REQUIRES
         nvs_flash esp_wifi esp_event esp_netif esp_http_client esp_http_server
         esp_partition app_update esp_https_ota esp_psram esp_mm
         driver esp_lcd esp_timer esp_driver_i2c esp_driver_ppa esp_driver_ledc esp_driver_gpio
-        mbedtls esp-tls json
+        mbedtls esp-tls json console
     PRIV_REQUIRES
         lvgl__lvgl
         espressif__esp_lvgl_port

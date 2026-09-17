@@ -28,63 +28,58 @@
  *     tên miền về IP của AP rồi.
  *
  * Escape SSID: spec WIFI: bắt buộc chèn '\' trước các ký tự \ ; , : "
- * SSID của ta có dấu hai chấm ("GENU-Setup-53:C8") nên BẮT BUỘC escape, không
+ * SSID của ta có dấu hai chấm ("FBT-Rapid4P-53:C8") nên BẮT BUỘC escape, không
  * thì điện thoại đọc sai tên mạng. (CrossInk không escape vì SSID của họ sạch.)
  *
- * Màu: mọi cặp chữ/nền dưới đây đã tính tỉ số tương phản WCAG >= 4.5:1 cho chữ
- * thường. Giá trị cũ COL_MUTED 0x6b7280 (4.1:1) và COL_OK 0x16a34a (3.3:1)
- * KHÔNG đạt nên đã thay.
+ * ── Bố cục 2026-09-17 (làm lại theo ui_theme.h, review qua webcam) ─────────
+ * 800×480 landscape: header 56 (tiêu đề + chip trạng thái) · nội dung 328 =
+ * HAI thẻ QR CẠNH NHAU (mỗi QR ~168 px — bản cũ xếp dọc bị ép còn 88 px, khó
+ * quét) hoặc bảng trạng thái (đang thử / lỗi + bước tiếp theo / thành công) ·
+ * footer 96 = thanh hành động (ui_reader gắn "Quay lại" bên trái, gợi ý đường
+ * lui bên phải). QR giữ đen-trên-trắng + quiet zone để camera bắt được.
+ * Chuỗi màn này còn tiếng Việt cứng (portal web cũng vậy) — chưa qua ui_strings.
  */
 #include "ui_wifi_setup.h"
+#include "ui_theme.h"
+#include "ui_logo.h"
 #include "rapid4p.h"
 #include "display.h"
 #include "boards/board.h"
 #include "lvgl.h"
-#include "fonts/lv_font_vimate.h"
 #include "esp_log.h"
 #include <stdio.h>
 #include <string.h>
 
 #define WIFI_SETUP_DEFAULT_URL "http://192.168.4.1/"
 
-/* Bảng màu dùng chung với app Flutter cha mẹ. Số trong ngoặc = tỉ số tương phản
- * với nền tương ứng, đo theo WCAG 2.1 (ngưỡng chữ thường 4.5:1). */
-#define COL_BG        0xede9fe   /* nền tím nhạt */
-#define COL_CARD      0xffffff
-#define COL_TEXT      0x1f2937   /* trên card trắng: 12.6:1 */
-#define COL_MUTED     0x4b5563   /* trên nền: 6.3:1  (cũ 0x6b7280 = 4.1:1 -> rớt) */
-#define COL_TITLE     0x92400e   /* trên nền: 6.0:1  (cũ 0xb45309 = 4.2:1 -> rớt) */
-#define COL_ACCENT    0x5b54e8   /* trên card trắng: 5.4:1 */
-#define COL_OK        0x166534   /* trên card trắng: 5.3:1 (cũ 0x16a34a = 3.3:1 -> rớt) */
-#define COL_ERR       0xb91c1c   /* trên card trắng: 6.5:1 */
-#define COL_WARN      0x92400e   /* trên card trắng: 6.0:1 */
-
-/* Nhịp giãn cách 4/8 px, không dùng số lẻ tuỳ hứng. */
-#define PAD_SCREEN    12
-#define GAP_ROW        8
+#define CONTENT_PAD   12
 #define CARD_PAD      10
-#define CARD_GAP_TXT   6
-
-#define QR_MAX       220
-#define QR_MIN        88
+#define CARD_W        372
+#define QR_MAX        200
+#define QR_MIN        120
 
 /* Bao lâu thì màn lỗi tự nhường lại cho 2 QR để người dùng quét lại. */
 #define ERROR_HOLD_MS 8000
 
 static lv_obj_t *s_screen       = NULL;
-static lv_obj_t *s_banner       = NULL;
-static lv_obj_t *s_banner_dot   = NULL;
-static lv_obj_t *s_banner_lbl   = NULL;
+static lv_obj_t *s_header       = NULL;
+static lv_obj_t *s_chip         = NULL;      /* chip trạng thái ở header phải */
+static lv_obj_t *s_chip_icon    = NULL;
+static lv_obj_t *s_chip_lbl     = NULL;
+static lv_obj_t *s_content      = NULL;
+static lv_obj_t *s_footer       = NULL;
 static lv_obj_t *s_qr_panel     = NULL;
 static lv_obj_t *s_status_panel = NULL;
 static lv_obj_t *s_qr_wifi      = NULL;
 static lv_obj_t *s_qr_url       = NULL;
 static lv_obj_t *s_step1        = NULL;
+static lv_obj_t *s_step1_badge  = NULL;
 static lv_obj_t *s_step2        = NULL;
 static lv_obj_t *s_lbl_ssid     = NULL;
 static lv_obj_t *s_lbl_url      = NULL;
 static lv_obj_t *s_hint         = NULL;
 static lv_obj_t *s_spinner      = NULL;
+static lv_obj_t *s_st_icon      = NULL;
 static lv_obj_t *s_st_title     = NULL;
 static lv_obj_t *s_st_body      = NULL;
 static lv_timer_t *s_back_timer = NULL;
@@ -154,146 +149,147 @@ static const char *err_next_step(const char *d) {
 
 /* ─────────────────────────── dựng màn ─────────────────────────── */
 
-/* Kích thước QR tính NGƯỢC từ chiều cao còn trống, thay vì lấy một tỉ lệ cố
- * định: 480x800 của P4 và 320x240 của bo S3 chênh nhau quá xa để dùng chung
- * một hằng số, và QR bị cắt thì không quét được. */
+static lv_obj_t *mk_label(lv_obj_t *parent, const char *txt, const lv_font_t *f, lv_color_t c) {
+    lv_obj_t *l = lv_label_create(parent);
+    lv_label_set_text(l, txt);
+    lv_obj_set_style_text_font(l, f, 0);
+    lv_obj_set_style_text_color(l, c, 0);
+    return l;
+}
+
+/* Kích thước QR tính từ chiều cao nội dung còn trống trong thẻ (2 thẻ cạnh nhau
+ * nên bề ngang không còn là ràng buộc). */
 static int32_t compute_qr_size(void) {
-    const int32_t h24 = lv_font_get_line_height(&lv_font_vimate_24);
     const int32_t h18 = lv_font_get_line_height(&lv_font_vimate_18);
-    const int32_t h14 = lv_font_get_line_height(&lv_font_vimate_14);
-
-    int32_t avail = BOARD_LCD_V_RES - 2 * PAD_SCREEN;
-    avail -= h24 + GAP_ROW;                 /* tiêu đề */
-    avail -= (8 + h18 + 8) + GAP_ROW;       /* dải trạng thái */
-    avail -= (2 * h14) + GAP_ROW;           /* dòng gợi ý (2 dòng) */
-
-    const int32_t chrome = 2 * CARD_PAD + h18 + 2 * CARD_GAP_TXT + h24;
-    int32_t qr = ((avail - GAP_ROW) / 2) - chrome;
-
-    /* Không được rộng hơn bề ngang card. */
-    const int32_t max_w = BOARD_LCD_H_RES - 2 * PAD_SCREEN - 2 * CARD_PAD - 8;
+    const int32_t h24 = lv_font_get_line_height(&lv_font_vimate_24);
+    int32_t card_h = BOARD_LCD_V_RES - HEADER_H - FOOTER_H - 2 * CONTENT_PAD;   /* 304 */
+    int32_t qr = card_h - 2 * CARD_PAD - h18 - h24 - 3 * 6;
+    int32_t max_w = CARD_W - 2 * CARD_PAD;
     if (qr > max_w)  qr = max_w;
     if (qr > QR_MAX) qr = QR_MAX;
     if (qr < QR_MIN) qr = QR_MIN;
-    /* Log ra de kiem tra qua UART: QR bi ep xuong QR_MIN tren man nho la dau
-     * hieu bo cuc khong vua, phai bo bot chu chu khong phai thu nho ma. */
-    ESP_LOGI(TAG_UI, "QR size=%d (man %dx%d)", (int)qr,
-             (int)BOARD_LCD_H_RES, (int)BOARD_LCD_V_RES);
+    ESP_LOGI(TAG_UI, "QR size=%d (man %dx%d)", (int)qr, (int)BOARD_LCD_H_RES, (int)BOARD_LCD_V_RES);
     return qr;
 }
 
-static lv_obj_t *make_card(lv_obj_t *parent) {
+static lv_obj_t *make_card(lv_obj_t *parent, int32_t w) {
     lv_obj_t *card = lv_obj_create(parent);
     lv_obj_remove_style_all(card);
-    lv_obj_set_style_bg_color(card, lv_color_hex(COL_CARD), 0);
+    lv_obj_set_style_bg_color(card, C_CARD, 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(card, 12, 0);
+    lv_obj_set_style_border_width(card, 2, 0);
+    lv_obj_set_style_border_color(card, C_BORDER, 0);
+    lv_obj_set_style_radius(card, 14, 0);
     lv_obj_set_style_pad_all(card, CARD_PAD, 0);
-    lv_obj_set_width(card, LV_PCT(100));
-    lv_obj_set_height(card, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_row(card, 6, 0);
+    lv_obj_set_size(card, w, LV_PCT(100));
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(card, LV_FLEX_ALIGN_START,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scrollable(card, false);
     return card;
 }
 
-/* Một "thẻ" chứa tiêu đề bước + QR + chữ mô tả bên dưới. */
-static void make_qr_card(lv_obj_t *parent, const char *step_text, int32_t qr_size,
-                         lv_obj_t **out_step, lv_obj_t **out_qr,
+/* Thẻ = huy hiệu số bước + tiêu đề bước, QR (đen trên trắng, quiet zone), chú thích. */
+static void make_qr_card(lv_obj_t *parent, const char *num, const char *step_text, int32_t qr_size,
+                         lv_obj_t **out_badge, lv_obj_t **out_step, lv_obj_t **out_qr,
                          lv_obj_t **out_caption) {
-    lv_obj_t *card = make_card(parent);
+    lv_obj_t *card = make_card(parent, CARD_W);
 
-    lv_obj_t *step = lv_label_create(card);
-    lv_label_set_text(step, step_text);
-    lv_obj_set_style_text_font(step, &lv_font_vimate_18, 0);
-    lv_obj_set_style_text_color(step, lv_color_hex(COL_TEXT), 0);
-    lv_obj_set_style_pad_bottom(step, CARD_GAP_TXT, 0);
+    lv_obj_t *hdr = lv_obj_create(card);
+    lv_obj_remove_style_all(hdr);
+    lv_obj_set_size(hdr, LV_PCT(100), LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(hdr, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(hdr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(hdr, 10, 0);
+
+    lv_obj_t *badge = lv_obj_create(hdr);
+    lv_obj_remove_style_all(badge);
+    lv_obj_set_size(badge, 30, 30);
+    lv_obj_set_style_radius(badge, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(badge, C_FORTE, 0);
+    lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, 0);
+    lv_obj_t *bl = mk_label(badge, num, F_SMALL, C_ON_FORTE);
+    lv_obj_center(bl);
+    if (out_badge) *out_badge = badge;
+
+    lv_obj_t *step = mk_label(hdr, step_text, F_SMALL, C_TEXT);
     if (out_step) *out_step = step;
 
     lv_obj_t *qr = lv_qrcode_create(card);
     lv_qrcode_set_size(qr, qr_size);
     lv_qrcode_set_dark_color(qr, lv_color_black());
     lv_qrcode_set_light_color(qr, lv_color_white());
-    /* Vùng lặng (quiet zone) — thiếu nó nhiều camera không bắt được mã. */
-    lv_qrcode_set_quiet_zone(qr, true);
+    lv_qrcode_set_quiet_zone(qr, true);        /* thiếu quiet zone nhiều camera không bắt */
+    lv_obj_set_style_radius(qr, 8, 0);
+    lv_obj_set_style_clip_corner(qr, true, 0);
     if (out_qr) *out_qr = qr;
 
-    lv_obj_t *cap = lv_label_create(card);
-    lv_label_set_text(cap, "");
-    lv_obj_set_style_text_font(cap, &lv_font_vimate_24, 0);
-    lv_obj_set_style_text_color(cap, lv_color_hex(COL_ACCENT), 0);
-    lv_obj_set_style_pad_top(cap, CARD_GAP_TXT, 0);
-    lv_label_set_long_mode(cap, LV_LABEL_LONG_WRAP);
+    lv_obj_t *cap = mk_label(card, "", F_BODY, C_FORTE);
+    lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
     lv_obj_set_width(cap, LV_PCT(100));
     lv_obj_set_style_text_align(cap, LV_TEXT_ALIGN_CENTER, 0);
     if (out_caption) *out_caption = cap;
 }
 
-static void build_banner(lv_obj_t *parent) {
-    s_banner = lv_obj_create(parent);
-    lv_obj_remove_style_all(s_banner);
-    lv_obj_set_style_bg_color(s_banner, lv_color_hex(COL_CARD), 0);
-    lv_obj_set_style_bg_opa(s_banner, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(s_banner, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_pad_hor(s_banner, 14, 0);
-    lv_obj_set_style_pad_ver(s_banner, 8, 0);
-    lv_obj_set_width(s_banner, LV_PCT(100));
-    lv_obj_set_height(s_banner, LV_SIZE_CONTENT);
-    lv_obj_set_flex_flow(s_banner, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(s_banner, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_clear_flag(s_banner, LV_OBJ_FLAG_SCROLLABLE);
+static void build_header(void) {
+    s_header = lv_obj_create(s_screen);
+    lv_obj_remove_style_all(s_header);
+    lv_obj_set_size(s_header, LV_PCT(100), HEADER_H);
+    lv_obj_set_style_bg_color(s_header, C_PANEL, 0);
+    lv_obj_set_style_bg_opa(s_header, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_side(s_header, LV_BORDER_SIDE_BOTTOM, 0);
+    lv_obj_set_style_border_width(s_header, 2, 0);
+    lv_obj_set_style_border_color(s_header, C_FORTE, 0);
 
-    /* Chấm màu chỉ là phụ trợ — trạng thái LUÔN được nói bằng chữ bên cạnh,
-     * không bao giờ chỉ dựa vào màu. */
-    s_banner_dot = lv_obj_create(s_banner);
-    lv_obj_remove_style_all(s_banner_dot);
-    lv_obj_set_size(s_banner_dot, 12, 12);
-    lv_obj_set_style_radius(s_banner_dot, LV_RADIUS_CIRCLE, 0);
-    lv_obj_set_style_bg_opa(s_banner_dot, LV_OPA_COVER, 0);
-    lv_obj_set_style_margin_right(s_banner_dot, 8, 0);
+    lv_obj_t *logo = ui_logo_create(s_header, HEADER_LOGO_H, false);   /* logo góc trái */
+    lv_obj_align(logo, LV_ALIGN_LEFT_MID, 12, 0);
+    lv_obj_t *title = mk_label(s_header, "CÀI ĐẶT WIFI", F_TITLE, C_FORTE);
+    lv_obj_align(title, LV_ALIGN_LEFT_MID, HEADER_TITLE_X, 0);
 
-    s_banner_lbl = lv_label_create(s_banner);
-    lv_obj_set_style_text_font(s_banner_lbl, &lv_font_vimate_18, 0);
-    lv_label_set_long_mode(s_banner_lbl, LV_LABEL_LONG_WRAP);
-    lv_obj_set_flex_grow(s_banner_lbl, 1);
-    lv_obj_set_style_text_align(s_banner_lbl, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(s_banner_lbl, "");
+    /* Chip trạng thái: icon + chữ — trạng thái LUÔN nói bằng chữ, màu chỉ phụ trợ. */
+    s_chip = lv_obj_create(s_header);
+    lv_obj_remove_style_all(s_chip);
+    lv_obj_set_size(s_chip, LV_SIZE_CONTENT, 38);
+    lv_obj_set_style_bg_color(s_chip, C_CARD, 0);
+    lv_obj_set_style_bg_opa(s_chip, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(s_chip, 19, 0);
+    lv_obj_set_style_border_width(s_chip, 2, 0);
+    lv_obj_set_style_pad_hor(s_chip, 14, 0);
+    lv_obj_set_flex_flow(s_chip, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(s_chip, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(s_chip, 8, 0);
+    lv_obj_align(s_chip, LV_ALIGN_RIGHT_MID, -16, 0);
+    s_chip_icon = mk_label(s_chip, LV_SYMBOL_WIFI, F_ICON_SM, C_FORTE);
+    s_chip_lbl  = mk_label(s_chip, "", F_SMALL, C_TEXT);
 }
 
 static void build_status_panel(lv_obj_t *parent) {
-    s_status_panel = make_card(parent);
-    /* flex_grow quyet dinh chieu cao theo truc doc, nen KHONG dat height o day
-     * — dat them chi lam nguoi doc sau tuong no co tac dung. */
-    lv_obj_set_flex_grow(s_status_panel, 1);
-    lv_obj_set_flex_align(s_status_panel, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    s_status_panel = make_card(parent, 700);
     lv_obj_set_style_pad_all(s_status_panel, 20, 0);
+    lv_obj_set_style_pad_row(s_status_panel, 10, 0);
+    lv_obj_add_flag(s_status_panel, LV_OBJ_FLAG_IGNORE_LAYOUT);
+    lv_obj_center(s_status_panel);
 
     s_spinner = lv_spinner_create(s_status_panel);
     lv_obj_set_size(s_spinner, 56, 56);
     lv_spinner_set_anim_params(s_spinner, 1000, 60);
-    lv_obj_set_style_arc_color(s_spinner, lv_color_hex(COL_BG), LV_PART_MAIN);
-    lv_obj_set_style_arc_color(s_spinner, lv_color_hex(COL_ACCENT), LV_PART_INDICATOR);
-    lv_obj_set_style_margin_bottom(s_spinner, 16, 0);
+    lv_obj_set_style_arc_color(s_spinner, C_BORDER, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(s_spinner, C_FORTE, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_width(s_spinner, 6, LV_PART_MAIN);
+    lv_obj_set_style_arc_width(s_spinner, 6, LV_PART_INDICATOR);
 
-    s_st_title = lv_label_create(s_status_panel);
-    lv_obj_set_style_text_font(s_st_title, &lv_font_vimate_24, 0);
-    lv_obj_set_style_text_color(s_st_title, lv_color_hex(COL_TEXT), 0);
+    s_st_icon = mk_label(s_status_panel, "", &lv_font_montserrat_24, C_TEXT);
+    lv_obj_set_style_text_font(s_st_icon, F_ICON, 0);
+
+    s_st_title = mk_label(s_status_panel, "", F_BODY, C_TEXT);
     lv_label_set_long_mode(s_st_title, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(s_st_title, LV_PCT(100));
     lv_obj_set_style_text_align(s_st_title, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(s_st_title, "");
 
-    s_st_body = lv_label_create(s_status_panel);
-    lv_obj_set_style_text_font(s_st_body, &lv_font_vimate_18, 0);
-    lv_obj_set_style_text_color(s_st_body, lv_color_hex(COL_MUTED), 0);
+    s_st_body = mk_label(s_status_panel, "", F_SMALL, C_MUTED);
     lv_label_set_long_mode(s_st_body, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(s_st_body, LV_PCT(100));
     lv_obj_set_style_text_align(s_st_body, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_style_pad_top(s_st_body, 12, 0);
-    lv_label_set_text(s_st_body, "");
 
     lv_obj_add_flag(s_status_panel, LV_OBJ_FLAG_HIDDEN);
 }
@@ -304,94 +300,106 @@ static void build_screen(void) {
     const int32_t qr_size = compute_qr_size();
 
     s_screen = lv_obj_create(NULL);
-    lv_obj_set_style_bg_color(s_screen, lv_color_hex(COL_BG), 0);
+    lv_obj_set_style_bg_color(s_screen, C_BG, 0);
     lv_obj_set_style_bg_opa(s_screen, LV_OPA_COVER, 0);
-    lv_obj_set_style_pad_all(s_screen, PAD_SCREEN, 0);
-    lv_obj_set_flex_flow(s_screen, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(s_screen, LV_FLEX_ALIGN_START,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(s_screen, GAP_ROW, 0);
-    lv_obj_clear_flag(s_screen, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollable(s_screen, false);
 
-    lv_obj_t *title = lv_label_create(s_screen);
-    lv_label_set_text(title, R4P_BRAND_NAME " · Cài đặt WiFi");
-    lv_obj_set_style_text_font(title, &lv_font_vimate_24, 0);
-    lv_obj_set_style_text_color(title, lv_color_hex(COL_TITLE), 0);
+    build_header();
 
-    build_banner(s_screen);
+    s_content = lv_obj_create(s_screen);
+    lv_obj_remove_style_all(s_content);
+    lv_obj_set_pos(s_content, 0, HEADER_H);
+    lv_obj_set_size(s_content, LV_PCT(100), BOARD_LCD_V_RES - HEADER_H - FOOTER_H);
+    lv_obj_set_style_pad_all(s_content, CONTENT_PAD, 0);
+    lv_obj_set_scrollable(s_content, false);
 
-    /* Vùng nội dung: hoặc 2 QR, hoặc bảng trạng thái — luôn đúng một cái hiện.
-     * Cả hai đều flex_grow 1 nên khi đổi qua lại chiều cao không nhảy. */
-    s_qr_panel = lv_obj_create(s_screen);
+    /* Vùng nội dung: hoặc 2 QR cạnh nhau, hoặc bảng trạng thái — đúng một cái hiện. */
+    s_qr_panel = lv_obj_create(s_content);
     lv_obj_remove_style_all(s_qr_panel);
-    lv_obj_set_width(s_qr_panel, LV_PCT(100));
-    lv_obj_set_flex_grow(s_qr_panel, 1);
-    lv_obj_set_flex_flow(s_qr_panel, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(s_qr_panel, LV_FLEX_ALIGN_START,
-                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(s_qr_panel, GAP_ROW, 0);
-    lv_obj_clear_flag(s_qr_panel, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(s_qr_panel, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_flex_flow(s_qr_panel, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(s_qr_panel, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_scrollable(s_qr_panel, false);
 
-    make_qr_card(s_qr_panel, "1 · Quét để vào WiFi thiết bị",
-                 qr_size, &s_step1, &s_qr_wifi, &s_lbl_ssid);
-    make_qr_card(s_qr_panel, "2 · Quét để mở trang cài đặt",
-                 qr_size, &s_step2, &s_qr_url, &s_lbl_url);
+    make_qr_card(s_qr_panel, "1", "Quét để vào WiFi máy", qr_size,
+                 &s_step1_badge, &s_step1, &s_qr_wifi, &s_lbl_ssid);
+    make_qr_card(s_qr_panel, "2", "Quét để mở trang cài đặt", qr_size,
+                 NULL, &s_step2, &s_qr_url, &s_lbl_url);
 
-    build_status_panel(s_screen);
+    build_status_panel(s_content);
 
-    s_hint = lv_label_create(s_screen);
-    lv_obj_set_style_text_font(s_hint, &lv_font_vimate_14, 0);
-    lv_obj_set_style_text_color(s_hint, lv_color_hex(COL_MUTED), 0);
+    /* Footer: ui_reader gắn "Quay lại" bên trái; gợi ý đường lui bên phải (14 px, 2 dòng). */
+    s_footer = lv_obj_create(s_screen);
+    lv_obj_remove_style_all(s_footer);
+    lv_obj_set_pos(s_footer, 0, BOARD_LCD_V_RES - FOOTER_H);
+    lv_obj_set_size(s_footer, LV_PCT(100), FOOTER_H);
+    lv_obj_set_style_pad_hor(s_footer, 20, 0);
+    lv_obj_set_scrollable(s_footer, false);
+
+    s_hint = mk_label(s_footer, "", F_TINY, C_MUTED);
     lv_label_set_long_mode(s_hint, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(s_hint, LV_PCT(100));
-    lv_obj_set_style_text_align(s_hint, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(s_hint, "");
+    lv_obj_set_width(s_hint, 520);
+    lv_obj_set_style_text_align(s_hint, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_align(s_hint, LV_ALIGN_RIGHT_MID, 0, 0);
 }
 
 /* ─────────────────────────── trạng thái ─────────────────────────── */
 
-static void set_banner(uint32_t color, const char *text) {
-    if (!s_banner_dot || !s_banner_lbl) return;
-    lv_obj_set_style_bg_color(s_banner_dot, lv_color_hex(color), 0);
-    lv_obj_set_style_text_color(s_banner_lbl, lv_color_hex(color), 0);
-    lv_label_set_text(s_banner_lbl, text);
+static void set_chip(lv_color_t color, const char *icon, const char *text) {
+    if (!s_chip) return;
+    lv_obj_set_style_border_color(s_chip, color, 0);
+    lv_obj_set_style_text_color(s_chip_icon, color, 0);
+    lv_label_set_text(s_chip_icon, icon);
+    lv_label_set_text(s_chip_lbl, text);
 }
 
 static void show_qr_view(bool show) {
     if (!s_qr_panel || !s_status_panel) return;
     if (show) {
-        lv_obj_clear_flag(s_qr_panel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(s_qr_panel, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(s_status_panel, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(s_qr_panel, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(s_status_panel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(s_status_panel, LV_OBJ_FLAG_HIDDEN);
     }
 }
 
-static void set_status_panel(const char *title, const char *body, bool busy) {
+static void set_status_panel(const char *icon, lv_color_t color, const char *title,
+                             const char *body, bool busy) {
     if (!s_st_title || !s_st_body || !s_spinner) return;
-    /* Trả màu tiêu đề về trung tính trước; ERROR/SUCCESS sẽ tự tô đè. Không có
-     * dòng này thì màu đỏ của lần lỗi trước dính lại sang màn "đang thử". */
-    lv_obj_set_style_text_color(s_st_title, lv_color_hex(COL_TEXT), 0);
+    lv_obj_set_style_text_color(s_st_title, color, 0);
     lv_label_set_text(s_st_title, title ? title : "");
     lv_label_set_text(s_st_body, body ? body : "");
+    lv_label_set_text(s_st_icon, icon ? icon : "");
+    lv_obj_set_style_text_color(s_st_icon, color, 0);
     if (busy) {
-        lv_obj_clear_flag(s_spinner, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(s_spinner, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(s_st_icon, LV_OBJ_FLAG_HIDDEN);
     } else {
         lv_obj_add_flag(s_spinner, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(s_st_icon, LV_OBJ_FLAG_HIDDEN);
     }
 }
 
-/* Bước 1 chuyển sang "xong" khi đã có máy bám AP — chỉ báo tiến trình, để người
- * dùng biết còn phải làm bước 2 chứ không phải quét lại từ đầu. */
+/* Bước 1 chuyển sang "xong" khi đã có máy bám AP — huy hiệu thành ✓ xanh, chữ đổi,
+ * để người dùng biết còn phải làm bước 2 chứ không phải quét lại từ đầu. */
 static void mark_step1_done(bool done) {
-    if (!s_step1) return;
+    if (!s_step1 || !s_step1_badge) return;
+    lv_obj_t *bl = lv_obj_get_child(s_step1_badge, 0);
     if (done) {
-        lv_label_set_text(s_step1, "1 · Đã vào WiFi thiết bị — xong");
-        lv_obj_set_style_text_color(s_step1, lv_color_hex(COL_OK), 0);
+        lv_label_set_text(s_step1, "Đã vào WiFi máy");
+        lv_obj_set_style_text_color(s_step1, C_GREEN, 0);
+        lv_obj_set_style_bg_color(s_step1_badge, C_GREEN, 0);
+        lv_label_set_text(bl, LV_SYMBOL_OK);
+        lv_obj_set_style_text_font(bl, F_ICON_SM, 0);
+        lv_obj_set_style_text_color(bl, C_ON_FORTE, 0);   /* trắng trên green-500 chỉ 1,9:1 */
     } else {
-        lv_label_set_text(s_step1, "1 · Quét để vào WiFi thiết bị");
-        lv_obj_set_style_text_color(s_step1, lv_color_hex(COL_TEXT), 0);
+        lv_label_set_text(s_step1, "Quét để vào WiFi máy");
+        lv_obj_set_style_text_color(s_step1, C_TEXT, 0);
+        lv_obj_set_style_bg_color(s_step1_badge, C_FORTE, 0);
+        lv_label_set_text(bl, "1");
+        lv_obj_set_style_text_font(bl, F_SMALL, 0);
+        lv_obj_set_style_text_color(bl, C_ON_FORTE, 0);
     }
 }
 
@@ -417,28 +425,26 @@ static void apply_state(const char *detail) {
     case UI_WIFI_SETUP_CLIENT:
         show_qr_view(true);
         mark_step1_done(true);
-        set_banner(COL_OK, "Đã vào WiFi thiết bị — quét mã 2");
-        snprintf(buf, sizeof(buf), "Trang cài đặt chưa mở? Gõ %s vào trình duyệt.",
-                 s_url);
+        set_chip(C_GREEN, LV_SYMBOL_OK, "Điện thoại đã vào - quét mã 2");
+        snprintf(buf, sizeof(buf), "Trang cài đặt chưa mở? Gõ %s vào trình duyệt.", s_url);
         lv_label_set_text(s_hint, buf);
         break;
 
     case UI_WIFI_SETUP_VALIDATING:
         cancel_back_timer();
         show_qr_view(false);
-        set_banner(COL_WARN, "Đang kiểm tra WiFi...");
-        set_status_panel("Đang thử mật khẩu WiFi",
-                         "Điện thoại có thể tạm rớt khỏi mạng thiết bị — "
-                         "đó là bình thường. Kết quả sẽ hiện ngay tại đây.",
+        set_chip(C_AMBER, LV_SYMBOL_REFRESH, "Đang kiểm tra WiFi...");
+        set_status_panel(NULL, C_TEXT, "Đang thử mật khẩu WiFi",
+                         "Điện thoại có thể tạm rớt khỏi mạng máy - đó là bình thường. "
+                         "Kết quả sẽ hiện ngay tại đây.",
                          true);
-        lv_label_set_text(s_hint, "Vui lòng giữ thiết bị gần router.");
+        lv_label_set_text(s_hint, "Giữ máy gần router.");
         break;
 
     case UI_WIFI_SETUP_ERROR:
         show_qr_view(false);
-        set_banner(COL_ERR, "Không kết nối được");
-        set_status_panel(err_title(detail), err_next_step(detail), false);
-        lv_obj_set_style_text_color(s_st_title, lv_color_hex(COL_ERR), 0);
+        set_chip(C_RED, LV_SYMBOL_WARNING, "Không kết nối được");
+        set_status_panel(LV_SYMBOL_WARNING, C_RED, err_title(detail), err_next_step(detail), false);
         lv_label_set_text(s_hint, "Mã QR sẽ hiện lại sau vài giây.");
         cancel_back_timer();
         s_back_timer = lv_timer_create(back_to_qr_cb, ERROR_HOLD_MS, NULL);
@@ -448,15 +454,13 @@ static void apply_state(const char *detail) {
     case UI_WIFI_SETUP_SUCCESS:
         cancel_back_timer();
         show_qr_view(false);
-        set_banner(COL_OK, "Đã kết nối WiFi");
+        set_chip(C_GREEN, LV_SYMBOL_WIFI, "Đã kết nối WiFi");
         if (detail && detail[0]) {
-            snprintf(buf, sizeof(buf),
-                     "Địa chỉ IP %s. Thiết bị đang khởi động lại...", detail);
+            snprintf(buf, sizeof(buf), "Địa chỉ IP %s. Máy đang khởi động lại...", detail);
         } else {
-            snprintf(buf, sizeof(buf), "Thiết bị đang khởi động lại...");
+            snprintf(buf, sizeof(buf), "Máy đang khởi động lại...");
         }
-        set_status_panel("Kết nối thành công", buf, false);
-        lv_obj_set_style_text_color(s_st_title, lv_color_hex(COL_OK), 0);
+        set_status_panel(LV_SYMBOL_OK, C_GREEN, "Kết nối thành công", buf, false);
         lv_label_set_text(s_hint, "");
         break;
 
@@ -464,9 +468,8 @@ static void apply_state(const char *detail) {
     default:
         show_qr_view(true);
         mark_step1_done(false);
-        set_banner(COL_ACCENT, "Đang chờ điện thoại kết nối");
-        snprintf(buf, sizeof(buf),
-                 "Không quét được mã? Vào WiFi \"%s\" rồi mở %s", s_ssid, s_url);
+        set_chip(C_FORTE, LV_SYMBOL_WIFI, "Đang chờ điện thoại");
+        snprintf(buf, sizeof(buf), "Không quét được mã? Vào WiFi \"%s\" rồi mở %s", s_ssid, s_url);
         lv_label_set_text(s_hint, buf);
         break;
     }
@@ -501,11 +504,10 @@ void ui_wifi_setup_show(const char *ssid, const char *portal_url) {
     }
     if (s_lbl_ssid) lv_label_set_text(s_lbl_ssid, s_ssid);
     if (s_lbl_url)  lv_label_set_text(s_lbl_url, s_url);
-    if (s_step2)    lv_label_set_text(s_step2, "2 · Quét để mở trang cài đặt");
 
     apply_state(NULL);
 
-    lv_scr_load(s_screen);
+    lv_screen_load(s_screen);
     s_active = true;
     display_unlock();
     ESP_LOGI(TAG_UI, "WiFi setup screen: SSID=%s portal=%s", s_ssid, s_url);
@@ -539,3 +541,5 @@ void ui_wifi_setup_set_client_count(int clients) {
 }
 
 bool ui_wifi_setup_is_active(void) { return s_active; }
+
+lv_obj_t *ui_wifi_setup_footer(void) { return s_footer; }

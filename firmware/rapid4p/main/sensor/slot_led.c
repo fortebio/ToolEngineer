@@ -1,4 +1,6 @@
 #include "slot_led.h"
+#include <stdio.h>
+#include <string.h>
 #include "rapid4p.h"
 #include "boards/board.h"
 #include "driver/gpio.h"
@@ -49,9 +51,16 @@ esp_err_t slot_led_init(void)
     ESP_ERROR_CHECK(ledc_channel_config(&c));
 #endif
     s_ready = true;
-    ESP_LOGI(TAG_SENSOR, "slot LED en=%d/%d/%d/%d pwm=GPIO%d (%d Hz, mac dinh %d/255)",
-             s_gpio[0], s_gpio[1], s_gpio[2], s_gpio[3], BOARD_SLOT_LED_PWM_GPIO,
-             BOARD_SLOT_LED_PWM_FREQ_HZ, BOARD_SLOT_LED_PWM_DEFAULT);
+    {
+        char en[BOARD_SENSOR_SLOTS * 4 + 1] = "";
+        for (int i = 0; i < BOARD_SENSOR_SLOTS; i++) {
+            char one[6];
+            snprintf(one, sizeof(one), "%s%d", i ? "/" : "", s_gpio[i]);
+            strlcat(en, one, sizeof(en));
+        }
+        ESP_LOGI(TAG_SENSOR, "slot LED x%d en=%s pwm=GPIO%d (%d Hz, mac dinh %d/255)", BOARD_SENSOR_SLOTS, en,
+                 BOARD_SLOT_LED_PWM_GPIO, BOARD_SLOT_LED_PWM_FREQ_HZ, BOARD_SLOT_LED_PWM_DEFAULT);
+    }
     return ESP_OK;
 }
 
