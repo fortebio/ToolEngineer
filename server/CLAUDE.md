@@ -97,6 +97,11 @@ docs/data_sample/      # Mẫu dữ liệu thiết bị gửi lên (data_RPL.jso
 - Trả lời bằng tiếng Việt.
 - Kế hoạch phát triển: [docs/plan/KE_HOACH_PHAT_TRIEN.md](docs/plan/KE_HOACH_PHAT_TRIEN.md).
 - Dựng lại server từ đầu: [docs/plan/HUONG_DAN_DUNG_SERVER.md](docs/plan/HUONG_DAN_DUNG_SERVER.md) (thay `KE_HOACH_DUNG_SERVER.md` đã thất lạc).
+- **Tích hợp RAPID ERP** (2026-09-17, chờ chốt §10): plan xuyên phần `docs/plan/erp-feed-engineer-server.md`
+  (gốc monorepo) — ERP **kéo** qua `/erp/v1/*` **chỉ GET** (POST catch-all), token riêng chỉ-đọc
+  `ERP_READ_TOKENS`; KHÔNG đồng bộ lại kết quả đo vì firmware đã POST cùng payload thẳng vào ERP
+  (`postJsonToAllTargets`). Source ERP `fbterp` trên box ADM: `..\..\04. fbterp` (repo khác, chỉ đọc;
+  FastAPI + Celery beat, bảng `device_registry`/`test_results`/`device_qc_records`).
 
 ## Gotchas server / deploy / box (chuyển từ CLAUDE.md app 2026-09-15 — đã gặp thật)
 
@@ -182,3 +187,10 @@ ull`), dùng `xargs -I{}`; dọn `web.bak.*` phải xếp theo TÊN
   lỗi app. `/ingest` vẫn 200 (file-first, catch lỗi DB) nên thiết bị đẩy được mà app không đọc được.
   Chẩn đoán trên box: `journalctl -u fbt-receiver -n 30`; sau khi tạo schema phải chạy
   `reconcile.py` nạp file JSON cũ vào DB, không thì `/devices` trả danh sách RỖNG.
+- **Kiểm server local (`localtest.ps1`) ĐỪNG tin `Test-Path "$env:LOCALAPPDATA\fbt-localtest\…"` từ tool
+  shell của AI** (2026-09-17): trả `False` cho cả `pgsql`, `pgdata`, `venv` trong khi Postgres :5433 +
+  uvicorn :8080 đang chạy đúng từ các path đó — Windows ảo hoá `AppData\Local` (gotcha Python 3.14 ở
+  CLAUDE.md gốc) che thư mục với shell của tool; Bash cũng không `tail` được `uvicorn.err` ở đó. Kiểm
+  đúng cách: `Get-NetTCPConnection -LocalPort 8080,5433 -State Listen` → `Get-CimInstance Win32_Process
+  -Filter "ProcessId=<pid>"` xem CommandLine, rồi `curl http://127.0.0.1:8080/openapi.json`. Chạy
+  `localtest.ps1` khi server đã bật cũng vô hại (tự kill bản cũ trên :8080 rồi bật lại).

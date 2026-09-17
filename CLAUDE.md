@@ -37,6 +37,10 @@ Hệ NGOÀI repo (chỉ khai báo hợp đồng trong `system/products.yaml` ›
    biến thể = `[env:…]` + build flag trong `platformio.ini`. Nhánh `v2.x` cũ của FBT-DXD nằm ở
    `refs/archive/fbt-dxd/*` (+ tag `archive/fbt-dxd/<tên>` cho nhánh có commit riêng), lấy lại bằng
    `git cherry-pick -x <sha>` (path đã prefix `firmware/rapidplus/`).
+   Commit thẳng lên `main` và push `origin main` (lịch sử repo làm vậy). **`origin/HEAD` đang trỏ nhánh
+   khởi tạo cũ `claude/claude-md-docs-namqct` (1 commit)** — tool nào suy "nhánh mặc định" từ đó là sai;
+   nhánh thật là `main`. Working tree checkout CRLF trên Windows → commit file LF sẽ in hàng loạt
+   warning `LF will be replaced by CRLF`, vô hại (`git -c core.safecrlf=false commit` cho im).
 4. **Route server mới không được là POST** (`POST /{path}` catch-all nuốt hết) — dùng PUT/DELETE; app phải
    nuốt lỗi phòng thủ. Chi tiết: `server/CLAUDE.md`.
 5. **Mỗi phần tự ghi `docs/history/YYYY-MM-DD*.md` của mình** khi đổi; thay đổi chạm ≥2 phần ghi ở
