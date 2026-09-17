@@ -15,6 +15,7 @@ Kiểm gì (mỗi dòng dưới là một nhóm lỗi/cảnh báo có mã riêng
   PREFIX   OTA_LEGACY_PRODUCT_BY_PREFIX kỳ vọng (từ các sản phẩm legacy_prefix_default: true) phải
            khớp `server/deploy/fbt-receiver.env.example`; hai sản phẩm cùng tiền tố đều true = lỗi.
   FWDIR    firmware.dir tồn tại; platformio.ini có đúng [env:…]; build_flags có mặt trong env đó.
+           build_system: idf → CMakeLists.txt + sdkconfig.defaults[.<env>] tồn tại, build_flags = CONFIG_<FLAG>=y.
   VERSION  version_source.regex bắt được chuỗi dạng vX.Y.Z[hậu tố]; `--check-tag` đối chiếu tag git.
   IMAGE    image_name chứa {ver}; legacy_name_locked ⇒ bắt buộc fbt_{ver}.bin.
   ARRAY    payload.array_fields của sản phẩm LEGACY_PRODUCT == server ARRAY_FIELDS.
@@ -199,19 +200,38 @@ def check_firmware(key: str, p: dict, rep: Report, check_tag: bool) -> str | Non
     if not d.is_dir():
         rep.err("FWDIR", key, f"thư mục {fw['dir']} không tồn tại")
         return None
-    ini = d / "platformio.ini"
-    if not ini.exists():
-        rep.err("FWDIR", key, f"{fw['dir']}/platformio.ini không tồn tại")
-    else:
-        envs = read_pio_envs(ini)
+    if fw.get("build_system", "platformio") == "idf":
+        # ESP-IDF native (rapid4p là sản phẩm đầu tiên): không có platformio.ini. envs = tên
+        # profile `sdkconfig.defaults.<env>`; 'default' = chỉ `sdkconfig.defaults`.
+        # build_flags của idf = dòng CONFIG_<FLAG>=y phải có trong profile.
+        if not (d / "CMakeLists.txt").exists():
+            rep.err("FWDIR", key, f"{fw['dir']}/CMakeLists.txt không tồn tại (build_system: idf)")
+        base = d / "sdkconfig.defaults"
+        if not base.exists():
+            rep.err("FWDIR", key, f"{fw['dir']}/sdkconfig.defaults không tồn tại")
         for e in fw.get("envs", []):
-            if e not in envs:
-                rep.err("FWDIR", key, f"platformio.ini không có [env:{e}] (có: {sorted(envs)})")
+            prof = base if e == "default" else d / f"sdkconfig.defaults.{e}"
+            if not prof.exists():
+                rep.err("FWDIR", key, f"thiếu profile {prof.relative_to(ROOT)} cho env {e}")
                 continue
-            flags = envs[e].get("build_flags", "")
+            text = prof.read_text(encoding="utf-8", errors="replace")
             for flag in fw.get("build_flags", []) or []:
-                if f"-D{flag}" not in flags:
-                    rep.err("FWDIR", key, f"[env:{e}] build_flags thiếu -D{flag}")
+                if f"CONFIG_{flag}=y" not in text:
+                    rep.err("FWDIR", key, f"profile {e} thiếu CONFIG_{flag}=y")
+    else:
+        ini = d / "platformio.ini"
+        if not ini.exists():
+            rep.err("FWDIR", key, f"{fw['dir']}/platformio.ini không tồn tại")
+        else:
+            envs = read_pio_envs(ini)
+            for e in fw.get("envs", []):
+                if e not in envs:
+                    rep.err("FWDIR", key, f"platformio.ini không có [env:{e}] (có: {sorted(envs)})")
+                    continue
+                flags = envs[e].get("build_flags", "")
+                for flag in fw.get("build_flags", []) or []:
+                    if f"-D{flag}" not in flags:
+                        rep.err("FWDIR", key, f"[env:{e}] build_flags thiếu -D{flag}")
     # version
     vs = fw["version_source"]
     vfile = d / vs["file"]

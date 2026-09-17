@@ -1,0 +1,51 @@
+/**
+ * ui_reader.h — toàn bộ màn hình Rapid4P (LVGL 9, logical 800×480, chạm).
+ *
+ * Máy trạng thái giữ ĐÚNG tập trạng thái của FBT-ReaderPlus-1.0 (e_statuslcd,
+ * MAPPING §3.3) nhưng điều hướng bằng nút chạm thay 3 nút cơ (MAPPING §4.3):
+ *   START → CHOOSE_SAMPLE → CHOOSE_TUBE → PREPARE → MEASURING → RESULT
+ *   START → CALIB (4 slot × Max/Min) ; START → SETTINGS → {LANGUAGE, WIFI, UPDATE, THRESHOLD}
+ *
+ * Luật: mọi hàm ui_reader_* gọi từ task khác đều tự bọc display_schedule; chỉ code
+ * trong file này (chạy trong LVGL/display task) mới gọi lv_*.
+ */
+#pragma once
+#include "esp_err.h"
+#include "rapid4p.h"
+#include <stdbool.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef enum {
+    UI_START = 0,
+    UI_CHOOSE_SAMPLE,
+    UI_CHOOSE_TUBE,
+    UI_PREPARE,
+    UI_MEASURING,
+    UI_RESULT,
+    UI_CALIB,
+    UI_SETTINGS,
+    UI_LANGUAGE,
+    UI_WIFI,
+    UI_UPDATE,
+    UI_THRESHOLD,
+    UI_THRESHOLD_EDIT,
+    UI_COUNT
+} ui_state_t;
+
+/* Dựng màn + đăng ký callback tiến độ đo. Gọi SAU display_init + measure_init. */
+esp_err_t ui_reader_init(void);
+ui_state_t ui_reader_state(void);
+
+/* Sự kiện từ ngoài (thread-safe, qua display_schedule) */
+void ui_reader_on_measure_button(void);      /* BTN3 GPIO0: xác nhận/đo như nút ĐO trên màn */
+void ui_reader_on_boot_button(void);         /* BOOT tap: thoát màn WiFi / quay lại */
+void ui_reader_set_dev_state(r4p_dev_state_t s);
+void ui_reader_set_wifi(bool connected, const char *ip);
+void ui_reader_set_upload_stats(int pending, int sent);
+
+#ifdef __cplusplus
+}
+#endif

@@ -1,0 +1,16 @@
+# Partition table Rapid4P - flash 16 MB (module ESP32-P4C5). File ASCII thuan.
+#
+# App nhe hon vimate (khong esp-sr/opus/mp4/face GIF): 2 slot x 3 MB du cho LVGL + WiFi
+# remote + TLS. NVS 24 KB giu: calib, nguong, mã may, token, WiFi blob, hang doi ket qua
+# offline (16 x ~600 B). `assets` de danh font CJK / logo (chua dung). `results` = SPIFFS
+# log ket qua tai may (chua dung, MAPPING §4.1 "Log ket qua tai may").
+# DOI BANG PARTITION = phai nap USB mot lan; OTA khong tu chuyen.
+#
+# Name,         Type, SubType,  Offset,   Size,     Flags
+nvs,            data, nvs,      0x9000,   0x6000
+otadata,        data, ota,      0xf000,   0x2000
+phy_init,       data, phy,      0x11000,  0x1000
+ota_0,          app,  ota_0,    0x20000,  0x300000
+ota_1,          app,  ota_1,    ,         0x300000
+assets,         data, spiffs,   ,         0x100000
+results,        data, spiffs,   ,         0x200000

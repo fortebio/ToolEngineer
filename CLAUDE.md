@@ -14,6 +14,8 @@
 | `firmware/rapidplus/` | Firmware Forte Rapid+ (PlatformIO, ESP32) — fleet ~109 máy | `firmware/rapidplus/CLAUDE.md` |
 | `firmware/rapidplus-prod/` | Firmware Rapid+ viết lại theo IEC 62304 (dev, chưa nạp máy) | `firmware/rapidplus-prod/CLAUDE.md` |
 | `firmware/reader/` | Firmware Forte Rapid Reader v2.6.6 | `firmware/reader/README.md` |
+| `firmware/rapid4p/` | Firmware **Forte Rapid4P** (RAPID READER 4 SLOT) — ESP32-P4C5 + LCD 4.3" DSI + touch, **ESP-IDF native** (sản phẩm đầu tiên không PlatformIO, `build_system: idf` trong registry). Build `BUILD_EXIT=0`, chưa nạp máy thật, chưa có bo cảm biến | `firmware/rapid4p/CLAUDE.md`, `README.md` |
+| `firmware/maping new product/` | Khảo sát Rapid4P: phần cứng tham chiếu `firmware-vimate-p4/` (dự án ngoài — chỉ đọc, `AGENTS.md`/`README-P4.md` là nhật ký bring-up của board) + firmware gốc `FBT-ReaderPlus-1.0/` (Arduino) | `MAPPING-Rapid4P.md` (mapping + quyết định §5), `firmware-vimate-p4/docs/HARDWARE-PINOUT.md` |
 | `legacy/sheet/` | Apps Script `getData.js` (**CÒN SỐNG**: fw ≤ v2.4.5 + reader vẫn POST) · `userAuth.js` (đường lùi đăng nhập) | `legacy/sheet/README.md` |
 | `legacy/server-cf/` | Port Cloudflare Workers, chưa deploy | `legacy/server-cf/README.md` |
 | `tools/` | `registry_check.py` (kiểm registry đối chiếu code thật) · `monorepo/assemble.ps1` (script đã lắp repo này) | — |
@@ -54,6 +56,8 @@ Hệ NGOÀI repo (chỉ khai báo hợp đồng trong `system/products.yaml` ›
   tạo dưới `%LOCALAPPDATA%` Python (và `git` con của nó) không nhìn thấy → việc cần Python + git chung chỗ
   (git-filter-repo…) làm dưới `%TEMP%`. Venv test server: `%LOCALAPPDATA%\fbt-localtest\venv` (pytest,
   pyyaml, jsonschema); Postgres portable :5433 + web local qua `server\scripts\localtest.ps1`.
+  **Tool shell của AI KHÔNG thấy venv đó** (cùng ảo hoá) → `registry_check.py` chạy bằng python hệ thống
+  sau `python -m pip install --user pyyaml jsonschema` (đã cài 2026-09-17).
 - Node 24, Docker 29 (daemon không tự chạy), Git 2.50 (`git subtree` có; `git filter-repo` cài
   `pip install --user git-filter-repo`, gọi `python -m git_filter_repo`).
 
@@ -64,6 +68,7 @@ python tools\registry_check.py                                   # registry đ�
 Set-Location server; & "$env:LOCALAPPDATA\fbt-localtest\venv\Scripts\python.exe" -m pytest tests -q
 Set-Location apps\fbt_rapid; & C:\Users\ADM\fvm\versions\3.44.1\bin\flutter.bat analyze lib/ 2>&1 | Select-String "error|warning|No issues"
 Set-Location firmware\rapidplus; & "$env:USERPROFILE\.platformio\penv\Scripts\pio.exe" run -e esp32dev
+Set-Location firmware\rapid4p; cmd /c scripts\build.bat                 # ESP-IDF 5.5.1 tại C:\Espressif → BUILD_EXIT=0
 ```
 
 ## Gotchas môi trường máy dev (chuyển từ CLAUDE.md app 2026-09-15 — đã gặp thật)

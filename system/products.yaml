@@ -137,6 +137,39 @@ products:
       features: []
     endpoints: [google_apps_script]
 
+  # Reader 4 slot trên phần cứng ESP32-P4C5 + LCD 4.3" (board tham chiếu của firmware-vimate-p4).
+  # Khảo sát + quyết định: firmware/maping new product/MAPPING-Rapid4P.md. Firmware ESP-IDF
+  # native (build_system: idf) — sản phẩm đầu tiên không dùng PlatformIO.
+  rapid4p:
+    name: Forte Rapid4P (Rapid Reader 4 Slot)
+    status: dev
+    chip: esp32p4
+    id_prefix: R4P                # TODO xác nhận với ERP device_registry — firmware tự khai product nên không cần legacy prefix
+    legacy_prefix_default: false
+    hw: [P4C5-43]                 # board tham chiếu; bo sản xuất (có schematic bo cảm biến) sẽ thêm
+    firmware:
+      dir: firmware/rapid4p
+      build_system: idf
+      envs: [default]             # sdkconfig.defaults (board P4_43LCD chọn trong đó)
+      build_flags: [RAPID4P_BOARD_P4_43LCD]
+      version_source:
+        file: main/rapid4p.h
+        regex: 'R4P_FW_VERSION\s+"(v[^"]+)"'
+      image_name: "rapid4p_{ver}.bin"
+      legacy_name_locked: false
+      tag_prefix: fw/rapid4p/
+      ota: true                   # GET /ota/check?product=rapid4p&hw=… (network/ota_client.c)
+      embeds_image_tag: false     # TODO: nhúng FBTIMG1 khi server bắt buộc cho kho rapid4p
+    channels:
+      optical_slots: 4
+      temp_channels: 0
+    payload:
+      contract: null              # TODO P2: system/contracts/ingest-rapid4p.schema.json (network/result_upload.h mô tả)
+      array_fields: [slot_value, slot_result, slot_positive, calib_min, calib_max]   # 4 phần tử — KHÔNG trùng ARRAY_FIELDS 10 của Rapid+
+    app:
+      features: []
+    endpoints: [engineer_ingest, engineer_ota_check]
+
   readermax:
     name: Forte Reader Max
     status: planned
@@ -156,6 +189,7 @@ external_systems:
     # ERP có bảng device_registry (instrument_id, device_sku_id, hardware_version, software_version)
     # → nguồn danh tính máy THỨ HAI bên cạnh Engineer Server. P2 chốt nguồn sự thật.
     device_registry: true
+    # Feed Engineer -> ERP (ERP keo /erp/v1, chi doc): ke hoach docs/plan/erp-feed-engineer-server.md
   google_apps_script:
     name: Google Apps Script getData.js (Sheet + Drive)
     source: legacy/sheet/getData.js

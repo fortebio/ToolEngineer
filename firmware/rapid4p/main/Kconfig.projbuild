@@ -1,0 +1,41 @@
+menu "Rapid4P Configuration"
+
+    config RAPID4P_SERVER_BASE
+        string "Engineer Server base URL"
+        default "https://hub.fortebio.tech"
+        help
+            Engineer Server (server/). Máy gọi GET /ota/check và POST kết quả tại đây.
+            Token Bearer KHÔNG nằm trong firmware: nhập qua portal SoftAP, lưu NVS.
+            Local test: http://192.168.x.x:8080 (server/scripts/localtest.ps1).
+
+    config RAPID4P_OTA_INTERVAL_SEC
+        int "OTA check interval (seconds)"
+        default 21600
+        range 60 86400
+
+    config RAPID4P_SCREEN_SLEEP_SEC
+        int "Backlight off after idle (seconds, 0 = never)"
+        default 300
+
+    choice RAPID4P_BOARD
+        prompt "Hardware board"
+        default RAPID4P_BOARD_P4_43LCD
+
+        config RAPID4P_BOARD_P4_43LCD
+            bool "FBT ESP32-P4C5 + 4.3in LCD ST7102 MIPI-DSI 480x800 (Rapid4P bring-up)"
+            depends on IDF_TARGET_ESP32P4
+            help
+                Board tham chiếu Rapid4P (main/boards/board_esp32p4_43lcd.h,
+                docs/HARDWARE-PINOUT.md). Bo cảm biến 4 slot cắm JP1.
+    endchoice
+
+    config RAPID4P_DIAG_ENABLE
+        bool "Enable periodic diag heap log"
+        default y
+
+    config RAPID4P_DIAG_INTERVAL_SEC
+        int "Diag interval (seconds)"
+        default 60
+        depends on RAPID4P_DIAG_ENABLE
+
+endmenu

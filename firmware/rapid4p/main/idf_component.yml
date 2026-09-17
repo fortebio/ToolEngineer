@@ -1,0 +1,19 @@
+# IDF Component Manager — resolve khi build. Version ghim theo cây vimate-p4 đã chạy
+# thật trên board (ESP-IDF 5.5.1); nâng cái nào phải build + soak lại.
+dependencies:
+  idf:
+    version: ">=5.5.0"
+
+  lvgl/lvgl:
+    version: "~9.6.0"   # 17/09/2026: build dau tien resolve 9.6.0 - ghim de tai tao duoc
+  espressif/esp_lvgl_port:
+    # GHIM 2.8.x: 2.9.0 đổi callback DPI theo IDF 5.5.2 (on_frame_buf_complete) → không
+    # biên dịch được với 5.5.1. Nâng ^2.9 CHỈ khi đã nâng ESP-IDF >= 5.5.2.
+    version: "~2.8.0"
+
+  # ESP32-P4 không có radio: WiFi qua ESP32-C5 trong module, ESP-Hosted SDIO slot 1.
+  # esp_hosted 2.12.x: bản 1.4.x không cho SDIO với slave C5.
+  espressif/esp_wifi_remote:
+    version: "0.14.*"
+  espressif/esp_hosted:
+    version: "2.12.*"

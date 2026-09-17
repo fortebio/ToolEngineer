@@ -70,6 +70,7 @@
         "image_name": { "type": "string", "pattern": "\\{ver\\}" },
         "legacy_name_locked": { "type": "boolean" },
         "tag_prefix": { "type": "string", "pattern": "^fw/[a-z0-9-]+/$" },
+        "build_system": { "enum": ["platformio", "idf"], "default": "platformio", "description": "platformio: envs = [env:…] trong platformio.ini. idf: ESP-IDF native (idf.py); envs = tên profile sdkconfig.defaults.<env> ('default' = chỉ sdkconfig.defaults), cần CMakeLists.txt." },
         "embeds_image_tag": { "type": "boolean" },
         "ota": { "type": "boolean" }
       },
@@ -97,6 +98,7 @@
         "status": { "enum": ["production", "dev", "legacy", "planned"] },
         "variant_of": { "type": "string", "pattern": "^[a-z0-9-]{1,24}$" },
         "id_prefix": { "type": "string", "pattern": "^[A-Z][A-Z0-9]{1,5}$" },
+        "chip": { "type": "string", "description": "Ghi đè defaults.chip (vd esp32p4)." },
         "legacy_prefix_default": { "type": "boolean" },
         "hw": { "type": "array", "items": { "type": "string" } },
         "firmware": { "oneOf": [ { "$ref": "#/$defs/firmware" }, { "type": "null" } ] },
