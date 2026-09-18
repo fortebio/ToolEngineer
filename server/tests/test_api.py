@@ -28,6 +28,7 @@ DATA = Path(os.environ["FBT_DATA_DIR"])
 OTA = Path(os.environ["FBT_OTA_DIR"])
 ATE = Path(os.environ["FBT_ATE_DIR"])
 SAMPLE = json.loads((ROOT / "docs" / "data_sample" / "data_RPL.json").read_text(encoding="utf-8"))
+SAMPLE_READER = json.loads((ROOT / "docs" / "data_sample" / "data_reader.json").read_text(encoding="utf-8"))
 client = TestClient(app, raise_server_exceptions=False)
 AUTH = {"Authorization": "Bearer testtok"}
 
@@ -67,6 +68,27 @@ def test_json_hong_400():
 def test_validate_400():
     assert client.post("/", json={"x": 1}, headers=AUTH).status_code == 400
     assert client.post("/", json=dict(SAMPLE, CT_value=[1.0] * 9), headers=AUTH).status_code == 400
+
+
+def test_ingest_reader_theo_hop_dong():
+    """Reader (1 khe) gửi theo system/contracts/ingest-reader.schema.json — server nhận KHÔNG cần sửa code
+    (catch-all + validate N khe với slots=1). Mẫu phải qua chính schema đó, để hợp đồng ↔ mẫu ↔ server
+    không lệch nhau âm thầm; firmware có guard riêng đối chiếu code với `required` của schema."""
+    import jsonschema
+    schema = json.loads((ROOT.parent / "system" / "contracts" / "ingest-reader.schema.json").read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(schema).validate(SAMPLE_READER)
+    r = client.post("/reader/results", json=SAMPLE_READER, headers=AUTH)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True and body["file"].startswith("RE0012_")
+    saved = json.loads((DATA / body["file"]).read_text(encoding="utf-8"))
+    assert saved == SAMPLE_READER and saved["type_Upload"] == "reader_result"
+    # Mảng khe sai độ dài so với slots=1 → 400 ngay, không lặng lẽ vào DB
+    assert client.post("/reader/results", json=dict(SAMPLE_READER, slot_result=[805, 814, 817]), headers=AUTH).status_code == 400
+    # Lần đo lỗi cảm biến (quyết định 2026-09-18: vẫn gửi) cũng phải qua schema và server
+    err = dict(SAMPLE_READER, verdict="E", slot_positive=[False], readings_ok=[True, False, True], readings=[805, 0, 817])
+    jsonschema.Draft202012Validator(schema).validate(err)
+    assert client.post("/reader/results", json=err, headers=AUTH).status_code == 200
 
 
 def test_chunked_411():

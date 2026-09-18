@@ -98,5 +98,12 @@ tailscale status ; tailscale ip -4
   `ota/` TỰ dời lúc restart — code + test xong 2026-09-11 (81/81 pass, xem
   [docs/history/2026-09-11.md](docs/history/2026-09-11.md)); **ĐÃ DEPLOY 2026-09-12** — `openapi.json`
   production khớp hệt code local (30/30 route kể cả `/monitor` ghép lại từ nhánh Giám sát); web `/app/` deploy 16:26 cùng ngày
+- [x] **Quản lý MÁY trong OTA nhiều sản phẩm — B1–B3** ([docs/plan/ota-quan-ly-may-nhieu-san-pham.md](docs/plan/ota-quan-ly-may-nhieu-san-pham.md)):
+  máy thuộc kho nào = tự khai > **gán tay `devices.json`** (`PUT /devices/{id}/product`, hàng loạt
+  `PUT /devices/product?ids=`) > tiền tố > legacy; `/devices` hợp nhất `sessions ∪ fw_seen ∪ devices.json`
+  và trả khối `ota{state: on|offered|waiting|skipped|unknown|none}` tính ở server; `/ota/check` ghi bản đã
+  mời vào `fw_seen`; `GET /ota/{product}/progress`; khoá upload (hết lách 409) + `md5` manifest; thẻ từ
+  `esp_app_desc_t` cho ảnh ESP-IDF (rapid4p upload không cần tên); `OTA_REQUIRE_TAG` theo sản phẩm; ghim
+  `stale` + `devices` mỗi kho — code + test xong 2026-09-18 (116/116), **CHƯA deploy**
 
 > Xem chi tiết + thứ tự làm trong [docs/plan/KE_HOACH_PHAT_TRIEN.md](docs/plan/KE_HOACH_PHAT_TRIEN.md).

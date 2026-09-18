@@ -11,6 +11,12 @@
 > có thẻ); (2) di cư kho phẳng chạy TỰ ĐỘNG ở lifespan startup, script chỉ để `--dry-run`;
 > (3) thêm `PUT /ota/{product}` (upload không tên, server đặt tên từ thẻ) và `product_effective`
 > ở `/devices`; (4) `/ota/check` với `product` sai cú pháp → `reason:"product"` (fail-closed).
+>
+> **2026-09-18 — phần MÁY (máy thuộc kho nào, đã lên/được mời/chưa poll) tách thành phương án riêng phía
+> server: `server/docs/plan/ota-quan-ly-may-nhieu-san-pham.md`** (gán tay `devices.json` cho fleet không
+> tự khai, `/devices` hợp nhất + `ota.state` tính ở server, `offered`, `/progress`, thẻ `esp_app_desc_t`).
+> Giai đoạn 2 của app nên đọc `ota.state` từ server thay vì tự so version (regex hiện cắt hậu tố → sai
+> với `v2.4.5AT1`).
 
 ## 0. "Nhiều production" nghĩa là gì trong tài liệu này
 

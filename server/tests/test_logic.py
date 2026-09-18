@@ -45,6 +45,13 @@ def test_validate():
     assert validate({**r4p, "slots": 0}) is not None
     assert validate({**r4p, "slots": True}) is not None                      # bool không phải int
     assert validate({"id_device": "R4P01", "slots": 4, "slot_value": [1] * 4}) is None   # 4 khe vẫn hợp lệ
+    # Reader 1 khe (system/contracts/ingest-reader.schema.json, 2026-09-18): cùng quy ước, slots ghim 1;
+    # `readings` (3 số đọc thô) KHÔNG thuộc SLOT_ARRAY_FIELDS nên không bị đòi = slots.
+    rdr = {"id_device": "RE0012", "slots": 1, "slot_result": [812], "slot_positive": [True],
+           "calib_min": [0], "calib_max": [3000], "readings": [805, 814, 817], "readings_ok": [True] * 3}
+    assert validate(rdr) is None
+    assert validate({**rdr, "slot_result": [805, 814, 817]}) is not None   # bug firmware gửi 3 số thô vào slot_result → 400 ngay
+    assert validate({**rdr, "calib_min": []}) is not None
 
 
 def test_canonical_sha256():

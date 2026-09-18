@@ -453,6 +453,68 @@ def parse_image_tags(raw: bytes) -> list[dict]:
     return out
 
 
+# Thẻ nhận dạng THỨ HAI: `esp_app_desc_t` mà MỌI ảnh ESP-IDF (rapid4p, và mọi sản phẩm
+# `build_system: idf` sau này) tự mang ở offset 0x20 — build sinh ra, không ai gõ tay:
+#   magic_word u32 @0x20 = 0xABCD5432 · version[32] @0x30 (CMake `project(... VERSION)`)
+#   · project_name[32] @0x50 (tên trong `project(...)`). Đã đọc từ build/rapid4p.bin thật.
+# Ảnh Arduino (Rapid+, Reader) cũng có struct này nhưng project_name là của core, không
+# phải khoá sản phẩm → [parse_app_desc] trả None và đường FBTIMG1 vẫn là đường của chúng.
+APP_DESC_MAGIC = 0xABCD5432
+_APP_DESC_OFF = 0x20
+
+
+def _cstr(b: bytes) -> str:
+    return b.split(b"\0", 1)[0].decode("ascii", "replace").strip()
+
+
+def parse_app_desc(raw: bytes) -> dict | None:
+    """`{"product", "ver", "hw": None, "raw"}` nếu ảnh mang `esp_app_desc_t` với
+    `project_name` là KHOÁ SẢN PHẨM hợp lệ; None nếu không (ảnh Arduino, ảnh lạ, ảnh cụt).
+    `ver` chuẩn về `v<x.y.z>` (CMake ghi không có chữ v) để trùng chuỗi firmware khai."""
+    if len(raw) < _APP_DESC_OFF + 0x70:
+        return None
+    if int.from_bytes(raw[_APP_DESC_OFF:_APP_DESC_OFF + 4], "little") != APP_DESC_MAGIC:
+        return None
+    version = _cstr(raw[_APP_DESC_OFF + 0x10:_APP_DESC_OFF + 0x30])
+    project = _cstr(raw[_APP_DESC_OFF + 0x30:_APP_DESC_OFF + 0x50])
+    product = product_key(project)
+    if product is None or not version:
+        return None
+    ver = version if version[:1] in ("v", "V") else "v" + version
+    return {"product": product, "ver": ver, "hw": None,
+            "raw": f"esp_app_desc;project={project};version={version}"}
+
+
+def image_tag(raw: bytes, products=None) -> tuple[dict | None, str | None]:
+    """Thẻ DUY NHẤT của một ảnh + nguồn: `(tag, "fbtimg" | "app_desc")`, `(None, None)`
+    nếu không có. FBTIMG1 thắng app_desc. ≥ 2 thẻ FBTIMG1 KHÁC nhau → ValueError (ảnh dị dạng).
+
+    [products] = tập khoá kho ĐƯỢC PHÉP coi `project_name` là thẻ (kho đang tải vào + các
+    kho đã có). Bắt buộc, không phải cầu kỳ: core Arduino nhúng `project_name =
+    "arduino-lib-builder"` vào MỌI ảnh Rapid+/Reader (đọc từ libapp_update.a của
+    framework-arduinoespressif32) — chuỗi đó hợp lệ theo regex khoá sản phẩm, nhận vô điều
+    kiện là mọi upload Rapid+ bị 400 "ảnh tự khai product 'arduino-lib-builder'". None = nhận
+    mọi project_name hợp lệ (chỉ cho test đơn vị)."""
+    tags = parse_image_tags(raw)
+    if len(tags) > 1:
+        raise ValueError("ảnh chứa nhiều thẻ nhận dạng khác nhau")
+    if tags:
+        return tags[0], "fbtimg"
+    d = parse_app_desc(raw)
+    if d and (products is None or d["product"] in products):
+        return d, "app_desc"
+    return None, None
+
+
+def norm_version(v) -> str:
+    """Chuẩn hoá version để so BẰNG/KHÁC: bỏ khoảng trắng, hạ hoa/thường, bỏ MỘT chữ `v`
+    đầu — và GIỮ HẬU TỐ (`v2.4.5AT1` → `2.4.5at1`): hậu tố là build khác, không dám coi
+    là cùng bản. Đây là phép so duy nhất của cả hệ (app/CSV đọc `ota.state` từ server, không
+    tự so nữa — regex cũ của app cắt hậu tố nên tính ngược với fleet `v2.4.5AT1`)."""
+    s = str(v or "").strip().lower()
+    return s[1:] if s.startswith("v") else s
+
+
 _BIN_VER_RE = re.compile(r"^[a-z0-9-]+_[vV](?P<ver>[0-9][A-Za-z0-9._-]*?)\.bin$")
 
 

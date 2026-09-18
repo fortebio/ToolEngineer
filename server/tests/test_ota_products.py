@@ -4,6 +4,7 @@ config qua hàm nên vá được sau import).
 
 Chạy: pytest tests/test_ota_products.py -q
 """
+import hashlib
 import json
 import os
 import sys
@@ -373,3 +374,41 @@ def test_lifespan_khong_chet_khi_di_cu_loi(kho, monkeypatch):
     from app.main import app as _app
     with TC(_app) as c:  # `with` mới chạy lifespan
         assert c.get("/").json()["ok"] is True
+
+
+# --- hợp đồng với firmware FBT-Reader v2.6.8 (firmware/FBT-Reader/src/updateOTA.cpp) ------------
+# Ghim đúng 3 request firmware Reader gửi, để đổi server mà lệch là đỏ ở đây chứ không phải
+# ngoài đồng. Reader: thẻ `hw=` RỖNG (registry hw: [] chưa chốt), so `ver` == FIRMWARE_VERSION.
+
+def test_hop_dong_firmware_reader(kho, monkeypatch):
+    monkeypatch.setattr(config, "LEGACY_PRODUCT_BY_PREFIX", {"RDR": "reader", "RPL": "rapidplus"})
+    raw = img("reader", "v2.6.8", hw="")  # đúng thẻ firmware nhúng: FBTIMG1;product=reader;ver=v2.6.8;hw=;;
+    # 1. upload KHÔNG tên: server đặt tên từ thẻ; hw rỗng → None (không lọc)
+    r = put_bin("/ota/reader", raw)
+    assert r.status_code == 200 and r.json()["name"] == "reader_v2.6.8.bin", r.text
+    assert r.json()["ver"] == "v2.6.8" and r.json()["hw"] is None
+    # cùng ảnh đẩy nhầm kho rapidplus → 400 (chặn nạp ảnh Reader lên 109 máy Rapid+)
+    assert put_bin("/ota/rapidplus", raw).status_code == 400
+    assert client.put("/ota/reader/target/reader_v2.6.8.bin", headers=AUTH).status_code == 200
+
+    # 2. máy v2.6.7 hỏi đúng query của updateOTA.cpp (hw= rỗng, không updated)
+    j = client.get("/ota/check?device=RE0012&ver=v2.6.7&product=reader&hw=", headers=AUTH).json()
+    assert j["update"] is True and j["ver"] == "v2.6.8" and j["version"] == "reader_v2.6.8.bin"
+    assert j["url"].endswith("/ota/reader/reader_v2.6.8.bin") and j["size"] == len(raw)
+    # 3. máy vừa nạp xong báo &updated=1: server ghi mốc how=update, product=reader vào fw_seen
+    j2 = client.get("/ota/check?device=RE0012&ver=v2.6.8&product=reader&hw=&updated=1", headers=AUTH).json()
+    assert j2["ver"] == "v2.6.8"  # firmware tự so ver == FirmwareVer → "đang là bản mới nhất"
+    assert _fw_seen()["RE0012"] == {**_fw_seen()["RE0012"], "version": "v2.6.8", "product": "reader", "hw": ""}
+    from app.main import _fw_log
+    assert _fw_log()["RE0012"][-1] == {**_fw_log()["RE0012"][-1], "version": "v2.6.8", "how": "update"}
+    # 4. tải .bin: Bearer bắt buộc, x-MD5 để HTTPUpdate tự kiểm
+    path = j["url"].split("testserver", 1)[1]
+    assert client.get(path).status_code == 401
+    d = client.get(path, headers=AUTH)
+    assert d.status_code == 200 and d.content == raw
+    assert d.headers["x-md5"] == hashlib.md5(raw).hexdigest()
+    # 5. sai token → 401 (firmware hiện "host -> 401" rồi thử host 2); không khai product → kho theo tiền tố
+    assert client.get("/ota/check?device=RE0012&ver=v2.6.7&product=reader", headers={"Authorization": "Bearer sai"}).status_code == 401
+    # máy KHÔNG khai product (fleet ≤ v2.6.7 không bao giờ gọi server, nhưng nếu có) → tiền tố
+    # "RE" không nằm trong OTA_LEGACY_PRODUCT_BY_PREFIX → kho legacy rapidplus (trống) → không mời
+    assert client.get("/ota/check?device=RE0012&ver=v2.6.7", headers=AUTH).json() == {"update": False, "reason": "none"}

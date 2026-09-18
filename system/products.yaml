@@ -111,31 +111,45 @@ products:
       embeds_image_tag: true      # bắt buộc ngay từ đầu — không có fleet cũ phải chiều
 
   # ---------------------------------------------------------------------------------------
+  # firmware/FBT-Reader là REPO GIT RIÊNG (github.com/wuanpham/FBT-Reader) nằm lồng trong cây
+  # monorepo và KHÔNG được monorepo track — xem docs/history/2026-09-18-reader-mot-nha.md.
+  # Trước 2026-09-18 khoá này trỏ vào firmware/reader: bản chép v2.6.6 đã cũ, nay đã xoá.
   reader:
     name: Forte Rapid Reader
     status: production
-    id_prefix: RDR                # TODO xác nhận với ERP device_registry (bảng device_registry.instrument_id)
+    id_prefix: RE                 # chốt 2026-09-18 = mặc định firmware (Bluetooth.cpp id_device "RE"); máy chưa cấu hình gửi "RE-"+6 hex cuối MAC
+    # Từ v2.6.8 firmware TỰ KHAI ?product=reader ở /ota/check nên tiền tố chỉ còn để xếp máy ≤ v2.6.7
+    # (không bao giờ gọi server) và cho /devices. Vẫn giữ true vì chưa sản phẩm nào khác nhận RE.
     legacy_prefix_default: true
-    hw: []                        # TODO
+    hw: []                        # TODO — firmware gửi hw= RỖNG (define.h HW_VERSION "") tới khi có người chốt PCB; điền đây VÀ define.h cùng lúc
     firmware:
-      dir: firmware/reader
+      dir: firmware/FBT-Reader
       envs: [esp32dev]
       version_source:
         file: src/define.h
-        regex: 'FirmwareVer\s*=\s*\{?\s*"(v[^"]+)"'
-      image_name: "reader_{ver}.bin"
+        # v2.6.8: FirmwareVer (String) khởi tạo từ macro FIRMWARE_VERSION — một nguồn duy nhất cho
+        # phép so OTA (`ver` server == FIRMWARE_VERSION), tên ảnh và thẻ FBTIMG1.
+        regex: '#define\s+FIRMWARE_VERSION\s+"(v[^"]+)"'
+      image_name: "reader_{ver}.bin"   # = server expected_bin_name(product≠legacy) → "<product>_v<ver>.bin"
       legacy_name_locked: false
       tag_prefix: fw/reader/
-      ota: false                  # v2.6.6 chưa có OTA
-      embeds_image_tag: false
+      # v2.6.8 (2026-09-18): OTA qua Engineer Server — GET /ota/check?device&ver&product=reader&hw[&updated=1],
+      # Bearer nhập qua cổng web (EEPROM, KHÔNG nhúng .bin), 2 host (hub.fortebio.tech → fbt.basa-luma.ts.net),
+      # poll 6 h; so `ver` == FIRMWARE_VERSION khớp chính xác. ≤ v2.6.7: repo GitHub wuanpham/FBTRapidReaderOTA
+      # nhánh <FirmwareVer>/updateOTA.json — đợt chuyển giao đầu tiên vẫn phải đi qua đó đúng một lần.
+      # Nạp .bin từ trình duyệt (POST /api/update) giữ nguyên.
+      ota: true
+      embeds_image_tag: true      # v2.6.8: "FBTIMG1;product=reader;ver=<ver>;hw=;;" (src/updateOTA.cpp FBT_IMAGE_TAG)
     channels:
-      optical_slots: null         # TODO — chưa chốt, KHÔNG điền bừa
-      temp_channels: null
+      optical_slots: 1              # chốt 2026-09-18: numSensor = 1 (TCS34725), mỗi mẫu đọc numSampling = 3 lần → payload readings[3]
+      temp_channels: 0
     payload:
-      contract: null
+      contract: system/contracts/ingest-reader.schema.json   # v2.6.8, kế hoạch firmware/FBT-Reader/docs/plan/2026-09-18-gui-du-lieu-engineer-server.md
+      array_fields: [slot_result, slot_positive, calib_min, calib_max]   # cùng tên mảng rapid4p, `slots` ghim 1 → server/app xử lý như rapid4p 1 khe
     app:
       features: []
-    endpoints: [google_apps_script]
+    # engineer_ingest (v2.6.8): POST /reader/results song song với Sheet, payload Sheet giữ nguyên chữ.
+    endpoints: [engineer_ingest, engineer_ota_check, google_apps_script]
 
   # Reader 5 slot (4 → 5 từ 2026-09-17, docs/plan/rapid4p-5-slot.md; khoá `rapid4p` GIỮ vì chưa phát hành —
   # Q1 đổi tên thương mại còn mở) trên phần cứng ESP32-P4C5 + LCD 4.3" (board tham chiếu của firmware-vimate-p4).

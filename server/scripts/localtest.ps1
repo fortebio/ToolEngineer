@@ -17,6 +17,13 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# Bo localtest duoc dung 2026-09-04 tu phien AI bi Windows "ao hoa" AppData\Local: thu muc that nam o
+# %LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\fbt-localtest (sandbox goi Claude desktop).
+# Khong thay o duong mac dinh thi tu roi sang do; van co the -Base tuong minh.
+if (-not (Test-Path "$Base\pgsql\bin\pg_ctl.exe")) {
+    $alt = "$env:LOCALAPPDATA\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\fbt-localtest"
+    if (Test-Path "$alt\pgsql\bin\pg_ctl.exe") { $Base = $alt; Write-Output "Base -> $Base (sandbox goi Claude)" }
+}
 $server = Split-Path -Parent $PSScriptRoot          # ...\server
 $mono = Split-Path -Parent $server                  # gốc MONOREPO (app ở apps\fbt_rapid, là anh em của server/)
 $pg = "$Base\pgsql\bin"
@@ -38,10 +45,21 @@ if (-not (Test-Path "$venv\Scripts\python.exe")) {
     & "$venv\Scripts\python.exe" -m pip install -q fastapi uvicorn httpx "psycopg[binary]" pytest
 }
 
-# Postgres: bat neu chua chay
+# Postgres: bat neu chua chay. postmaster.pid con sot (phien truoc tat may khong stop) lam pg_ctl in canh bao
+# "another server might be running" ra stderr -> voi $ErrorActionPreference=Stop la script CHET truoc khi bat
+# server (dinh 2026-09-18). Status bao "no server running" thi don pid cu roi moi start, va start voi
+# ErrorAction Continue.
 & "$pg\pg_ctl.exe" -D "$Base\pgdata" status *> $null
 if ($LASTEXITCODE -ne 0) {
-    & "$pg\pg_ctl.exe" -D "$Base\pgdata" -o "-p $PgPort" -l "$Base\pg.log" -w start
+    if (Test-Path "$Base\pgdata\postmaster.pid") {
+        Move-Item -Force "$Base\pgdata\postmaster.pid" "$Base\pgdata\postmaster.pid.stale"
+        Write-Output "da don postmaster.pid cu"
+    }
+    $ErrorActionPreference = "Continue"
+    & "$pg\pg_ctl.exe" -D "$Base\pgdata" -o "-p $PgPort" -l "$Base\pg.log" -w start 2>&1 | Out-String | Write-Output
+    $ErrorActionPreference = "Stop"
+    & "$pg\pg_ctl.exe" -D "$Base\pgdata" status *> $null
+    if ($LASTEXITCODE -ne 0) { throw "Postgres khong len - xem $Base\pg.log" }
 }
 
 # Server: tat ban cu tren cung port roi bat lai voi env local
@@ -55,6 +73,9 @@ $env:FBT_LOGS_DIR = "$Base\logs"
 $env:FBT_ATE_DIR = "$Base\ate"          # ho so tram ATE (tab San xuat)
 $env:FBT_WEB_DIR = "$mono\apps\fbt_rapid\build\web"
 $env:RECEIVER_TOKEN = "localtok"
+$env:OTA_ADMIN_TOKEN = "localtok"          # cung token: app dang nhap root/cskh deu ghi OTA duoc o local
+$env:OTA_LEGACY_PRODUCT_BY_PREFIX = "RDR=reader,RPL=rapidplus"   # giong deploy/fbt-receiver.env.example
+$env:OTA_REQUIRE_TAG = "rapid4p"           # kho rapid4p bat buoc the (esp_app_desc) nhu production du kien
 $env:FBT_DB = "dbname=mydb host=127.0.0.1 port=$PgPort user=postgres connect_timeout=5"
 $env:PYTHONIOENCODING = "utf-8"
 $proc = Start-Process -FilePath "$venv\Scripts\python.exe" `

@@ -12,15 +12,22 @@
 ```
 app/                   # Package service (FastAPI) — chạy: uvicorn app.main:app
   config.py            #   Cấu hình từ biến môi trường (DATA_DIR, TOKEN, DB, OTA_DIR, LOGS_DIR, ATE_DIR,
-                       #   OTA_LEGACY_PRODUCT[_BY_PREFIX], OTA_REQUIRE_TAG...)
+                       #   OTA_LEGACY_PRODUCT[_BY_PREFIX], OTA_REQUIRE_TAG = danh sách kho | "1" → require_tag(product))
   logic.py             #   Hàm thuần: safe_name, check_auth, validate, hash (scrypt + sha256$ legacy Sheet), parse_*,
                        #   + hồ sơ ATE: validate/normalize_ate_record, ate_stats (FPY/Pareto), DEFAULT_ATE_LIMITS
                        #   + OTA: product_key (khoá [a-z0-9-], cấm check|products|target), parse_image_tags (thẻ
-                       #   `FBTIMG1;product=;ver=;hw=;;` nhúng trong .bin), ver_from_name, expected_bin_name
+                       #   `FBTIMG1;product=;ver=;hw=;;` nhúng trong .bin), parse_app_desc (esp_app_desc_t @0x20 của ảnh
+                       #   ESP-IDF), image_tag(raw, products) (FBTIMG1 > app_desc, app_desc chỉ khi project_name ∈ kho
+                       #   cho phép — core Arduino nhúng "arduino-lib-builder"), norm_version (so version GIỮ hậu tố),
+                       #   ver_from_name, expected_bin_name
   ota.py               #   KHO OTA THEO SẢN PHẨM (2026-09-11): OTA_DIR/products/<product>/{*.bin, *.bin.json manifest,
-                       #   target.json}; resolve(product, device, hw) = ghim máy > bản chung, lọc hw, ghim mất file → None;
-                       #   upload (đọc thẻ, server đặt tên, cùng tên khác sha256 → 409); migrate_legacy (gốc → products/
-                       #   <LEGACY_PRODUCT>, chạy ở LIFESPAN startup). Đọc config qua HÀM (test vá được). OtaError → HTTPException
+                       #   target.json}; resolve(product, device, hw, cache) = ghim máy > bản chung, lọc hw, ghim mất file → None;
+                       #   upload (đọc thẻ, server đặt tên, cùng tên khác sha256 → 409, trong _UPLOAD_LOCK + tmp duy nhất);
+                       #   migrate_legacy (gốc → products/<LEGACY_PRODUCT>, chạy ở LIFESPAN startup). Đọc config qua HÀM
+                       #   (test vá được). OtaError → HTTPException. QUẢN LÝ MÁY (2026-09-18): devices.json gán tay
+                       #   (read_devices/assign_product/unassign_product), product_for(device, declared) = tự khai > gán tay >
+                       #   tiền tố > legacy (+conflict), device_status → ota.state ∈ OTA_STATES (on|offered|waiting|skipped|
+                       #   unknown|none — MỘT chỗ so version, giữ hậu tố), md5_for, listing/products_summary(effective) → stale/devices
   monitor.py           #   Số liệu tab Giám sát (root): /proc + statvfs + db.monitor_flow, KHÔNG psutil; route GET /monitor
                        #   gác ota_admin (nhánh ota-rollout-docs-tests 28/08 — ghép lại vào main 2026-09-12)
   db.py                #   Truy cập PostgreSQL: insert_session + query đọc + CRUD bảng users + monitor_flow
@@ -33,17 +40,26 @@ app/                   # Package service (FastAPI) — chạy: uvicorn app.main:
                        #   OTA: /ota/check?device&ver&updated&product&hw · GET /ota[?product=] · GET /ota/products ·
                        #   route CŨ không {product} (= kho LEGACY_PRODUCT, app đang phát hành gọi) · route MỚI
                        #   PUT /ota/{product}[/{file}] (không tên = server đặt từ thẻ) · PUT|DELETE /ota/{product}/target[/{f}]
-                       #   · DELETE|GET /ota/{product}/{file}. /devices trả thêm product/hw/product_effective.
+                       #   · DELETE|GET /ota/{product}/{file} · GET /ota/{product}/progress (trước /{product}/{file}).
+                       #   /devices = _device_rows() HỢP NHẤT sessions ∪ fw_seen ∪ devices.json + product_assigned/
+                       #   product_effective/product_conflict/last_check + khối ota{state…}; PUT /devices/product?ids= (hàng
+                       #   loạt, trước /devices/{device}/…) · PUT|DELETE /devices/{device}/product?clean=. /ota/check ghi
+                       #   fw_seen[id].offered = bản vừa mời (_fw_report), kho theo ota.product_for.
 scripts/               # CLI dùng lại logic của app/
   migrate_ota.py       #   Xem trước (--dry-run) / chạy tay di cư kho OTA phẳng → products/<legacy>/ (server tự làm lúc restart)
   reconcile.py         #   Nạp bù file data_plus/ vào DB (idempotent qua dedup nội dung)
   import_accounts.py   #   Di cư tài khoản từ CSV (export Google Sheet Accounts) vào bảng users
   import_drive_backup.py #  Nạp log Drive vào kho backup `drive_sessions` (TÁCH khỏi sessions)
   deploy.ps1           #   scp CẢ app/*.py + scripts/migrate_ota.py (+ bản web apps/fbt_rapid/build/web_prod, -WebProd đổi) lên box; -DryRun in lệnh
-  localtest.ps1        #   Bật/tắt bộ test local: Postgres portable :5433 + uvicorn :8080 + tài khoản test
+  localtest.ps1        #   Bật/tắt bộ test local: Postgres portable :5433 + uvicorn :8080 + tài khoản test. Base THẬT =
+                       #   %LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\fbt-localtest (tự rơi sang khi
+                       #   đường mặc định trống); dọn postmaster.pid cũ; đặt OTA_ADMIN_TOKEN/OTA_LEGACY_PRODUCT_BY_PREFIX/
+                       #   OTA_REQUIRE_TAG=rapid4p giống env production. Web build trước vào apps/fbt_rapid/build/web.
 tests/                 # test_logic.py + test_monitor.py (thuần) + test_api.py (smoke, TestClient) + test_auth_roles.py (phạm vi
                        #   quản lý tài khoản, thay app.db bằng kho RAM) + test_ota_products.py (kho OTA theo sản
-                       #   phẩm; fixture `kho` vá config.OTA_DIR mỗi test) — chạy được không cần Postgres.
+                       #   phẩm; fixture `kho` vá config.OTA_DIR mỗi test) + test_ota_devices.py (quản lý máy: devices.json,
+                       #   ota.state, offered, progress, app_desc, khoá upload; vá cả main._FW_FILE + db.list_devices)
+                       #   — chạy được không cần Postgres.
                        #   Env test đặt bằng os.environ.setdefault ở MỌI module (module nào import app.main trước
                        #   cũng ra cùng thư mục; gán đè sau import là module sau trỏ vào thư mục app không dùng)
 deploy/                # schema.sql + fbt-receiver.service (deploy lên server)
@@ -58,6 +74,10 @@ docs/plan/             # Các kế hoạch phát triển dự án (.md)
   ate-ho-so-nghiem-thu.md   # Phần server của trạm ATE (/ate/*) — vì sao lưu file, khi nào chuyển sang bảng
   ota-nhieu-san-pham.md     # Phần server của OTA nhiều sản phẩm: hợp đồng /ota/*, bố cục kho, env; bản đầy đủ
                             #   (firmware + app + lộ trình 4 giai đoạn) ở `apps/fbt_rapid/docs/plan/ota-nhieu-san-pham.md`
+  ota-quan-ly-may-nhieu-san-pham.md  # (2026-09-18, B1–B3 ĐÃ CODE+TEST, chưa deploy; B4–B5 chưa) quản lý MÁY theo kho: product_effective = tự khai >
+                            #   gán tay devices.json > tiền tố > legacy; /devices hợp nhất sessions∪fw_seen∪devices.json
+                            #   + ota.state tính ở server; offered trong fw_seen; /ota/{product}/progress; khoá upload;
+                            #   thẻ từ esp_app_desc_t (ảnh ESP-IDF); lộ trình B1–B5
   HUONG_DAN_DUNG_SERVER.md  # Runbook dựng lại server từ đầu trên máy mới
   plan.txt                  # Ý tưởng sơ bộ gốc của chủ dự án
 docs/history/          # Lịch sử chỉnh sửa (mỗi ngày 1 file YYYY-MM-DD.md)
@@ -104,7 +124,10 @@ docs/data_sample/      # Mẫu dữ liệu thiết bị gửi lên (data_RPL.jso
   (`ARRAY_FIELDS` = 10) mà đọc `payload["slots"]` (1..16) và đòi mọi mảng `SLOT_ARRAY_FIELDS`
   (`slot_value/slot_result/slot_positive/calib_min/calib_max`, config.py) đúng `slots` phần tử. Hợp đồng:
   `system/contracts/ingest-rapid4p.schema.json`; đổi số khe = đổi `BOARD_SENSOR_SLOTS` firmware + registry
-  `optical_slots`, server không cần sửa.
+  `optical_slots`, server không cần sửa. **Reader (1 khe) đi CÙNG đường này** với `slots: 1` ghim trong
+  `system/contracts/ingest-reader.schema.json` (2026-09-18) — không mở nhánh riêng cho sản phẩm 1 khe;
+  3 số đọc thô của Reader nằm ở `readings[3]` (không thuộc `SLOT_ARRAY_FIELDS`) nên không bị đòi = `slots`.
+  Mẫu: `docs/data_sample/data_reader.json`, test `test_api.py::test_ingest_reader_theo_hop_dong`.
 
 - **Deploy từ box ADM — ĐÃ MỞ SSH thẳng 2026-09-12** (trước đó bị Tailscale SSH chặn: `tailnet policy
   does not permit you to SSH`; LAN 22 timeout; tên ngắn `fbt` không resolve → dùng IP `100.109.127.87`
@@ -167,6 +190,29 @@ ull`), dùng `xargs -I{}`; dọn `web.bak.*` phải xếp theo TÊN
   (`main.py::_web_no_cache`, có test) — trình duyệt/CDN hỏi lại bằng ETag → 304, deploy xong thấy ngay;
   người dùng đang kẹt thì `Ctrl+Shift+R` hoặc Clear site data. Cảnh báo build "Expected to find fonts
   for … CupertinoIcons" là của framework, vô hại.
+- **OTA nhiều thiết bị — 2 lỗ hổng đã kiểm thực tế trên server local (rà 2026-09-18, ĐÃ SỬA cùng ngày —
+  giữ lại làm bài học; chi tiết `docs/history/2026-09-18.md`)**:
+  (1) `ota.upload` KHÔNG nằm trong `_CFG_LOCK` và hai PUT cùng tên dùng CÙNG file tạm `.tmp-<name>` →
+  hai upload đồng thời cùng tên khác nội dung: trên Windows một request **500 `PermissionError`** (exception
+  trần, không phải `OtaError`), trên Linux cả hai 200 và bản sau đè → **luật 409 "một tên = một nội dung"
+  bị lách**; sửa = khoá theo tên hoặc mở tmp `O_EXCL`. (2) `GET /devices` lấy danh sách từ bảng `sessions`
+  rồi mới đắp `fw_seen.json` → máy CHỈ poll `/ota/check` mà chưa gửi phiên đo (vừa nạp xong, Rapid4P chưa
+  có bo cảm biến) **vô hình** trong bảng tiến độ; sửa = union thêm khoá `fw_seen` chưa có (`sessions: 0`).
+  Cách kiểm nhanh không cần Postgres: venv scratchpad (fastapi+uvicorn+httpx+pytest) chạy
+  `uvicorn app.main:app` với `FBT_*_DIR` trỏ scratchpad — `/ota/*` chạy đủ, `/devices` 500 vì thiếu DB.
+- **Ảnh Arduino (Rapid+, Reader) tự khai `esp_app_desc_t.project_name = "arduino-lib-builder"`** (dính
+  2026-09-18 khi thêm thẻ app_desc cho ảnh ESP-IDF): MỌI ảnh ESP32 có struct này ở offset 0x20, và core
+  Arduino bake `project_name`/`version` của lib-builder vào (đọc từ `~/.platformio/packages/
+  framework-arduinoespressif32/tools/sdk/esp32/lib/libapp_update.a`) — chuỗi đó **hợp lệ theo regex khoá
+  sản phẩm**, nên "nhận app_desc làm thẻ khi project_name hợp lệ" là mọi upload Rapid+ bị 400 "ảnh tự khai
+  product 'arduino-lib-builder'". Luật: `logic.image_tag(raw, products)` chỉ coi app_desc là thẻ khi
+  `project_name` ∈ {kho đích} ∪ kho đã có; FBTIMG1 vẫn là đường của ảnh Arduino. Test giữ luật:
+  `test_ota_devices.py::test_anh_arduino_khong_bi_coi_la_the`. Kiểm ảnh lạ: `python -c
+  "b=open(f,'rb').read();print(b[0x30:0x50],b[0x50:0x70])"`.
+- **Test vá `config.OTA_DIR` CHƯA đủ cho fw_seen**: `main._FW_FILE`/`_FW_LOG_FILE` chụp đường dẫn lúc
+  import → test đọc `fw_seen` phải `monkeypatch.setattr(main, "_FW_FILE", tmp)` (fixture `kho` của
+  `test_ota_devices.py`), không thì các test dùng chung một file và máy của test trước lọt vào `/devices`
+  của test sau.
 - **Server: `pathlib.Path.glob('*.bin')` KHỚP CẢ dotfile** (khác glob của shell) → file tạm `.tmp-<name>.bin`
   của upload bị ngắt bị liệt kê/di cư như ảnh thật; mọi chỗ glob kho phải lọc `not p.name.startswith('.')`.
   Và **việc "chạy một lần lúc khởi động" trong `lifespan` phải bọc `try/except` + log** — ném lỗi ở đó là
@@ -188,3 +234,12 @@ ull`), dùng `xargs -I{}`; dọn `web.bak.*` phải xếp theo TÊN
   lỗi app. `/ingest` vẫn 200 (file-first, catch lỗi DB) nên thiết bị đẩy được mà app không đọc được.
   Chẩn đoán trên box: `journalctl -u fbt-receiver -n 30`; sau khi tạo schema phải chạy
   `reconcile.py` nạp file JSON cũ vào DB, không thì `/devices` trả danh sách RỖNG.
+- **`openapi.json` giống hệt CHƯA đủ kết luận "đã deploy"** (kiểm trước deploy 2026-09-18): openapi
+  chỉ phản ánh route/chữ ký trong `main.py`; đổi CHỈ `logic.py`/`config.py` (vd `validate()` N khe
+  rapid4p 09-17, thêm `SLOT_ARRAY_FIELDS`) thì openapi production vẫn khớp local 36/36 dù box chưa
+  có code mới. Muốn chắc phải so `md5sum app/logic.py app/config.py` trên box với **bản CRLF trong
+  cây làm việc**. Cùng phiên: `ssh` từ tool AI bị classifier chặn **kể cả lệnh chỉ đọc** (`ls`,
+  `md5sum`, `systemctl is-active`) → đừng thử lại nhiều kiểu, đưa lệnh md5 cho người dùng tự chạy.
+  Nhớ `logic.py` import `SLOT_ARRAY_FIELDS` từ `config.py` → scp lẻ một file rồi restart là
+  `ImportError`, uvicorn không lên, mất `/ingest` cả fleet; `deploy.ps1 -Server` chép cả 9 file
+  `app/*.py` là vì thế.

@@ -76,8 +76,13 @@
    (server `validate` kiểm `len == slots`; hợp đồng `system/contracts/ingest-rapid4p.schema.json`).
 6. **Không có bí mật trong repo/firmware**: token server nhập qua portal → NVS `api_token`, không
    log giá trị. `sdkconfig.defaults` ASCII thuần.
-7. `R4P_FW_VERSION` đổi = đổi ở `rapid4p.h` + tag `fw/rapid4p/vX.Y.Z`; chạy
-   `python tools/registry_check.py` (venv `%LOCALAPPDATA%\fbt-localtest\venv` có pyyaml/jsonschema).
+7. `R4P_FW_VERSION` đổi = đổi ở `rapid4p.h` + tag `fw/rapid4p/vX.Y.Z` **+ `project(rapid4p VERSION x.y.z)`
+   trong `CMakeLists.txt`** (cùng số, không chữ `v`); chạy `python tools/registry_check.py` (venv
+   `%LOCALAPPDATA%\fbt-localtest\venv` có pyyaml/jsonschema). Vì sao: ảnh ESP-IDF tự mang
+   `esp_app_desc_t` ở offset `0x20` (`version[32]` @`0x30`, `project_name[32]` @`0x50`, magic `0xABCD5432`
+   — đã đọc từ `build/rapid4p.bin`: `rapid4p` / `0.1.0`); server dự kiến dùng nó làm thẻ nhận dạng ảnh
+   (`server/docs/plan/ota-quan-ly-may-nhieu-san-pham.md` §2.7) nên hai số lệch = server đặt tên file
+   sai bản. Kiểm nhanh: `python -c "b=open('build/rapid4p.bin','rb').read();print(b[0x30:0x50],b[0x50:0x70])"`.
 8. Sửa `sdkconfig.defaults` → xoá `sdkconfig` (script tự làm). Không sửa `sdkconfig` sinh ra.
 
 ## 4. Build / nạp / log (Windows, cmd.exe — ESP-IDF tại `C:\Espressif`)

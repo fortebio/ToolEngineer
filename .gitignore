@@ -20,7 +20,9 @@ _web.png
 *.tmp
 Thumbs.db
 .DS_Store
-.idea/# --- ESP-IDF (firmware/rapid4p + cay tham chieu firmware-vimate-p4) ---
+.idea/
+
+# --- ESP-IDF (firmware/rapid4p + cay tham chieu firmware-vimate-p4) ---
 firmware/rapid4p/build/
 firmware/rapid4p/managed_components/
 firmware/rapid4p/sdkconfig
@@ -35,3 +37,9 @@ firmware/maping new product/firmware-vimate-p4/docs/01_gif/
 firmware/maping new product/firmware-vimate-p4/docs/02_png/
 firmware/maping new product/firmware-vimate-p4/spiffs_*_image/
 firmware/maping new product/firmware-vimate-p4/tools/emo_backup_chuppy_128/
+
+# --- repo git RIENG long trong cay nay (khong phai submodule) ---
+# firmware/FBT-Reader co .git rieng, remote github.com/wuanpham/FBT-Reader.
+# Chot 2026-09-18: giu nguyen repo rieng de khong mat lich su 9 nhanh phien ban.
+# system/products.yaml tro thang vao thu muc nay; registry_check.py doc tu dia nen khong can track.
+firmware/FBT-Reader/

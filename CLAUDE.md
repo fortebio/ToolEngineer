@@ -13,7 +13,7 @@
 | `apps/fbt_rapid/` | App FBT_RAPID (Flutter): desktop Windows + web `/app/` | `apps/fbt_rapid/CLAUDE.md` (dài, nhiều gotcha), `README.md`, `docs/01–08` |
 | `firmware/rapidplus/` | Firmware Forte Rapid+ (PlatformIO, ESP32) — fleet ~109 máy | `firmware/rapidplus/CLAUDE.md` |
 | `firmware/rapidplus-prod/` | Firmware Rapid+ viết lại theo IEC 62304 (dev, chưa nạp máy) | `firmware/rapidplus-prod/CLAUDE.md` |
-| `firmware/reader/` | Firmware Forte Rapid Reader v2.6.6 | `firmware/reader/README.md` |
+| `firmware/FBT-Reader/` | Firmware **Forte Rapid Reader** v2.6.8 (PlatformIO, ESP32, core Arduino 1.0.6) — **REPO GIT RIÊNG** `github.com/wuanpham/FBT-Reader` lồng trong cây này, monorepo KHÔNG track (đã cho vào `.gitignore`). Tổ chức lại theo mẫu rapidplus 2026-09-18; bản chép cũ `firmware/reader/` (v2.6.6) đã xoá. **v2.6.8 (2026-09-18): OTA qua Engineer Server** (`/ota/check?product=reader`, token nhập qua web, thẻ `FBTIMG1`) — chưa nạp máy thật; đội máy ≤ v2.6.7 còn đọc GitHub `FBTRapidReaderOTA` nhánh `v2.6.7` | `firmware/FBT-Reader/CLAUDE.md`, `README.md`, `docs/architecture/`, `docs/history/2026-09-18-reader-ota-server.md` |
 | `firmware/rapid4p/` | Firmware **Forte Rapid4P** (RAPID READER **5** SLOT — số khe = `BOARD_SENSOR_SLOTS`, kế hoạch `docs/plan/rapid4p-5-slot.md`) — ESP32-P4C5 + LCD 4.3" DSI + touch, **ESP-IDF native** (`build_system: idf`). Đã nạp máy thật 2026-09-17: LCD/touch/WiFi/web dashboard chạy, chưa có bo cảm biến | `firmware/rapid4p/CLAUDE.md`, `README.md` |
 | `firmware/maping new product/` | Khảo sát Rapid4P: phần cứng tham chiếu `firmware-vimate-p4/` (dự án ngoài — chỉ đọc, `AGENTS.md`/`README-P4.md` là nhật ký bring-up của board) + firmware gốc `FBT-ReaderPlus-1.0/` (Arduino) + `tham-khao/` (chép chọn lọc **xiaozhi-esp32** — ESP32-P4/DSI/ESP-Hosted, driver AXP2101, ML307 — và **CrossInk** — quy trình/AGENTS.md/heap/simulator; cả hai MIT, chỉ đọc) | `MAPPING-Rapid4P.md` (mapping + quyết định §5), `THAM-KHAO-xiaozhi-CrossInk.md` (bài học + 12 việc đề xuất), `firmware-vimate-p4/docs/HARDWARE-PINOUT.md` |
 | `legacy/sheet/` | Apps Script `getData.js` (**CÒN SỐNG**: fw ≤ v2.4.5 + reader vẫn POST) · `userAuth.js` (đường lùi đăng nhập) | `legacy/sheet/README.md` |
@@ -56,10 +56,17 @@ Hệ NGOÀI repo (chỉ khai báo hợp đồng trong `system/products.yaml` ›
   trong `firmware/<x>`; firmware/rapidplus cần `src/secrets.h` local (copy từ example) mới build.
 - **Python 3.14** (Python Install Manager) bị Windows **ảo hoá `AppData\Local`**: thư mục do git/PowerShell
   tạo dưới `%LOCALAPPDATA%` Python (và `git` con của nó) không nhìn thấy → việc cần Python + git chung chỗ
-  (git-filter-repo…) làm dưới `%TEMP%`. Venv test server: `%LOCALAPPDATA%\fbt-localtest\venv` (pytest,
-  pyyaml, jsonschema); Postgres portable :5433 + web local qua `server\scripts\localtest.ps1`.
-  **Tool shell của AI KHÔNG thấy venv đó** (cùng ảo hoá) → `registry_check.py` chạy bằng python hệ thống
-  sau `python -m pip install --user pyyaml jsonschema` (đã cài 2026-09-17).
+  (git-filter-repo…) làm dưới `%TEMP%`. **Bộ test local (Postgres portable :5433 + venv + pgdata + kho ota/) nằm THẬT ở
+  `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\fbt-localtest`** — "ảo hoá AppData" chính là
+  sandbox của gói Claude desktop: phiên AI 2026-09-04 dựng nó tưởng đang ghi vào `%LOCALAPPDATA%\fbt-localtest`,
+  nên đường mặc định đó KHÔNG tồn tại với ai cả (tìm ra 2026-09-18 bằng `find …/AppData/Local/Packages
+  -maxdepth 4 -iname fbt-localtest`). `server\scripts\localtest.ps1` giờ tự rơi sang đường sandbox khi đường
+  mặc định trống (và dọn `postmaster.pid` cũ) → gọi KHÔNG tham số là lên cả Postgres + server :8080 + web
+  `/app/` (web build TRƯỚC bằng `flutter build web --release --base-href /app/ --dart-define=FBT_URL=
+  http://127.0.0.1:8080 --dart-define=FBT_TOKEN=localtok` trong PowerShell tool, không phải Git Bash).
+  Bash tool gọi thẳng `pg_ctl -w start` sẽ TREO tới timeout (server con giữ pipe) → để script làm hoặc chạy
+  nền. `registry_check.py` vẫn chạy bằng python hệ thống sau `python -m pip install --user pyyaml jsonschema`
+  (đã cài 2026-09-17).
 - **Máy `Admin` (khác box ADM)**: `python` trên PATH là Python 3.11 của ESP-IDF (`C:\Espressif\tools\idf-python`)
   **không có pip** → tool Python của repo (`registry_check.py`, pytest server) chạy bằng venv IDF
   `C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe` (đã cài pyyaml/jsonschema/pytest/httpx 2026-09-17);
@@ -74,7 +81,7 @@ Hệ NGOÀI repo (chỉ khai báo hợp đồng trong `system/products.yaml` ›
 
 ```powershell
 python tools\registry_check.py                                   # registry đối chiếu code thật
-Set-Location server; & "$env:LOCALAPPDATA\fbt-localtest\venv\Scripts\python.exe" -m pytest tests -q
+Set-Location server; & "$env:LOCALAPPDATA\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\fbt-localtest\venv\Scripts\python.exe" -m pytest tests -q
 Set-Location apps\fbt_rapid; & C:\Users\ADM\fvm\versions\3.44.1\bin\flutter.bat analyze lib/ 2>&1 | Select-String "error|warning|No issues"
 Set-Location firmware\rapidplus; & "$env:USERPROFILE\.platformio\penv\Scripts\pio.exe" run -e esp32dev
 Set-Location firmware\rapid4p; cmd /c scripts\build.bat                 # ESP-IDF 5.5.1 tại C:\Espressif → BUILD_EXIT=0
@@ -103,8 +110,20 @@ Set-Location firmware\rapid4p; cmd /c scripts\build.bat                 # ESP-ID
   literal → `<br/>`) thì dùng **Write/Edit tool** hoặc ghi script ra FILE rồi chạy, ĐỪNG nhúng
   backslash vào lệnh inline. (`grep '\\n'` ở đây cũng cho kết quả sai — kiểm bằng `grep -F '\n'`.)
   **Heredoc `<<'EOF'` trong Bash tool CŨNG nuốt** (2026-09-11: regex `[^/\\]` ghi ra file thành `[^/\]`
-  → lỗi compile) → file Python/regex có `\` phải ghi bằng Write tool. Python in tiếng Việt ra console
-  dính cp1252 → đặt `PYTHONIOENCODING=utf-8` trước lệnh.
+  → lỗi compile) → file Python/regex có `\` phải ghi bằng Write tool. **Kể cả ĐƯỜNG DẪN WINDOWS trong
+  văn bản**: 2026-09-18 heredoc biến `LocalCache\Local\fbt-localtest` thành `Local<form-feed>bt-localtest`
+  (`\f`), `\r`/`\n`/`\t` sau backslash cũng vậy → mọi patch text có `\` ghi script ra FILE bằng Write tool rồi
+  `python file.py`; sau patch `grep -c $'\f'` để chắc. Python in tiếng Việt ra console
+  dính cp1252 → đặt `PYTHONIOENCODING=utf-8` trước lệnh. **Backtick trong `python -c "…"` (nháy kép) bị
+  bash command-substitute** (2026-09-18: `` `system/contracts/x.json` `` trong chuỗi Markdown → bash chạy nó,
+  ghi ra chuỗi RỖNG mà script vẫn báo "ok"); heredoc `<<'PYEOF'` dài chứa `~~`/nháy lẫn lộn cũng vỡ parse
+  ("unexpected EOF") → cùng cách xử lý: script ra FILE. Sau patch text Markdown, `grep` lại anchor vừa ghi.
+- **Nhiều phiên Claude cùng sửa MỘT cây làm việc** (2026-09-18: 6 phiên song song; `products.yaml`, `define.h`
+  đổi giữa lúc đọc và lúc ghi — phiên khác vừa làm xong OTA reader v2.6.8 mà phiên này đang lên kế hoạch
+  chính phần đó). Trước khi ghi file đã đọc từ lâu: `git status`/`md5sum` lại, script patch dùng
+  **anchor phải xuất hiện đúng 1 lần** (`assert t.count(old) == 1`) để bắt lệch thay vì ghi đè mù;
+  `ListAgents` cho biết phiên nào đang chạy/idle; quyết định đã chốt có thể **đã bị một phiên khác làm
+  theo hướng ngược lại** → đọc `docs/history/` mới nhất của phần đó trước khi hỏi người dùng chốt.
 - **Classifier permission của box chặn 3 việc "trông nguy hiểm" dù vô hại** (gặp 2026-09-12): (1) mở
   HTTP server ra mạng (`python -m http.server --bind <IP tailnet>`); (2) ghi FILE hướng dẫn có chứa lệnh
   kiểu `mv/rm … /path/*` hoặc `echo key >> authorized_keys` — mô tả bằng lời trong chat thì được;
@@ -121,7 +140,9 @@ Set-Location firmware\rapid4p; cmd /c scripts\build.bat                 # ESP-ID
 - **Node.js + Docker GIỜ ĐÃ CÓ trên máy dev** (Node v24, Docker v29 — kiểm `node --version`/`docker --version`).
   Docker **daemon KHÔNG tự chạy** (lỗi `npipe:... dockerDesktopLinuxEngine` = chưa bật): khởi động bằng
   `Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"` rồi poll `docker info` tới khi exit 0
-  (thường vài giây). Python cũng có (3.12) nhưng KHÔNG có fastapi/pytest global — test project `Server/`
+  (thường vài giây). ⚠️ **Trên box ADM Docker Desktop 4.86 KHÔNG lên được** (2026-09-18: `wsl --status` →
+  `WSL_E_WSL_OPTIONAL_COMPONENT_REQUIRED`, cần admin cài WSL + reboot) → đừng dựa vào Docker cho Postgres
+  local; dùng Postgres portable của bộ fbt-localtest (trên). Python cũng có (3.12) nhưng KHÔNG có fastapi/pytest global — test project `Server/`
   thì tạo venv trong scratchpad (`python -m venv` + pip fastapi/httpx/psycopg[binary]/uvicorn); in tiếng Việt
   từ python ra console Windows dính `UnicodeEncodeError` cp1252 (chỉ lỗi ở print — assert trước đó vẫn tính).
   (Trước đây box chỉ có Flutter; nếu gặp box thiếu Node thì `winget install -e --id OpenJS.NodeJS.LTS`

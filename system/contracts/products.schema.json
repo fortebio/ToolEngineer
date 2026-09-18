@@ -63,7 +63,7 @@
       "additionalProperties": false,
       "required": ["dir", "envs", "version_source", "image_name", "legacy_name_locked", "tag_prefix"],
       "properties": {
-        "dir": { "type": "string", "pattern": "^firmware/[a-z0-9-]+$" },
+        "dir": { "type": "string", "pattern": "^firmware/[A-Za-z0-9-]+$", "description": "Chữ hoa được chấp nhận từ 2026-09-18: firmware/FBT-Reader là clone của repo ngoài github.com/wuanpham/FBT-Reader, tên thư mục do `git clone` đặt theo tên repo. Ép chữ thường thì tên thư mục lệch tên repo — xem docs/history/2026-09-18-reader-mot-nha.md." },
         "envs": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^[A-Za-z0-9_]+$" } },
         "build_flags": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z0-9_]+$" } },
         "version_source": { "$ref": "#/$defs/version_source" },

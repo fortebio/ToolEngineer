@@ -248,15 +248,40 @@ def monitor(flow: bool = Query(True, description="False = bỏ phần đếm phi
     return monitor_mod.snapshot(with_flow=flow)
 
 
-@app.get("/devices", dependencies=[Depends(auth)])
-def devices():
-    """Danh sách thiết bị + số phiên + lần gửi cuối + version firmware.
+def _effective_map(seen: dict | None = None, assigned: dict | None = None) -> dict[str, str]:
+    """{id_device: kho máy đó THẬT SỰ tra} cho MỌI máy server từng thấy ở `/ota/check`
+    (fw_seen) hoặc được gán tay (devices.json). Đưa vào ota.listing/products_summary để
+    đánh ghim `stale` và đếm "kho này bao nhiêu máy tra"."""
+    seen = _fw_seen() if seen is None else seen
+    assigned = ota.read_devices() if assigned is None else assigned
+    out: dict[str, str] = {}
+    for dev in set(seen) | set(assigned):
+        e = _fw_entry(seen.get(dev))
+        out[dev], _ = ota.product_for(dev, e["product"] if e else "", assigned)
+    return out
 
-    `version` = bản máy TỰ BÁO ở `/ota/check?ver=` nếu có; không có thì rơi về version
-    của phiên đo gần nhất (firmware cũ chưa biết báo). Xem [_fw_report].
+
+def _device_rows() -> list[dict]:
+    """Bảng máy HỢP NHẤT ba nguồn (2026-09-18): bảng `sessions` (máy đã gửi phiên đo) ∪
+    `fw_seen.json` (máy đã poll `/ota/check`) ∪ `devices.json` (máy được gán kho tay).
+
+    Trước đó chỉ lấy từ `sessions` rồi đắp `fw_seen` → máy vừa nạp xong chưa chạy mẫu, hay
+    Rapid4P chưa có bo cảm biến, poll đều đặn mà KHÔNG hiện trong bảng tiến độ. Máy chỉ có
+    ở hai nguồn sau: `sessions: 0`, `last_seen: null`.
+
+    Mỗi dòng có khối `ota` = trạng thái OTA tính Ở ĐÂY ([ota.device_status]) — một chỗ duy
+    nhất so version (giữ hậu tố), app/CSV/web đọc `ota.state` chứ không tự suy từ tên file.
     """
     seen = _fw_seen()
+    assigned = ota.read_devices()
     rows = db.list_devices()
+    have = {r["id_device"] for r in rows}
+    for dev in sorted(set(seen) | set(assigned)):
+        if dev not in have and _ID_OK.fullmatch(dev):
+            e = _fw_entry(seen.get(dev))
+            rows.append({"id_device": dev, "sessions": 0, "last_seen": None,
+                         "version": e["version"] if e else ""})
+    cache: dict = {}  # target.json + manifest mỗi kho đọc MỘT lần cho cả bảng
     for r in rows:
         # `_fw_entry`: fw_seen.json sửa tay được như target.json, một mục méo không được
         # phép làm 500 cả bảng "Trạng thái máy". `_fw_newer`: mục tự khai chỉ thắng khi nó
@@ -266,12 +291,68 @@ def devices():
         if e and _fw_newer(e["at"], r.get("last_seen")):
             r["version"] = e["version"]
         # Sản phẩm/PCB máy TỰ KHAI (firmware ≥ v2.4.6). Rỗng = chưa khai → app hiện
-        # "cũ → <legacy>" chứ không hiện trống; `product_effective` là kho mà /ota/check
-        # THẬT SỰ tra cho máy này, để app đối chiếu tiến độ đúng kho.
+        # "cũ → <legacy>" chứ không hiện trống; `product_assigned` = gán tay (devices.json);
+        # `product_effective` là kho mà /ota/check THẬT SỰ tra (ota.product_for), `product_conflict`
+        # = tự khai ≠ gán tay (ai đó nạp tay bản khác hồ sơ).
         r["product"] = e["product"] if e else ""
         r["hw"] = e["hw"] if e else ""
-        r["product_effective"] = r["product"] or ota.legacy_product_for(r["id_device"])
+        a = assigned.get(r["id_device"]) or {}
+        r["product_assigned"] = a.get("product", "")
+        r["product_effective"], r["product_conflict"] = ota.product_for(
+            r["id_device"], r["product"], assigned)
+        r["last_check"] = e["at"] if e else ""
+        r["ota"] = ota.device_status(r["product_effective"], r["id_device"],
+                                     version=r.get("version") or "", hw=r["hw"],
+                                     offered=e["offered"] if e else None, cache=cache)
     return rows
+
+
+@app.get("/devices", dependencies=[Depends(auth)])
+def devices():
+    """Danh sách thiết bị + số phiên + lần gửi cuối + version firmware + trạng thái OTA.
+
+    `version` = bản máy TỰ BÁO ở `/ota/check?ver=` nếu có; không có thì rơi về version
+    của phiên đo gần nhất (firmware cũ chưa biết báo). Xem [_fw_report], [_device_rows].
+    """
+    return _device_rows()
+
+
+# Gán máy vào kho — route CỐ ĐỊNH `/devices/product` (hàng loạt) khai báo trước `/devices/{device}/…`.
+@app.put("/devices/product", dependencies=[Depends(ota_admin)])
+def devices_assign_many(product: str, ids: str, by: str = ""):
+    """Gán HÀNG LOẠT máy vào kho [product] (`ids=a,b,c` — app lấy từ bộ lọc version:
+    "mọi máy đang chạy v2.4.5a1 → rapidplus-a"). Ghi `by/at`, in journal."""
+    key = _product(product)
+    out = _ota_call(ota.assign_product, ids.split(","), key, by=by)
+    print(f"ota assign {len(out)} may -> {key} by={by!r}: {' '.join(sorted(out))}", flush=True)
+    return {"ok": True, "product": key, "devices": out}
+
+
+@app.put("/devices/{device}/product", dependencies=[Depends(ota_admin)])
+def device_assign(device: str, product: str, by: str = "", note: str = "", clean: str = ""):
+    """Gán MỘT máy vào kho [product] (2.1 của plan). `?clean=1` gỡ luôn ghim của máy ở các
+    kho KHÁC — ghim đó không ai đọc nữa (ghim mồ côi). Máy tự khai product khác sẽ hiện
+    `product_conflict` ở `/devices` chứ không bị chặn ở đây: gán tay là hồ sơ, tự khai là sự thật."""
+    key = _product(product)
+    out = _ota_call(ota.assign_product, [device], key, by=by, note=note)
+    cleaned = []
+    if clean == "1":
+        for other in ota.list_products():
+            if other != key and device in ota.read_cfg(other)["devices"]:
+                ota.clear_target(other, device=device)
+                cleaned.append(other)
+    print(f"ota assign {device} -> {key} by={by!r} cleaned={cleaned}", flush=True)
+    return {"ok": True, "product": key, "device": out.get(device), "cleaned_pins": cleaned}
+
+
+@app.delete("/devices/{device}/product", dependencies=[Depends(ota_admin)])
+def device_unassign(device: str):
+    """Bỏ gán → máy về tiền tố/legacy (hoặc tự khai nếu firmware có)."""
+    if not _ID_OK.fullmatch(device):
+        raise HTTPException(400, "mã máy không hợp lệ")
+    had = ota.unassign_product(device)
+    print(f"ota unassign {device} (had={had})", flush=True)
+    return {"ok": True, "device": device, "removed": had}
 
 
 @app.get("/devices/{device}/fw-log", dependencies=[Depends(auth)])
@@ -340,14 +421,43 @@ def ota_list(product: str = ""):
     fleet đang chạy). Mọi sản phẩm: `GET /ota/products`.
     """
     key = _product(product) if product else config.LEGACY_PRODUCT
-    return ota.listing(key)
+    return ota.listing(key, _effective_map())
 
 
 @app.get("/ota/products", dependencies=[Depends(auth)])
 def ota_products():
-    """Danh sách khoá sản phẩm + số ảnh + bản chung + số máy ghim. `legacy` đánh dấu kho
-    mà máy không tự khai product sẽ rơi vào."""
-    return {"legacy": config.LEGACY_PRODUCT, "products": ota.products_summary()}
+    """Danh sách khoá sản phẩm + số ảnh + bản chung + số máy ghim + `devices` (số máy THẬT
+    SỰ tra kho — 0 là đặt target ở đó chẳng máy nào thấy) + `stale_pins`. `legacy` đánh dấu
+    kho mà máy không tự khai product sẽ rơi vào."""
+    return {"legacy": config.LEGACY_PRODUCT, "products": ota.products_summary(_effective_map())}
+
+
+# Khai báo TRƯỚC `GET /ota/{product}/{filename}` — `progress` không có đuôi .bin nên không
+# đụng đường tải ảnh, nhưng FastAPI so route theo thứ tự đăng ký.
+@app.get("/ota/{product}/progress", dependencies=[Depends(auth)])
+def ota_progress(product: str):
+    """Tiến độ triển khai của MỘT kho: đếm máy theo `ota.state` + danh sách máy — cùng số
+    liệu `/devices` (lọc `product_effective`), để app/CSV rollout/web đọc thẳng, không tự so
+    version. Cần DB như `/devices` (máy chỉ có phiên đo cũ vẫn phải được đếm)."""
+    key = _product(product)
+    cfg = ota.read_cfg(key)
+    tgt = cfg["target"] or {}
+    counts = {s: 0 for s in ota.OTA_STATES}
+    devs = []
+    for r in _device_rows():
+        if r["product_effective"] != key:
+            continue
+        st = r["ota"]["state"]
+        counts[st] = counts.get(st, 0) + 1
+        devs.append({"id_device": r["id_device"], "version": r.get("version") or "",
+                     "state": st, "target": r["ota"]["target"], "pinned": r["ota"]["pinned"],
+                     "last_check": r["last_check"], "offered_at": r["ota"]["offered_at"],
+                     "product_conflict": r["product_conflict"]})
+    target = ota.target_file(key)
+    m = ota.read_manifest(key, target) if target else None
+    return {"product": key, "target": target, "ver": (m or {}).get("ver", ""),
+            "target_at": tgt.get("at", ""), "target_by": tgt.get("by", ""),
+            "counts": counts, "total": len(devs), "devices": devs}
 
 
 # --- Version firmware do MÁY TỰ BÁO ------------------------------------------
@@ -372,8 +482,9 @@ _FW_LOCK = threading.Lock()
 _FW_LOG_FILE = config.OTA_DIR / "fw_log.json"
 _FW_LOG_MAX = 50
 # Trần SỐ MÁY được ghi nhật ký. Fleet thật 109 (đếm được: 95 máy đã từng gửi phiên đo).
-# 500 là dư gấp mấy lần mà vẫn giữ file ở cỡ KB — xem lý do ở `_fw_report`.
-_FW_MAX_DEVICES = 500
+# 500 là dư gấp mấy lần mà vẫn giữ file ở cỡ KB — xem lý do ở `_fw_report`. Dùng chung
+# hằng với devices.json (ota.MAX_DEVICES) để hai file theo-máy cùng một trần.
+_FW_MAX_DEVICES = ota.MAX_DEVICES
 
 
 def _atomic_json(path, obj) -> None:
@@ -422,11 +533,17 @@ def _fw_entry(v) -> dict | None:
     toàn bộ fleet. Chuỗi trần vẫn hiểu được nên nhận luôn, khỏi bắt người ta gõ lại.
     """
     if isinstance(v, str):
-        return {"version": v, "at": "", "product": "", "hw": ""} if v else None
+        return {"version": v, "at": "", "product": "", "hw": "", "offered": None} if v else None
     if isinstance(v, dict) and isinstance(v.get("version"), str) and v["version"]:
         # product/hw: máy tự khai từ firmware ≥ v2.4.6 (`?product=&hw=`); rỗng = chưa khai.
+        # offered: bản server ĐÃ MỜI ở lượt poll gần nhất ({file, ver, at}) — None = lượt đó
+        # trả update:false. Đọc phòng thủ: mục méo coi như chưa mời.
+        o = v.get("offered")
+        offered = ({"file": o["file"], "ver": str(o.get("ver") or ""), "at": str(o.get("at") or "")}
+                   if isinstance(o, dict) and ota.is_bin_name(o.get("file")) else None)
         return {"version": v["version"], "at": str(v.get("at") or ""),
-                "product": str(v.get("product") or ""), "hw": str(v.get("hw") or "")}
+                "product": str(v.get("product") or ""), "hw": str(v.get("hw") or ""),
+                "offered": offered}
     return None
 
 
@@ -461,8 +578,12 @@ def _fw_log() -> dict:
 
 
 def _fw_report(device: str, ver: str, updated: bool = False,
-               product: str = "", hw: str = "") -> None:
+               product: str = "", hw: str = "", offered: dict | None = None) -> None:
     """Ghi version máy vừa khai — và ghi thêm MỘT MỐC vào nhật ký nếu version ĐỔI.
+
+    [offered] = `{file, ver}` bản server vừa MỜI ở chính lượt này (None = không mời) → vào
+    `fw_seen` (thêm `at`). Đây là thứ cho `/devices` phân biệt "chưa poll từ lúc đặt target"
+    với "đã mời, đang chờ người bấm RED" — hai ca cần hai hành động khác nhau ngoài hiện trường.
 
     Thiếu/bẩn -> BỎ QUA IM LẶNG, không 400: firmware trước v2.4.5 không gửi `ver`, và một
     lượt check của nó vẫn phải nạp được bản mới — đường sửa từ xa DUY NHẤT tới máy ngoài
@@ -527,7 +648,8 @@ def _fw_report(device: str, ver: str, updated: bool = False,
                 # mọi máy thật sẽ trải qua; chạm trần thì bỏ mốc CŨ NHẤT.
                 log[device] = entries[-_FW_LOG_MAX:]
                 _atomic_json(_FW_LOG_FILE, log)
-            seen[device] = {"version": ver, "at": now, "product": product, "hw": hw}
+            seen[device] = {"version": ver, "at": now, "product": product, "hw": hw,
+                            "offered": {**offered, "at": now} if offered else None}
             _atomic_json(_FW_FILE, seen)
     except Exception as e:
         # ĐĨA ĐẦY / MẤT QUYỀN GHI KHÔNG ĐƯỢC PHÉP GIẾT `/ota/check`.
@@ -549,13 +671,14 @@ def ota_check(request: Request, device: str = "", ver: str = "", updated: str = 
     bản ghim, không thì trả bản chung. Trả `{update:false, reason}` khi không có bản nào.
 
     `?ver=<bản đang chạy>` — firmware v2.4.5+ khai luôn version của nó, server ghi lại cho
-    `/devices` (xem [_fw_report]). Ghi TRƯỚC khi xét có bản mới hay không: `{update:false}`
-    là lượt PHỔ BIẾN NHẤT (fleet đã lên đúng bản) và cũng là lượt xác nhận nó đã lên.
+    `/devices` (xem [_fw_report]). Ghi ở MỌI lượt, kể cả `{update:false}` — lượt PHỔ BIẾN
+    NHẤT (fleet đã lên đúng bản) và cũng là lượt xác nhận nó đã lên; ghi kèm bản vừa MỜI
+    (`offered`) để `/devices` biết máy đang chờ người bấm RED hay chưa poll.
 
     `?product=<khoá>&hw=<PCB>` — firmware v2.4.6+ tự khai nó là sản phẩm gì, PCB nào. Có
     `product` → tra ĐÚNG kho đó (sai cú pháp → fail-closed `reason:"product"`, không đoán
-    hộ); không có → kho `LEGACY_PRODUCT` ([ota.legacy_product_for]) — toàn bộ fleet ≤ v2.4.5.
-    `hw` chỉ lọc khi manifest của ảnh có danh sách PCB (ảnh có thẻ nhúng).
+    hộ); không có → gán tay `devices.json` > tiền tố > `LEGACY_PRODUCT` ([ota.product_for])
+    — toàn bộ fleet ≤ v2.4.5. `hw` chỉ lọc khi manifest của ảnh có danh sách PCB (ảnh có thẻ).
 
     So sánh version là việc của FIRMWARE: nó biết mình đang chạy gì, server chỉ lưu file.
     `version` GIỮ = TÊN FILE (firmware ≤ v2.4.5 so đúng chuỗi `fbt_<ver>.bin`); `ver` là
@@ -567,11 +690,16 @@ def ota_check(request: Request, device: str = "", ver: str = "", updated: str = 
     # lần nạp LẠI CÙNG một bản, và phân biệt "vừa cập nhật" với "vừa mất điện bật lại".
     key = product_key(product) if product else None
     hw_ok = hw if _ID_OK.fullmatch(hw) else ""
-    _fw_report(device, ver, updated=updated == "1", product=key or "", hw=hw_ok)
     if product and key is None:
+        _fw_report(device, ver, updated=updated == "1")
         return {"update": False, "reason": "product"}
-    key = key or ota.legacy_product_for(device)
+    # Kho THẬT SỰ tra: tự khai > gán tay (devices.json) > tiền tố > legacy (ota.product_for).
+    key = key or ota.product_for(device)[0]
     hit, reason = ota.resolve(key, device, hw_ok)
+    # Ghi version + "đã mời bản nào" trong CÙNG một lượt ghi (một lần đọc+ghi fw_seen trong
+    # _FW_LOCK). Lỗi ghi không được giết lượt check — _fw_report tự nuốt và kêu trong journal.
+    _fw_report(device, ver, updated=updated == "1", product=product_key(product) or "", hw=hw_ok,
+               offered={"file": hit["file"], "ver": hit["manifest"].get("ver", "")} if hit else None)
     if hit is None:
         return {"update": False, "reason": reason}
     m = hit["manifest"]
@@ -615,8 +743,7 @@ async def ota_upload_legacy(name: str, request: Request, force: str = "", by: st
     key = _product(name)
     raw = await _ota_body(request)
     m = await _ota_store(key, None, raw, force=force == "1", by=by, note=note)
-    return {"ok": True, "product": key, "name": m["name"], "size": m["size"],
-            "ver": m["ver"], "hw": m["hw"], "sha256": m["sha256"], "existed": m["existed"]}
+    return _upload_resp(key, m["name"], m)
 
 
 @app.delete("/ota/{filename}", dependencies=[Depends(ota_admin)])
@@ -643,6 +770,14 @@ async def _ota_store(key: str, name: str | None, raw: bytes, **kw) -> dict:
         print(f"ota upload {key}/{m['name']} ({m['size']} bytes, tag={bool(m.get('tag'))})",
               flush=True)
     return m
+
+
+def _upload_resp(key: str, name: str, m: dict) -> dict:
+    """Phản hồi upload = manifest rút gọn. `tag`/`tag_source` (fbtimg | app_desc | null) để app
+    hiện "server đọc thẻ: rapid4p · v0.1.0" hay "ảnh không thẻ, tên do bạn đặt"."""
+    return {"ok": True, "product": key, "name": name, "size": m["size"], "ver": m["ver"],
+            "hw": m["hw"], "sha256": m["sha256"], "md5": m.get("md5", ""),
+            "tag": m.get("tag"), "tag_source": m.get("tag_source"), "existed": m["existed"]}
 
 
 async def _ota_body(request: Request) -> bytes:
@@ -691,8 +826,7 @@ async def ota_upload(product: str, filename: str, request: Request, force: str =
     name = _ota_call(ota.bin_name, filename)
     raw = await _ota_body(request)
     m = await _ota_store(key, name, raw, force=force == "1", by=by, note=note)
-    return {"ok": True, "product": key, "name": name, "size": m["size"], "ver": m["ver"],
-            "hw": m["hw"], "sha256": m["sha256"], "existed": m["existed"]}
+    return _upload_resp(key, name, m)
 
 
 @app.delete("/ota/{product}/{filename}", dependencies=[Depends(ota_admin)])
@@ -732,9 +866,11 @@ def ota_download(product: str, filename: str):
     path = ota.product_dir(key) / name
     if not path.is_file():
         raise HTTPException(404, "firmware not found")
+    # md5 lấy từ manifest (ota.md5_for tính bù cho manifest cũ) — không băm 2,4 MB mỗi lượt
+    # một máy trong 109 máy tới tải.
     return FileResponse(
         path, media_type="application/octet-stream", filename=name,
-        headers={"x-MD5": hashlib.md5(path.read_bytes()).hexdigest()},
+        headers={"x-MD5": ota.md5_for(key, name) or hashlib.md5(path.read_bytes()).hexdigest()},
     )
 
 
