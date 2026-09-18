@@ -338,7 +338,10 @@ extern "C" {
 
 /* ========================== Bo cảm biến quang N slot (JP1) ==========================
  *
- * CHƯA CÓ SCHEMATIC bo con (MAPPING-Rapid4P.md §5 mục 1). Số chân dưới đây là ĐỀ XUẤT
+ * 2026-09-18: bo LED + bo cảm biến ĐÃ CÓ (ReaderPlus/ReaderMax 4 khe) — nhưng chúng cần bo giao tiếp
+ * Rapid4P-IF (nguồn LED, công tắc khe, pull-up I2C) cắm vào JP1: docs/HARDWARE-ARCHITECTURE.md.
+ * Chốt D2 (driver LED) rồi mới sửa ON_LEVEL / PWM_* dưới đây theo bảng §5 của tài liệu đó.
+ * CHƯA CÓ SCHEMATIC bo IF (MAPPING-Rapid4P.md §5 mục 1). Số chân dưới đây là ĐỀ XUẤT
  * 2026-09-17, chọn trên header JP1 (2×10, mỗi GPIO có 100 R nối tiếp — HARDWARE-PINOUT
  * §11.5) để không đụng bus I2C chung GPIO7/8 (7 thiết bị, touch quét 10 ms):
  *   JP1 chân 12 = GPIO26 → SDA bus riêng I2C_NUM_1
