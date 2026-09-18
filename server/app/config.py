@@ -90,7 +90,7 @@ _LEGACY = os.environ.get("OTA_LEGACY_PRODUCT", "rapidplus").strip().lower()
 LEGACY_PRODUCT = _LEGACY if valid_product(_LEGACY) else "rapidplus"
 
 # Tuỳ chọn: máy cũ KHÔNG khai product nhưng mã máy có tiền tố nhận ra được → sản phẩm
-# theo tiền tố, vd "RPL=rapidplus,RDR=reader". Tiền tố dài hơn thắng. Không khớp gì →
+# theo tiền tố, vd "RPL=rapidplus,RE=reader". Tiền tố dài hơn thắng. Không khớp gì →
 # LEGACY_PRODUCT. Để trống = tắt (mọi máy cũ đều là LEGACY_PRODUCT).
 LEGACY_PRODUCT_BY_PREFIX: dict[str, str] = {}
 for _item in os.environ.get("OTA_LEGACY_PRODUCT_BY_PREFIX", "").split(","):
@@ -99,10 +99,21 @@ for _item in os.environ.get("OTA_LEGACY_PRODUCT_BY_PREFIX", "").split(","):
         if _pre and valid_product(_prod.lower()):
             LEGACY_PRODUCT_BY_PREFIX[_pre] = _prod.lower()
 
-# Bắt buộc ảnh .bin tải lên phải có THẺ NHẬN DẠNG nhúng (`FBTIMG1;product=…;ver=…;hw=…;;`,
-# firmware ≥ v2.4.6 mới có). Mặc định TẮT (giai đoạn 0: mọi ảnh đang có đều chưa có thẻ);
-# bật ("1"/"true") khi fleet đã lên bản có thẻ — ảnh không thẻ chỉ còn lên được với `?force=1`.
-OTA_REQUIRE_TAG = os.environ.get("OTA_REQUIRE_TAG", "").strip().lower() in ("1", "true", "yes")
+# Bắt buộc ảnh .bin tải lên phải có THẺ NHẬN DẠNG (`FBTIMG1;…;;` nhúng, firmware ≥ v2.4.6, HOẶC
+# `esp_app_desc_t` của ảnh ESP-IDF — logic.image_tag). Giá trị THEO SẢN PHẨM (2026-09-18):
+#   ""                      -> tắt hết (mặc định; kho legacy chưa có ảnh nào mang thẻ)
+#   "1" / "true" / "yes"    -> bắt buộc MỌI kho (hành vi cũ)
+#   "rapid4p,rapidplus-prod" -> chỉ các kho này (ảnh ESP-IDF luôn có app_desc nên bật được ngay)
+# Kho bị bắt buộc: ảnh không thẻ chỉ lên được với `?force=1`. Hỏi bằng [require_tag].
+_REQ = os.environ.get("OTA_REQUIRE_TAG", "").strip().lower()
+OTA_REQUIRE_TAG: bool | frozenset[str] = (
+    True if _REQ in ("1", "true", "yes")
+    else frozenset(p.strip() for p in _REQ.split(",") if valid_product(p.strip())) or False)
+
+
+def require_tag(product: str) -> bool:
+    v = OTA_REQUIRE_TAG
+    return v is True or (isinstance(v, frozenset) and product in v)
 
 # Thư mục chứa LOG MÁY nhân viên CSKH gửi lên từ app (tab "Chăm sóc KH" › Xử lý sự cố):
 # mỗi lần gửi = 1 file JSON `<device>_<UTC>_<hash>.json` {device, received_at, by, note, text…}.
@@ -114,6 +125,8 @@ MAX_LOG_TEXT = 4 * 1024 * 1024
 
 # Các mảng theo-slot của dữ liệu RPL: nếu có mặt thì phải đủ 10 phần tử
 ARRAY_FIELDS = ("CT_value", "result", "record_out", "amplification")
+# Mảng theo khe của sản phẩm N khe (rapid4p): độ dài = payload["slots"], không ghim số cứng.
+SLOT_ARRAY_FIELDS = ("slot_value", "slot_result", "slot_positive", "calib_min", "calib_max")
 
 # Thư mục hồ sơ TRẠM ATE (app: tab "Sản xuất"): mỗi máy qua trạm = 1 file JSON
 # `<sn>_<started_at UTC>_<hash>.json` {sn, station, operator, verdict, steps[]…}.

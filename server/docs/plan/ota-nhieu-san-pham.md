@@ -56,6 +56,28 @@ Thứ tự chọn bản (`ota.resolve`): ghim máy → bản chung; ghim trỏ f
 (KHÔNG rơi về bản chung); manifest `tag_product` ≠ kho → `tag`; máy khai `hw` và manifest có
 `hw[]` mà không chứa → `hw`.
 
+## Bổ sung 2026-09-18 — quản lý MÁY (B1–B3 của [ota-quan-ly-may-nhieu-san-pham.md](ota-quan-ly-may-nhieu-san-pham.md))
+
+Thêm file `ota/devices.json` = `{<id>: {product, group, note, by, at}}` (gán tay máy → kho).
+Kho máy THẬT SỰ tra (`ota.product_for`): tự khai `?product=` > gán tay > tiền tố > legacy.
+
+| Route | Ý nghĩa |
+|---|---|
+| `GET /devices` | HỢP NHẤT `sessions ∪ fw_seen ∪ devices.json` (máy chỉ poll: `sessions:0, last_seen:null`). Thêm `product_assigned`, `product_conflict` (tự khai ≠ gán tay), `last_check`, khối **`ota{target, ver, pinned, reason, state, offered_at}`** — `state ∈ on|offered|waiting|skipped|unknown|none`, so version GIỮ hậu tố (`logic.norm_version`). App/CSV đọc `state`, không tự so tên file |
+| `PUT /devices/{id}/product?product&by&note&clean` | gán máy vào kho; `clean=1` gỡ ghim của máy ở kho khác. Gác `ota_admin` |
+| `PUT /devices/product?product&ids=a,b,c&by` | gán hàng loạt (khai báo trước `/devices/{device}/…`) |
+| `DELETE /devices/{id}/product` | bỏ gán → về tiền tố/legacy |
+| `GET /ota/{product}/progress` | `{product, target, ver, target_at, target_by, counts{state: n}, total, devices[]}` — lọc `/devices` theo `product_effective`; khai báo trước `/ota/{product}/{file}` |
+| `GET /ota/check` | **không đổi với máy**; server ghi thêm `fw_seen[id].offered = {file, ver, at}` (null khi `update:false`) |
+| `GET /ota?product=` | ghim thêm `stale` (máy đã sang kho khác); file thêm `md5`, `tag_source: fbtimg\|app_desc\|null` |
+| `GET /ota/products` | thêm `devices` (số máy tra kho — 0 = đặt target ở đó là im lặng), `stale_pins`; liệt kê cả kho chưa có thư mục nếu có máy tra |
+| `PUT /ota/{product}[/{file}]` | thẻ thứ hai: `esp_app_desc_t` (ảnh ESP-IDF, offset 0x20) — chỉ nhận khi `project_name` = kho đích hoặc một kho đã có (core Arduino nhúng `arduino-lib-builder` vào mọi ảnh Rapid+/Reader, KHÔNG được coi là thẻ). Phản hồi thêm `md5`, `tag`, `tag_source` |
+| `GET /ota/{product}/{file}` | `x-MD5` lấy từ manifest (`ota.md5_for` tính bù cho manifest cũ) |
+
+Env: `OTA_REQUIRE_TAG` nhận **danh sách kho** (`rapid4p,rapidplus-prod`; `1`/`true` = tất cả như cũ).
+Upload: kiểm-trùng + ghi trong `_UPLOAD_LOCK`, file tạm `.tmp-<name>.<pid>.<rand>` — hai PUT cùng
+tên đồng thời ra đúng 200 + 409.
+
 ## Lệch so với kế hoạch (cố ý)
 
 1. **Đọc thẻ + luật 409 kéo lên giai đoạn 0** (kế hoạch để giai đoạn 1): rẻ, thuần, có test, và

@@ -395,6 +395,17 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   `until` mới: chỉ ngắt khi đã có THỨ CẦN CHẤM (version/lỗi/`{Green: n}`/đủ 2 mẫu nhiệt), không
   ngắt ở "dấu hiệu bắt đầu". Nhìn hồ sơ thật (`%LOCALAPPDATA%\fbt-localtest\ate\*.json`, cột
   `raw` của bước hỏng) trước khi tin test.
+- **Tiến độ OTA NGƯỢC với version có hậu tố** (rà 2026-09-18, CHƯA sửa): `versionInFileName`
+  (`manager_machine_screen.dart`) rút version bằng regex `v?(\d+(?:\.\d+)+)` → **cắt mất hậu tố**
+  (`fbt_v2.4.5AT1.bin` → `2.4.5`), còn `normalizeDeviceVersion` **giữ** hậu tố → máy đang chạy
+  `v2.4.5AT1` bị tính "chưa lên", máy còn `v2.4.5` cũ lại tính "đã lên". Fleet đang build
+  `v2.4.5AT1`/`v2.4.5a1` nên bảng tiến độ, ô Trạng thái update, dấu "đang chạy" trong menu ghim và
+  CSV rollout đều sai; `ota_version_match_test.dart` không có ca target mang hậu tố. **Server đã sửa
+  tận gốc cùng ngày** (chưa deploy): `GET /devices` trả khối `ota{target, ver, pinned, reason, state,
+  offered_at}` với `state ∈ on|offered|waiting|skipped|unknown|none` tính ở server (so version giữ
+  hậu tố), và `GET /ota/{product}/progress` trả `counts` — app giai đoạn 2 **bỏ `versionInFileName`/
+  `isDeviceOnTarget`, đọc `ota.state`** (`server/docs/plan/ota-nhieu-san-pham.md` mục "Bổ sung
+  2026-09-18"). Chừng nào app chưa đổi, bảng tiến độ vẫn sai với bản có hậu tố.
 - **`ExpansionTile` căn GIỮA phần thân**: `expandedCrossAxisAlignment` mặc định là `center`, nên một
   `Container` không đặt bề rộng sẽ co lại bằng dòng dài nhất rồi nằm lọt thỏm giữa thẻ (khung Nhật ký
   trạm dính đúng lỗi này). Thân chiếm hết bề ngang thì phải `CrossAxisAlignment.stretch`.

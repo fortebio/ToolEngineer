@@ -11,17 +11,29 @@ static const char *thr_key(r4p_sick_t s, char *buf, size_t n)
     return buf;
 }
 
+/* Blob theo-khe (cal_min/cal_max/led_pwm) có kích thước = N × elem. Khi số khe đổi (4 → 5,
+ * docs/plan/rapid4p-5-slot.md) blob cũ ngắn hơn → KHÔNG xoá calib: đọc blob cũ theo mọi
+ * kích thước 1..R4P_SLOTS-1 khe, giữ phần trùng, khe mới = `fill`, rồi ghi lại đúng kích thước. */
+static void load_slot_blob(const char *key, void *dst, size_t elem, uint8_t fill)
+{
+    uint8_t *d = dst;
+    const size_t want = elem * R4P_SLOTS;
+    if (nvs_store_get_blob(key, d, want) == ESP_OK) return;
+    memset(d, fill, want);
+    for (int n = R4P_SLOTS - 1; n >= 1; n--) {
+        if (nvs_store_get_blob(key, d, elem * n) == ESP_OK) {
+            ESP_LOGW(TAG_NVS, "%s: blob %d khe -> mo rong %d khe (giu calib cu)", key, n, R4P_SLOTS);
+            break;
+        }
+    }
+    nvs_store_set_blob(key, d, want);
+}
+
 esp_err_t calib_store_load(void)
 {
     memset(&s_cfg, 0, sizeof(s_cfg));
-    if (nvs_store_get_blob("cal_min", s_cfg.cal_min, sizeof(s_cfg.cal_min)) != ESP_OK) {
-        memset(s_cfg.cal_min, 0, sizeof(s_cfg.cal_min));
-        nvs_store_set_blob("cal_min", s_cfg.cal_min, sizeof(s_cfg.cal_min));
-    }
-    if (nvs_store_get_blob("cal_max", s_cfg.cal_max, sizeof(s_cfg.cal_max)) != ESP_OK) {
-        memset(s_cfg.cal_max, 0, sizeof(s_cfg.cal_max));
-        nvs_store_set_blob("cal_max", s_cfg.cal_max, sizeof(s_cfg.cal_max));
-    }
+    load_slot_blob("cal_min", s_cfg.cal_min, sizeof(s_cfg.cal_min[0]), 0);
+    load_slot_blob("cal_max", s_cfg.cal_max, sizeof(s_cfg.cal_max[0]), 0);
     for (int i = 0; i < R4P_SICK_COUNT; i++) {
         char k[16];
         uint32_t v = 0;
@@ -38,12 +50,10 @@ esp_err_t calib_store_load(void)
     nvs_store_get_u32("lang", &lang);
     if (lang >= R4P_LANG_COUNT) lang = R4P_LANG_EN;   /* mặc định EN như bản gốc */
     s_cfg.lang = (r4p_lang_t)lang;
-    if (nvs_store_get_blob("led_pwm", s_cfg.led_pwm, sizeof(s_cfg.led_pwm)) != ESP_OK) {
-        memset(s_cfg.led_pwm, 127, sizeof(s_cfg.led_pwm));
-    }
-    ESP_LOGI(TAG_NVS, "settings: cal min=%u/%u/%u/%u max=%u/%u/%u/%u thr=%lu/%lu/%lu/%lu/%lu lang=%d",
-             s_cfg.cal_min[0], s_cfg.cal_min[1], s_cfg.cal_min[2], s_cfg.cal_min[3],
-             s_cfg.cal_max[0], s_cfg.cal_max[1], s_cfg.cal_max[2], s_cfg.cal_max[3],
+    load_slot_blob("led_pwm", s_cfg.led_pwm, sizeof(s_cfg.led_pwm[0]), 127);
+    for (int i = 0; i < R4P_SLOTS; i++)
+        ESP_LOGI(TAG_NVS, "settings: khe %d cal min=%u max=%u led=%u", i + 1, s_cfg.cal_min[i], s_cfg.cal_max[i], s_cfg.led_pwm[i]);
+    ESP_LOGI(TAG_NVS, "settings: thr=%lu/%lu/%lu/%lu/%lu lang=%d",
              (unsigned long)s_cfg.threshold[0], (unsigned long)s_cfg.threshold[1],
              (unsigned long)s_cfg.threshold[2], (unsigned long)s_cfg.threshold[3],
              (unsigned long)s_cfg.threshold[4], (int)s_cfg.lang);

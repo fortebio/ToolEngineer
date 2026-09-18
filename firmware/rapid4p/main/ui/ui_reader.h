@@ -42,6 +42,8 @@ ui_state_t ui_reader_state(void);
 /* Sự kiện từ ngoài (thread-safe, qua display_schedule) */
 void ui_reader_on_measure_button(void);      /* BTN3 GPIO0: xác nhận/đo như nút ĐO trên màn */
 void ui_reader_on_boot_button(void);         /* BOOT tap: thoát màn WiFi / quay lại */
+/* Dev console: nhảy thẳng tới màn (xem bố cục qua camera). Không dùng trong luồng thật. */
+void ui_reader_show_debug(ui_state_t st);
 void ui_reader_set_dev_state(r4p_dev_state_t s);
 void ui_reader_set_wifi(bool connected, const char *ip);
 void ui_reader_set_upload_stats(int pending, int sent);

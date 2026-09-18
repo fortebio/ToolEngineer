@@ -218,6 +218,18 @@ def check_firmware(key: str, p: dict, rep: Report, check_tag: bool) -> str | Non
             for flag in fw.get("build_flags", []) or []:
                 if f"CONFIG_{flag}=y" not in text:
                     rep.err("FWDIR", key, f"profile {e} thiếu CONFIG_{flag}=y")
+        # Số khe: registry channels.optical_slots phải bằng BOARD_SENSOR_SLOTS của board đang chọn
+        # (firmware suy mọi mảng/payload từ hằng đó — docs/plan/rapid4p-5-slot.md).
+        want = (p.get("channels") or {}).get("optical_slots")
+        found = None
+        for hdr in sorted((d / "main" / "boards").glob("board_*.h")):
+            m = re.search(r"#define\s+BOARD_SENSOR_SLOTS\s+(\d+)", hdr.read_text(encoding="utf-8", errors="replace"))
+            if m:
+                found = int(m.group(1))
+                if want is not None and found != want:
+                    rep.err("SLOTS", key, f"{hdr.relative_to(ROOT)} BOARD_SENSOR_SLOTS={found} ≠ registry optical_slots={want}")
+        if want is not None and found is None:
+            rep.warn("SLOTS", key, "không thấy BOARD_SENSOR_SLOTS trong main/boards/board_*.h")
     else:
         ini = d / "platformio.ini"
         if not ini.exists():

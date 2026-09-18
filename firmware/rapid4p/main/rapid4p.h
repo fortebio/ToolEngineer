@@ -14,6 +14,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "esp_log.h"
+#include "boards/board.h"     /* BOARD_SENSOR_SLOTS = nguồn sự thật số khe */
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,7 +30,10 @@ extern "C" {
 #define R4P_SETUP_PREFIX    "FBT-Rapid4P"  /* SSID SoftAP: FBT-Rapid4P-XX:XX */
 
 /* ===== Số slot / mẫu đo (giữ ngữ nghĩa FBT-ReaderPlus-1.0) ===== */
-#define R4P_SLOTS           4
+#define R4P_SLOTS           BOARD_SENSOR_SLOTS   /* KHÔNG hard-code: đổi số khe ở board header */
+#define R4P_STR_(x)         #x
+#define R4P_STR(x)          R4P_STR_(x)
+#define R4P_PRODUCT_NAME    "RAPID READER " R4P_STR(BOARD_SENSOR_SLOTS) " SLOT"
 #define R4P_ROUNDS          3      /* numSampling: 3 vòng đo */
 #define R4P_SAMPLES         3      /* numSample: 3 mẫu lux mỗi slot mỗi vòng */
 #define R4P_RESULT_MIN      0      /* valueMinsensor */

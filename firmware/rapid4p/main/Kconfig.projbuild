@@ -29,6 +29,13 @@ menu "Rapid4P Configuration"
                 docs/HARDWARE-PINOUT.md). Bo cảm biến 4 slot cắm JP1.
     endchoice
 
+    config RAPID4P_DEV_CONSOLE
+        bool "Dev console on UART0 (ui/btn/heap commands)"
+        default y
+        help
+            REPL esp_console trên UART0 để lái UI từ máy dev (scripts/uicmd.py) khi bring-up.
+            TẮT ở bản phát hành: mở luôn crash/reboot/mem-dump của esp_hosted qua cổng USB.
+
     config RAPID4P_DIAG_ENABLE
         bool "Enable periodic diag heap log"
         default y

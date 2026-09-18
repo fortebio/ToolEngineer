@@ -418,6 +418,16 @@ base hai transistor đều kéo qua R37/R40 4.7K lên `VDD_EXT`.
 
 Mọi chân GPIO trên header đều có **100R nối tiếp** để chống chập.
 
+**Gán cho bo cảm biến 5 khe (đề xuất 2026-09-17, `board_esp32p4_43lcd.h` khối `BOARD_SENSOR_*` —
+chưa có schematic bo con):** chân 12/13 = GPIO26/27 SDA/SCL bus I2C_NUM_1 riêng (mux TCA9548 0x70
+kênh 0..4, TCS34725 0x29 ×5) · chân 14/15/16/11/**8** = GPIO28/29/30/45/**47** enable LED khe 1..5 ·
+chân 9 = GPIO46 PWM chung · chân 4 VCC3V3, 3/10 GND. Còn trống: GPIO48/49/50 (chân 7/6/5). Nguồn LED
+(VCC3V3 hay BOOST_5V chân 2) và dòng qua 100R phải đo trên bo thật; LED cần dòng lớn → transistor trên bo con.
+
+**Kiến trúc ghép với bo LED + bo cảm biến ĐÃ CÓ (2026-09-18):** `HARDWARE-ARCHITECTURE.md` — P4C5 không có
+12 V/LDD/transistor như bo main ESP32 cũ nên cần **bo giao tiếp `Rapid4P-IF`** cắm JP1 (nguồn LED 5 V + công tắc
+N khe + pull-up I2C + cấp 5 V ngược cho P4C5 qua USB-C); netlist hai bo cũ và 5 phép đo phải làm ở đó.
+
 ---
 
 ## 12. Đối chiếu với `main/boards/board_esp32p4_43lcd.h`

@@ -122,13 +122,17 @@ static void do_measure(const cmd_t *cmd)
         s_res.positive[slot] = s_res.average[slot] >= c->threshold[cmd->sick];
     }
     s_res.finished_us = esp_timer_get_time();
-    ESP_LOGI(TAG_MEASURE, "xong %lld ms: %lu%s %lu%s %lu%s %lu%s (nguong %lu)",
-             (long long)((s_res.finished_us - s_res.started_us) / 1000),
-             (unsigned long)s_res.average[0], s_res.positive[0] ? "+" : "-",
-             (unsigned long)s_res.average[1], s_res.positive[1] ? "+" : "-",
-             (unsigned long)s_res.average[2], s_res.positive[2] ? "+" : "-",
-             (unsigned long)s_res.average[3], s_res.positive[3] ? "+" : "-",
-             (unsigned long)c->threshold[cmd->sick]);
+    {
+        char line[R4P_SLOTS * 12 + 1] = "";
+        for (int i = 0; i < R4P_SLOTS; i++) {
+            char one[12];
+            snprintf(one, sizeof(one), "%lu%s ", (unsigned long)s_res.average[i], s_res.positive[i] ? "+" : "-");
+            strlcat(line, one, sizeof(line));
+        }
+        ESP_LOGI(TAG_MEASURE, "xong %lld ms: %s(nguong %lu)",
+                 (long long)((s_res.finished_us - s_res.started_us) / 1000), line,
+                 (unsigned long)c->threshold[cmd->sick]);
+    }
     notify(MEASURE_PHASE_DONE);
     xEventGroupSetBits(g_r4p_events, R4P_EVT_MEASURE_DONE);
 }

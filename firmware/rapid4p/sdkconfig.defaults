@@ -7,9 +7,12 @@
 # --- Target ---
 CONFIG_IDF_TARGET="esp32p4"
 CONFIG_IDF_TARGET_ESP32P4=y
-# P4 rev v1.3: KHONG dat CONFIG_ESP32P4_SELECTS_REV_LESS_V3 tren IDF 5.5.1 (symbol khong
-# ton tai). Len 5.5.3+ phai xem lai (README-P4 muc 2 bay 5) - Rapid4P khong dung esp-sr
-# nen it anh huong.
+# P4 rev v1.3 (board that). IDF >= 5.5.3 tach rev <3.0 va >=3.0 thanh hai nhanh loai tru
+# nhau, mac dinh REV_MIN=v3.1 -> bootloader tu choi nap ("requires chip revision in range
+# [v3.1 - v3.99]", gap 2026-09-17 tren IDF 5.5.4). Hai dong duoi bat nhanh <3.0; tren
+# IDF 5.5.1 symbol SELECTS_REV_LESS_V3 khong ton tai (chi canh bao, REV_MIN_100 van ap).
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
+CONFIG_ESP32P4_REV_MIN_100=y
 CONFIG_IDF_EXPERIMENTAL_FEATURES=y
 
 # --- Flash ---
@@ -102,6 +105,9 @@ CONFIG_LV_USE_CLIB_STRING=y
 # CONFIG_LV_USE_BUILTIN_SPRINTF is not set
 CONFIG_LV_USE_CLIB_SPRINTF=y
 CONFIG_LV_FONT_MONTSERRAT_14=y
+# 18: nhan trang thai header (LV_SYMBOL_WIFI/UPLOAD) - font vimate KHONG co dai symbol
+# 0xF000+ nen icon ra o vuong (camera 2026-09-17); chuoi do chi ASCII nen dung Montserrat.
+CONFIG_LV_FONT_MONTSERRAT_18=y
 CONFIG_LV_FONT_MONTSERRAT_24=y
 CONFIG_LV_USE_SPINBOX=y
 CONFIG_LV_USE_BAR=y

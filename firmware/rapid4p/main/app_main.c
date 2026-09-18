@@ -16,11 +16,13 @@
 #include "core/nvs_store.h"
 #include "core/system_info.h"
 #include "core/wifi_mgr.h"
+#include "core/dev_console.h"
 #include "app/calib_store.h"
 #include "app/measure.h"
 #include "network/engineer_api.h"
 #include "network/ota_client.h"
 #include "network/result_upload.h"
+#include "network/dashboard.h"
 #include "ui/display.h"
 #include "ui/ui_reader.h"
 #include "input/button.h"
@@ -159,6 +161,8 @@ void r4p_app_start(void)
         display_set_sleep_timeout(CONFIG_RAPID4P_SCREEN_SLEEP_SEC);
     }
     ota_client_init(display_ok);
+    dev_console_start();     /* sau ui_reader_init: lenh ui/btn can UI da dung */
+    dashboard_init();        /* web dashboard :80, tu bat khi STA co IP */
 
 #if CONFIG_RAPID4P_DIAG_ENABLE
     const esp_timer_create_args_t dargs = { .callback = diag_timer_cb, .name = "diag" };

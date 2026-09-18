@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fortebio.tech/schemas/ingest-rapid4p.schema.json",
+  "title": "Rapid4P → Engineer Server: bản ghi kết quả đo (type_Upload = rapid4p_result)",
+  "description": "Payload do firmware/rapid4p/main/network/result_upload.c sinh (POST ingest, Bearer token). Số khe do máy tự khai ở `slots` (= BOARD_SENSOR_SLOTS); mọi mảng slot_*/calib_* phải có ĐÚNG `slots` phần tử — server/app/logic.py::validate kiểm điều này (JSON Schema không ràng buộc chéo được). Không dùng tên mảng của Rapid+ (CT_value/result/record_out/amplification, ghim 10).",
+  "type": "object",
+  "required": ["id_device", "product", "type_Upload", "sick", "sample", "slots", "slot_value", "slot_result", "slot_positive", "threshold", "time"],
+  "properties": {
+    "id_device":     { "type": "string", "minLength": 1, "maxLength": 24, "description": "Mã máy người dùng nhập qua portal; rỗng → firmware gửi mac_id" },
+    "version":       { "type": "string", "pattern": "^v\\d+\\.\\d+\\.\\d+" },
+    "product":       { "const": "rapid4p" },
+    "hw":            { "type": "string" },
+    "mac":           { "type": "string" },
+    "method":        { "const": "append" },
+    "type_Upload":   { "const": "rapid4p_result" },
+    "sick":          { "type": "string", "enum": ["PC", "EHP", "EMS", "WSSV", "TPD"], "description": "Khoá bệnh (r4p_sick_name) — không dịch" },
+    "sample":        { "type": "string", "description": "r4p_sample_name: PRAWN Vannamei, ..." },
+    "slots":         { "type": "integer", "minimum": 1, "maximum": 16, "description": "Số khe của máy (4 → 5 từ 2026-09-17)" },
+    "slot_value":    { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 1, "maxItems": 16, "description": "lux×1000 vòng cuối, mỗi khe" },
+    "slot_result":   { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 3000 }, "minItems": 1, "maxItems": 16, "description": "trung bình 3 vòng đã map 0..3000" },
+    "slot_positive": { "type": "array", "items": { "type": "boolean" }, "minItems": 1, "maxItems": 16 },
+    "calib_min":     { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 1, "maxItems": 16 },
+    "calib_max":     { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 1, "maxItems": 16 },
+    "threshold":     { "type": "integer", "minimum": 0, "maximum": 9999 },
+    "time":          { "type": "string", "description": "ISO-8601 giờ máy (SNTP ICT-7)" },
+    "duration_ms":   { "type": "integer", "minimum": 0 }
+  },
+  "patternProperties": {
+    "^slot_[0-9]+$": { "type": "integer", "description": "slot_1..slot_N = slot_result[i] dạng phẳng cho Sheet/ERP" }
+  },
+  "additionalProperties": true
+}
