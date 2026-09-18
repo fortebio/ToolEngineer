@@ -1,6 +1,6 @@
 # Kế hoạch phát triển Rapid Reader **5 slot** (từ nền Rapid4P)
 
-Ngày lập: 2026-09-17 · Trạng thái: **P0 (mặc định) + P1 + P4 ĐÃ LÀM 2026-09-17** — P2/P3 chờ bo mạch, P5 chờ Q4, P6 chờ phát hành · Phạm vi: firmware `firmware/rapid4p`,
+Ngày lập: 2026-09-17 · Trạng thái: **P0 (mặc định) + P1 + P4 ĐÃ LÀM 2026-09-17** — P2 tách P2a/P2b 2026-09-18 (bo LED + cảm biến đã có, cần bo IF), P3 chờ bo mạch, P5 chờ Q4, P6 chờ phát hành · Phạm vi: firmware `firmware/rapid4p`,
 bo cảm biến, registry/server/app, tài liệu. Nền tảng hiện tại: Rapid4P (ESP32-P4C5 + LCD 4,3"),
 đã nạp máy thật, LCD/touch/WiFi/dashboard chạy, **chưa có bo cảm biến** — đây là thời điểm rẻ nhất
 để đổi số khe vì chưa có máy nào phát hành, chưa có dữ liệu calib thật, chưa có hợp đồng payload.
@@ -23,7 +23,7 @@ bo cảm biến, registry/server/app, tài liệu. Nền tảng hiện tại: Ra
 | # | Câu hỏi | Đề xuất | Ảnh hưởng |
 |---|---|---|---|
 | Q1 | **Tên/khoá sản phẩm**: giữ `rapid4p` hay đổi `rapid5p`? | Khoá `rapid4p` **chưa phát hành** (status `dev`) nên đổi được. Nếu marketing đặt tên "Rapid5P"/"Rapid Reader 5 Slot" → đổi khoá thành `rapid5p`, tiền tố mã máy `R5P`, SSID `FBT-Rapid5P`, thư mục giữ `firmware/rapid4p` → đổi tên `firmware/rapid5p` (git mv). Nếu tên thương mại chưa chốt → giữ khoá, chỉ đổi số khe (rẻ nhất). | registry, server `valid_product`, OTA `product=`, thư mục, tag `fw/<key>/` |
-| Q2 | **Phần cứng bo cảm biến 5 khe**: 5 TCS34725 qua TCA9548 kênh 0..4, LED enable riêng từng khe (cần **5 GPIO**: 28/29/30/45 + **47**), PWM chung GPIO46 | Dùng GPIO47 (JP1 còn 47/48/49/50). Nguồn LED: 5 LED × dòng → đo trên bo thật (VCC3V3 hay BOOST_5V) | schematic bo con, `board_esp32p4_43lcd.h` |
+| Q2 | **Phần cứng bo cảm biến 5 khe**: 5 TCS34725 qua TCA9548 kênh 0..4, LED enable riêng từng khe (cần **5 GPIO**: 28/29/30/45 + **47**), PWM chung GPIO46 | Dùng GPIO47 (JP1 còn 47/48/49/50). **2026-09-18: bo LED + bo cảm biến 4 khe ĐÃ CÓ** (ReaderPlus/ReaderMax) → ghép qua bo giao tiếp `Rapid4P-IF`, kiến trúc + quyết định D1–D6 + phép đo ở `firmware/rapid4p/docs/HARDWARE-ARCHITECTURE.md` | bo IF (mới), rev 2 bo cũ lên 5 khe, `board_esp32p4_43lcd.h` |
 | Q3 | **Chu trình đo**: 3 vòng × 5 khe (≈ 42 s, hiện 4 khe ≈ 34 s) hay giảm settle để giữ ≈ 35 s? | Giữ 3 vòng, chấp nhận ≈ 42 s (thuật toán ReaderPlus); tối ưu sau khi có số đo thật | `measure.c`, tiêu chuẩn "xong" §4 CLAUDE.md |
 | Q4 | Khe thứ 5 dùng làm gì? (mẫu thứ 5 hay **chứng âm/chuẩn nội** cố định?) | Nếu là chứng chuẩn: UI đánh dấu khe 5 khác màu, ngưỡng có thể tính theo khe chuẩn — thay đổi thuật toán, cần chủ thuật toán quyết | `measure.c`, `ui_reader.c`, payload thêm `control_slot` |
 | Q5 | Kích thước LCD giữ 4,3" 800×480? | Giữ. 5 ô 136 px vẫn đủ chữ 48 px cho số 4 chữ số | `ui_reader.c` |
@@ -55,7 +55,7 @@ bo cảm biến, registry/server/app, tài liệu. Nền tảng hiện tại: Ra
 |---|---|---|---|
 | **P0 Chốt** | Trả lời Q1–Q5; nếu Q1 = đổi tên → tạo nhánh `claude/rapid5p-…`, `git mv`, đổi khoá registry + server `valid_product` | Biên bản trong `docs/history/` | 0,5 ngày |
 | **P1 Firmware "N khe"** | Gỡ mọi "4" cứng: `R4P_SLOTS = BOARD_SENSOR_SLOTS`; chuỗi format; log; migration NVS; `RQ_MAX_JSON`; dashboard đọc `total`; mock 5 khe. **Build 2 lần**: `SLOTS=4` (không đổi hành vi, chụp webcam so sánh) và `SLOTS=5` | `BUILD_EXIT=0` cả hai; 13 màn + dashboard chụp đạt ở N=5 (khe giả `0/5` khi chưa bo) | 1,5 ngày |
-| **P2 Bo cảm biến 5 khe** | Schematic bo con (mux 0x70 kênh 0..4, 5 TCS 0x29, 5 LED enable + PWM chung, pull-up 4,7 K, nguồn LED đo thật); cập nhật `board_esp32p4_43lcd.h` kèm nguồn | Bo mẫu + pinout chốt trong `HARDWARE-PINOUT.md` | phụ thuộc phần cứng (ngoài phần mềm) |
+| **P2 Bo cảm biến 5 khe** | Đổi thành **P2a bo giao tiếp `Rapid4P-IF`** (nguồn LED 5 V + công tắc N khe + pull-up I2C + cấp 5 V cho P4C5) cắm JP1, dùng lại bo LED/cảm biến 4 khe có sẵn → bring-up `SLOTS 4`; **P2b rev bo LED + bo cảm biến lên 5 khe** (mux kênh 4 trống sẵn, connector LED 1×6). Lộ trình H0–H5 và 5 phép đo phải làm trước: `firmware/rapid4p/docs/HARDWARE-ARCHITECTURE.md` | Bo IF mẫu + pinout chốt trong `HARDWARE-PINOUT.md` | phụ thuộc phần cứng (ngoài phần mềm) |
 | **P3 Bring-up** | Nạp, log `slot 1..5: TCS34725 OK`, `measure task san sang, 5/5`; chu trình đo đủ 3 vòng × 5 khe, chạm vẫn ăn; đo thời gian thật; calib 5 khe qua UI | Tiêu chuẩn §4 CLAUDE.md rapid4p, cập nhật số 4/4 → 5/5 | 1 ngày sau khi có bo |
 | **P4 Hợp đồng dữ liệu** | `system/contracts/ingest-rapid4p.schema.json` (mảng N theo `slots`); server validate theo registry; `registry_check` kiểm N firmware == registry; test POST vào `server/scripts/localtest.ps1` | CI `registry` xanh; localtest nhận bản ghi 5 khe | 1 ngày |
 | **P5 Thuật toán (nếu Q4 = khe chuẩn)** | Chuẩn nội, ngưỡng tương đối, đánh dấu UI/dashboard, payload `control_slot` | Quyết định của chủ thuật toán + số liệu thật | 1–2 ngày |

@@ -31,7 +31,8 @@
 
 | Khu vực | Đọc trước | Sở hữu |
 |---|---|---|
-| Pinout + knob | `main/boards/board_esp32p4_43lcd.h`, `docs/HARDWARE-PINOUT.md` | mọi chân/địa chỉ/tần số; khối `BOARD_SENSOR_*` / `BOARD_SLOT_LED_*` (JP1, **đề xuất** — chưa có schematic bo con) |
+| Pinout + knob | `main/boards/board_esp32p4_43lcd.h`, `docs/HARDWARE-PINOUT.md` | mọi chân/địa chỉ/tần số; khối `BOARD_SENSOR_*` / `BOARD_SLOT_LED_*` (JP1, **đề xuất** — chưa có schematic bo IF) |
+| **Kiến trúc HW ghép bo có sẵn** | `docs/HARDWARE-ARCHITECTURE.md` | 4 bo: P4C5 · **`Rapid4P-IF`** (bo giao tiếp, MỚI) · bo LED · bo cảm biến (ReaderPlus/ReaderMax, netlist đọc từ KiCad + EasyEDA). Quyết định D1–D6 (bỏ LDD-1200L → R + MOSFET từ 5 V; 1 nguồn 5 V), 5 phép đo §7 phải làm trước khi vẽ bo IF, bring-up 4 khe trước rồi rev 5 khe |
 | Boot | `main/app_main.c` | thứ tự init, main task (event bits → ui_reader), SNTP TZ `ICT-7`, diag 60 s |
 | Kiểu chung | `main/rapid4p.h` | `R4P_FW_VERSION` (registry đọc regex ở đây), enum bệnh/mẫu/ngôn ngữ, event bits, `g_r4p_cfg` |
 | Màn hình HW | `main/ui/display.c` | LDO DPHY → reset GPIO22 → DSI → DPI 2 fb → lvgl_port → PPA xoay 270° → đèn nền LEDC ch0; `display_schedule()`; ngủ màn |
@@ -59,6 +60,10 @@
 - Nút: BOOT GPIO35 (chung DTR CH343 — chỉ xung), BTN3 GPIO0. WS2812 GPIO34, AXP2101 0x34 IRQ 21
   **chưa có driver** (pin/sạc chưa đọc được).
 - JP1 còn trống sau khi gán cảm biến 5 khe: GPIO48/49/50 (GPIO47 = LED khe 5, đề xuất).
+- **Bo LED + bo cảm biến đã có** (thế hệ ReaderPlus/ReaderMax, ngoài repo `01. EngineerHub/03.RapidReaderMax/02.HardwarePCB/`):
+  I2C 4 dây GND-3V3-SCL-SDA (TCA9548A 0x70, pull-up 10 K trên bo), LED 5 dây VOUT+ chung + LIGHT1..4 sink, pitch khe
+  13,545 mm; bo main ESP32 cũ nuôi chúng bằng 12 V + LDD-1200L + S8050 — P4C5 **không có** các khối đó →
+  `docs/HARDWARE-ARCHITECTURE.md`.
 
 ## 3. Luật riêng cây này
 
@@ -129,6 +134,7 @@ init OK`, `sensor bus I2C1`, `slot n (mux ch): TCS34725 OK` ×N, `measure task s
 | `E i2c.master: this port has not been initialized` ngay trước `sensor bus I2C1` | log thăm dò của `i2c_master_get_bus_handle()` trong `sensor_bus_init()` khi I2C1 chưa ai tạo → code tự tạo bus, vô hại |
 | `TCA9548 select chN loi ESP_ERR_INVALID_STATE` ×N, `0/N cam bien` | `ESP_ERR_INVALID_STATE` là mã **NACK** của driver `i2c_master` IDF 5.5 (`i2c_master.c:101`) = không có thiết bị 0x70 trên bus = chưa cắm bo cảm biến. Không phải bug thứ tự init |
 | `transport: Version mismatch: Host [2.12.0] > Co-proc [2.7.0]` | firmware ESP-Hosted trong C5 cũ hơn host; hiện WiFi vẫn chạy. Nếu gặp RPC timeout → nâng slave C5 (xem AGENTS.md vimate-p4) |
+| Cần đọc netlist bo thiết kế ở ngoài repo (`01. EngineerHub/…`) | KiCad: MCP `kicad` › `extract_schematic_netlist` + `list_labels_in_schematic` (tool KHÔNG gộp nhãn cục bộ vào net → đối chiếu bằng danh sách nhãn). EasyEDA Pro `.eprj` = **SQLite**: `documents.dataStr` = `base64` + gzip của định dạng dòng JSON (`["COMPONENT",…]`, `["PAD_NET",comp,pad,net]`), `devices`/`attributes` map UUID → mã linh kiện; đọc **PCB** (`PAD_NET`) tin hơn sheet. PDF datasheet: `pypdf` trong venv IDF (`C:\Espressif\python_env\idf5.5_py3.11_env`), `python` hệ thống không có pip |
 | Bẫy phần cứng (panel kẹt sau reset MCU, SDIO chết cache line 128 B, TJPGD tràn stack, DHCP 5 GHz…) | `firmware/maping new product/firmware-vimate-p4/AGENTS.md` §7 — vẫn đúng cho cây này |
 
 ## 6. Chưa làm (theo thứ tự)
@@ -138,7 +144,8 @@ init OK`, `sensor bus I2C1`, `slot n (mux ch): TCS34725 OK` ×N, `measure task s
 > `docs/plan/rapid4p-5-slot.md`. Nguyên tắc: số khe = `BOARD_SENSOR_SLOTS`, không hard-code 4.
 
 
-1. Schematic bo cảm biến **5 slot** → chốt chân JP1 (LED 5 = GPIO47 đề xuất), pull-up, nguồn LED (VCC3V3 hay BOOST_5V — đo!).
+1. ~~Schematic bo cảm biến 5 slot~~ → **đã có bo LED + bo cảm biến 4 khe** (2026-09-18): làm theo `docs/HARDWARE-ARCHITECTURE.md`
+   — đo 5 số liệu §7 → chốt D1–D6 → vẽ bo **Rapid4P-IF** → bring-up `BOARD_SENSOR_SLOTS 4` → rev hai bo lên 5 khe.
 2. ~~Nạp board thật~~ (đã nạp 2026-09-17, log đạt §4 trừ phần cảm biến). ~~Xác nhận chiều
    xoay/chạm bằng mắt~~ (đã xem 13 màn qua webcam 2026-09-17: xoay đúng, chạm ăn, đã sửa
    5 lỗi bố cục). Còn: soak > 60 s; chu trình đo 34 s khi có bo con; màn WiFi chuỗi vẫn tiếng
