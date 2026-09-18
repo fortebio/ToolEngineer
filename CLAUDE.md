@@ -128,6 +128,12 @@ Set-Location firmware\rapid4p; cmd /c scripts\build.bat                 # ESP-ID
   **anchor phải xuất hiện đúng 1 lần** (`assert t.count(old) == 1`) để bắt lệch thay vì ghi đè mù;
   `ListAgents` cho biết phiên nào đang chạy/idle; quyết định đã chốt có thể **đã bị một phiên khác làm
   theo hướng ngược lại** → đọc `docs/history/` mới nhất của phần đó trước khi hỏi người dùng chốt.
+  **Gộp nhánh của các phiên song song vào `main`** (2026-09-18): xung đột lặp ở 2 chỗ — **cuối `CLAUDE.md`
+  từng phần** (mỗi phiên nối thêm một gotcha vào đuôi → giữ CẢ HAI, chỉ xoá marker) và
+  **`.vscode/settings.json`** (`cmake.sourceDirectory` là đường dẫn tuyệt đối máy cục bộ, mỗi nhánh trỏ
+  firmware khác → lấy bản của nhánh đang gộp). Dò trước KHÔNG đụng cây làm việc:
+  `git merge-tree --write-tree --name-only main <nhánh>` (Git ≥ 2.38) in tên file xung đột; sau merge
+  chạy `python tools/registry_check.py` rồi mới push.
 - **Classifier permission của box chặn 3 việc "trông nguy hiểm" dù vô hại** (gặp 2026-09-12): (1) mở
   HTTP server ra mạng (`python -m http.server --bind <IP tailnet>`); (2) ghi FILE hướng dẫn có chứa lệnh
   kiểu `mv/rm … /path/*` hoặc `echo key >> authorized_keys` — mô tả bằng lời trong chat thì được;
