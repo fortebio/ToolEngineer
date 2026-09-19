@@ -130,6 +130,10 @@ scripts\flash.bat [board] COMxx
 python scripts\readlog.py --list | auto 60 boot.log   (auto = CH343 bo P4; thả DTR/RTS trước khi mở cổng)
 python scripts\jtaglog.py COM20 40 boot.log          (bo S3 cắm cổng USB native = USB-Serial/JTAG: reset bằng esptool rồi mở lại cổng; mất ~1 s log đầu)
 python scripts\uicmd.py COM7 "ui settings" "btn do"   (dev console: ui <0..12|tên|confirm> · btn do|boot · heap · help)
+Kiểm trục chạm board mới: `CONFIG_RAPID4P_TOUCH_LOG=y` (mặc định dev, TẮT khi phát hành) → mỗi lần nhấn/thả in
+`r4p.main: touch DOWN logical=(x,y) raw=(x,y)` VÀ header LCD hiện `T x,y r x,y` (vàng, `ui_reader_touch_debug()` gọi trong LVGL task) — đọc số
+ngay trên màn vì luồng USB-JTAG hay đứt quãng khi người cầm bo thao tác (mất ~2 phút log, 2026-09-19). Chạm 4 góc: trên-trái phải ra (~0,~0),
+dưới-phải (~W−1,~H−1); lệch → chỉnh `BOARD_TOUCH_SWAP_XY/MIRROR_*`.
 ```
 **Xem màn LCD từ máy dev (không cần người chạm)**: dev console `core/dev_console.c`
 (`CONFIG_RAPID4P_DEV_CONSOLE`, tắt ở bản phát hành) + webcam qua **ffmpeg dshow** — trình duyệt
@@ -170,7 +174,7 @@ log 60 s sạch; chạm đúng vị trí (không lệch trục — nếu lệch 
 | `E i2c.master: this port has not been initialized` ngay trước `sensor bus I2C1` | log thăm dò của `i2c_master_get_bus_handle()` trong `sensor_bus_init()` khi I2C1 chưa ai tạo → code tự tạo bus, vô hại |
 | `TCA9548 select chN loi ESP_ERR_INVALID_STATE` ×N, `0/N cam bien` | `ESP_ERR_INVALID_STATE` là mã **NACK** của driver `i2c_master` IDF 5.5 (`i2c_master.c:101`) = không có thiết bị 0x70 trên bus = chưa cắm bo cảm biến. Không phải bug thứ tự init |
 | `transport: Version mismatch: Host [2.12.0] > Co-proc [2.7.0]` | firmware ESP-Hosted trong C5 cũ hơn host; hiện WiFi vẫn chạy. Nếu gặp RPC timeout → nâng slave C5 (xem AGENTS.md vimate-p4) |
-| Log qua cổng USB-Serial/JTAG (303A:1001) chỉ có 1 dòng / `readlog.py` không reset được | cổng nằm TRONG chip: reset → COM biến mất rồi hiện lại, xung RTS thô không reset. Dùng `scripts/jtaglog.py` (esptool hard_reset + mở lại cổng 20 ms); `esp_idf_monitor` đòi TTY nên không chạy được từ tool. Dev console REPL chỉ nhận lệnh qua UART0 (43/44), qua USB-JTAG chỉ thấy prompt `r4p>` |
+| Log qua cổng USB-Serial/JTAG (303A:1001) chỉ có 1 dòng / `readlog.py` không reset được | cổng nằm TRONG chip: reset → COM biến mất rồi hiện lại, xung RTS thô không reset. Dùng `scripts/jtaglog.py` (esptool hard_reset + mở lại cổng 20 ms); `esp_idf_monitor` đòi TTY nên không chạy được từ tool. Dev console REPL chỉ nhận lệnh qua UART0 (43/44), qua USB-JTAG chỉ thấy prompt `r4p>`. Probe bằng `esptool --after no_reset` để chip ĐỨNG ở bootloader (log im, app không chạy) → luôn `--after hard_reset` hoặc chạy `jtaglog.py` sau đó. Cổng còn nhưng esptool báo `No serial data received` = bo bị rút nguồn/bấm nút lúc thao tác, cắm lại là hết (2026-09-19) |
 | **build.bat thoát mã 2 không in gì** (2026-09-19) | `echo … (a ^| b)` trong khối `if ( … )` của cmd: dấu `)` trong echo ĐÓNG khối → `exit /b 2` chạy vô điều kiện. Không dùng ngoặc đơn trong echo bên trong khối `if (…)` |
 | `"/*" within comment [-Werror=comment]` | ghi `sensor/*`, `display_hw_*.c` trong comment C → viết "thư mục sensor", `display_hw_<x>.c` |
 | Hai board đè `sdkconfig`/lock của nhau | `CMakeLists.txt` gốc đặt `SDKCONFIG=${CMAKE_BINARY_DIR}/sdkconfig` (idf.py đọc lại từ `build_<board>/project_description.json` sau lần configure đầu — `tools/idf_py_actions/tools.py::get_sdkconfig_filename`) + `DEPENDENCIES_LOCK dependencies.lock.${IDF_TARGET}` (lock có trường `target:`). Build dir cũ `build/` + `sdkconfig` gốc là rác — xoá được |

@@ -25,6 +25,7 @@
 #include "rapid4p.h"
 #include "boards/board.h"
 #include "ui/display.h"
+#include "ui/ui_reader.h"
 
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
@@ -41,12 +42,14 @@ static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_dev;
 static lv_indev_t *s_indev;
 static bool s_ready;
+static int s_raw_x, s_raw_y;   /* mẫu thô gần nhất (trước xoay) — cho log chẩn đoán */
 
 /* native → logical theo knob board (suy từ BOARD_LCD_ROTATION / đo trên board):
  * swap → mirror_x (theo H_RES) → mirror_y (theo V_RES) → clamp. */
 static void map_to_logical(int *px, int *py)
 {
     int x = *px, y = *py;
+    s_raw_x = x; s_raw_y = y;
 #if BOARD_TOUCH_SWAP_XY
     { int t = x; x = y; y = t; }
 #endif
@@ -182,8 +185,10 @@ static void indev_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
 {
     (void)indev;
     static int last_x, last_y;
+    static bool was_pressed;
     int x, y;
-    if (touch_sample(&x, &y)) {
+    const bool pressed = touch_sample(&x, &y);
+    if (pressed) {
         last_x = x; last_y = y;
         data->point.x = x;
         data->point.y = y;
@@ -194,6 +199,19 @@ static void indev_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
         data->point.y = last_y;
         data->state = LV_INDEV_STATE_RELEASED;
     }
+#if CONFIG_RAPID4P_TOUCH_LOG
+    /* Chẩn đoán trục chạm khi bring-up: chỉ log lúc NHẤN xuống và THẢ (không log mỗi mẫu).
+     * Đối chiếu: góc trên-trái màn → logical (~0,~0); góc dưới-phải → (~W−1,~H−1). Lệch trục →
+     * chỉnh BOARD_TOUCH_SWAP_XY/MIRROR_X/MIRROR_Y trong board header. */
+    if (pressed && !was_pressed) {
+        ESP_LOGI(TAG_MAIN, "touch DOWN logical=(%d,%d) raw=(%d,%d) man %dx%d", x, y, s_raw_x, s_raw_y,
+                 BOARD_LCD_H_RES, BOARD_LCD_V_RES);
+        ui_reader_touch_debug(x, y, s_raw_x, s_raw_y);   /* hiện trên header LCD (đang trong LVGL task) */
+    } else if (!pressed && was_pressed) {
+        ESP_LOGI(TAG_MAIN, "touch UP   logical=(%d,%d)", last_x, last_y);
+    }
+#endif
+    was_pressed = pressed;
 }
 
 bool touch_is_ready(void) { return s_ready; }

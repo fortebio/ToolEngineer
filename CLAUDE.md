@@ -102,6 +102,8 @@ Set-Location firmware\rapid4p; cmd /c scripts\build.bat                 # ESP-ID
   mục đó (CWD persist giữa các call) hoặc IDE/Docker giữ handle. Cách xử lý: `cd` ra ngoài hẳn → `cp -r` sang
   đích (copy đọc được dù bị giữ) → xoá nguồn bằng **PowerShell `Remove-Item -Recurse -Force`** (qua được khoá
   mà `rm -rf` của Git Bash không qua).
+- **`grep -c` trả 0 khớp = mã thoát 1** → đặt giữa chuỗi `a && grep -c … && b` thì `b` (vd build) LẶNG LẼ không chạy và
+  log cũ vẫn nằm đó để đọc nhầm (2026-09-19). Kiểm form-feed bằng `grep -c … ;` (dấu `;`) hoặc `|| true`, đừng nối `&&`.
 - **Shell môi trường KHÔNG có `jq`** — viết hook/script xử lý JSON bằng **bash thuần** (`case`/`grep`)
   hoặc node/python, đừng phụ thuộc `jq`. (Windows `python` cũng không hiểu path `/tmp` của Git Bash.)
 - **KHÔNG dán token/API key trần vào lệnh inline** (vd `curl -H "Authorization: Bearer <token>"`):

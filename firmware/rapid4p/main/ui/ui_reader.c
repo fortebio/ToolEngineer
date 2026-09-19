@@ -955,6 +955,16 @@ static void apply_dev_state(void *arg)
 }
 
 void ui_reader_on_measure_button(void) { display_schedule(apply_measure_button, NULL); }
+
+void ui_reader_touch_debug(int x, int y, int raw_x, int raw_y)
+{
+    /* Gọi từ indev_read_cb (đã trong LVGL task, dưới lock của port) — không cần display_schedule. */
+    if (!s.status || !lv_obj_is_valid(s.status)) return;
+    char buf[48];
+    snprintf(buf, sizeof(buf), "T %d,%d r%d,%d", x, y, raw_x, raw_y);
+    lv_label_set_text(s.status, buf);
+    lv_obj_set_style_text_color(s.status, C_AMBER, 0);
+}
 void ui_reader_on_boot_button(void) { display_schedule(apply_boot_button, NULL); }
 static void apply_confirm_demo(void *arg)
 {

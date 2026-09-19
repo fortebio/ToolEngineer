@@ -48,6 +48,13 @@ menu "Rapid4P Configuration"
             REPL esp_console trên UART0 để lái UI từ máy dev (scripts/uicmd.py) khi bring-up.
             TẮT ở bản phát hành: mở luôn crash/reboot/mem-dump của esp_hosted qua cổng USB.
 
+    config RAPID4P_TOUCH_LOG
+        bool "Log touch down/up (logical + raw) for touch-axis bring-up"
+        default y
+        help
+            Moi lan nhan xuong / tha in mot dong r4p.main "touch DOWN logical=(x,y) raw=(x,y)".
+            Dung de kiem BOARD_TOUCH_SWAP_XY/MIRROR_* tren board moi. TAT o ban phat hanh.
+
     config RAPID4P_DIAG_ENABLE
         bool "Enable periodic diag heap log"
         default y
