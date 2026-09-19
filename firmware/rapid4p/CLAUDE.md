@@ -21,8 +21,12 @@
   **2,08 MB** · `build_s3_28lcd/rapid4p-s3.bin` **2,00 MB** / slot 3 MB.
 - **P4 đã nạp máy thật 2026-09-17** (COM7, ESP32-P4 rev **v1.3**, chưa có bo cảm biến): log 60 s sạch, DSI/touch/WiFi
   qua C5/portal chạy, 13 màn đã xem qua webcam. Mọi thứ thuộc `sensor/*`, `app/measure.c` vẫn chưa có bằng chứng phần cứng.
-- **S3 2.8" CHƯA nạp máy** (2026-09-19 mới build): LCD/touch/UI thang nhỏ/chân cảm biến ĐỀ XUẤT đều chờ bo ES3N28P.
-  Tiêu chuẩn "xong" §4.
+- **S3 2.8" đã nạp bo ES3N28P lần đầu 2026-09-19** (COM20 = cổng USB-Serial/JTAG native 303A:1001, S3 rev v0.2, PSRAM 8 MB):
+  log boot sạch (`scripts/jtaglog.py`): `Init SPI ILI9341 panel 240x320 @ 40 MHz, logical 320x240`, **`Touch FT6236 chip id=0x64`**
+  (chip thật trả lời) → `init OK`, `Button init BOOT=GPIO0 DO=GPIO47`, `sensor bus I2C1 SDA=41 SCL=40`, `TCA9548 … INVALID_STATE` ×5
+  (chưa cắm bo con — đúng), `measure task san sang 0/5`, `ui_reader san sang`, OTA `ota_0`, dev console UART0, WiFi chưa cấu hình → offline;
+  diag 60 s: heap internal 168 KB (min 166 KB), PSRAM 8 MB, `flush` tăng đều, không `task_wdt`/`Guru`. **Chưa kiểm bằng mắt/chạm tay**
+  (box ADM không có ffmpeg/webcam): hướng xoay màn, trục chạm (`BOARD_TOUCH_*`), 13 màn thang 2.8", QR quét được — việc 1 §6.
 - Kế thừa từ vimate-p4 (đã chạy thật): `components/esp_lcd_st7102`, `boards/`, `core/{nvs_store,
   system_info, captive_dns, wifi_mgr}`, `ui/ui_wifi_setup.c`, `ui/fonts/*`, khối HW-init +
   xoay PPA của `ui/display_hw_dsi.c`, giao thức reg16 của `input/touch.c`, `scripts/readlog.py`; từ vimate (S3):
@@ -123,7 +127,8 @@ scripts\build.bat                    → p4_43lcd, BUILD_EXIT=0/1 (build dir bui
 scripts\build.bat s3_28lcd [COMx]    → S3 2.8", build_s3_28lcd/rapid4p-s3.bin (+ nạp)
 scripts\build.bat COMxx              → (tương thích cũ) p4_43lcd + nạp
 scripts\flash.bat [board] COMxx
-python scripts\readlog.py --list | auto 60 boot.log   (auto = CH343 bo P4; bo S3 ghi COM; thả DTR/RTS trước khi mở cổng)
+python scripts\readlog.py --list | auto 60 boot.log   (auto = CH343 bo P4; thả DTR/RTS trước khi mở cổng)
+python scripts\jtaglog.py COM20 40 boot.log          (bo S3 cắm cổng USB native = USB-Serial/JTAG: reset bằng esptool rồi mở lại cổng; mất ~1 s log đầu)
 python scripts\uicmd.py COM7 "ui settings" "btn do"   (dev console: ui <0..12|tên|confirm> · btn do|boot · heap · help)
 ```
 **Xem màn LCD từ máy dev (không cần người chạm)**: dev console `core/dev_console.c`
@@ -165,6 +170,7 @@ log 60 s sạch; chạm đúng vị trí (không lệch trục — nếu lệch 
 | `E i2c.master: this port has not been initialized` ngay trước `sensor bus I2C1` | log thăm dò của `i2c_master_get_bus_handle()` trong `sensor_bus_init()` khi I2C1 chưa ai tạo → code tự tạo bus, vô hại |
 | `TCA9548 select chN loi ESP_ERR_INVALID_STATE` ×N, `0/N cam bien` | `ESP_ERR_INVALID_STATE` là mã **NACK** của driver `i2c_master` IDF 5.5 (`i2c_master.c:101`) = không có thiết bị 0x70 trên bus = chưa cắm bo cảm biến. Không phải bug thứ tự init |
 | `transport: Version mismatch: Host [2.12.0] > Co-proc [2.7.0]` | firmware ESP-Hosted trong C5 cũ hơn host; hiện WiFi vẫn chạy. Nếu gặp RPC timeout → nâng slave C5 (xem AGENTS.md vimate-p4) |
+| Log qua cổng USB-Serial/JTAG (303A:1001) chỉ có 1 dòng / `readlog.py` không reset được | cổng nằm TRONG chip: reset → COM biến mất rồi hiện lại, xung RTS thô không reset. Dùng `scripts/jtaglog.py` (esptool hard_reset + mở lại cổng 20 ms); `esp_idf_monitor` đòi TTY nên không chạy được từ tool. Dev console REPL chỉ nhận lệnh qua UART0 (43/44), qua USB-JTAG chỉ thấy prompt `r4p>` |
 | **build.bat thoát mã 2 không in gì** (2026-09-19) | `echo … (a ^| b)` trong khối `if ( … )` của cmd: dấu `)` trong echo ĐÓNG khối → `exit /b 2` chạy vô điều kiện. Không dùng ngoặc đơn trong echo bên trong khối `if (…)` |
 | `"/*" within comment [-Werror=comment]` | ghi `sensor/*`, `display_hw_*.c` trong comment C → viết "thư mục sensor", `display_hw_<x>.c` |
 | Hai board đè `sdkconfig`/lock của nhau | `CMakeLists.txt` gốc đặt `SDKCONFIG=${CMAKE_BINARY_DIR}/sdkconfig` (idf.py đọc lại từ `build_<board>/project_description.json` sau lần configure đầu — `tools/idf_py_actions/tools.py::get_sdkconfig_filename`) + `DEPENDENCIES_LOCK dependencies.lock.${IDF_TARGET}` (lock có trường `target:`). Build dir cũ `build/` + `sdkconfig` gốc là rác — xoá được |
@@ -176,8 +182,9 @@ log 60 s sạch; chạm đúng vị trí (không lệch trục — nếu lệch 
 
 > Nguyên tắc: số khe = `BOARD_SENSOR_SLOTS`, không hard-code 4; kích thước UI = token, không hard-code px.
 
-1. **Nạp bo ES3N28P 2.8"** (`scripts\build.bat s3_28lcd COMx`) → tiêu chuẩn §4 bo S3: LCD/touch/xoay, 13 màn + WiFi qua webcam,
-   chỉnh `BOARD_TOUCH_*`/token 2.8" theo mắt; soak 60 s; xác nhận header thật của board → sửa chân cảm biến ĐỀ XUẤT.
+1. ~~Nạp bo ES3N28P 2.8"~~ (đã nạp 2026-09-19, log đạt §4 trừ phần mắt/chạm). Còn: **người cầm máy** xác nhận hướng xoay màn,
+   trục chạm (chỉnh `BOARD_TOUCH_SWAP_XY/MIRROR_*`), 13 màn + màn WiFi thang 2.8" (chữ tràn? QR quét được?), chỉnh token theo mắt;
+   soak > 60 s; xác nhận header thật của board → sửa chân cảm biến ĐỀ XUẤT; cắm cổng UART0 để dùng `uicmd.py`.
 2. ~~Schematic bo cảm biến 5 slot~~ → **đã có bo LED + bo cảm biến 4 khe** (2026-09-18): làm theo `docs/HARDWARE-ARCHITECTURE.md`
    — đo 5 số liệu §7 → chốt D1–D6 → vẽ bo **Rapid4P-IF** (P4 JP1; bo S3 cần bản tương đương) → bring-up `BOARD_SENSOR_SLOTS 4` → rev hai bo lên 5 khe.
 3. P4: soak > 60 s; chu trình đo 34 s khi có bo con; màn WiFi chuỗi vẫn tiếng Việt cứng (chưa theo `ui_strings`, đi cùng portal web).

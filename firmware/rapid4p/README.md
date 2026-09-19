@@ -7,7 +7,7 @@ màn cảm ứng, WiFi, gửi kết quả về Engineer Server và cập nhật 
 | Board (`scripts\build.bat <board>`) | Phần cứng | Khoá sản phẩm / kho OTA | Trạng thái |
 |---|---|---|---|
 | `p4_43lcd` (mặc định) | ESP32-P4C5 + LCD 4.3" ST7102 MIPI-DSI 800×480 + touch ST7123 (board tham chiếu `firmware-vimate-p4`) | `rapid4p` · hw `P4C5-43` | đã nạp board rev v1.3 (2026-09-17), chưa có bo cảm biến |
-| `s3_28lcd` | AI-IoT VN **ES3N28P**: ESP32-S3 N16R8 + LCD 2.8" ILI9341 SPI 320×240 + touch FT6236G (pinout `firmware-vimate` s3-28lcd) | `rapid4p-s3` · hw `S3-28` | build được, **chưa nạp máy**; chân bo cảm biến là ĐỀ XUẤT |
+| `s3_28lcd` | AI-IoT VN **ES3N28P**: ESP32-S3 N16R8 + LCD 2.8" ILI9341 SPI 320×240 + touch FT6236G (pinout `firmware-vimate` s3-28lcd) | `rapid4p-s3` · hw `S3-28` | đã nạp bo 2026-09-19 (LCD/touch/boot sạch), chưa kiểm bằng mắt; chân bo cảm biến là ĐỀ XUẤT |
 
 **Phiên bản:** `v0.1.0` (`main/rapid4p.h`, chung hai board) · ESP-IDF 5.5.1/5.5.4.
 
@@ -42,7 +42,7 @@ components/esp_lcd_st7102/   driver panel vendor (chỉ vào build P4)
 partitions/partitions.rapid4p.csv   ota_0/ota_1 3 MB, assets 1 MB, results 2 MB (16 MB, chung 2 board)
 sdkconfig.defaults + sdkconfig.defaults.<board>   knob chung + knob theo board
 dependencies.lock.<target>   lock component manager riêng mỗi target
-scripts/                  build.bat [board] [COM] · flash.bat [board] COM · readlog.py · uicmd.py · dash_mock.py
+scripts/                  build.bat [board] [COM] · flash.bat [board] COM · readlog.py (UART0/CH343) · jtaglog.py (USB-JTAG) · uicmd.py · dash_mock.py
 docs/HARDWARE-PINOUT.md   pinout P4C5 từ schematic thật (§1–14) + board ES3N28P 2.8" (§15)
 ```
 
@@ -53,7 +53,8 @@ scripts\build.bat                    :: p4_43lcd → build_p4_43lcd\rapid4p.bin,
 scripts\build.bat s3_28lcd           :: S3 2.8"  → build_s3_28lcd\rapid4p-s3.bin
 scripts\build.bat s3_28lcd COM5      :: build + nạp
 scripts\build.bat COM48              :: (tương thích cũ) p4_43lcd + nạp
-python scripts\readlog.py auto 60 boot.log     :: auto = CH343 của bo P4; bo S3 ghi COM tường minh
+python scripts\readlog.py auto 60 boot.log     :: auto = CH343 của bo P4 (UART0)
+python scripts\jtaglog.py COM20 40 boot.log    :: bo S3 cắm USB native (USB-Serial/JTAG)
 ```
 Mỗi board một build dir + `sdkconfig` riêng trong đó. Chi tiết, luật, bẫy: `CLAUDE.md`. Khảo sát và quyết
 định thiết kế: `../maping new product/MAPPING-Rapid4P.md`; biến thể 2.8": `docs/history/2026-09-19-rapid4p-bien-the-s3-28lcd.md` (gốc repo).

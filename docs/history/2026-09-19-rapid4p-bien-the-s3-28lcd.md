@@ -63,9 +63,17 @@ touch FT6236G). Firmware `rapid4p` hiện chỉ build cho ESP32-P4C5 + LCD 4.3" 
 - `scripts\build.bat s3_28lcd` → `BUILD_EXIT=0`, `rapid4p-s3.bin` 1 999 664 B, `esp_app_desc` `0.1.0`/`rapid4p-s3`;
   `dependencies.lock.esp32s3` có `esp_lcd_ili9341 2.0.x`, không `esp_hosted`; sdkconfig S3: OCT PSRAM, CPU 240, không `LV_ATTRIBUTE_FAST_MEM_USE_IRAM`.
 - Chỉ còn warning deprecated `lv_obj_add/remove_flag` cũ. `registry_check.py`: ĐẠT 0 lỗi (3 cảnh báo hợp đồng rapidplus cũ).
-- **Chưa nạp bo 2.8"** (không có bo trên bàn) — tiêu chuẩn "xong" ghi ở `firmware/rapid4p/CLAUDE.md` §4.
+- **Đã nạp bo ES3N28P** (COM20 = USB-Serial/JTAG 303A:1001, S3 rev v0.2, PSRAM 8 MB) bằng `scripts\flash.bat s3_28lcd COM20`;
+  log boot (`scripts/jtaglog.py`, mới): `Init SPI ILI9341 panel 240x320 @ 40 MHz, logical 320x240` · `Touch FT6236 chip id=0x64 vendor=0x11`
+  → `init OK` · `Button init BOOT=GPIO0 DO=GPIO47` · `sensor bus I2C1 SDA=41 SCL=40` · `TCA9548 … ESP_ERR_INVALID_STATE` ×5 (chưa có bo con) ·
+  `measure task san sang, 0/5` · `ui_reader san sang` · `ota_0 ver=v0.1.0` · WiFi chưa cấu hình → offline; diag 60 s heap internal 168 KB
+  (min 166 KB), PSRAM 8 MB, `flush` tăng đều; 0 dòng `task_wdt`/`Guru`/`stack overflow`. **Chưa kiểm bằng mắt/chạm** (box không có ffmpeg/webcam).
 
 ## Bài học (đã ghi vào `firmware/rapid4p/CLAUDE.md` §5)
+
+- Cổng USB-Serial/JTAG nằm trong chip: reset → COM biến mất/hiện lại, xung RTS thô không reset, `esp_idf_monitor` đòi TTY →
+  `scripts/jtaglog.py` (esptool hard_reset + mở lại cổng liên tục) bắt được từ `octal_psram` trở đi.
+- Heredoc Bash nuốt `\` (lại dính 2026-09-19 với `scripts\readlog.py` trong chuỗi Python) → script patch phải ghi ra FILE bằng Write tool.
 
 - `SDKCONFIG` đặt trong build dir hoạt động với `idf.py` (đọc lại từ `project_description.json`); `DEPENDENCIES_LOCK` theo target vì lock có `target:`.
 - REQUIRES điều kiện theo `IDF_TARGET` (early expansion), không theo `CONFIG_*`; `set(COMPONENTS main)` loại component vendor P4-only khỏi build S3.
@@ -74,7 +82,7 @@ touch FT6236G). Firmware `rapid4p` hiện chỉ build cho ESP32-P4C5 + LCD 4.3" 
 
 ## Còn mở
 
-1. Nạp bo ES3N28P: xác nhận xoay/chạm (`BOARD_TOUCH_*`), 13 màn + WiFi qua webcam, chỉnh token 2.8" theo mắt, soak 60 s.
+1. Người cầm bo ES3N28P xác nhận hướng xoay màn, trục chạm (`BOARD_TOUCH_*`), 13 màn + màn WiFi thang 2.8" bằng mắt, chỉnh token; soak > 60 s.
 2. Header thật của board → chốt chân bo cảm biến; bo giao tiếp kiểu `Rapid4P-IF` cho S3.
 3. Server: kho `rapid4p-s3` (ảnh `rapid4p-s3_{ver}.bin`), thử `/ota/check?product=rapid4p-s3&hw=S3-28` với `localtest.ps1`.
 4. Q1 tên thương mại vẫn mở (khoá `rapid4p`/`rapid4p-s3` chưa phát hành, đổi được).
