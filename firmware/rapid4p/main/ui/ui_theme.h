@@ -119,10 +119,13 @@ static inline void ui_theme_brand_bar(lv_obj_t *bar)
 #define UI_RADIUS       8
 #define UI_BTN_PAD      6
 #define UI_BTN_ICON_W   24
-#define UI_BTN_BACK_W   80
-#define UI_BTN_MAIN_W   116
-#define UI_BTN_DANGER_W 100
-#define UI_BTN_LIST_W   140
+/* Footer 2.8": tối đa HAI nút chữ — trái 104 (icon + "Quay lại" 14 px), phải 146 (hành động chính);
+ * nút phụ/phá huỷ (mid) thành ICON 44×44 đặt cạnh nút trái. Màn chính: 2 icon (Cài đặt, Cân chỉnh) + ĐO rộng. */
+#define UI_BTN_BACK_W   104
+#define UI_BTN_MAIN_W   146
+#define UI_BTN_DANGER_W 44      /* icon-only */
+#define UI_BTN_ICON_ONLY_W 44
+#define UI_BTN_LIST_W   94      /* danh sách 5 mục = 3 cột × 2 hàng (2 cột × 3 hàng tràn 156 px) */
 #define UI_BTN_GRID_W   140
 #define UI_MODAL_W      224
 #define UI_MODAL_H      150
@@ -137,9 +140,9 @@ static inline void ui_theme_brand_bar(lv_obj_t *bar)
 #define UI_TILE_GAP     4
 #define UI_TILE_PAD     2
 #define UI_TILE_BORDER  1
-#define UI_TITLE_W      160
+#define UI_TITLE_W      200     /* trạng thái header 2.8" chỉ còn icon + số → tiêu đề rộng hơn */
 #define UI_TITLE_H      22
-#define UI_HOME_LOGO_H  56
+#define UI_HOME_LOGO_H  40      /* mark nhỏ cạnh tên máy (một hàng), không logo lớn */
 #define UI_CHIP_H       26
 #define UI_CHIP_ROW_H   30
 #define UI_ROW_SMALL_H  26

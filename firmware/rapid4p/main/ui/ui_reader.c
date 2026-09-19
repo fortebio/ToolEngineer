@@ -81,6 +81,16 @@ static lv_obj_t *mk_label(lv_obj_t *parent, const char *txt, const lv_font_t *fo
     return l;
 }
 
+/* Nhãn văn bản dài: xuống dòng, rộng hết content, canh giữa (2.8": câu gợi ý 14–18 px tràn ngang nếu 1 dòng). */
+static lv_obj_t *mk_text(lv_obj_t *parent, const char *txt, const lv_font_t *font, lv_color_t color)
+{
+    lv_obj_t *l = mk_label(parent, txt, font, color);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(l, LV_PCT(100));
+    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+    return l;
+}
+
 /* Chọn font lớn nhất trong danh sách mà chuỗi vừa bề rộng cho trước (đo lv_text_get_size). */
 static const lv_font_t *fit_font_from(const lv_font_t *const *cands, int n, const char *txt, int max_w,
                                       int letter_space)
@@ -129,11 +139,13 @@ static lv_obj_t *mk_btn(lv_obj_t *parent, const char *icon, const char *txt, lv_
         lv_obj_set_style_text_color(i, C_MUTED, LV_STATE_DISABLED);
         inner -= UI_BTN_ICON_W;
     }
-    lv_obj_t *l = mk_label(b, txt, fit_font(txt, inner), fg);
-    lv_obj_set_style_text_color(l, C_MUTED, LV_STATE_DISABLED);
-    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(l, LV_SIZE_CONTENT);
+    if (txt && txt[0]) {
+        lv_obj_t *l = mk_label(b, txt, fit_font(txt, inner), fg);
+        lv_obj_set_style_text_color(l, C_MUTED, LV_STATE_DISABLED);
+        lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_width(l, LV_SIZE_CONTENT);
+    }   /* txt NULL = nút icon-only (2.8": nút phụ ở footer) */
     if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
     return b;
 }
@@ -198,8 +210,15 @@ static lv_obj_t *footer_right(const char *icon, const char *txt, lv_event_cb_t c
 }
 static lv_obj_t *footer_mid(const char *icon, const char *txt, lv_event_cb_t cb, void *ud, lv_color_t bg)
 {
+#if UI_SCALE_SMALL
+    /* 2.8": không đủ chỗ cho 3 nút chữ → nút phụ/phá huỷ = icon 44×44 ngay cạnh nút trái. */
+    (void)txt;
+    lv_obj_t *b = mk_btn(s.footer, icon, NULL, cb, ud, UI_BTN_ICON_ONLY_W, BTN_H, bg);
+    lv_obj_align(b, LV_ALIGN_LEFT_MID, UI_BTN_BACK_W + GAP, 0);
+#else
     lv_obj_t *b = mk_btn(s.footer, icon, txt, cb, ud, UI_BTN_DANGER_W, BTN_H, bg);
     lv_obj_align(b, LV_ALIGN_CENTER, 0, 0);
+#endif
     return b;
 }
 
@@ -628,31 +647,52 @@ static lv_obj_t *mk_grid(lv_obj_t *parent)
 static void build_start(void)
 {
     set_title("Rapid4P");
+    const int alive = measure_sensors_alive();
+    char buf[64];
+#if UI_SCALE_SMALL
+    /* 2.8" (content 304×148): KHÔNG logo lớn/tên máy 48 px — một hàng [mark 40 + tên máy 18 teal],
+     * câu gợi ý 14 px xuống dòng, chip cảm biến + mã máy, dòng IP · version (header không có chỗ). */
+    lv_obj_t *brand = mk_row(s.content, UI_HOME_LOGO_H + 4);
+    lv_obj_set_style_pad_column(brand, GAP + 4, 0);
+    ui_logo_create(brand, UI_HOME_LOGO_H, false);
+    mk_label(brand, R4P_PRODUCT_NAME, F_BODY, C_FORTE);
+    mk_text(s.content, alive > 0 ? r4p_str(STR_START_HINT) : r4p_str(STR_SENSOR_NONE_HINT),
+            F_SMALL, alive > 0 ? C_TEXT : C_AMBER);
+#else
     ui_logo_create(s.content, UI_HOME_LOGO_H, UI_HOME_LOGO_H >= 90);   /* logo vector (ui_logo.c); chữ chỉ đọc được khi ≥ 90 px */
     lv_obj_t *hero = mk_label(s.content, R4P_PRODUCT_NAME, F_HERO, C_FORTE);
     lv_obj_set_style_pad_top(hero, 4, 0);
-    const int alive = measure_sensors_alive();
-    mk_label(s.content, alive > 0 ? r4p_str(STR_START_HINT) : r4p_str(STR_SENSOR_NONE_HINT),
-             F_BODY, alive > 0 ? C_TEXT : C_AMBER);
-#if !UI_STATUS_FULL
-    /* 2.8": header không chứa IP/version → hiện ở đây (dashboard cần IP). */
-    char netbuf[64];
-    snprintf(netbuf, sizeof(netbuf), "%s  ·  %s", s.wifi_connected ? s.ip : "--", R4P_FW_VERSION);
-    mk_label(s.content, netbuf, F_TINY, C_MUTED);
+    mk_text(s.content, alive > 0 ? r4p_str(STR_START_HINT) : r4p_str(STR_SENSOR_NONE_HINT),
+            F_BODY, alive > 0 ? C_TEXT : C_AMBER);
 #endif
 
     lv_obj_t *chips = mk_row(s.content, UI_CHIP_ROW_H);
-    char buf[64];
     snprintf(buf, sizeof(buf), "%s %d/%d", r4p_str(STR_SENSORS), alive, R4P_SLOTS);
     mk_chip(chips, alive == R4P_SLOTS ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, buf,
             alive == R4P_SLOTS ? C_GREEN : (alive > 0 ? C_AMBER : C_RED));
     snprintf(buf, sizeof(buf), "%s: %s", r4p_str(STR_DEVICE_ID),
              g_r4p_cfg.device_id[0] ? g_r4p_cfg.device_id : "--");
     mk_chip(chips, NULL, buf, C_BORDER);
+#if !UI_STATUS_FULL
+    /* 2.8": header không chứa IP/version → hiện ở đây (dashboard cần IP). */
+    snprintf(buf, sizeof(buf), "%s  ·  %s", s.wifi_connected ? s.ip : "--", R4P_FW_VERSION);
+    mk_label(s.content, buf, F_TINY, C_MUTED);
+#endif
 
+#if UI_SCALE_SMALL
+    /* Footer 2.8": [⚙ Cài đặt 44][✎ Cân chỉnh 44][▶ ĐO rộng phần còn lại]. */
+    lv_obj_t *bs = mk_btn(s.footer, LV_SYMBOL_SETTINGS, NULL, on_goto, (void *)UI_SETTINGS, UI_BTN_ICON_ONLY_W, BTN_H, C_BTN);
+    lv_obj_align(bs, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_t *bc = mk_btn(s.footer, LV_SYMBOL_EDIT, NULL, on_goto, (void *)UI_CALIB, UI_BTN_ICON_ONLY_W, BTN_H, C_BTN);
+    lv_obj_align(bc, LV_ALIGN_LEFT_MID, UI_BTN_ICON_ONLY_W + GAP, 0);
+    const int go_w = UI_W - 2 * UI_FOOTER_PAD - 2 * (UI_BTN_ICON_ONLY_W + GAP);
+    lv_obj_t *go = mk_btn(s.footer, LV_SYMBOL_PLAY, r4p_str(STR_MEASURE), on_goto, (void *)UI_CHOOSE_SAMPLE, go_w, BTN_H, C_FORTE);
+    lv_obj_align(go, LV_ALIGN_RIGHT_MID, 0, 0);
+#else
     footer_left(LV_SYMBOL_EDIT, r4p_str(STR_CALIBRATE), on_goto, (void *)UI_CALIB);
     footer_mid(LV_SYMBOL_SETTINGS, r4p_str(STR_SETTINGS), on_goto, (void *)UI_SETTINGS, C_BTN);
     lv_obj_t *go = footer_right(LV_SYMBOL_PLAY, r4p_str(STR_MEASURE), on_goto, (void *)UI_CHOOSE_SAMPLE, C_FORTE);
+#endif
     if (alive == 0) btn_set_disabled(go);
 }
 
@@ -687,7 +727,7 @@ static void build_prepare(void)
     snprintf(buf, sizeof(buf), "%s  ·  %s", r4p_sick_label(s.sick), r4p_sample_label(s.sample));
     set_step_title(3, buf);
     snprintf(buf, sizeof(buf), r4p_str(STR_PREPARE_PUT_TUBE), R4P_SLOTS);
-    mk_label(s.content, buf, F_BODY, C_TEXT);
+    mk_text(s.content, buf, UI_SCALE_SMALL ? F_SMALL : F_BODY, C_TEXT);
     build_slot_tiles(s.content, "-");       /* gợi ý hình: N khe trống */
     bool calibrated = true;
     for (int i = 0; i < R4P_SLOTS; i++) calibrated = calibrated && calib_store_slot_calibrated(i);
@@ -700,7 +740,7 @@ static void build_prepare(void)
 static void build_measuring(void)
 {
     set_title(r4p_str(STR_MEASURING));
-    s.round_lbl = mk_label(s.content, r4p_str(STR_PLEASE_WAIT), F_BODY, C_TEXT);
+    s.round_lbl = mk_text(s.content, r4p_str(STR_PLEASE_WAIT), UI_SCALE_SMALL ? F_SMALL : F_BODY, C_TEXT);
     build_slot_tiles(s.content, "-");
     lv_obj_t *prow = mk_row(s.content, UI_PROGRESS_ROW_H);
     s.bar = lv_bar_create(prow);
@@ -742,7 +782,7 @@ static void build_result(void)
     }
     snprintf(buf, sizeof(buf), "%s: %lu     %s: %d", r4p_str(STR_THRESHOLD), (unsigned long)c->threshold[r->sick],
              r4p_str(STR_UPLOAD_PENDING), result_upload_pending());
-    mk_label(s.content, buf, F_SMALL, C_MUTED);
+    mk_text(s.content, buf, F_SMALL, C_MUTED);
     footer_left(LV_SYMBOL_REFRESH, r4p_str(STR_REDO), on_goto, (void *)UI_PREPARE);
     footer_right(LV_SYMBOL_OK, r4p_str(STR_FINISH), on_finish, NULL, C_FORTE);
 }
@@ -754,7 +794,7 @@ static void build_calib(void)
     char buf[96];
     snprintf(buf, sizeof(buf), "%s %d/%d   ·   %s%s", r4p_str(STR_SLOT), s.calib_slot + 1, R4P_SLOTS,
              r4p_str(STR_CALIB_SAMPLE), r4p_str(s.calib_step == 0 ? STR_CALIB_MAX : STR_CALIB_MIN));
-    mk_label(s.content, buf, F_BODY, C_TEXT);
+    mk_text(s.content, buf, UI_SCALE_SMALL ? F_SMALL : F_BODY, C_TEXT);
     build_slot_tiles(s.content, "");
     for (int i = 0; i < R4P_SLOTS; i++) {
         snprintf(buf, sizeof(buf), "%u", c->cal_max[i]);
@@ -765,12 +805,12 @@ static void build_calib(void)
         bool cur = (i == s.calib_slot);
         lv_obj_set_style_border_color(s.slot_tile[i], cur ? C_AMBER
                                       : (calib_store_slot_calibrated(i) ? C_GREEN : C_BORDER), 0);
-        lv_obj_set_style_border_width(s.slot_tile[i], cur ? 4 : 3, 0);
+        lv_obj_set_style_border_width(s.slot_tile[i], cur ? UI_TILE_BORDER + 1 : UI_TILE_BORDER, 0);
     }
     if (s.calib_step == 1) snprintf(buf, sizeof(buf), "%s = %u", r4p_str(STR_CALIB_MAX), s.calib_max_tmp);
     else buf[0] = '\0';
-    s.calib_status = mk_label(s.content, s.calib_running ? r4p_str(STR_CALIBRATING) : buf, F_SMALL,
-                              s.calib_running ? C_AMBER : C_FORTE);
+    s.calib_status = mk_text(s.content, s.calib_running ? r4p_str(STR_CALIBRATING) : buf, F_SMALL,
+                             s.calib_running ? C_AMBER : C_FORTE);
     footer_left(LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)UI_START);
     footer_mid(LV_SYMBOL_TRASH, r4p_str(STR_CALIB_CLEAR), on_calib_clear, NULL, C_RED);
     footer_right(LV_SYMBOL_EDIT, r4p_str(STR_CALIBRATE), on_calib_read, NULL, C_FORTE);
