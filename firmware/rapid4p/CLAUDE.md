@@ -84,7 +84,8 @@
 - LCD ILI9341 SPI3 (SCLK12/MOSI11/MISO13/CS10/DC46/BL45, RST nối reset hệ thống), native dọc 240×320 →
   logical **320×240** bằng MADCTL (`SWAP_XY 1`, mirror 0/0), BGR + invert + swap_bytes.
 - Touch FT6236G I2C0 SCL15/SDA16 0x38, INT17, **RST18 phải xung LOW 10 ms → HIGH 300 ms** trước khi nói I2C.
-  Chạm: swap theo màn, mirror_x theo màn, **không** mirror_y (vimate đo trên board).
+  Chạm (đo bo thật 2026-09-20): `SWAP_XY 1`, `MIRROR_X 0`, **`MIRROR_Y 1`** — với mirror_y 0, chạm góc trên-trái kích hoạt nút
+  góc dưới-trái (trục dọc ngược). Ghi chú "không mirror Y" của vimate KHÔNG áp cho cây này.
 - Nút: chỉ BOOT GPIO0. ĐO = GPIO47 (ĐỀ XUẤT, nút ngoài). LED đơn GPIO42 (chưa driver). Không PMIC/pin/SD.
 - GPIO trống: 2, 9, 14, 21, 38, 39, 40, 41, 47, 48 → cảm biến I2C1 SDA41/SCL40, LED 2/9/14/21/38, PWM 39
   (**ĐỀ XUẤT** — chưa có schematic/header thật, `docs/HARDWARE-PINOUT.md` §15). Tránh 3 (strap), 19/20 (USB),

@@ -76,13 +76,14 @@ extern "C" {
 #define BOARD_TOUCH_I2C_ADDR         0x38
 #define BOARD_TOUCH_INT_ACTIVE_LOW   0
 #define BOARD_TOUCH_TASK_PRIO        5
-/* Toạ độ FT6236 trả trong hệ NATIVE dọc 240×320 → logical ngang: swap theo màn, mirror_x theo
- * màn; KHÔNG mirror_y dù màn có MIRROR_Y (vimate đo trên board: trục Y chạm đã thuận chiều,
- * mirror thêm là lật ngược — home lưới 2 hàng chạm hàng dưới ra hàng trên). Chạm lệch trục →
- * chỉnh 3 knob này, không sửa touch.c. */
+/* Toạ độ FT6236 trả trong hệ NATIVE dọc 240×320 → logical ngang: swap → mirror_x → mirror_y.
+ * ĐO TRÊN BO THẬT 2026-09-20 (bản CONFIG_RAPID4P_TOUCH_LOG, người cầm máy): với swap + không mirror,
+ * chạm góc TRÊN-trái kích hoạt nút ở góc DƯỚI-trái → trục ngang đúng, trục dọc ngược → MIRROR_Y 1.
+ * (Ghi chú cũ của vimate "không mirror Y" là cho bố cục/firmware của họ — không áp cho cây này.)
+ * Chạm còn lệch trục → chỉnh 3 knob này, không sửa touch.c. */
 #define BOARD_TOUCH_SWAP_XY          BOARD_LCD_SWAP_XY
 #define BOARD_TOUCH_MIRROR_X         BOARD_LCD_MIRROR_X
-#define BOARD_TOUCH_MIRROR_Y         0
+#define BOARD_TOUCH_MIRROR_Y         1
 
 /* ========================== WiFi (native, chỉ 2,4 GHz) ========================== */
 #define BOARD_WIFI_BAND_2G_ONLY      0     /* S3 không có 5 GHz — không cần khoá băng */
