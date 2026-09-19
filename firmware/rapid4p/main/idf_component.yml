@@ -1,5 +1,7 @@
 # IDF Component Manager — resolve khi build. Version ghim theo cây vimate-p4 đã chạy
 # thật trên board (ESP-IDF 5.5.1); nâng cái nào phải build + soak lại.
+# Hai target (2026-09-19): lock file riêng dependencies.lock.<target> (CMakeLists.txt gốc đặt
+# DEPENDENCIES_LOCK); `rules: if target` để component P4-only/S3-only không kéo chéo.
 dependencies:
   idf:
     version: ">=5.5.0"
@@ -15,5 +17,15 @@ dependencies:
   # esp_hosted 2.12.x: bản 1.4.x không cho SDIO với slave C5.
   espressif/esp_wifi_remote:
     version: "0.14.*"
+    rules:
+      - if: "target == esp32p4"
   espressif/esp_hosted:
     version: "2.12.*"
+    rules:
+      - if: "target == esp32p4"
+
+  # Board S3 2.8": panel ILI9341 SPI (vimate s3-28lcd chạy thật với 2.0.2 + esp_lvgl_port 2.8).
+  espressif/esp_lcd_ili9341:
+    version: "^2.0.0"
+    rules:
+      - if: "target == esp32s3"

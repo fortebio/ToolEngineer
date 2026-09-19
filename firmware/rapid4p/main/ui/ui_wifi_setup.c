@@ -52,11 +52,35 @@
 
 #define WIFI_SETUP_DEFAULT_URL "http://192.168.4.1/"
 
+/* Kích thước theo thang màn (ui_theme.h). 4.3": 2 thẻ cột cạnh nhau (QR 200). 2.8": chiều CAO là
+ * ràng buộc (content 140 px) nên 2 thẻ cột chỉ cho QR ~74 px (< 2,5 px/module, không quét được) →
+ * MỘT thẻ full width bố cục HÀNG (QR 128 px bên trái, chữ bên phải), hiện thẻ của bước đang làm
+ * (① khi chờ điện thoại, ② khi đã có máy bám AP), chạm thẻ để đổi tay. */
+#if UI_SCALE_SMALL
+#define CONTENT_PAD   8
+#define CARD_PAD      6
+#define CARD_W        (UI_W - 2 * CONTENT_PAD)
+#define QR_MAX        128
+#define QR_MIN        96
+#define BADGE_SZ      22
+#define CHIP_H        26
+#define STATUS_W      (UI_W - 2 * CONTENT_PAD)
+#define STATUS_PAD    8
+#define SPINNER_SZ    36
+#define HINT_W        (UI_W - 2 * UI_FOOTER_PAD - UI_BTN_BACK_W - GAP)
+#else
 #define CONTENT_PAD   12
 #define CARD_PAD      10
 #define CARD_W        372
 #define QR_MAX        200
 #define QR_MIN        120
+#define BADGE_SZ      30
+#define CHIP_H        38
+#define STATUS_W      700
+#define STATUS_PAD    20
+#define SPINNER_SZ    56
+#define HINT_W        520
+#endif
 
 /* Bao lâu thì màn lỗi tự nhường lại cho 2 QR để người dùng quét lại. */
 #define ERROR_HOLD_MS 8000
@@ -72,6 +96,11 @@ static lv_obj_t *s_qr_panel     = NULL;
 static lv_obj_t *s_status_panel = NULL;
 static lv_obj_t *s_qr_wifi      = NULL;
 static lv_obj_t *s_qr_url       = NULL;
+static lv_obj_t *s_card1        = NULL;      /* thẻ bước 1 / bước 2 (2.8": chỉ một thẻ hiện) */
+static lv_obj_t *s_card2        = NULL;
+#if UI_SCALE_SMALL
+static bool s_small_flip        = false;     /* người dùng chạm thẻ để xem bước kia */
+#endif
 static lv_obj_t *s_step1        = NULL;
 static lv_obj_t *s_step1_badge  = NULL;
 static lv_obj_t *s_step2        = NULL;
@@ -160,12 +189,16 @@ static lv_obj_t *mk_label(lv_obj_t *parent, const char *txt, const lv_font_t *f,
 /* Kích thước QR tính từ chiều cao nội dung còn trống trong thẻ (2 thẻ cạnh nhau
  * nên bề ngang không còn là ràng buộc). */
 static int32_t compute_qr_size(void) {
-    const int32_t h18 = lv_font_get_line_height(&lv_font_vimate_18);
-    const int32_t h24 = lv_font_get_line_height(&lv_font_vimate_24);
-    int32_t card_h = BOARD_LCD_V_RES - HEADER_H - FOOTER_H - 2 * CONTENT_PAD;   /* 304 */
+    int32_t card_h = BOARD_LCD_V_RES - HEADER_H - FOOTER_H - 2 * CONTENT_PAD;   /* 4.3": 304 · 2.8": 140 */
+#if UI_SCALE_SMALL
+    int32_t qr = card_h - 2 * CARD_PAD;               /* bố cục hàng: chỉ chiều cao ràng buộc */
+#else
+    const int32_t h18 = lv_font_get_line_height(F_SMALL);
+    const int32_t h24 = lv_font_get_line_height(F_BODY);
     int32_t qr = card_h - 2 * CARD_PAD - h18 - h24 - 3 * 6;
     int32_t max_w = CARD_W - 2 * CARD_PAD;
     if (qr > max_w)  qr = max_w;
+#endif
     if (qr > QR_MAX) qr = QR_MAX;
     if (qr < QR_MIN) qr = QR_MIN;
     ESP_LOGI(TAG_UI, "QR size=%d (man %dx%d)", (int)qr, (int)BOARD_LCD_H_RES, (int)BOARD_LCD_V_RES);
@@ -179,7 +212,7 @@ static lv_obj_t *make_card(lv_obj_t *parent, int32_t w) {
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(card, 2, 0);
     lv_obj_set_style_border_color(card, C_BORDER, 0);
-    lv_obj_set_style_radius(card, 14, 0);
+    lv_obj_set_style_radius(card, UI_RADIUS, 0);
     lv_obj_set_style_pad_all(card, CARD_PAD, 0);
     lv_obj_set_style_pad_row(card, 6, 0);
     lv_obj_set_size(card, w, LV_PCT(100));
@@ -189,22 +222,46 @@ static lv_obj_t *make_card(lv_obj_t *parent, int32_t w) {
     return card;
 }
 
-/* Thẻ = huy hiệu số bước + tiêu đề bước, QR (đen trên trắng, quiet zone), chú thích. */
-static void make_qr_card(lv_obj_t *parent, const char *num, const char *step_text, int32_t qr_size,
-                         lv_obj_t **out_badge, lv_obj_t **out_step, lv_obj_t **out_qr,
-                         lv_obj_t **out_caption) {
+/* Thẻ = huy hiệu số bước + tiêu đề bước, QR (đen trên trắng, quiet zone), chú thích.
+ * 4.3": cột (hdr / QR / chú thích). 2.8": hàng (QR trái · cột phải = hdr + chú thích). */
+static lv_obj_t *make_qr_card(lv_obj_t *parent, const char *num, const char *step_text, int32_t qr_size,
+                              lv_obj_t **out_badge, lv_obj_t **out_step, lv_obj_t **out_qr,
+                              lv_obj_t **out_caption) {
     lv_obj_t *card = make_card(parent, CARD_W);
+    lv_obj_t *text_host = card;
+#if UI_SCALE_SMALL
+    lv_obj_set_flex_flow(card, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_column(card, GAP + 2, 0);
+    lv_obj_t *qr_s = lv_qrcode_create(card);
+    lv_qrcode_set_size(qr_s, qr_size);
+    lv_qrcode_set_dark_color(qr_s, lv_color_black());
+    lv_qrcode_set_light_color(qr_s, lv_color_white());
+    lv_qrcode_set_quiet_zone(qr_s, true);
+    lv_obj_set_style_radius(qr_s, 6, 0);
+    lv_obj_set_style_clip_corner(qr_s, true, 0);
+    if (out_qr) *out_qr = qr_s;
+    lv_obj_t *col = lv_obj_create(card);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_height(col, LV_PCT(100));
+    lv_obj_set_flex_grow(col, 1);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(col, 6, 0);
+    lv_obj_set_scrollable(col, false);
+    text_host = col;
+#endif
 
-    lv_obj_t *hdr = lv_obj_create(card);
+    lv_obj_t *hdr = lv_obj_create(text_host);
     lv_obj_remove_style_all(hdr);
     lv_obj_set_size(hdr, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(hdr, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(hdr, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(hdr, 10, 0);
+    lv_obj_set_flex_align(hdr, UI_SCALE_SMALL ? LV_FLEX_ALIGN_START : LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(hdr, UI_SCALE_SMALL ? 6 : 10, 0);
 
     lv_obj_t *badge = lv_obj_create(hdr);
     lv_obj_remove_style_all(badge);
-    lv_obj_set_size(badge, 30, 30);
+    lv_obj_set_size(badge, BADGE_SZ, BADGE_SZ);
     lv_obj_set_style_radius(badge, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(badge, C_FORTE, 0);
     lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, 0);
@@ -213,8 +270,13 @@ static void make_qr_card(lv_obj_t *parent, const char *num, const char *step_tex
     if (out_badge) *out_badge = badge;
 
     lv_obj_t *step = mk_label(hdr, step_text, F_SMALL, C_TEXT);
+#if UI_SCALE_SMALL
+    lv_label_set_long_mode(step, LV_LABEL_LONG_WRAP);
+    lv_obj_set_flex_grow(step, 1);
+#endif
     if (out_step) *out_step = step;
 
+#if !UI_SCALE_SMALL
     lv_obj_t *qr = lv_qrcode_create(card);
     lv_qrcode_set_size(qr, qr_size);
     lv_qrcode_set_dark_color(qr, lv_color_black());
@@ -223,13 +285,36 @@ static void make_qr_card(lv_obj_t *parent, const char *num, const char *step_tex
     lv_obj_set_style_radius(qr, 8, 0);
     lv_obj_set_style_clip_corner(qr, true, 0);
     if (out_qr) *out_qr = qr;
+#endif
 
-    lv_obj_t *cap = mk_label(card, "", F_BODY, C_FORTE);
-    lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
+    lv_obj_t *cap = mk_label(text_host, "", F_BODY, C_FORTE);
+    lv_label_set_long_mode(cap, UI_SCALE_SMALL ? LV_LABEL_LONG_WRAP : LV_LABEL_LONG_DOT);
     lv_obj_set_width(cap, LV_PCT(100));
-    lv_obj_set_style_text_align(cap, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_align(cap, UI_SCALE_SMALL ? LV_TEXT_ALIGN_LEFT : LV_TEXT_ALIGN_CENTER, 0);
     if (out_caption) *out_caption = cap;
+    return card;
 }
+
+#if UI_SCALE_SMALL
+/* 2.8": chỉ một thẻ hiện — thẻ của bước đang làm (hoặc thẻ kia nếu người dùng vừa chạm). */
+static void small_pick_card(void) {
+    if (!s_card1 || !s_card2) return;
+    bool show2 = (s_clients > 0);
+    if (s_small_flip) show2 = !show2;
+    if (show2) {
+        lv_obj_add_flag(s_card1, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_remove_flag(s_card2, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_remove_flag(s_card1, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(s_card2, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+static void on_card_tap(lv_event_t *e) {
+    (void)e;
+    s_small_flip = !s_small_flip;
+    small_pick_card();
+}
+#endif
 
 static void build_header(void) {
     s_header = lv_obj_create(s_screen);
@@ -242,36 +327,40 @@ static void build_header(void) {
     lv_obj_set_style_border_color(s_header, C_FORTE, 0);
 
     lv_obj_t *logo = ui_logo_create(s_header, HEADER_LOGO_H, false);   /* logo góc trái */
-    lv_obj_align(logo, LV_ALIGN_LEFT_MID, 12, 0);
-    lv_obj_t *title = mk_label(s_header, "CÀI ĐẶT WIFI", F_TITLE, C_FORTE);
+    lv_obj_align(logo, LV_ALIGN_LEFT_MID, UI_HEADER_PAD, 0);
+    lv_obj_t *title = mk_label(s_header, UI_SCALE_SMALL ? "WIFI" : "CÀI ĐẶT WIFI", F_TITLE, C_FORTE);
     lv_obj_align(title, LV_ALIGN_LEFT_MID, HEADER_TITLE_X, 0);
 
     /* Chip trạng thái: icon + chữ — trạng thái LUÔN nói bằng chữ, màu chỉ phụ trợ. */
     s_chip = lv_obj_create(s_header);
     lv_obj_remove_style_all(s_chip);
-    lv_obj_set_size(s_chip, LV_SIZE_CONTENT, 38);
+    lv_obj_set_size(s_chip, LV_SIZE_CONTENT, CHIP_H);
     lv_obj_set_style_bg_color(s_chip, C_CARD, 0);
     lv_obj_set_style_bg_opa(s_chip, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(s_chip, 19, 0);
+    lv_obj_set_style_radius(s_chip, CHIP_H / 2, 0);
     lv_obj_set_style_border_width(s_chip, 2, 0);
-    lv_obj_set_style_pad_hor(s_chip, 14, 0);
+    lv_obj_set_style_pad_hor(s_chip, UI_BTN_PAD + 2, 0);
     lv_obj_set_flex_flow(s_chip, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(s_chip, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(s_chip, 8, 0);
-    lv_obj_align(s_chip, LV_ALIGN_RIGHT_MID, -16, 0);
+    lv_obj_align(s_chip, LV_ALIGN_RIGHT_MID, -(UI_HEADER_PAD + 4), 0);
     s_chip_icon = mk_label(s_chip, LV_SYMBOL_WIFI, F_ICON_SM, C_FORTE);
     s_chip_lbl  = mk_label(s_chip, "", F_SMALL, C_TEXT);
+#if UI_SCALE_SMALL
+    /* Header 320 px: chip chỉ còn icon màu; câu trạng thái nằm ở thẻ + gợi ý footer. */
+    lv_obj_add_flag(s_chip_lbl, LV_OBJ_FLAG_HIDDEN);
+#endif
 }
 
 static void build_status_panel(lv_obj_t *parent) {
-    s_status_panel = make_card(parent, 700);
-    lv_obj_set_style_pad_all(s_status_panel, 20, 0);
+    s_status_panel = make_card(parent, STATUS_W);
+    lv_obj_set_style_pad_all(s_status_panel, STATUS_PAD, 0);
     lv_obj_set_style_pad_row(s_status_panel, 10, 0);
     lv_obj_add_flag(s_status_panel, LV_OBJ_FLAG_IGNORE_LAYOUT);
     lv_obj_center(s_status_panel);
 
     s_spinner = lv_spinner_create(s_status_panel);
-    lv_obj_set_size(s_spinner, 56, 56);
+    lv_obj_set_size(s_spinner, SPINNER_SZ, SPINNER_SZ);
     lv_spinner_set_anim_params(s_spinner, 1000, 60);
     lv_obj_set_style_arc_color(s_spinner, C_BORDER, LV_PART_MAIN);
     lv_obj_set_style_arc_color(s_spinner, C_FORTE, LV_PART_INDICATOR);
@@ -321,10 +410,15 @@ static void build_screen(void) {
     lv_obj_set_flex_align(s_qr_panel, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_scrollable(s_qr_panel, false);
 
-    make_qr_card(s_qr_panel, "1", "Quét để vào WiFi máy", qr_size,
-                 &s_step1_badge, &s_step1, &s_qr_wifi, &s_lbl_ssid);
-    make_qr_card(s_qr_panel, "2", "Quét để mở trang cài đặt", qr_size,
-                 NULL, &s_step2, &s_qr_url, &s_lbl_url);
+    s_card1 = make_qr_card(s_qr_panel, "1", "Quét để vào WiFi máy", qr_size,
+                           &s_step1_badge, &s_step1, &s_qr_wifi, &s_lbl_ssid);
+    s_card2 = make_qr_card(s_qr_panel, "2", "Quét để mở trang cài đặt", qr_size,
+                           NULL, &s_step2, &s_qr_url, &s_lbl_url);
+#if UI_SCALE_SMALL
+    lv_obj_add_event_cb(s_card1, on_card_tap, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(s_card2, on_card_tap, LV_EVENT_CLICKED, NULL);
+    small_pick_card();
+#endif
 
     build_status_panel(s_content);
 
@@ -333,12 +427,12 @@ static void build_screen(void) {
     lv_obj_remove_style_all(s_footer);
     lv_obj_set_pos(s_footer, 0, BOARD_LCD_V_RES - FOOTER_H);
     lv_obj_set_size(s_footer, LV_PCT(100), FOOTER_H);
-    lv_obj_set_style_pad_hor(s_footer, 20, 0);
+    lv_obj_set_style_pad_hor(s_footer, UI_FOOTER_PAD, 0);
     lv_obj_set_scrollable(s_footer, false);
 
     s_hint = mk_label(s_footer, "", F_TINY, C_MUTED);
     lv_label_set_long_mode(s_hint, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(s_hint, 520);
+    lv_obj_set_width(s_hint, HINT_W);
     lv_obj_set_style_text_align(s_hint, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_align(s_hint, LV_ALIGN_RIGHT_MID, 0, 0);
 }
@@ -425,6 +519,10 @@ static void apply_state(const char *detail) {
     case UI_WIFI_SETUP_CLIENT:
         show_qr_view(true);
         mark_step1_done(true);
+#if UI_SCALE_SMALL
+        s_small_flip = false;
+        small_pick_card();
+#endif
         set_chip(C_GREEN, LV_SYMBOL_OK, "Điện thoại đã vào - quét mã 2");
         snprintf(buf, sizeof(buf), "Trang cài đặt chưa mở? Gõ %s vào trình duyệt.", s_url);
         lv_label_set_text(s_hint, buf);
@@ -468,6 +566,10 @@ static void apply_state(const char *detail) {
     default:
         show_qr_view(true);
         mark_step1_done(false);
+#if UI_SCALE_SMALL
+        s_small_flip = false;
+        small_pick_card();
+#endif
         set_chip(C_FORTE, LV_SYMBOL_WIFI, "Đang chờ điện thoại");
         snprintf(buf, sizeof(buf), "Không quét được mã? Vào WiFi \"%s\" rồi mở %s", s_ssid, s_url);
         lv_label_set_text(s_hint, buf);

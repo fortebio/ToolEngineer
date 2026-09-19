@@ -1,0 +1,32 @@
+# sdkconfig.defaults.s3_28lcd - board AI-IoT VN ES3N28P: ESP32-S3 N16R8 + LCD 2.8" ILI9341 SPI
+# + touch FT6236G (khoa san pham rapid4p-s3). Ghep SAU sdkconfig.defaults (R4P_BOARD=s3_28lcd).
+# File ASCII thuan.
+#
+# Build: scripts\build.bat s3_28lcd [COMxx]
+#
+# Nguon knob: firmware-vimate/sdkconfig.defaults + sdkconfig.defaults.s3-28lcd (Bizgeni, da build
+# va chay that tren board nay 12/09/2026) - bo BT/NimBLE, esp-sr/WakeNet, audio, SD, MP4.
+
+# --- Target ---
+CONFIG_IDF_TARGET="esp32s3"
+CONFIG_IDF_TARGET_ESP32S3=y
+
+# --- PSRAM 8 MB Octal @ 80 MHz ---
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+# WiFi/LWIP buffer ra PSRAM: tren S3 WiFi native chap nhan (vimate dung); P4 remote thi KHONG.
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+# malloc < 512 B moi giu DRAM noi (base IDF 16384, P4 1024): day object trung binh sang PSRAM,
+# de RAM noi cho DMA LCD/lwip/TLS/stack (vimate s3-28lcd do tren board: internal ~48 KB sau SoftAP).
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=512
+
+# --- WiFi native (S3 chi 2,4 GHz) ---
+# CONFIG_ESP_WIFI_REMOTE_ENABLED is not set
+CONFIG_ESP_WIFI_RX_MGMT_BUF_NUM_DEF=3
+CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM=16
+
+# --- CPU 240 MHz (PSRAM/flash @ 80 MHz doc lap, +50% CPU cho LVGL) ---
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+# --- Board ---
+CONFIG_RAPID4P_BOARD_S3_28LCD=y

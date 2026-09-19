@@ -1,9 +1,10 @@
 /**
- * display.h — lớp phần cứng màn hình Rapid4P (ST7102 MIPI-DSI + LVGL 9 + esp_lvgl_port).
+ * display.h — lớp màn hình Rapid4P (LVGL 9 + esp_lvgl_port), API chung cho mọi board.
  *
- * Rút từ firmware-vimate-p4/main/ui/display.c (6758 dòng) đúng phần KHÔNG phụ thuộc
- * sản phẩm: LDO DPHY → reset cứng GPIO22 → DSI → DPI 2 fb → lvgl_port → xoay landscape
- * bằng PPA (khối DSI_ROTATE, README-P4 §6.6) → đèn nền LEDC → display task + hàng đợi.
+ * display.c = phần chung (đèn nền LEDC, ngủ màn, lvgl_port_init, display task + hàng đợi);
+ * phần panel theo board ở display_hw_<dsi|spi>.c qua display_hw.h (2026-09-19):
+ *   P4 4.3": LDO DPHY → reset cứng GPIO22 → DSI → DPI 2 fb → xoay landscape PPA (README-P4 §6.6)
+ *   S3 2.8": SPI3 → ILI9341 → 2 draw buffer 40 dòng RAM nội, xoay bằng MADCTL của panel
  * Toàn bộ màn hình của reader nằm ở ui_reader.c.
  *
  * Luật (CLAUDE.md):

@@ -38,6 +38,7 @@ extern "C" {
 
 /* ========================== LCD (MIPI-DSI, ST7102) ========================== */
 #define BOARD_LCD_USE_MIPI_DSI       1
+#define BOARD_LCD_USE_SPI            0
 #define BOARD_LCD_USE_ST7102         1
 
 /* DSI bus */
@@ -105,6 +106,7 @@ extern "C" {
 
 /* ========================== Touch ST7123 (I2C) ========================== */
 #define BOARD_TOUCH_USE_ST7123       1
+#define BOARD_TOUCH_USE_FT6236       0
 #define BOARD_TOUCH_I2C_NUM          I2C_NUM_0
 #define BOARD_TOUCH_I2C_SCL          8
 #define BOARD_TOUCH_I2C_SDA          7
@@ -379,6 +381,10 @@ extern "C" {
 /* ========================== Board metadata ========================== */
 #define BOARD_NAME                   "rapid4p_p4c5_st7102_lcd43"
 #define BOARD_REV                    "p4-bringup-v1"
+/* Khoá kho OTA trên Engineer Server (system/products.yaml) + PCB. Board S3 2.8" là khoá riêng
+ * `rapid4p-s3` (variant_of rapid4p) để hai kho ảnh không lẫn nhau. */
+#define BOARD_PRODUCT_KEY            "rapid4p"
+#define BOARD_HW_VERSION             "P4C5-43"
 
 #ifdef __cplusplus
 }

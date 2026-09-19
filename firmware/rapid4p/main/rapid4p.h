@@ -23,8 +23,10 @@ extern "C" {
 /* Version phát hành. registry: system/products.yaml › rapid4p.firmware.version_source
  * bắt chuỗi "vX.Y.Z" từ dòng này. Đổi version = đổi Ở ĐÂY và tag fw/rapid4p/vX.Y.Z. */
 #define R4P_FW_VERSION      "v0.1.0"
-#define R4P_PRODUCT_KEY     "rapid4p"      /* khoá kho OTA trên Engineer Server */
-#define R4P_HW_VERSION      "P4C5-43"      /* PCB tham chiếu; bo sản xuất sẽ đổi */
+/* Khoá kho OTA + PCB đi theo BOARD (board header): P4 4.3" = "rapid4p"/"P4C5-43",
+ * S3 2.8" = "rapid4p-s3"/"S3-28". Hai khoá registry riêng (variant_of) để không đẩy nhầm ảnh. */
+#define R4P_PRODUCT_KEY     BOARD_PRODUCT_KEY
+#define R4P_HW_VERSION      BOARD_HW_VERSION
 
 #define R4P_BRAND_NAME      "FBT"
 #define R4P_SETUP_PREFIX    "FBT-Rapid4P"  /* SSID SoftAP: FBT-Rapid4P-XX:XX */

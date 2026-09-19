@@ -24,6 +24,7 @@ Thumbs.db
 
 # --- ESP-IDF (firmware/rapid4p + cay tham chieu firmware-vimate-p4) ---
 firmware/rapid4p/build/
+firmware/rapid4p/build_*/
 firmware/rapid4p/managed_components/
 firmware/rapid4p/sdkconfig
 firmware/rapid4p/sdkconfig.old

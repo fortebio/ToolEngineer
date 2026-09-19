@@ -1,0 +1,44 @@
+# sdkconfig.defaults.p4_43lcd - board FBT ESP32-P4C5 + LCD 4.3" ST7102 MIPI-DSI (khoa san pham rapid4p).
+# Ghep SAU sdkconfig.defaults (CMakeLists.txt goc, R4P_BOARD=p4_43lcd). File ASCII thuan.
+#
+# Build: scripts\build.bat p4_43lcd   (= scripts\build.bat khong tham so)
+
+# --- Target ---
+CONFIG_IDF_TARGET="esp32p4"
+CONFIG_IDF_TARGET_ESP32P4=y
+# P4 rev v1.3 (board that). IDF >= 5.5.3 tach rev <3.0 va >=3.0 thanh hai nhanh loai tru
+# nhau, mac dinh REV_MIN=v3.1 -> bootloader tu choi nap ("requires chip revision in range
+# [v3.1 - v3.99]", gap 2026-09-17 tren IDF 5.5.4). Hai dong duoi bat nhanh <3.0; tren
+# IDF 5.5.1 symbol SELECTS_REV_LESS_V3 khong ton tai (chi canh bao, REV_MIN_100 van ap).
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
+CONFIG_ESP32P4_REV_MIN_100=y
+CONFIG_IDF_EXPERIMENTAL_FEATURES=y
+
+# --- PSRAM 32 MB @ 200 MHz + L2 cache ---
+CONFIG_SPIRAM_SPEED_200M=y
+CONFIG_SPIRAM_XIP_FROM_PSRAM=y
+CONFIG_CACHE_L2_CACHE_256KB=y
+# L2 cache line 64 B, KHONG 128 B: ESP-Hosted cap buffer can 64 B, SDMMC/SDIO doi buffer
+# can DUNG cache line -> 128 B lam SDIO toi C5 chet khi co tram ket noi (README-P4 5.2b).
+CONFIG_CACHE_L2_CACHE_LINE_64B=y
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=1024
+# KHONG bat CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: esp_wifi_remote RPC NO_MEM, boot-loop.
+
+# --- WiFi qua co-processor ESP32-C5 (ESP-Hosted, SDIO slot 1) ---
+CONFIG_ESP_WIFI_REMOTE_ENABLED=y
+CONFIG_ESP_WIFI_REMOTE_LIBRARY_HOSTED=y
+CONFIG_SLAVE_IDF_TARGET_ESP32C5=y
+CONFIG_ESP_HOSTED_CP_TARGET_ESP32C5=y
+CONFIG_ESP_HOSTED_P4_DEV_BOARD_NONE=y
+CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y
+# mempool transport tu PSRAM: khong bat thi "HS_MP: mempool create failed" truoc app_main.
+CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM=y
+
+# --- CPU ---
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_360=y
+
+# --- LVGL: ham ve nong vao IRAM (P4 du IRAM; S3 khong bat) ---
+CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM=y
+
+# --- Board ---
+CONFIG_RAPID4P_BOARD_P4_43LCD=y

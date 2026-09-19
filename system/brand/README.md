@@ -25,7 +25,9 @@ Gradient thương hiệu: `#17A6BF → #26C5CF → #6FE6C3` (theo cột phải c
 ## Áp dụng theo nền tảng
 
 **LCD Rapid4P (LVGL)** — `firmware/rapid4p/main/ui/ui_theme.h` là bản C của bảng này; logo vector
-ở `ui_logo.c`. Đổi token → sửa `tokens.json` trước, rồi `ui_theme.h`.
+ở `ui_logo.c`. Đổi token → sửa `tokens.json` trước, rồi `ui_theme.h`. Hai thang kích thước/chữ theo
+màn ở `typography.scales`: `lcd-4.3in` (P4 800×480) và `lcd-2.8in` (S3 ES3N28P 320×240, 2026-09-19) —
+`ui_theme.h` chọn thang compile-time theo `BOARD_LCD_H_RES` (`UI_SCALE_SMALL`).
 
 **Flutter (apps/fbt_rapid)** — gợi ý `ColorScheme`:
 ```dart

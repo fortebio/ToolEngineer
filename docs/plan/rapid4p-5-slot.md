@@ -26,7 +26,7 @@ bo cảm biến, registry/server/app, tài liệu. Nền tảng hiện tại: Ra
 | Q2 | **Phần cứng bo cảm biến 5 khe**: 5 TCS34725 qua TCA9548 kênh 0..4, LED enable riêng từng khe (cần **5 GPIO**: 28/29/30/45 + **47**), PWM chung GPIO46 | Dùng GPIO47 (JP1 còn 47/48/49/50). **2026-09-18: bo LED + bo cảm biến 4 khe ĐÃ CÓ** (ReaderPlus/ReaderMax) → ghép qua bo giao tiếp `Rapid4P-IF`, kiến trúc + quyết định D1–D6 + phép đo ở `firmware/rapid4p/docs/HARDWARE-ARCHITECTURE.md` | bo IF (mới), rev 2 bo cũ lên 5 khe, `board_esp32p4_43lcd.h` |
 | Q3 | **Chu trình đo**: 3 vòng × 5 khe (≈ 42 s, hiện 4 khe ≈ 34 s) hay giảm settle để giữ ≈ 35 s? | Giữ 3 vòng, chấp nhận ≈ 42 s (thuật toán ReaderPlus); tối ưu sau khi có số đo thật | `measure.c`, tiêu chuẩn "xong" §4 CLAUDE.md |
 | Q4 | Khe thứ 5 dùng làm gì? (mẫu thứ 5 hay **chứng âm/chuẩn nội** cố định?) | Nếu là chứng chuẩn: UI đánh dấu khe 5 khác màu, ngưỡng có thể tính theo khe chuẩn — thay đổi thuật toán, cần chủ thuật toán quyết | `measure.c`, `ui_reader.c`, payload thêm `control_slot` |
-| Q5 | Kích thước LCD giữ 4,3" 800×480? | Giữ. 5 ô 136 px vẫn đủ chữ 48 px cho số 4 chữ số | `ui_reader.c` |
+| Q5 | Kích thước LCD giữ 4,3" 800×480? | Giữ cho P4. **2026-09-19: thêm biến thể màn 2.8" 320×240** (board ES3N28P ESP32-S3, khoá riêng `rapid4p-s3`) — cùng cây `firmware/rapid4p`, UI theo token 2 thang (`ui_theme.h`), 5 ô 57 px chữ 24 (tự hạ 18). Xem `docs/history/2026-09-19-rapid4p-bien-the-s3-28lcd.md` | `ui_theme.h`, `ui_reader.c`, `ui_wifi_setup.c` |
 
 ## 2. Kiểm kê chỗ phụ thuộc số khe (đã rà `R4P_SLOTS` 42 chỗ + chuỗi cứng)
 

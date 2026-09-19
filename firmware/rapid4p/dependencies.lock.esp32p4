@@ -72,7 +72,7 @@ dependencies:
       type: idf
     version: 5.5.1
   lvgl/lvgl:
-    component_hash: d5e723db3a3feca71e34e333a6598b7624e3822577d374e1d44f0e18374952e1
+    component_hash: 7d82410747bbfb319531449749e940f440f8414f041f9eaba13f0d1dd7f58cdd
     dependencies:
     - name: espressif/freetype
       registry_url: https://components.espressif.com
@@ -102,13 +102,13 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 9.6.0
+    version: 9.6.0~1
 direct_dependencies:
 - espressif/esp_hosted
 - espressif/esp_lvgl_port
 - espressif/esp_wifi_remote
 - idf
 - lvgl/lvgl
-manifest_hash: 4e5161e98e1190bd8bf81669861520f87cbad0d0df919d1135e03792acba3fb8
+manifest_hash: fc0da6f288166dfe18e5f5bd55d6454e0441bfc3a70ba2484bc3b6dac3948cf8
 target: esp32p4
 version: 2.0.0

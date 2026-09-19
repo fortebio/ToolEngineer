@@ -547,3 +547,50 @@ Còn thiếu, nên bổ sung:
 | CARD1 | Khay SIM 6P | SIM cho ML307R |
 | IPEX1 | IPEX/U.FL | Anten module 4G |
 | SP1–SP4 | Trụ đồng M3 | Bắt vít |
+
+---
+
+## 15. Board thứ hai — AI-IoT VN **ES3N28P-LCD-2.8** (ESP32-S3 + LCD 2.8", khoá `rapid4p-s3`)
+
+> Thêm 2026-09-19. **Nguồn:** `firmware-vimate/main/boards/board_esp32s3_28lcd.h` (Bizgeni, biến thể
+> `s3-28lcd` đã build + chạy thật 12/09/2026; bản chép trong repo
+> `firmware/maping new product/firmware-vimate-p4/main/boards/board_esp32s3_28lcd.h`), gốc từ
+> `xiaozhi-esp32_vietnam/.../es3n28p-lcd-2.8/config.h`. **Chưa có schematic** — mọi chân ngoài bảng
+> "board đã dùng" là ĐỀ XUẤT, phải đối chiếu header thật trước khi hàn bo cảm biến.
+> Header firmware: `main/boards/board_esp32s3_28lcd.h`.
+
+### 15.1 Board đã dùng (chắc chắn, theo vimate)
+
+| GPIO | Chức năng | Ghi chú |
+|---|---|---|
+| 0 | BOOT | tap = quay lại, giữ 5 s = xoá WiFi |
+| 1 | PA enable loa (active LOW) | Rapid4P không dùng audio |
+| 4 / 5 / 7 / 6 / 8 | I2S0 MCLK / BCLK / WS / DIN / DOUT (ES8311) | không dùng |
+| 10 / 11 / 12 / 13 | LCD CS / MOSI / SCLK / MISO (SPI3, 40 MHz) | ILI9341, RST nối reset hệ thống |
+| 46 | LCD DC | strap — đã bị board dùng |
+| 45 | LCD backlight (LEDC ch0/timer0, 5 kHz) | strap — đã bị board dùng |
+| 15 / 16 | I2C0 SCL / SDA | touch FT6236G 0x38 (+ codec ES8311 0x18, không init) |
+| 17 / 18 | touch INT / RST | RST cần xung LOW 10 ms → HIGH 300 ms |
+| 42 | LED đơn | `BOARD_STATUS_LED_GPIO`, chưa có driver |
+| 19 / 20 | USB D− / D+ | Serial/JTAG (console phụ) |
+| 43 / 44 | UART0 TX / RX | console chính + nạp qua USB-UART |
+| 26–37 | flash QIO + PSRAM Octal (N16R8) | KHÔNG dùng |
+| 3 | strap JTAG | tránh |
+
+### 15.2 GPIO còn trống → gán cho bo cảm biến 5 khe (ĐỀ XUẤT)
+
+Trống: **2, 9, 14, 21, 38, 39, 40, 41, 47, 48** (10 chân).
+
+| Chức năng | GPIO | Knob |
+|---|---|---|
+| I2C bus cảm biến (riêng, `I2C_NUM_1`, 100 kHz) SDA / SCL | 41 / 40 | `BOARD_SENSOR_I2C_SDA/SCL` |
+| LED enable khe 1..5 | 2, 9, 14, 21, 38 | `BOARD_SLOT_LED_GPIOS` |
+| PWM độ sáng LED chung (LEDC ch1/timer1, 5 kHz) | 39 | `BOARD_SLOT_LED_PWM_GPIO` |
+| Nút ĐO ngoài (pull-up nội, nhấn = LOW) | 47 | `BOARD_BTN_MEASURE_GPIO` (−1 nếu không nối) |
+| Dư | 48 | — |
+
+- Dùng chung I2C0 (15/16) với touch cũng được: đổi 3 knob `BOARD_SENSOR_I2C_*`; `sensor_bus.c` tự
+  tái dùng bus qua `i2c_master_get_bus_handle()`. Bus riêng được chọn để không chen lịch quét chạm.
+- Bo con (TCA9548A 0x70 + 5× TCS34725 0x29, LED VOUT+ chung + LIGHT1..5 sink) cần bo giao tiếp
+  như `Rapid4P-IF` (`docs/HARDWARE-ARCHITECTURE.md`): nguồn LED, công tắc khe, pull-up 4,7 K.
+- Không có PMIC/pin/SD trên board; WiFi 2,4 GHz nội (không ESP-Hosted), BT tắt trong sdkconfig.

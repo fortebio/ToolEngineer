@@ -155,6 +155,8 @@ products:
   # Q1 đổi tên thương mại còn mở) trên phần cứng ESP32-P4C5 + LCD 4.3" (board tham chiếu của firmware-vimate-p4).
   # Khảo sát + quyết định: firmware/maping new product/MAPPING-Rapid4P.md. Firmware ESP-IDF
   # native (build_system: idf) — sản phẩm đầu tiên không dùng PlatformIO.
+  # 2026-09-19: cùng cây firmware/rapid4p build được HAI board — env = profile sdkconfig.defaults.<env>,
+  # mỗi board một khoá registry (biến thể khác chip = khoá riêng `variant_of`, xem `rapid4p-s3` bên dưới).
   rapid4p:
     name: Forte Rapid4P (Rapid Reader 5 Slot)
     status: dev
@@ -165,7 +167,7 @@ products:
     firmware:
       dir: firmware/rapid4p
       build_system: idf
-      envs: [default]             # sdkconfig.defaults (board P4_43LCD chọn trong đó)
+      envs: [p4_43lcd]            # sdkconfig.defaults + sdkconfig.defaults.p4_43lcd (scripts\build.bat p4_43lcd)
       build_flags: [RAPID4P_BOARD_P4_43LCD]
       version_source:
         file: main/rapid4p.h
@@ -184,6 +186,32 @@ products:
     app:
       features: []
     endpoints: [engineer_ingest, engineer_ota_check]
+
+  # Biến thể MÀN 2.8" của Rapid 5 khe: board AI-IoT VN ES3N28P (ESP32-S3 N16R8 + ILI9341 SPI 320×240 +
+  # touch FT6236G, pinout theo firmware-vimate s3-28lcd đã chạy thật). Cùng mã nguồn/logic đo/payload với
+  # `rapid4p`, chỉ khác chip + màn + chân bo cảm biến (ĐỀ XUẤT, chưa có schematic) → khoá RIÊNG để kho OTA
+  # tách hẳn (ảnh P4 không bao giờ tới máy S3 và ngược lại; `esp_app_desc.project_name` = khoá này).
+  # Kế hoạch + quyết định: docs/history/2026-09-19-rapid4p-bien-the-s3-28lcd.md.
+  rapid4p-s3:
+    name: Forte Rapid4P-S3 (Rapid Reader 5 Slot, LCD 2.8in)
+    status: dev
+    variant_of: rapid4p
+    chip: esp32s3
+    legacy_prefix_default: false
+    hw: [S3-28]                   # BOARD_HW_VERSION trong main/boards/board_esp32s3_28lcd.h
+    firmware:
+      dir: firmware/rapid4p
+      build_system: idf
+      envs: [s3_28lcd]            # sdkconfig.defaults + sdkconfig.defaults.s3_28lcd (scripts\build.bat s3_28lcd)
+      build_flags: [RAPID4P_BOARD_S3_28LCD]
+      version_source:             # cùng số version với rapid4p (một mã nguồn)
+        file: main/rapid4p.h
+        regex: 'R4P_FW_VERSION\s+"(v[^"]+)"'
+      image_name: "rapid4p-s3_{ver}.bin"
+      legacy_name_locked: false
+      tag_prefix: fw/rapid4p-s3/
+      ota: true                   # GET /ota/check?product=rapid4p-s3&hw=S3-28
+      embeds_image_tag: false
 
   readermax:
     name: Forte Reader Max

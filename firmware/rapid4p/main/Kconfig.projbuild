@@ -17,16 +17,28 @@ menu "Rapid4P Configuration"
         int "Backlight off after idle (seconds, 0 = never)"
         default 300
 
+    # Mỗi target đúng MỘT board (depends on IDF_TARGET_*) nên set-target tự chọn đúng board;
+    # profile sdkconfig.defaults.<board> vẫn ghi CONFIG_RAPID4P_BOARD_*=y tường minh (registry_check
+    # đọc dòng đó). Board = khoá sản phẩm: P4 → `rapid4p`, S3 → `rapid4p-s3` (system/products.yaml).
     choice RAPID4P_BOARD
         prompt "Hardware board"
-        default RAPID4P_BOARD_P4_43LCD
+        default RAPID4P_BOARD_P4_43LCD if IDF_TARGET_ESP32P4
+        default RAPID4P_BOARD_S3_28LCD if IDF_TARGET_ESP32S3
 
         config RAPID4P_BOARD_P4_43LCD
             bool "FBT ESP32-P4C5 + 4.3in LCD ST7102 MIPI-DSI 480x800 (Rapid4P bring-up)"
             depends on IDF_TARGET_ESP32P4
             help
                 Board tham chiếu Rapid4P (main/boards/board_esp32p4_43lcd.h,
-                docs/HARDWARE-PINOUT.md). Bo cảm biến 4 slot cắm JP1.
+                docs/HARDWARE-PINOUT.md). Bo cảm biến 5 slot cắm JP1.
+
+        config RAPID4P_BOARD_S3_28LCD
+            bool "AI-IoT VN ES3N28P: ESP32-S3 N16R8 + 2.8in LCD ILI9341 SPI 320x240 + touch FT6236G"
+            depends on IDF_TARGET_ESP32S3
+            help
+                Board 2.8in (main/boards/board_esp32s3_28lcd.h, pinout theo firmware-vimate
+                s3-28lcd da chay that). WiFi noi (khong ESP-Hosted). Chan bo cam bien 5 slot
+                la DE XUAT — xem docs/HARDWARE-PINOUT.md.
     endchoice
 
     config RAPID4P_DEV_CONSOLE

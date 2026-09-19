@@ -1,66 +1,42 @@
-# sdkconfig defaults - Rapid4P firmware ESP32-P4 (16 MB flash, PSRAM 200 MHz).
+# sdkconfig defaults - Rapid4P firmware, phan CHUNG cho moi board (2026-09-19).
 #
 # LUU Y: file PHAI la ASCII thuan (kconfgen doc theo locale cp1252 tren Windows VN).
+# Knob rieng tung board (target, PSRAM, WiFi remote/native, CPU, CONFIG_RAPID4P_BOARD_*) nam o
+#   sdkconfig.defaults.p4_43lcd   (ESP32-P4C5 + LCD 4.3" DSI, khoa san pham rapid4p)
+#   sdkconfig.defaults.s3_28lcd   (ESP32-S3 ES3N28P + LCD 2.8" SPI, khoa san pham rapid4p-s3)
+# CMakeLists.txt goc ghep "sdkconfig.defaults;sdkconfig.defaults.<board>" theo R4P_BOARD.
 # Ke thua firmware-vimate-p4/sdkconfig.defaults (da chay that tren board); bo cac
 # knob audio/esp-sr/WebSocket/MP4. Moi dong "vi sao" quan trong giu nguyen.
 
-# --- Target ---
-CONFIG_IDF_TARGET="esp32p4"
-CONFIG_IDF_TARGET_ESP32P4=y
-# P4 rev v1.3 (board that). IDF >= 5.5.3 tach rev <3.0 va >=3.0 thanh hai nhanh loai tru
-# nhau, mac dinh REV_MIN=v3.1 -> bootloader tu choi nap ("requires chip revision in range
-# [v3.1 - v3.99]", gap 2026-09-17 tren IDF 5.5.4). Hai dong duoi bat nhanh <3.0; tren
-# IDF 5.5.1 symbol SELECTS_REV_LESS_V3 khong ton tai (chi canh bao, REV_MIN_100 van ap).
-CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
-CONFIG_ESP32P4_REV_MIN_100=y
-CONFIG_IDF_EXPERIMENTAL_FEATURES=y
-
-# --- Flash ---
+# --- Flash (ca hai module deu 16 MB QIO 80 MHz) ---
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 
-# --- PSRAM ---
+# --- PSRAM (chung; toc do/che do theo board) ---
 CONFIG_SPIRAM=y
-CONFIG_SPIRAM_SPEED_200M=y
-CONFIG_SPIRAM_XIP_FROM_PSRAM=y
 CONFIG_SPIRAM_USE_MALLOC=y
-CONFIG_CACHE_L2_CACHE_256KB=y
-# L2 cache line 64 B, KHONG 128 B: ESP-Hosted cap buffer can 64 B, SDMMC/SDIO doi buffer
-# can DUNG cache line -> 128 B lam SDIO toi C5 chet khi co tram ket noi (README-P4 5.2b).
-CONFIG_CACHE_L2_CACHE_LINE_64B=y
-CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=1024
 CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=98304
-# KHONG bat CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: esp_wifi_remote RPC NO_MEM, boot-loop.
 # RTC/LP RAM khong vao heap (README-P4 4.7 bay 3).
 CONFIG_ESP_SYSTEM_ALLOW_RTC_FAST_MEM_AS_HEAP=n
 
-# --- Bluetooth: P4 khong co radio ---
+# --- Bluetooth: khong dung (P4 khong co radio; S3 tat de danh RAM noi cho TLS/LVGL) ---
 # CONFIG_BT_ENABLED is not set
 
-# --- WiFi qua co-processor ESP32-C5 (ESP-Hosted, SDIO slot 1) ---
-CONFIG_ESP_WIFI_REMOTE_ENABLED=y
-CONFIG_ESP_WIFI_REMOTE_LIBRARY_HOSTED=y
-CONFIG_SLAVE_IDF_TARGET_ESP32C5=y
-CONFIG_ESP_HOSTED_CP_TARGET_ESP32C5=y
-CONFIG_ESP_HOSTED_P4_DEV_BOARD_NONE=y
-CONFIG_ESP_HOSTED_SDIO_HOST_INTERFACE=y
-# mempool transport tu PSRAM: khong bat thi "HS_MP: mempool create failed" truoc app_main.
-CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM=y
+# --- WiFi buffer (do tren P4 qua ESP-Hosted; vimate s3-28lcd dung cung so) ---
 CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=6
 CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=4
 CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=16
 CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=16
 CONFIG_ESP_WIFI_RX_BA_WIN=12
 
-# --- Partition table ---
+# --- Partition table (16 MB, chung 2 board) ---
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/partitions.rapid4p.csv"
 CONFIG_PARTITION_TABLE_FILENAME="partitions/partitions.rapid4p.csv"
 
-# --- CPU / FreeRTOS ---
-CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_360=y
+# --- FreeRTOS ---
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=10240
 CONFIG_FREERTOS_HZ=1000
 CONFIG_FREERTOS_USE_TICKLESS_IDLE=n
@@ -94,7 +70,6 @@ CONFIG_VFS_MAX_COUNT=12
 CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=1
 CONFIG_LV_DEF_REFR_PERIOD=16
 CONFIG_LV_DRAW_SW_CIRCLE_CACHE_SIZE=8
-CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM=y
 # TJPGD: decoder_info() cap 4 KB tren stack moi lan lv_image_set_src -> tat (README-P4 5.6).
 # CONFIG_LV_USE_TJPGD is not set
 CONFIG_LV_USE_QRCODE=y
@@ -120,8 +95,7 @@ CONFIG_COMPILER_CXX_EXCEPTIONS=n
 CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK=n
 
-# --- Rapid4P ---
-CONFIG_RAPID4P_BOARD_P4_43LCD=y
+# --- Rapid4P (chung; CONFIG_RAPID4P_BOARD_* o profile board) ---
 CONFIG_RAPID4P_SERVER_BASE="https://hub.fortebio.tech"
 CONFIG_RAPID4P_OTA_INTERVAL_SEC=21600
 CONFIG_RAPID4P_SCREEN_SLEEP_SEC=300
