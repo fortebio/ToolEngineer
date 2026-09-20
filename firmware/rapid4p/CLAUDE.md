@@ -151,7 +151,7 @@ tích hợp của Claude CHẶN camera (`NotAllowedError`), ffmpeg thì được
 (crop theo vị trí máy trên bàn 2026-09-17 — chỉnh lại). Vòng lặp: `uicmd ui N` → chụp → xem.
 **Box ADM không có ffmpeg** → `python scripts/webcam_shot.py --list` (OpenCV trong venv IDF `C:/Espressif/python_env/idf5.5_py3.11_env`,
 đã `pip install opencv-python` 2026-09-20) rồi `webcam_shot.py <idx> shot.jpg --crop x,y,w,h --scale 2`; xem ảnh bằng Read tool. Camera USB
-không hiện tên riêng trong PnP (cam laptop = 2 mục "Integrated Webcam", MSMF idx 0/1) — nhận diện bằng ảnh thử từng index.
+không hiện tên riêng trong PnP — nhận diện bằng ảnh thử từng index. Đo 2026-09-21: DSHOW 1 = MSMF 0 = webcam laptop (nhìn người ngồi), MSMF 1 = **DroidCam ảo** (hiện "Start DroidCam" tới khi app điện thoại nối — cách chĩa camera vào máy khi không có webcam USB), UGREEN không bao giờ enumerate trên box ADM.
 Từ Git Bash: `MSYS_NO_PATHCONV=1 cmd.exe /c "scripts\build.bat s3_28lcd"`. Lần đầu mỗi target cần mạng để
 component manager kéo component (~2 phút); lock riêng `dependencies.lock.<target>` (track git).
 Script tự đọc id bản ESP-IDF đang chọn từ `C:\Espressif\esp_idf.json`; muốn bản khác đặt `R4P_IDF_ID=esp-idf-<hash>`.
