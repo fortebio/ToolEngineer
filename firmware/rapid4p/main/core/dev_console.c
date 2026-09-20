@@ -144,6 +144,10 @@ static int cmd_screen(int argc, char **argv)
     }
     free(img);
 
+    /* Tắt log trong lúc in khối base64: log task khác (SoftAP/DNS/wifi lúc màn WiFi vừa mở) chen vào dòng base64 →
+     * tool bỏ dòng đó, mọi pixel sau dồn lên (ảnh lệch dải ngang, 4.3" 2026-09-21). Không tag nào đặt mức riêng
+     * nên khôi phục bằng mức mặc định là đủ. */
+    esp_log_level_set("*", ESP_LOG_NONE);
     printf("SCR %d %d RGB565 %s %u %u\n", w, h, raw ? "RAW" : "RLE", (unsigned)enc_len, (unsigned)raw_bytes);
     /* 57 byte -> 76 ky tu base64 moi dong (chuan MIME), khong chen log giua chung. */
     char line[80];
@@ -157,6 +161,7 @@ static int cmd_screen(int argc, char **argv)
     }
     printf("SCR-END %08lx\n", (unsigned long)crc);
     fflush(stdout);
+    esp_log_level_set("*", CONFIG_LOG_DEFAULT_LEVEL);
     free(enc);
     return 0;
 }

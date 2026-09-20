@@ -100,6 +100,8 @@ static inline void ui_theme_brand_bar(lv_obj_t *bar)
 #define UI_BAR_MEAS_W     360
 #define UI_THR_BTN_W    130
 #define UI_THR_BTN_H    110
+#define UI_THR_GLYPH_W  40      /* dấu −/+ vẽ bằng thanh trong nút −/+ (glyph font quá nhỏ — 2026-09-21) */
+#define UI_THR_GLYPH_T  7
 #define UI_THR_CARD_W   260
 #define UI_THR_ROW_H    120
 #define UI_STATUS_FULL  1       /* header đủ: icon WiFi + IP + upload n/n + version */
@@ -164,6 +166,8 @@ static inline void ui_theme_brand_bar(lv_obj_t *bar)
 #define UI_SK_BORDER      4     /* vạch màu nút cơ trên ô softkey (2.8"): 4 px, nhìn được từ xa */
 #define UI_THR_BTN_W    64      /* 56 → 64 (ngón to): 64 + 16 + 140 + 16 + 64 = 300 ≤ 304 */
 #define UI_THR_BTN_H    72
+#define UI_THR_GLYPH_W  20      /* (2.8" vẫn dùng icon Montserrat 18 px — đã duyệt camera; token cho đủ hai thang) */
+#define UI_THR_GLYPH_T  4
 #define UI_THR_CARD_W   140
 #define UI_THR_ROW_H    80      /* 80 + gợi ý 14 + gap 6 = 100 ≤ 144 */
 #define UI_STATUS_FULL  0       /* header gọn: icon WiFi + upload n; IP/version xuống màn chính */

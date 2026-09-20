@@ -72,6 +72,7 @@ typedef enum {
     STR_START,              /* "Bắt đầu" (softkey XANH màn chính) */
     STR_SELECT,             /* "Chọn" (softkey XANH trong danh sách) */
     STR_HOLD_HINT_THR,      /* "Giữ: ±50 · Giữ TRẮNG: huỷ" (màn sửa ngưỡng 2.8") */
+    STR_TAP_HOLD_HINT_THR,  /* "Chạm: ±10 · Giữ: ±50" (màn sửa ngưỡng 4.3", dưới hàng −/+) */
     STR_CLEAR,              /* "Xoá" (softkey TRẮNG màn cân chỉnh) */
     /* 2026-09-20 — tối ưu cho nông dân (3 nút cơ, găng tay): */
     STR_REDO_LAST,          /* "Đo lại" (softkey ĐỎ màn chính: mẫu + ống lần trước) */

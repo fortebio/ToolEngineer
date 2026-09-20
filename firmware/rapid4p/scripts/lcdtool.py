@@ -45,8 +45,9 @@ UI_NAMES = ["start", "sample", "tube", "prepare", "measuring", "result", "calib"
 class Device:
     """Một luồng đọc cổng: gom log, bắt khối SCR, giữ ảnh PNG mới nhất."""
 
-    def __init__(self, port):
+    def __init__(self, port, baud=115200):
         self.port = port
+        self.baud = baud
         self.ser = None
         self.log = deque(maxlen=600)
         self.png = None            # bytes PNG mới nhất
@@ -59,13 +60,14 @@ class Device:
         self._buf = b""
         self._want_frame = threading.Event()
         self._last_cmd = ""
+        self.frame_short = 0       # khung mới nhất thiếu bao nhiêu px (mất dòng base64 trên đường truyền)
         threading.Thread(target=self._reader, daemon=True).start()
 
     # ---- cổng ----
     def _open(self):
         s = serial.Serial()
         s.port = self.port
-        s.baudrate = 115200
+        s.baudrate = self.baud
         s.timeout = 0.05
         s.dtr = False
         s.rts = False
@@ -117,7 +119,8 @@ class Device:
         if s.startswith("SCR ") and "RGB565" in s:
             parts = s.split()
             try:
-                self._scr = {"w": int(parts[1]), "h": int(parts[2]), "mode": parts[4], "lines": []}
+                self._scr = {"w": int(parts[1]), "h": int(parts[2]), "mode": parts[4], "lines": [],
+                             "enc": int(parts[5]) if len(parts) > 5 else 0, "t0": time.time()}
             except (IndexError, ValueError):
                 self._scr = None
             return
@@ -146,10 +149,12 @@ class Device:
                     out[pos:pos + cnt] = px
                     pos += cnt
                     i += 3
+                self.frame_short = w * hh - pos
                 if pos < w * hh:
                     self.log.append("[lcdtool] RLE thieu %d px" % (w * hh - pos))
             else:
                 out = np.frombuffer(enc[:w * hh * 2], dtype="<u2").copy()
+                self.frame_short = 0
             crc_dev = end_line.split()[1] if len(end_line.split()) > 1 else ""
             crc_pc = "%08x" % (zlib.crc32(out.astype("<u2").tobytes()) & 0xFFFFFFFF)
             rgb565 = out.reshape(hh, w).astype(np.uint32)   # tính ở 32 bit: nhân 255 trên uint8 bị tràn
@@ -169,8 +174,22 @@ class Device:
         except Exception as e:
             self.log.append("[lcdtool] giai ma SCR loi: %s" % e)
 
+    def grab_ok(self, tries=3):
+        """grab() + thử lại khi khung thiếu px: mất một dòng base64 giữa chừng làm mọi pixel sau đó dồn lên
+        (ảnh lệch dải ngang — màn WiFi 4.3" 2026-09-21, lúc SoftAP/DNS đang log)."""
+        png = None
+        for _ in range(tries):
+            png = self.grab()
+            if png and not self.frame_short:
+                return png
+            if png:
+                print("[lcdtool] khung thieu %d px -> chup lai" % self.frame_short)
+        return png
+
     def grab(self, timeout=6.0):
-        """Gửi `screen`, chờ khung mới. Trả về bytes PNG hoặc None."""
+        """Gửi `screen`, chờ khung mới. Trả về bytes PNG hoặc None.
+        `timeout` chỉ là hạn chờ HEADER; khi header về, hạn giãn theo số byte mã hoá ÷ tốc độ cổng
+        (4.3" 800×480 RLE ~53 KB → base64 72 KB → ~6,7 s ở 115200; 2.8" ~1 s qua USB-JTAG)."""
         before = self.frame_id
         self._want_frame.clear()
         self.send("screen")
@@ -178,6 +197,11 @@ class Device:
         while time.time() < end:
             if self._want_frame.wait(0.1) and self.frame_id != before:
                 return self.png
+            scr = self._scr
+            if scr and scr.get("enc"):
+                need = scr["t0"] + scr["enc"] * 4 / 3 / (self.baud / 10.0) * 1.3 + 2.0
+                if need > end:
+                    end = need
         return None
 
 
@@ -295,8 +319,8 @@ header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:10px 16px
 header h1{font-size:18px;margin:0;color:var(--teal)}header span{color:var(--muted);font-size:13px}
 main{display:grid;grid-template-columns:1fr;gap:16px;padding:16px}
 @media(min-width:1100px){main{grid-template-columns:auto 1fr}}
-#scr{display:block;width:100%;max-width:640px;aspect-ratio:4/3;height:auto;image-rendering:pixelated;background:#000;border:1px solid var(--border);border-radius:8px}
-.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;max-width:640px;margin-top:12px}
+#scr{display:block;width:100%;max-width:800px;height:auto;image-rendering:pixelated;background:#000;border:1px solid var(--border);border-radius:8px}
+.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;max-width:800px;margin-top:12px}
 .keys button{height:72px;border:0;border-radius:12px;font-size:20px;font-weight:600;cursor:pointer;user-select:none;color:#06262A}
 .k-g{background:var(--green)}.k-r{background:var(--red);color:#fff!important}.k-w{background:#F2F8F9}
 .keys button:active{filter:brightness(.8)}
@@ -324,7 +348,7 @@ label{color:var(--muted);font-size:13px;margin-left:8px}
    <button class="k-w" data-k="white">TRẮNG</button>
   </div>
   <div class="hint">Click = nhấn · giữ chuột ≥ 1,5 s = giữ (hold) · Shift+click = lặp (rep) · phím tắt: 1 / 2 / 3, giữ = Shift+1/2/3</div>
-  <div id="cambox" class="card" style="display:none;margin-top:12px;max-width:640px"><h2>Máy thật (camera) — đối chiếu</h2>
+  <div id="cambox" class="card" style="display:none;margin-top:12px;max-width:800px"><h2>Máy thật (camera) — đối chiếu</h2>
    <img id="cam" alt="camera" style="display:block;width:100%;border-radius:8px;background:#000">
    <div class="hint">Cùng thời điểm với ảnh framebuffer ở trên: so màu panel, độ sáng, vỏ máy che mép, chữ có đọc được từ xa.</div></div>
  </section>
@@ -395,14 +419,14 @@ def make_handler(dev, out_dir, cam=None):
                 else:
                     self._send(404, "text/plain", b"chua co khung")
             elif path == "/grab":
-                png = dev.grab()
+                png = dev.grab_ok()
                 self._send(200, "text/plain", b"ok" if png else b"timeout")
             elif path == "/log":
                 self._send(200, "application/json", json.dumps({
                     "log": list(dev.log)[-200:], "port": dev.port, "frame": dev.frame_id,
                     "wh": "%dx%d" % dev.frame_wh, "err": dev.err}).encode())
             elif path == "/shot":
-                png = dev.grab() or dev.png
+                png = dev.grab_ok() or dev.png
                 if not png:
                     self._send(500, "text/plain", "khong co khung".encode())
                     return
@@ -439,8 +463,8 @@ def capture_gallery(dev, out_dir, wait=1.2, cam=None):
         if name == "measuring":       # cần cảm biến; bỏ qua (xem qua nút ĐỎ ở prepare)
             continue
         dev.send("ui " + name)
-        time.sleep(wait)
-        png = dev.grab()
+        time.sleep(wait * (2 if name == "wifi" else 1))   # wifi: start_provisioning + lv_screen_load, chụp sớm → ảnh lệch dải (4.3" 2026-09-21)
+        png = dev.grab_ok()
         if png:
             p = os.path.join(out_dir, "%02d_%s.png" % (i, name))
             paths += save_shot(dev, cam, p, png, extra=False)   # gallery cho docs: chỉ PNG + cam 640
@@ -451,6 +475,7 @@ def capture_gallery(dev, out_dir, wait=1.2, cam=None):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("port")
+    ap.add_argument("--baud", type=int, default=115200, help="tốc độ cổng console (P4 UART0 115200; USB-JTAG bỏ qua)")
     ap.add_argument("--port", dest="http", type=int, default=8791)
     ap.add_argument("--out", default="out_lcd", help="thư mục lưu PNG (mặc định out_lcd/)")
     ap.add_argument("--shot", help="chụp một ảnh vào file rồi thoát")
@@ -466,13 +491,13 @@ def main():
     if a.cam is not None:
         cw, ch = a.cam_res.lower().split("x")
         cam = Camera(a.cam, int(cw), int(ch), a.cam_rot)
-    dev = Device(a.port)
+    dev = Device(a.port, a.baud)
     time.sleep(0.6)
     for c in a.cmd:
         dev.send(c)
         time.sleep(a.wait)
     if a.shot:
-        png = dev.grab()
+        png = dev.grab_ok()
         if not png:
             print("khong nhan duoc khung (firmware co lenh `screen`? cong dung?)")
             return 1

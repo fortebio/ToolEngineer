@@ -66,6 +66,7 @@ python scripts/lcdtool.py COM20            # http://127.0.0.1:8791/ — ảnh m�
 python scripts/lcdtool.py COM20 --shot x.png
 python scripts/lcdtool.py COM20 --gallery out/
 python scripts/lcdtool.py COM20 --cam 2    # + camera UGREEN: ảnh máy thật cạnh framebuffer, lưu cặp đối chiếu
+python scripts/lcdtool.py COM47            # P4 4.3" qua UART0 CH343 (115200: 7–8 s/khung 800×480; --baud nếu đổi)
 ```
 Firmware lệnh console `screen` dump framebuffer (RLE + base64) qua USB-JTAG (S3) / UART0 (P4); tool giải mã thành PNG.
 Framebuffer = "máy vẽ gì", camera = "mắt thấy gì" (màu panel, độ sáng, vỏ máy che mép).

@@ -74,7 +74,8 @@ Hướng A còn tái dùng cho **P4 4.3"** (console UART0 `uicmd.py`, framebuffe
 | 1 | Kconfig snapshot + `screen` console | ✅ (stack REPL 16 KB) |
 | 2 | `lcdtool.py` web + `--shot`/`--gallery` | ✅ + `--cam` đối chiếu máy thật (bổ sung theo yêu cầu) |
 | 3 | Bộ màn vào docs | ✅ 13 màn PNG + `_cam.jpg`, 2 ảnh tổng |
-| 4 | HTTP `/api/screen.bmp` | ⏸ chưa làm (tuỳ chọn, chỉ cần khi bo có WiFi và không cắm USB) |
+| 4 | HTTP `/api/screen.bmp` | ⏸ chưa làm (tuỳ chọn, chỉ cần khi bo có WiFi và không cắm USB; P4 UART 115200 chậm 7–8 s/khung là lý do thứ hai) |
+| 6 | Chạy với P4 4.3" (UART0 115200, khung 800×480) | ✅ 2026-09-21: hạn chờ giãn theo `enc`, `--baud`, `grab_ok`, tắt log khi dump |
 | 5 | Docs | ✅ CLAUDE.md §1/§4/§5, README |
 
 ## Việc UI/UX còn lại sẽ làm bằng tool này (từ ảnh camera 2026-09-21)
@@ -87,7 +88,11 @@ Hướng A còn tái dùng cho **P4 4.3"** (console UART0 `uicmd.py`, framebuffe
 - [ ] Đang đo: highlight khe đang đọc rõ hơn (nền amber nhạt thay vì chỉ viền).
 - [ ] Kết quả: khe dương tính thêm nhãn "+"/"−" dưới icon nếu còn chỗ (không chỉ màu).
 - [ ] Ngủ màn: hạ `CONFIG_RAPID4P_SCREEN_SLEEP_SEC` 300 → 120 cho máy chạy pin? (hỏi).
-- [ ] P4 4.3": chưa rà lại sau các đổi chung (`mk_btn` 2 dòng, `set_title`), cần chụp qua tool (`uicmd.py` UART0 + `screen`) khi có bo.
+- [x] P4 4.3": rà 13 màn qua `lcdtool.py COM47` (UART0) 2026-09-21 → sửa 6 lỗi, ảnh `docs/history/img/lcd43/`,
+      ghi `docs/history/2026-09-21-rapid4p-43-ra-ui-lcdtool.md` (gốc). Tool: hạn chờ giãn theo header, `--baud`, `grab_ok` chụp lại
+      khi mất dòng base64; firmware `screen` tắt log lúc in.
+- [ ] P4: 7–8 s/khung ở 115200 → nâng `CONFIG_ESP_CONSOLE_UART_BAUDRATE` 921600 (+ `--baud`, `readlog.py`/`uicmd.py`) nếu cần
+      tương tác trên trang web; hoặc làm việc 4 (HTTP) khi bo có WiFi.
 
 ## Còn chờ phần cứng (từ kế hoạch nông dân 3 nút 2026-09-20)
 

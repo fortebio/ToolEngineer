@@ -27,8 +27,9 @@ static void logo_draw_cb(lv_event_t *e)
     lv_layer_t *layer = lv_event_get_layer(e);
     lv_area_t a;
     lv_obj_get_coords(obj, &a);
-    const int w = lv_area_get_width(&a);
+    /* Mark luôn theo tỉ lệ gốc từ chiều cao; object có thể RỘNG hơn để chứa chữ (xem ui_logo_create). */
     const int h = lv_area_get_height(&a);
+    const int w = h * LOGO_W / LOGO_H;
 
     lv_draw_triangle_dsc_t d;
     for (size_t i = 0; i < sizeof(s_tris) / sizeof(s_tris[0]); i++) {
@@ -76,6 +77,12 @@ lv_obj_t *ui_logo_create(lv_obj_t *parent, int h, bool with_text)
         lv_obj_set_style_text_color(l2, lv_color_hex(TEXT_COLOR), 0);
         lv_obj_set_style_text_letter_space(l2, 1, 0);
         lv_obj_align(l2, LV_ALIGN_TOP_LEFT, 790 * w / LOGO_W, 1140 * h / LOGO_H - lv_font_get_line_height(f) / 2);
+        /* Font vimate rộng hơn chữ trong file gốc (BIOTECH gốc tới x 1870/2000): logo 120 px trên 4.3" bị
+         * cắt "H" (framebuffer 2026-09-21) → nới object tới mép phải của chữ, mark vẫn vẽ theo chiều cao. */
+        lv_point_t sz;
+        lv_text_get_size(&sz, "BIOTECH", f, 1, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        const int right = 790 * w / LOGO_W + sz.x + 2;
+        if (right > w) lv_obj_set_width(o, right);
     }
     return o;
 }

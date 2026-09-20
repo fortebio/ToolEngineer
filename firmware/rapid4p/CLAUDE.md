@@ -21,6 +21,9 @@
   **2,08 MB** · `build_s3_28lcd/rapid4p-s3.bin` **2,00 MB** / slot 3 MB.
 - **P4 đã nạp máy thật 2026-09-17** (COM7, ESP32-P4 rev **v1.3**, chưa có bo cảm biến): log 60 s sạch, DSI/touch/WiFi
   qua C5/portal chạy, 13 màn đã xem qua webcam. Mọi thứ thuộc `sensor/*`, `app/measure.c` vẫn chưa có bằng chứng phần cứng.
+  **2026-09-21 nạp lại (COM47) + rà 13 màn 4.3" bằng `lcdtool.py` qua UART0** (VI + EN, đúng pixel), sửa 6 lỗi bố cục
+  (logo cắt chữ, nhãn nút co 14 px, tiêu đề "…", số ô cân chỉnh, −/+ nhỏ, màn ngôn ngữ) —
+  `docs/history/2026-09-21-rapid4p-43-ra-ui-lcdtool.md` (gốc repo), ảnh `docs/history/img/lcd43/`.
 - **S3 2.8" đã nạp bo ES3N28P lần đầu 2026-09-19** (COM20 = cổng USB-Serial/JTAG native 303A:1001, S3 rev v0.2, PSRAM 8 MB):
   log boot sạch (`scripts/jtaglog.py`): `Init SPI ILI9341 panel 240x320 @ 40 MHz, logical 320x240`, **`Touch FT6236 chip id=0x64`**
   (chip thật trả lời) → `init OK`, `Button init BOOT=GPIO0 DO=GPIO47`, `sensor bus I2C1 SDA=41 SCL=40`, `TCA9548 … INVALID_STATE` ×5
@@ -155,6 +158,10 @@ tích hợp của Claude CHẶN camera (`NotAllowedError`), ffmpeg thì được
 `python scripts/lcdtool.py COM20` → `http://127.0.0.1:8791/` (ảnh framebuffer ×2 tự làm mới, 3 nút ảo XANH/ĐỎ/TRẮNG — click = tap,
 giữ ≥ 1,5 s = hold, Shift = rep, phím 1/2/3 — danh sách `ui N`, ô gõ lệnh, log, Lưu PNG, Chụp bộ màn); Claude dùng
 `lcdtool.py COM20 --shot x.png` / `--cmd "btn red hold" --shot x.png` / `--gallery dir` rồi Read PNG (đúng pixel, 320×240).
+**P4 4.3" cũng dùng được** (2026-09-21): `lcdtool.py COM47` (CH343 UART0 115200, `--baud` nếu đổi) — khung 800×480 RLE 53–69 KB →
+**7–8,5 s/khung** (hạn chờ tự giãn theo header; `--gallery` 13 màn ≈ 2 phút); đổi ngôn ngữ không cần chạm: `ui language` →
+`btn green` (VI) / `btn red` + `btn green` (EN). Bộ 13 màn 4.3": `docs/history/img/lcd43/`. Khung thiếu px (mất dòng base64 khi
+task khác log — firmware `screen` giờ tắt log lúc in) → tool tự chụp lại (`grab_ok`, in "khung thieu N px").
 **Đối chiếu SẢN PHẨM THẬT**: thêm `--cam 2` (UGREEN, DSHOW idx 2) → trang web có thêm ảnh camera cùng thời điểm dưới
 framebuffer; `--shot`/nút "Lưu PNG" lưu thêm `_cam.jpg` (vùng LCD cắt tự động, rộng 640) + `_pair.jpg` (framebuffer | máy thật) +
 `_full.jpg`; `--gallery` lưu PNG + `_cam.jpg` mỗi màn. Camera mở một lần, autofocus + warm-up 3 s; crop = hộp bao mọi điểm màu
@@ -218,6 +225,10 @@ log 60 s sạch; chạm đúng vị trí (không lệch trục — nếu lệch 
 | Ảnh `lcdtool` đen dù RLE có màu đúng | decode RGB565 nhân 255 trên `uint8` numpy bị tràn → tính ở uint32 rồi mới `astype(uint8)` |
 | `keytest.py`/`flash.bat`/`esptool` thoát mã 1 KHÔNG in gì, hoặc "port is busy" | `lcdtool.py` (preview `rapid4p-lcd`) đang giữ COM20 — cổng USB-JTAG chỉ mở được MỘT tiến trình. Dừng preview (`preview_stop`) trước khi nạp/keytest, rồi bật lại (2026-09-21) |
 | Chuỗi có `≈` hiện ô vuông | font vimate không có U+2248 (chỉ 0x20–0x24F, 0x1E00–0x1EFF, `…`, `→`) → dùng `~` ("còn ~%d s") |
+| Ảnh `lcdtool` **lệch dải ngang** từ một y trở xuống (một widget bị cắt làm hai nửa ở hai x khác nhau), camera lại thấy đúng | mất một dòng base64 giữa khối `SCR` (log task khác chen vào lúc màn WiFi vừa mở SoftAP) → RLE giải mã dồn pixel lên. Firmware `screen` tắt log khi in; tool `grab_ok()` chụp lại khi `RLE thieu N px` (2026-09-21). Lỗi render thật thì cả framebuffer lẫn camera đều sai |
+| `lcdtool --shot` báo "khong nhan duoc khung" trên P4 | khung 4.3" mất 7–8 s ở UART 115200, hạn cũ 6 s cứng → giờ giãn theo `enc` trong header; vẫn lỗi = cổng sai/firmware thiếu `screen` |
+| Logo vector cắt mất chữ ("BIOTEC\|") khi `with_text` | font vimate rộng hơn chữ file gốc → `ui_logo_create` nới object tới mép phải nhãn, mark vẽ theo CHIỀU CAO (không theo bề rộng object) |
+| Nhãn nút 4.3" tự co 14 px dù nút 72 px cao | luật 2 dòng `F_BODY` (`longest_word_w`) nay áp cả hai thang — muốn 1 dòng thì rút chuỗi, đừng hạ font tay |
 | Hai board đè `sdkconfig`/lock của nhau | `CMakeLists.txt` gốc đặt `SDKCONFIG=${CMAKE_BINARY_DIR}/sdkconfig` (idf.py đọc lại từ `build_<board>/project_description.json` sau lần configure đầu — `tools/idf_py_actions/tools.py::get_sdkconfig_filename`) + `DEPENDENCIES_LOCK dependencies.lock.${IDF_TARGET}` (lock có trường `target:`). Build dir cũ `build/` + `sdkconfig` gốc là rác — xoá được |
 | REQUIRES theo board không ăn (`esp_lcd_st7102.h: No such file`) | REQUIRES đọc ở pha early-expansion, `CONFIG_*` chưa có → điều kiện theo `idf_build_get_property(target IDF_TARGET)` (có ở pha đó); SRCS thì theo `CONFIG_RAPID4P_BOARD_*` được. `set(COMPONENTS main)` để component vendor P4-only trong `components/` không vào build S3 |
 | Cần đọc netlist bo thiết kế ở ngoài repo (`01. EngineerHub/…`) | KiCad: MCP `kicad` › `extract_schematic_netlist` + `list_labels_in_schematic` (tool KHÔNG gộp nhãn cục bộ vào net → đối chiếu bằng danh sách nhãn). EasyEDA Pro `.eprj` = **SQLite**: `documents.dataStr` = `base64` + gzip của định dạng dòng JSON (`["COMPONENT",…]`, `["PAD_NET",comp,pad,net]`), `devices`/`attributes` map UUID → mã linh kiện; đọc **PCB** (`PAD_NET`) tin hơn sheet. PDF datasheet: `pypdf` trong venv IDF (`C:\Espressif\python_env\idf5.5_py3.11_env`), `python` hệ thống không có pip |
@@ -242,6 +253,8 @@ log 60 s sạch; chạm đúng vị trí (không lệch trục — nếu lệch 
 2. ~~Schematic bo cảm biến 5 slot~~ → **đã có bo LED + bo cảm biến 4 khe** (2026-09-18): làm theo `docs/HARDWARE-ARCHITECTURE.md`
    — đo 5 số liệu §7 → chốt D1–D6 → vẽ bo **Rapid4P-IF** (P4 JP1; bo S3 cần bản tương đương) → bring-up `BOARD_SENSOR_SLOTS 4` → rev hai bo lên 5 khe.
 3. P4: soak > 60 s; chu trình đo 34 s khi có bo con; màn WiFi chuỗi vẫn tiếng Việt cứng (chưa theo `ui_strings`, đi cùng portal web).
+   ~~Rà lại 13 màn 4.3" sau các đổi chung~~ (2026-09-21, framebuffer VI+EN). Còn: người nhìn máy xác nhận −/+ vẽ thanh + viền
+   ngôn ngữ; cân nhắc UART0 921600 để `lcdtool` tương tác (7–8 s/khung ở 115200).
 4. Font CJK (107 chữ, `lv_font_conv --symbols`) → bật `R4P_HAVE_CJK_FONT` trong `ui_strings.h`.
 5. Web dashboard: chưa test trên máy thật (PC dev khác mạng) — mới test `scripts/dash_mock.py` (5 khe). Khi có WiFi: kiểm ĐO/Quay lại từ web,
    heap sau 10 phút poll, portal vẫn mở được (cùng cổng 80).

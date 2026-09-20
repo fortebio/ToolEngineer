@@ -26,7 +26,7 @@ Thumbs.db
 firmware/rapid4p/build/
 firmware/rapid4p/build_*/
 firmware/rapid4p/managed_components/
-firmware/rapid4p/out_lcd/
+firmware/rapid4p/out_lcd*/
 firmware/rapid4p/sdkconfig
 firmware/rapid4p/sdkconfig.old
 firmware/maping new product/firmware-vimate-p4/build_*/

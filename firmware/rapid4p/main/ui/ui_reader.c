@@ -129,7 +129,6 @@ static const lv_font_t *fit_font(const char *txt, int max_w)
     return fit_font_from(cands, 3, txt, max_w, 0);
 }
 
-#if UI_SCALE_SMALL
 /* Bề rộng từ dài nhất của chuỗi (tách theo dấu cách) ở font f — để biết có xuống dòng được không. */
 static int longest_word_w(const char *txt, const lv_font_t *f)
 {
@@ -151,7 +150,6 @@ static int longest_word_w(const char *txt, const lv_font_t *f)
     }
     return best;
 }
-#endif
 
 /* Nút chạm: icon (Montserrat, tuỳ chọn) + nhãn (vimate, tự co font cho vừa nút).
  * bg = màu nền; chữ trên teal dùng C_ON_FORTE, còn lại C_TEXT. */
@@ -185,12 +183,11 @@ static lv_obj_t *mk_btn(lv_obj_t *parent, const char *icon, const char *txt, lv_
     if (txt && txt[0]) {
         const lv_font_t *f = fit_font(txt, inner);
         bool wrap2 = false;
-#if UI_SCALE_SMALL
         /* Camera 2026-09-21: "Cá Rô Phi", "Cân chỉnh" co 14 px lẻ tẻ giữa các nút 18 px. Nút đủ cao (danh sách 56,
-         * hộp thoại 52) → giữ 18 px và xuống 2 dòng nếu từ dài nhất vừa bề ngang; không thì mới co font. */
+         * hộp thoại 52) → giữ 18 px và xuống 2 dòng nếu từ dài nhất vừa bề ngang; không thì mới co font.
+         * 4.3" cũng vậy (framebuffer 2026-09-21): "RAPID SETTING"/"Clear calibration" 14 px trong nút 72 px → 2 dòng 24 px. */
         if (f != F_BODY && strchr(txt, ' ') && h >= 2 * lv_font_get_line_height(F_BODY) + 4
             && longest_word_w(txt, F_BODY) <= inner) { f = F_BODY; wrap2 = true; }
-#endif
         lv_obj_t *l = mk_label(b, txt, f, fg);
         lv_obj_set_style_text_color(l, C_MUTED, LV_STATE_DISABLED);
         lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
@@ -444,11 +441,11 @@ static const char *hold_lbl(r4p_key_t k, const char *txt)
 static void set_title(const char *t)
 {
     lv_label_set_text(s.title, t);
-#if UI_SCALE_SMALL
-    /* 210 px: "Chứng Dương · Tôm Thẻ" 18 px vẫn bị "…" (camera 2026-09-21) → co 14 px khi không vừa. */
+    /* 2.8" 210 px: "Chứng Dương · Tôm Thẻ" 18 px vẫn bị "…" (camera 2026-09-21) → co 14 px khi không vừa.
+     * 4.3" 430 px: "Result · Tube: Positive · P.Vanna…" / "Bước 3/3 · Chứng Dương · Tôm Thẻ" 24 px cũng bị cắt
+     * (framebuffer 2026-09-21) → co 18 px. */
     static const lv_font_t *const cands[] = { F_TITLE, F_SMALL };
     lv_obj_set_style_text_font(s.title, fit_font_from(cands, 2, t, UI_TITLE_W, 0), 0);
-#endif
 }
 
 /* Tiêu đề luồng đo: "Bước n/3 · <tên màn>" (tiến độ đa bước). */
@@ -459,7 +456,7 @@ static void set_step_title(int step, const char *name)
     set_title(name);
 #else
     char buf[96];
-    snprintf(buf, sizeof(buf), "%s %d/3  ·  %s", r4p_str(STR_STEP), step, name);
+    snprintf(buf, sizeof(buf), "%s %d/3 · %s", r4p_str(STR_STEP), step, name);
     set_title(buf);
 #endif
 }
@@ -995,8 +992,9 @@ static void build_choose_tube(void)
 static void build_prepare(void)
 {
     char buf[96];
-    /* 2.8": " · " một khoảng trắng để "Chứng Dương · Tôm Thẻ" vừa 210 px tiêu đề (camera 2026-09-21). */
-    snprintf(buf, sizeof(buf), UI_SCALE_SMALL ? "%s · %s" : "%s  ·  %s", r4p_sick_label(s.sick), r4p_sample_label(s.sample));
+    /* " · " một khoảng trắng: "Chứng Dương · Tôm Thẻ" vừa 210 px (2.8", camera 2026-09-21); 4.3" tiêu đề 430 px
+     * "Bước 3/3 · Chứng Dương · Tôm Thẻ" cũng cần gọn (framebuffer 2026-09-21). */
+    snprintf(buf, sizeof(buf), "%s · %s", r4p_sick_label(s.sick), r4p_sample_label(s.sample));
     set_step_title(3, buf);
     snprintf(buf, sizeof(buf), r4p_str(UI_SCALE_SMALL ? STR_PREPARE_KEYS : STR_PREPARE_PUT_TUBE), R4P_SLOTS);
     mk_text(s.content, buf, UI_SCALE_SMALL ? F_SMALL : F_BODY, C_TEXT);
@@ -1074,8 +1072,8 @@ static void build_result(void)
 #if UI_SCALE_SMALL
     snprintf(buf, sizeof(buf), "%s · %s", r4p_sick_label(r->sick), r4p_sample_label(r->sample));   /* "Kết Quả" = dòng to dưới */
 #else
-    snprintf(buf, sizeof(buf), "%s  ·  %s%s  ·  %s", r4p_str(STR_RESULT), r4p_str(STR_RESULT_TUBE),
-             r4p_sick_label(r->sick), r4p_sample_label(r->sample));
+    /* "Result · Tube: Positive · P.Vanna…" bị cắt ở 430 px (framebuffer 2026-09-21) → bỏ "Ống:", dấu · gọn. */
+    snprintf(buf, sizeof(buf), "%s · %s · %s", r4p_str(STR_RESULT), r4p_sick_label(r->sick), r4p_sample_label(r->sample));
 #endif
     set_title(buf);
     /* Dòng tổng kết TO (đọc từ xa, ngoài trời): "2/5 DƯƠNG TÍNH" đỏ hoặc "ÂM TÍNH 5/5" xanh. */
@@ -1140,10 +1138,11 @@ static void build_calib(void)
     for (int i = 0; i < R4P_SLOTS; i++) {
         snprintf(buf, sizeof(buf), "%u", c->cal_max[i]);
         lv_label_set_text(s.slot_val[i], buf);
-        lv_obj_set_style_text_font(s.slot_val[i], F_BODY, 0);
 #if UI_SCALE_SMALL
+        lv_obj_set_style_text_font(s.slot_val[i], F_BODY, 0);   /* ô 57 px: số cao 18 px trên số thấp 14 px */
         snprintf(buf, sizeof(buf), "%u", c->cal_min[i]);
 #else
+        /* 4.3": ô 139×156 chứa được số 48 px như màn Kết quả (24 px để trống nửa ô — framebuffer 2026-09-21). */
         snprintf(buf, sizeof(buf), "%s %u", r4p_str(STR_CALIB_MIN), c->cal_min[i]);
 #endif
         lv_label_set_text(s.slot_sub[i], buf);
@@ -1202,6 +1201,25 @@ static const char *thr_label_i(int i)
     return buf[i];
 }
 
+#if !UI_SCALE_SMALL
+/* Dấu −/+ của nút sửa ngưỡng vẽ bằng thanh: "-" 48 px của font vimate chỉ là gạch nối ngắn, icon Montserrat 24 px
+ * lọt thỏm trong nút 130×110 (framebuffer 2026-09-21). Thanh không nhận chạm để sự kiện về nút. */
+static void thr_glyph(lv_obj_t *btn, bool plus)
+{
+    for (int k = 0; k < (plus ? 2 : 1); k++) {
+        lv_obj_t *bar = lv_obj_create(btn);
+        lv_obj_remove_style_all(bar);
+        lv_obj_set_size(bar, k ? UI_THR_GLYPH_T : UI_THR_GLYPH_W, k ? UI_THR_GLYPH_W : UI_THR_GLYPH_T);
+        lv_obj_set_style_bg_color(bar, C_TEXT, 0);
+        lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(bar, UI_THR_GLYPH_T / 2, 0);
+        lv_obj_set_clickable(bar, false);
+        lv_obj_set_ignore_layout(bar, true);
+        lv_obj_center(bar);
+    }
+}
+#endif
+
 static void build_threshold_edit(void)
 {
     char buf[64];
@@ -1214,7 +1232,12 @@ static void build_threshold_edit(void)
     s.thr_value = (int32_t)calib_store_get()->threshold[s.thr_sick];
     lv_obj_t *row = mk_row(s.content, UI_THR_ROW_H);
     lv_obj_set_style_pad_column(row, 2 * GAP + 4, 0);
+#if UI_SCALE_SMALL
     lv_obj_t *bm = mk_btn(row, LV_SYMBOL_MINUS, "", NULL, NULL, UI_THR_BTN_W, UI_THR_BTN_H, C_BTN);
+#else
+    lv_obj_t *bm = mk_btn(row, NULL, NULL, NULL, NULL, UI_THR_BTN_W, UI_THR_BTN_H, C_BTN);
+    thr_glyph(bm, false);
+#endif
     lv_obj_add_event_cb(bm, on_thr_btn, LV_EVENT_SHORT_CLICKED, (void *)(intptr_t)-1);
     lv_obj_add_event_cb(bm, on_thr_btn, LV_EVENT_LONG_PRESSED_REPEAT, (void *)(intptr_t)-1);
     lv_obj_t *card = lv_obj_create(row);
@@ -1228,14 +1251,19 @@ static void build_threshold_edit(void)
     snprintf(buf, sizeof(buf), "%ld", (long)s.thr_value);
     s.thr_lbl = mk_label(card, buf, F_HERO, C_TEXT);
     lv_obj_center(s.thr_lbl);
+#if UI_SCALE_SMALL
     lv_obj_t *bp = mk_btn(row, LV_SYMBOL_PLUS, "", NULL, NULL, UI_THR_BTN_W, UI_THR_BTN_H, C_BTN);
+#else
+    lv_obj_t *bp = mk_btn(row, NULL, NULL, NULL, NULL, UI_THR_BTN_W, UI_THR_BTN_H, C_BTN);
+    thr_glyph(bp, true);
+#endif
     lv_obj_add_event_cb(bp, on_thr_btn, LV_EVENT_SHORT_CLICKED, (void *)(intptr_t)1);
     lv_obj_add_event_cb(bp, on_thr_btn, LV_EVENT_LONG_PRESSED_REPEAT, (void *)(intptr_t)1);
 #if UI_SCALE_SMALL
     mk_text(s.content, r4p_str(STR_HOLD_HINT_THR), F_TINY, C_MUTED);
     softkeys("+10", "-10", r4p_str(STR_SAVE));      /* ReaderPlus: Xanh tăng · Đỏ giảm · Trắng kế tiếp/lưu */
 #else
-    mk_label(s.content, "+/- 10   " LV_SYMBOL_LOOP " +/- 50", F_ICON_SM, C_MUTED); /* giữ để lặp */
+    mk_label(s.content, r4p_str(STR_TAP_HOLD_HINT_THR), F_SMALL, C_MUTED);   /* "Chạm: ±10 · Giữ: ±50" (icon ⟳ khó hiểu) */
     footer_left(LV_SYMBOL_CLOSE, r4p_str(STR_CANCEL), on_goto, (void *)UI_THRESHOLD);
     footer_right(LV_SYMBOL_SAVE, r4p_str(STR_SAVE), on_thr_save, NULL, C_FORTE);
 #endif
@@ -1330,7 +1358,15 @@ static void show(ui_state_t st)
         case UI_CALIB: build_calib(); break;
         case UI_SETTINGS: build_settings(); break;
         /* Chỉ liệt kê ngôn ngữ hiện được (chưa font CJK → VI, EN); NVS ≥ ZH đã về VI ở calib_store_load. */
-        case UI_LANGUAGE: build_list(r4p_str(STR_LANGUAGE_SETTING), R4P_LANG_SELECTABLE, lang_label_i, on_pick_lang, UI_SETTINGS); break;
+        case UI_LANGUAGE:
+            build_list(r4p_str(STR_LANGUAGE_SETTING), R4P_LANG_SELECTABLE, lang_label_i, on_pick_lang, UI_SETTINGS);
+            /* Ngôn ngữ đang dùng = viền teal (framebuffer 4.3" 2026-09-21: hai nút giống hệt, không biết đang chọn gì).
+             * Viền, không tô nền — nền teal là con trỏ danh sách 2.8". */
+            if ((int)r4p_str_get_lang() < s.list_n && s.list_items[r4p_str_get_lang()]) {
+                lv_obj_set_style_border_width(s.list_items[r4p_str_get_lang()], 3, 0);
+                lv_obj_set_style_border_color(s.list_items[r4p_str_get_lang()], C_FORTE, 0);
+            }
+            break;
         case UI_WIFI: build_wifi(); break;
         case UI_UPDATE: build_update(); break;
         case UI_THRESHOLD: build_list(r4p_str(STR_THRESHOLD_SETTING), R4P_SICK_COUNT, thr_label_i, on_pick_thr, UI_SETTINGS); break;
