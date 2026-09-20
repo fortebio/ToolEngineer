@@ -68,8 +68,18 @@ nhấn để đánh thức màn cũng kích hành động, mặc định EN và 
   (`man 4`) → `slot 1 vong 1 loi` → màn lỗi (`man 13`) · XANH Thử lại → `man 3` · ĐỎ Quay lại → `man 0` · giữ ĐỎ khi đang đo → `man 3`.
   **Bug bắt được**: panic `LoadProhibited` trong `lv_obj_is_in_widget_tree` ← `sk_flash_end` (timer nháy ô giữ con trỏ ô đã bị xoá khi
   đổi màn; LVGL 9.6 `lv_obj_is_valid` deref con trỏ) → sửa: `s.sk_flash_timer` huỷ trong `content_clear`/`softkeys_clear`.
-- Camera: box chỉ có webcam laptop (MSMF 0 / DSHOW 1) + DroidCam ảo (MSMF 1, cần app điện thoại); UGREEN không được Windows nhận
-  (cả 2 ngày). Chụp UI phải đặt bo trước webcam laptop hoặc bật DroidCam.
+- Camera: sau khi người dùng cắm lại, **UGREEN FineCam 4K CM973 enumerate** (DSHOW 2). `scripts/uishot.py` = gõ lệnh console +
+  chụp + tự cắt LCD. **Rà 13 màn 2.8" qua ảnh** → sửa: (1) tiêu đề "Bước 1/3 · Chọn Mẫu…", "Kết Quả · Ống: …", "CÀI ĐẶT GIÁ TRỊ · …"
+  bị "…" → 2.8" bỏ "Bước n/3", tiêu đề "bệnh · mẫu", `set_title` tự co 14 px; (2) lưới: "Cá Rô Phi"/"Cân chỉnh" co 14 px lẻ tẻ,
+  "Chứng Dương: 570" tràn → `mk_btn` giữ 18 px + xuống 2 dòng khi từ dài nhất vừa (`longest_word_w`), danh sách ngưỡng dùng mã
+  PC/EHP/EMS/WSSV/TPD; (3) ô khe 57 px: "Thấp Nhất 0" và "✓ Âm tính" tràn → cân chỉnh = số cao (18) trên số thấp (14 mờ) + chú
+  giải "ô: Cao Nhất / Thấp Nhất" ở dòng đầu, kết quả chỉ icon ✓/⚠ 18 px; (4) hộp thoại bỏ icon thùng rác để "Xác nhận" 18 px;
+  (5) màn Cập nhật: câu "Chưa có WiFi…" 18 px tràn, icon văng khỏi màn → icon trên + câu 14 px wrap; (6) `btn` console đánh thức
+  màn (màn ngủ 5 phút làm ảnh đen). Đã xác nhận bằng ảnh: Chính (ô "giữ/Cài đặt" 2 dòng), Cài đặt 6 mục, Cân chỉnh, hộp thoại,
+  Đặt ống, Đang đo ("còn ~24 s"), Kết quả ("ÂM TÍNH 5/5"), ngưỡng + sửa ngưỡng, Ngôn ngữ (2 mục), Cập nhật, WiFi (ĐỎ "Đổi mã"
+  lật thẻ ① → ②, XANH quay lại → Cài đặt).
+
+Ảnh camera (UGREEN, `uishot.py`, sau khi sửa): `img/2026-09-21-rapid4p-28-{chinh,dat-ong,dang-do,ket-qua}.jpg`.
 
 ## Bẫy mới
 

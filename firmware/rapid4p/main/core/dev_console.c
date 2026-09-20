@@ -5,6 +5,7 @@
 #include "dev_console.h"
 #include "rapid4p.h"
 #include "ui/ui_reader.h"
+#include "ui/display.h"
 
 #include "esp_console.h"
 #include "esp_heap_caps.h"
@@ -78,6 +79,8 @@ static int cmd_btn(int argc, char **argv)
         printf("btn: khong biet '%s'\n", argv[1]);
         return 1;
     }
+    /* Nut that (button.c) danh thuc man khi nhan xuong; gia lap cung vay (khong gia lap wake-only). */
+    display_note_user_activity();
     if (bit) xEventGroupSetBits(g_r4p_events, bit | (rep ? R4P_EVT_BTN_REPEAT : 0));
     printf("btn: %s%s%s\n", argv[1], hold ? " hold" : "", rep ? " rep" : "");
     return 0;

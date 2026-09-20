@@ -150,8 +150,13 @@ tích hợp của Claude CHẶN camera (`NotAllowedError`), ffmpeg thì được
 `ffmpeg -f dshow -video_size 1280x720 -vcodec mjpeg -i video="Integrated Webcam" -ss 1.2 -frames:v 1 -update 1 -vf "crop=640:260:440:140,scale=1280:-1" shot.jpg`
 (crop theo vị trí máy trên bàn 2026-09-17 — chỉnh lại). Vòng lặp: `uicmd ui N` → chụp → xem.
 **Box ADM không có ffmpeg** → `python scripts/webcam_shot.py --list` (OpenCV trong venv IDF `C:/Espressif/python_env/idf5.5_py3.11_env`,
-đã `pip install opencv-python` 2026-09-20) rồi `webcam_shot.py <idx> shot.jpg --crop x,y,w,h --scale 2`; xem ảnh bằng Read tool. Camera USB
-không hiện tên riêng trong PnP — nhận diện bằng ảnh thử từng index. Đo 2026-09-21: DSHOW 1 = MSMF 0 = webcam laptop (nhìn người ngồi), MSMF 1 = **DroidCam ảo** (hiện "Start DroidCam" tới khi app điện thoại nối — cách chĩa camera vào máy khi không có webcam USB), UGREEN không bao giờ enumerate trên box ADM.
+đã `pip install opencv-python` 2026-09-20) rồi `webcam_shot.py <idx> shot.jpg --crop x,y,w,h --scale 2`; xem ảnh bằng Read tool.
+**Vòng "đổi màn → chụp" một lệnh (S3, 2026-09-21)**: `python scripts/uishot.py COM20 2 out_dir "ui sample" "btn white hold" …` —
+gõ lệnh dev console qua USB-JTAG, chờ 1,2 s, chụp 1080p từ camera DSHOW idx 2, xoay 180° (UGREEN đặt ngược), **tự cắt vùng LCD**
+(mask HSV xanh navy/teal của theme) và phóng 960 px → `NN_<lệnh>.jpg`; xem bằng Read tool. Bật autofocus + warm-up 3 s mới nét
+(khung đầu mờ). Camera: UGREEN FineCam 4K CM973 (VID A108) chỉ enumerate sau khi cắm lại cổng khác (2026-09-21; 2 ngày trước
+không thấy) = **DSHOW 2**; DSHOW 1 = MSMF 0 = webcam laptop; MSMF 1 = DroidCam ảo (cần app điện thoại). Màn ngủ sau
+`CONFIG_RAPID4P_SCREEN_SLEEP_SEC` → lệnh `btn` đánh thức (dev_console gọi `display_note_user_activity`), `ui N` thì KHÔNG.
 Từ Git Bash: `MSYS_NO_PATHCONV=1 cmd.exe /c "scripts\build.bat s3_28lcd"`. Lần đầu mỗi target cần mạng để
 component manager kéo component (~2 phút); lock riêng `dependencies.lock.<target>` (track git).
 Script tự đọc id bản ESP-IDF đang chọn từ `C:\Espressif\esp_idf.json`; muốn bản khác đặt `R4P_IDF_ID=esp-idf-<hash>`.
@@ -161,6 +166,10 @@ Bản đó phải có toolchain của target (xem `targets` trong `C:\Espressif\
 Meditation`/`stack overflow`; có `DSI rotate: logical 800x480 -> panel 480x800`, `Touch ST7123
 init OK`, `sensor bus I2C1`, `slot n (mux ch): TCS34725 OK` ×N, `measure task san sang, N/N` (N=5),
 `diag heap internal=`; chu trình đo 34 s mà chạm vẫn ăn.
+**Đã rà 13 màn 2.8" qua camera 2026-09-21** (`uishot.py`): sửa theo ảnh — nhãn nút dài giữ 18 px và xuống 2 dòng khi nút đủ cao
+(`mk_btn` + `longest_word_w`, thay vì co 14 px lẻ tẻ), tiêu đề tự co 18 → 14 (`set_title`), 2.8" bỏ "Bước n/3", kết quả/đặt ống
+tiêu đề "bệnh · mẫu", ô khe kết quả chỉ icon ✓/⚠ 18 px, ô khe cân chỉnh = số cao trên số thấp (chú giải ở dòng đầu), danh sách
+ngưỡng dùng mã PC/EHP/…, hộp thoại bỏ icon thùng rác, màn Cập nhật icon trên + câu 14 px wrap. Ảnh mẫu trong history 2026-09-20.
 **Tiêu chuẩn "xong" bo S3 2.8"** (chưa đạt — chưa có bo): `board=rapid4p_s3_ili9341_lcd28`, `Init SPI ILI9341 panel 240x320 … logical 320x240`,
 `Touch FT6236 chip id=0x64`, `Touch FT6236 init OK`, `Button init BOOT=GPIO0 DO=GPIO47`, `sensor bus I2C1 SDA=41 SCL=40`,
 `TCA9548 … ESP_ERR_INVALID_STATE` / `0/5` (chưa cắm bo con — đúng), SoftAP `FBT-Rapid4P-XX:XX` hoặc STA Got IP, `r4p.dash: dashboard http://<ip>/`,

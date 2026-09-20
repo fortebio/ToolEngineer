@@ -129,6 +129,30 @@ static const lv_font_t *fit_font(const char *txt, int max_w)
     return fit_font_from(cands, 3, txt, max_w, 0);
 }
 
+#if UI_SCALE_SMALL
+/* Bề rộng từ dài nhất của chuỗi (tách theo dấu cách) ở font f — để biết có xuống dòng được không. */
+static int longest_word_w(const char *txt, const lv_font_t *f)
+{
+    int best = 0;
+    const char *p = txt;
+    while (*p) {
+        while (*p == ' ') p++;
+        const char *q = p;
+        while (*q && *q != ' ') q++;
+        if (q > p) {
+            char w[48];
+            size_t n = (size_t)(q - p) < sizeof(w) - 1 ? (size_t)(q - p) : sizeof(w) - 1;
+            memcpy(w, p, n); w[n] = '\0';
+            lv_point_t sz;
+            lv_text_get_size(&sz, w, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            if (sz.x > best) best = sz.x;
+        }
+        p = q;
+    }
+    return best;
+}
+#endif
+
 /* Nút chạm: icon (Montserrat, tuỳ chọn) + nhãn (vimate, tự co font cho vừa nút).
  * bg = màu nền; chữ trên teal dùng C_ON_FORTE, còn lại C_TEXT. */
 static inline bool on_accent_bg(lv_color_t bg) { return lv_color_to_u32(bg) == lv_color_to_u32(C_FORTE); }
@@ -159,11 +183,20 @@ static lv_obj_t *mk_btn(lv_obj_t *parent, const char *icon, const char *txt, lv_
         inner -= UI_BTN_ICON_W;
     }
     if (txt && txt[0]) {
-        lv_obj_t *l = mk_label(b, txt, fit_font(txt, inner), fg);
+        const lv_font_t *f = fit_font(txt, inner);
+        bool wrap2 = false;
+#if UI_SCALE_SMALL
+        /* Camera 2026-09-21: "Cá Rô Phi", "Cân chỉnh" co 14 px lẻ tẻ giữa các nút 18 px. Nút đủ cao (danh sách 56,
+         * hộp thoại 52) → giữ 18 px và xuống 2 dòng nếu từ dài nhất vừa bề ngang; không thì mới co font. */
+        if (f != F_BODY && strchr(txt, ' ') && h >= 2 * lv_font_get_line_height(F_BODY) + 4
+            && longest_word_w(txt, F_BODY) <= inner) { f = F_BODY; wrap2 = true; }
+#endif
+        lv_obj_t *l = mk_label(b, txt, f, fg);
         lv_obj_set_style_text_color(l, C_MUTED, LV_STATE_DISABLED);
         lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
         lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_width(l, LV_SIZE_CONTENT);
+        lv_obj_set_width(l, wrap2 ? inner : LV_SIZE_CONTENT);
+        if (wrap2) lv_obj_set_style_text_line_space(l, -2, 0);
     }   /* txt NULL = nút icon-only (2.8": nút phụ ở footer) */
     if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
     /* Vùng chạm rộng hơn hình vẽ: khe hở giữa các nút cũng nhận (ngón to, găng mỏng). Khe 10 px của
@@ -404,14 +437,27 @@ static const char *hold_lbl(r4p_key_t k, const char *txt)
 }
 #endif
 
-static void set_title(const char *t) { lv_label_set_text(s.title, t); }
+static void set_title(const char *t)
+{
+    lv_label_set_text(s.title, t);
+#if UI_SCALE_SMALL
+    /* 210 px: "Chứng Dương · Tôm Thẻ" 18 px vẫn bị "…" (camera 2026-09-21) → co 14 px khi không vừa. */
+    static const lv_font_t *const cands[] = { F_TITLE, F_SMALL };
+    lv_obj_set_style_text_font(s.title, fit_font_from(cands, 2, t, UI_TITLE_W, 0), 0);
+#endif
+}
 
 /* Tiêu đề luồng đo: "Bước n/3 · <tên màn>" (tiến độ đa bước). */
 static void set_step_title(int step, const char *name)
 {
+#if UI_SCALE_SMALL
+    (void)step;                 /* 210 px tiêu đề: "Bước 1/3 · Chọn Mẫu…" bị cắt (camera 2026-09-21) → chỉ tên */
+    set_title(name);
+#else
     char buf[96];
     snprintf(buf, sizeof(buf), "%s %d/3  ·  %s", r4p_str(STR_STEP), step, name);
     set_title(buf);
+#endif
 }
 
 static void header_refresh(void)
@@ -491,7 +537,8 @@ static void confirm_show(const char *question, void (*on_yes)(void))
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_t *bno = mk_btn(row, NULL, r4p_str(STR_CANCEL), on_modal_no, NULL, UI_MODAL_BTN_NO_W, UI_MODAL_BTN_H, C_BTN);
-    lv_obj_t *byes = mk_btn(row, LV_SYMBOL_TRASH, r4p_str(STR_CONFIRM), on_modal_yes, NULL, UI_MODAL_BTN_YES_W, UI_MODAL_BTN_H, C_RED);
+    lv_obj_t *byes = mk_btn(row, UI_SCALE_SMALL ? NULL : LV_SYMBOL_TRASH, r4p_str(STR_CONFIRM), on_modal_yes, NULL,
+                            UI_MODAL_BTN_YES_W, UI_MODAL_BTN_H, C_RED);   /* 2.8": không icon → chữ 18 px vừa 104 px */
 #if UI_SCALE_SMALL
     /* Nút cơ: XANH = Huỷ, ĐỎ = Xác nhận (apply_key) — vạch màu trên nút để người dùng thấy. */
     lv_obj_set_style_border_side(bno, LV_BORDER_SIDE_TOP, 0);
@@ -947,7 +994,8 @@ static void build_choose_tube(void)
 static void build_prepare(void)
 {
     char buf[96];
-    snprintf(buf, sizeof(buf), "%s  ·  %s", r4p_sick_label(s.sick), r4p_sample_label(s.sample));
+    /* 2.8": " · " một khoảng trắng để "Chứng Dương · Tôm Thẻ" vừa 210 px tiêu đề (camera 2026-09-21). */
+    snprintf(buf, sizeof(buf), UI_SCALE_SMALL ? "%s · %s" : "%s  ·  %s", r4p_sick_label(s.sick), r4p_sample_label(s.sample));
     set_step_title(3, buf);
     snprintf(buf, sizeof(buf), r4p_str(STR_PREPARE_PUT_TUBE), R4P_SLOTS);
     mk_text(s.content, buf, UI_SCALE_SMALL ? F_SMALL : F_BODY, C_TEXT);
@@ -1021,8 +1069,12 @@ static void build_result(void)
 {
     const measure_result_t *r = measure_last();
     char buf[96];
+#if UI_SCALE_SMALL
+    snprintf(buf, sizeof(buf), "%s · %s", r4p_sick_label(r->sick), r4p_sample_label(r->sample));   /* "Kết Quả" = dòng to dưới */
+#else
     snprintf(buf, sizeof(buf), "%s  ·  %s%s  ·  %s", r4p_str(STR_RESULT), r4p_str(STR_RESULT_TUBE),
              r4p_sick_label(r->sick), r4p_sample_label(r->sample));
+#endif
     set_title(buf);
     /* Dòng tổng kết TO (đọc từ xa, ngoài trời): "2/5 DƯƠNG TÍNH" đỏ hoặc "ÂM TÍNH 5/5" xanh. */
     int npos = 0;
@@ -1047,8 +1099,13 @@ static void build_result(void)
         lv_obj_set_flex_flow(sub, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(sub, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_column(sub, 6, 0);
+#if UI_SCALE_SMALL
+        /* Ô 57 px: "✓ Âm tính" tràn (camera 2026-09-21) → chỉ icon to; chữ + số có ở dòng tổng kết + màu/viền ô. */
+        mk_label(sub, r->positive[i] ? LV_SYMBOL_WARNING : LV_SYMBOL_OK, F_ICON, col);
+#else
         mk_label(sub, r->positive[i] ? LV_SYMBOL_WARNING : LV_SYMBOL_OK, R4P_SLOTS > 4 ? &lv_font_montserrat_14 : F_ICON_SM, col);
         mk_label(sub, r->positive[i] ? r4p_str(STR_POSITIVE) : r4p_str(STR_NEGATIVE), R4P_SLOTS > 4 ? F_TINY : F_SMALL, col);
+#endif
         s.slot_sub[i] = sub;
     }
     snprintf(buf, sizeof(buf), "%s: %lu     %s: %d", r4p_str(STR_THRESHOLD), (unsigned long)c->threshold[r->sick],
@@ -1067,15 +1124,26 @@ static void build_calib(void)
     set_title(r4p_str(STR_CALIB_MODE));
     const r4p_settings_t *c = calib_store_get();
     char buf[96];
+#if UI_SCALE_SMALL
+    /* Ô 57 px không chứa nổi "Thấp Nhất 0" (camera 2026-09-21): ô = số cao (18 px) trên số thấp (14 px, mờ),
+     * chú giải "ô: cao / thấp" đưa lên dòng đầu. */
+    snprintf(buf, sizeof(buf), "%s %d/%d  ·  %s  ·  ô: %s / %s", r4p_str(STR_SLOT), s.calib_slot + 1, R4P_SLOTS,
+             r4p_str(s.calib_step == 0 ? STR_CALIB_MAX : STR_CALIB_MIN), r4p_str(STR_CALIB_MAX), r4p_str(STR_CALIB_MIN));
+#else
     snprintf(buf, sizeof(buf), "%s %d/%d   ·   %s%s", r4p_str(STR_SLOT), s.calib_slot + 1, R4P_SLOTS,
              r4p_str(STR_CALIB_SAMPLE), r4p_str(s.calib_step == 0 ? STR_CALIB_MAX : STR_CALIB_MIN));
+#endif
     mk_text(s.content, buf, UI_SCALE_SMALL ? F_SMALL : F_BODY, C_TEXT);
     build_slot_tiles(s.content, "");
     for (int i = 0; i < R4P_SLOTS; i++) {
         snprintf(buf, sizeof(buf), "%u", c->cal_max[i]);
         lv_label_set_text(s.slot_val[i], buf);
         lv_obj_set_style_text_font(s.slot_val[i], F_BODY, 0);
+#if UI_SCALE_SMALL
+        snprintf(buf, sizeof(buf), "%u", c->cal_min[i]);
+#else
         snprintf(buf, sizeof(buf), "%s %u", r4p_str(STR_CALIB_MIN), c->cal_min[i]);
+#endif
         lv_label_set_text(s.slot_sub[i], buf);
         bool cur = (i == s.calib_slot);
         lv_obj_set_style_border_color(s.slot_tile[i], cur ? C_AMBER
@@ -1126,7 +1194,8 @@ static const char *lang_label_i(int i) { return r4p_lang_display_name((r4p_lang_
 static const char *thr_label_i(int i)
 {
     static char buf[R4P_SICK_COUNT][40];
-    snprintf(buf[i], sizeof(buf[i]), "%s: %lu", r4p_sick_label((r4p_sick_t)i),
+    /* 2.8": "Chứng Dương: 570" tràn nút 94 px (camera 2026-09-21) → mã khoá (PC/EHP/…) — màn kỹ thuật viên. */
+    snprintf(buf[i], sizeof(buf[i]), "%s: %lu", UI_SCALE_SMALL ? r4p_sick_name((r4p_sick_t)i) : r4p_sick_label((r4p_sick_t)i),
              (unsigned long)calib_store_get()->threshold[i]);
     return buf[i];
 }
@@ -1134,7 +1203,11 @@ static const char *thr_label_i(int i)
 static void build_threshold_edit(void)
 {
     char buf[64];
+#if UI_SCALE_SMALL
+    snprintf(buf, sizeof(buf), "%s: %s", r4p_str(STR_THRESHOLD), r4p_sick_label(s.thr_sick));   /* "CÀI ĐẶT GIÁ TRỊ · …" bị cắt */
+#else
     snprintf(buf, sizeof(buf), "%s  ·  %s", r4p_str(STR_VALUE_SETTING), r4p_sick_label(s.thr_sick));
+#endif
     set_title(buf);
     s.thr_value = (int32_t)calib_store_get()->threshold[s.thr_sick];
     lv_obj_t *row = mk_row(s.content, UI_THR_ROW_H);
@@ -1198,10 +1271,17 @@ static void build_update(void)
 {
     set_title(r4p_str(STR_UPDATE));
     const bool online = wifi_mgr_is_connected();
+#if UI_SCALE_SMALL
+    /* 304 px: "Chưa có WiFi - vào Thiết lập > Wifi" 18 px một hàng tràn, icon bị đẩy khỏi màn (camera 2026-09-21)
+     * → icon trên, câu 14 px xuống dòng dưới. */
+    mk_label(s.content, online ? LV_SYMBOL_DOWNLOAD : LV_SYMBOL_WARNING, F_ICON, online ? C_FORTE : C_AMBER);
+    s.upd_lbl = mk_text(s.content, online ? r4p_str(STR_UPDATING) : r4p_str(STR_NO_WIFI), F_SMALL, online ? C_TEXT : C_AMBER);
+#else
     lv_obj_t *hdr = mk_row(s.content, UI_ROW_SMALL_H);
     mk_label(hdr, online ? LV_SYMBOL_DOWNLOAD : LV_SYMBOL_WARNING, F_ICON, online ? C_FORTE : C_AMBER);
     s.upd_lbl = mk_label(hdr, online ? r4p_str(STR_UPDATING) : r4p_str(STR_NO_WIFI),
                          F_BODY, online ? C_TEXT : C_AMBER);
+#endif
     s.upd_bar = lv_bar_create(s.content);
     lv_obj_set_size(s.upd_bar, UI_BAR_W, UI_BAR_H);
     lv_bar_set_range(s.upd_bar, 0, 100);
