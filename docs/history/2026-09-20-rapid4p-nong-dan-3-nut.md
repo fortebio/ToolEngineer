@@ -49,6 +49,12 @@ nhấn để đánh thức màn cũng kích hành động, mặc định EN và 
   → `esp_console_new_repl_usb_serial_jtag`; lệnh `btn green|red|white [hold|rep]` đẩy bit vào event group (test cả đường
   app_main); `scripts/keytest.py COM20 "btn red"` gõ lệnh + in log.
 
+- **Vùng chạm to hơn** (gợi ý người dùng "tăng chỗ cảm ứng thao tác lên to hơn tí"): footer 52 → **56**, ô softkey 44 → **50**,
+  nút danh sách 44 → **56** cao (2 hàng × 56 + 10 = 122 ≤ content 144), nút hộp thoại 44 → 52 (modal 164), ± ngưỡng 56×64 → 64×72;
+  **mọi nút `lv_obj_set_ext_click_area(UI_EXT_CLICK)`** (2.8": 3 px, 4.3": 8 px) → khe hở giữa các nút cũng nhận chạm. Content
+  148 → 144: `UI_MEASURE_ROW_H` 28 → 26, QR màn WiFi 128 → 124 (≥ QR_MIN 96). Token `UI_BTN_LIST_H`, `UI_MODAL_BTN_H`,
+  `UI_SK_CELL_H`, `UI_EXT_CLICK` có ở cả hai thang (4.3" giữ giá trị cũ).
+
 ## Kết quả kiểm
 
 - Build: `scripts\build.bat s3_28lcd` → `rapid4p-s3.bin` 2,04 MB, `BUILD_EXIT=0`; `scripts\build.bat p4_43lcd` → `rapid4p.bin`

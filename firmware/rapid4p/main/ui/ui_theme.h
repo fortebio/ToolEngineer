@@ -70,6 +70,10 @@ static inline void ui_theme_brand_bar(lv_obj_t *bar)
 #define UI_BTN_MAIN_W   260
 #define UI_BTN_DANGER_W 200
 #define UI_BTN_LIST_W   236     /* nút danh sách mẫu/bệnh (lưới) */
+#define UI_BTN_LIST_H   BTN_H
+#define UI_MODAL_BTN_H  BTN_H
+#define UI_SK_CELL_H    BTN_H   /* (4.3" không có softkey bar) */
+#define UI_EXT_CLICK    8       /* lv_obj_set_ext_click_area: khe hở giữa nút (gap 16) cũng nhận chạm */
 #define UI_BTN_GRID_W   300     /* lưới cài đặt 2×2 */
 #define UI_MODAL_W      560
 #define UI_MODAL_H      240
@@ -113,8 +117,10 @@ static inline void ui_theme_brand_bar(lv_obj_t *bar)
 #define UI_SCALE_SMALL  1
 #define HEADER_H        32
 #define HEADER_LOGO_H   24
-#define FOOTER_H        52
-#define BTN_H           44      /* ≈ 7,9 mm trên panel 2.8" */
+#define FOOTER_H        56      /* 52 → 56 (2026-09-20): ô softkey cao 50 cho ngón to */
+#define BTN_H           44      /* ≈ 7,9 mm trên panel 2.8" — nút footer 4.3"-style; softkey/danh sách dùng token riêng dưới */
+#define UI_SK_CELL_H    50      /* ô softkey: FOOTER_H − 2×3; + ext click 3 → vùng chạm 56 px */
+#define UI_EXT_CLICK    3       /* ext click area mọi nút: khe 6 (softkey) lấp kín, khe 10 (danh sách) lấp 6/10 */
 #define GAP             6
 #define UI_PAD          8
 #define UI_FOOTER_PAD   6
@@ -128,10 +134,12 @@ static inline void ui_theme_brand_bar(lv_obj_t *bar)
 #define UI_BTN_MAIN_W   146
 #define UI_BTN_DANGER_W 44      /* icon-only */
 #define UI_BTN_ICON_ONLY_W 44
-#define UI_BTN_LIST_W   94      /* danh sách 5 mục = 3 cột × 2 hàng (2 cột × 3 hàng tràn 156 px) */
+#define UI_BTN_LIST_W   94      /* danh sách 6 mục = 3 cột × 2 hàng (2 cột × 3 hàng tràn) */
+#define UI_BTN_LIST_H   56      /* 44 → 56 (2026-09-20, ngón to): 2 hàng × 56 + gap 10 = 122 ≤ content 144 */
 #define UI_BTN_GRID_W   140
 #define UI_MODAL_W      224
-#define UI_MODAL_H      150
+#define UI_MODAL_H      164     /* 150 → 164: nút 52 cao */
+#define UI_MODAL_BTN_H  52
 #define UI_MODAL_PAD    10
 #define UI_MODAL_Q_W    170
 #define UI_MODAL_BTN_NO_W  96
@@ -140,7 +148,7 @@ static inline void ui_theme_brand_bar(lv_obj_t *bar)
 #define UI_BAR_H        10
 #define UI_BAR_LBL_W    40
 #define UI_TILE_H       84
-#define UI_TILE_ROW_H   88      /* content 148 px: chữ 17 + hàng ô 88 + chip 26 + 2 gap 12 = 143 */
+#define UI_TILE_ROW_H   88      /* content 144 px (240−32−56): chữ 17 + hàng ô 88 + chip 26 + 2 gap 12 = 143 */
 #define UI_TILE_GAP     4
 #define UI_TILE_PAD     2
 #define UI_TILE_BORDER  1
@@ -151,13 +159,13 @@ static inline void ui_theme_brand_bar(lv_obj_t *bar)
 #define UI_CHIP_ROW_H   30
 #define UI_ROW_SMALL_H  26
 #define UI_PROGRESS_ROW_H 20
-#define UI_MEASURE_ROW_H  28    /* content 148: chữ 17 + ô khe 88 + hàng này 28 + 2 gap 12 = 145 */
+#define UI_MEASURE_ROW_H  26    /* content 144: chữ 17 + ô khe 88 + hàng này 26 + 2 gap 12 = 143 */
 #define UI_BAR_MEAS_W     120
 #define UI_SK_BORDER      4     /* vạch màu nút cơ trên ô softkey (2.8"): 4 px, nhìn được từ xa */
-#define UI_THR_BTN_W    56
-#define UI_THR_BTN_H    64
+#define UI_THR_BTN_W    64      /* 56 → 64 (ngón to): 64 + 16 + 140 + 16 + 64 = 300 ≤ 304 */
+#define UI_THR_BTN_H    72
 #define UI_THR_CARD_W   140
-#define UI_THR_ROW_H    72
+#define UI_THR_ROW_H    80      /* 80 + gợi ý 14 + gap 6 = 100 ≤ 144 */
 #define UI_STATUS_FULL  0       /* header gọn: icon WiFi + upload n; IP/version xuống màn chính */
 
 #define F_TITLE     (&lv_font_vimate_18)

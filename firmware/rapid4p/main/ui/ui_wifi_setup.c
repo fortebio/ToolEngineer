@@ -189,7 +189,7 @@ static lv_obj_t *mk_label(lv_obj_t *parent, const char *txt, const lv_font_t *f,
 /* Kích thước QR tính từ chiều cao nội dung còn trống trong thẻ (2 thẻ cạnh nhau
  * nên bề ngang không còn là ràng buộc). */
 static int32_t compute_qr_size(void) {
-    int32_t card_h = BOARD_LCD_V_RES - HEADER_H - FOOTER_H - 2 * CONTENT_PAD;   /* 4.3": 304 · 2.8": 140 */
+    int32_t card_h = BOARD_LCD_V_RES - HEADER_H - FOOTER_H - 2 * CONTENT_PAD;   /* 4.3": 304 · 2.8": 136 (footer 56) -> QR 124 */
 #if UI_SCALE_SMALL
     int32_t qr = card_h - 2 * CARD_PAD;               /* bố cục hàng: chỉ chiều cao ràng buộc */
 #else

@@ -165,6 +165,9 @@ static lv_obj_t *mk_btn(lv_obj_t *parent, const char *icon, const char *txt, lv_
         lv_obj_set_width(l, LV_SIZE_CONTENT);
     }   /* txt NULL = nút icon-only (2.8": nút phụ ở footer) */
     if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
+    /* Vùng chạm rộng hơn hình vẽ: khe hở giữa các nút cũng nhận (ngón to, găng mỏng). Khe 10 px của
+     * lưới danh sách với ext 3 mỗi bên còn 4 px chết — chấp nhận, vì ext lớn hơn chồng lên nút cạnh. */
+    lv_obj_set_ext_click_area(b, UI_EXT_CLICK);
     return b;
 }
 
@@ -327,8 +330,9 @@ static void softkeys_on(lv_obj_t *host, const char *g, const char *r, const char
     for (int k = 0; k < R4P_KEY_COUNT; k++) {
         lv_obj_t *c = lv_obj_create(host);
         lv_obj_remove_style_all(c);
-        lv_obj_set_size(c, cell_w, BTN_H);
-        lv_obj_set_pos(c, k * (cell_w + GAP), (FOOTER_H - BTN_H) / 2);
+        lv_obj_set_size(c, cell_w, UI_SK_CELL_H);
+        lv_obj_set_pos(c, k * (cell_w + GAP), (FOOTER_H - UI_SK_CELL_H) / 2);
+        lv_obj_set_ext_click_area(c, UI_EXT_CLICK);   /* khe 6 px giữa 3 ô + lề trên/dưới cũng nhận chạm */
         lv_obj_add_flag(c, LV_OBJ_FLAG_IGNORE_LAYOUT);
         lv_obj_set_style_radius(c, UI_RADIUS, 0);
         lv_obj_set_style_bg_color(c, txt[k] ? C_CARD : C_PANEL, 0);
@@ -344,7 +348,7 @@ static void softkeys_on(lv_obj_t *host, const char *g, const char *r, const char
         if (txt[k]) {
             const bool need_hold = (txt[k][0] == '~');
             const char *lbl = need_hold ? txt[k] + 1 : txt[k];
-            if (need_hold) mk_label(c, r4p_str(STR_HOLD), F_TINY, C_MUTED);   /* 14 + 18 = 32 ≤ 44 − vạch 4 */
+            if (need_hold) mk_label(c, r4p_str(STR_HOLD), F_TINY, C_MUTED);   /* 14 + 18 = 32 ≤ UI_SK_CELL_H − vạch 4 */
             /* LV_SYMBOL_* (U+F000+) là UTF-8 3 byte bắt đầu 0xEF — chỉ Montserrat có glyph. */
             const bool sym = ((unsigned char)lbl[0] == 0xEF);
             mk_label(c, lbl, sym ? F_ICON : fit_font(lbl, cell_w - 4), C_TEXT);   /* 18 px, co 14 nếu dài */
@@ -468,11 +472,11 @@ static void confirm_show(const char *question, void (*on_yes)(void))
 
     lv_obj_t *row = lv_obj_create(card);
     lv_obj_remove_style_all(row);
-    lv_obj_set_size(row, LV_PCT(100), BTN_H);
+    lv_obj_set_size(row, LV_PCT(100), UI_MODAL_BTN_H);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_t *bno = mk_btn(row, NULL, r4p_str(STR_CANCEL), on_modal_no, NULL, UI_MODAL_BTN_NO_W, BTN_H, C_BTN);
-    lv_obj_t *byes = mk_btn(row, LV_SYMBOL_TRASH, r4p_str(STR_CONFIRM), on_modal_yes, NULL, UI_MODAL_BTN_YES_W, BTN_H, C_RED);
+    lv_obj_t *bno = mk_btn(row, NULL, r4p_str(STR_CANCEL), on_modal_no, NULL, UI_MODAL_BTN_NO_W, UI_MODAL_BTN_H, C_BTN);
+    lv_obj_t *byes = mk_btn(row, LV_SYMBOL_TRASH, r4p_str(STR_CONFIRM), on_modal_yes, NULL, UI_MODAL_BTN_YES_W, UI_MODAL_BTN_H, C_RED);
 #if UI_SCALE_SMALL
     /* Nút cơ: XANH = Huỷ, ĐỎ = Xác nhận (apply_key) — vạch màu trên nút để người dùng thấy. */
     lv_obj_set_style_border_side(bno, LV_BORDER_SIDE_TOP, 0);
@@ -897,11 +901,11 @@ static void build_list(const char *title, int n, const char *(*label)(int), lv_e
     set_title(title);
     lv_obj_t *grid = mk_grid(s.content);
     for (int i = 0; i < n; i++) {
-        list_add(mk_btn(grid, NULL, label(i), cb, (void *)(intptr_t)i, UI_BTN_LIST_W, BTN_H, C_BTN));
+        list_add(mk_btn(grid, NULL, label(i), cb, (void *)(intptr_t)i, UI_BTN_LIST_W, UI_BTN_LIST_H, C_BTN));
     }
 #if UI_SCALE_SMALL
     /* 2.8": "Quay lại" là mục cuối danh sách (kiểu điện thoại phím) — con trỏ tới được, chạm cũng được. */
-    list_add(mk_btn(grid, LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)back, UI_BTN_LIST_W, BTN_H, C_BTN));
+    list_add(mk_btn(grid, LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)back, UI_BTN_LIST_W, UI_BTN_LIST_H, C_BTN));
     list_focus(0);
     softkeys(r4p_str(STR_SELECT), LV_SYMBOL_DOWN, LV_SYMBOL_UP);
 #else
@@ -1084,12 +1088,12 @@ static void build_settings(void)
 #if UI_SCALE_SMALL
     /* 2.8": danh sách 3 cột × 2 hàng chữ (không icon — 94 px không đủ), mục cuối = Quay lại; điều
      * hướng bằng 3 nút. Cân chỉnh nằm ở đây (không ở màn chính) — việc của kỹ thuật viên. */
-    list_add(mk_btn(grid, NULL, r4p_str(STR_LANGUAGE), on_goto, (void *)UI_LANGUAGE, UI_BTN_LIST_W, BTN_H, C_BTN));
-    list_add(mk_btn(grid, NULL, r4p_str(STR_WIFI), on_goto, (void *)UI_WIFI, UI_BTN_LIST_W, BTN_H, C_BTN));
-    list_add(mk_btn(grid, NULL, r4p_str(STR_UPDATE), on_goto, (void *)UI_UPDATE, UI_BTN_LIST_W, BTN_H, C_BTN));
-    list_add(mk_btn(grid, NULL, r4p_str(STR_THRESHOLD), on_goto, (void *)UI_THRESHOLD, UI_BTN_LIST_W, BTN_H, C_BTN));
-    list_add(mk_btn(grid, NULL, r4p_str(STR_CALIBRATE), on_goto, (void *)UI_CALIB, UI_BTN_LIST_W, BTN_H, C_BTN));
-    list_add(mk_btn(grid, LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)UI_START, UI_BTN_LIST_W, BTN_H, C_BTN));
+    list_add(mk_btn(grid, NULL, r4p_str(STR_LANGUAGE), on_goto, (void *)UI_LANGUAGE, UI_BTN_LIST_W, UI_BTN_LIST_H, C_BTN));
+    list_add(mk_btn(grid, NULL, r4p_str(STR_WIFI), on_goto, (void *)UI_WIFI, UI_BTN_LIST_W, UI_BTN_LIST_H, C_BTN));
+    list_add(mk_btn(grid, NULL, r4p_str(STR_UPDATE), on_goto, (void *)UI_UPDATE, UI_BTN_LIST_W, UI_BTN_LIST_H, C_BTN));
+    list_add(mk_btn(grid, NULL, r4p_str(STR_THRESHOLD), on_goto, (void *)UI_THRESHOLD, UI_BTN_LIST_W, UI_BTN_LIST_H, C_BTN));
+    list_add(mk_btn(grid, NULL, r4p_str(STR_CALIBRATE), on_goto, (void *)UI_CALIB, UI_BTN_LIST_W, UI_BTN_LIST_H, C_BTN));
+    list_add(mk_btn(grid, LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)UI_START, UI_BTN_LIST_W, UI_BTN_LIST_H, C_BTN));
     list_focus(0);
     softkeys(r4p_str(STR_SELECT), LV_SYMBOL_DOWN, LV_SYMBOL_UP);
 #else
