@@ -79,6 +79,15 @@ nhấn để đánh thức màn cũng kích hành động, mặc định EN và 
   Đặt ống, Đang đo ("còn ~24 s"), Kết quả ("ÂM TÍNH 5/5"), ngưỡng + sửa ngưỡng, Ngôn ngữ (2 mục), Cập nhật, WiFi (ĐỎ "Đổi mã"
   lật thẻ ① → ②, XANH quay lại → Cài đặt).
 
+- **UX pass 2** (2026-09-21, cùng ngày, theo ảnh): mục đang chọn trong danh sách **tô nền teal + chữ tối** (viền mỏng
+  không thấy từ xa); màn chính 2.8": gợi ý 18 px theo màu nút ("Nhấn nút XANH để bắt đầu" / "Lần trước: …"), bỏ dòng
+  IP·version (chuyển sang màn Cập nhật "Firmware v… · IP: …"); Đặt ống: "Đặt ống vào 5 khe, đậy nắp rồi nhấn nút ĐỎ";
+  ô softkey rỗng không vạch + mờ 50 %; màn Đo lỗi dòng to "Khe n" (tiêu đề đã nói "Lỗi cảm biến"). Đã xem qua camera:
+  danh sách mẫu (Tôm Thẻ tô teal), Chính, Đặt ống, Cập nhật, Đo lỗi — bo đã nằm trong VỎ MÁY (ảnh nghiêng 20°).
+- **Phương án tool debug LCD localhost**: `firmware/rapid4p/docs/plan/2026-09-21-lcd-debug-tool.md` (đề xuất A: lệnh console
+  `screen` dump framebuffer RLE+base64 qua USB-JTAG → `scripts/lcdtool.py` web localhost với ảnh màn, 3 nút ảo, `ui N`, log;
+  B giả lập LVGL trên PC để sau).
+
 Ảnh camera (UGREEN, `uishot.py`, sau khi sửa): `img/2026-09-21-rapid4p-28-{chinh,dat-ong,dang-do,ket-qua}.jpg`.
 
 ## Bẫy mới

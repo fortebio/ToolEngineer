@@ -86,6 +86,9 @@ typedef enum {
     STR_DONT_OPEN,          /* "Đừng mở nắp" (đang đo) */
     STR_MEASURE_ERROR_HINT, /* "Kiểm tra bo cảm biến rồi thử lại" (màn đo lỗi) */
     STR_SETTINGS_SHORT,     /* "Cài đặt" (nhãn softkey; STR_SETTINGS "THIẾT LẬP RAPID" là tiêu đề) */
+    STR_START_HINT_KEYS,    /* "Nhấn nút XANH để bắt đầu" (2.8": gợi ý theo màu nút cơ) */
+    STR_PREPARE_KEYS,       /* "Đặt ống vào %d khe, đậy nắp rồi nhấn nút ĐỎ" (2.8") */
+    STR_IP,                 /* "IP" (màn Cập nhật 2.8": "IP: 192.168.1.5") */
     STR_COUNT
 } r4p_str_t;
 

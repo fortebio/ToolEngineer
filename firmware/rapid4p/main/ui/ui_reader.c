@@ -302,14 +302,17 @@ static void content_clear(void)
 }
 
 /* ===== danh sách có con trỏ (2.8": ĐỎ ▼ · TRẮNG ▲ · XANH chọn; chạm thẳng vẫn được) ===== */
+/* Mục đang chọn = TÔ nền teal + chữ tối (như nút chính); viền mỏng không thấy từ xa (ảnh camera 2026-09-21). */
 static void list_focus(int i)
 {
     for (int k = 0; k < s.list_n; k++) {
         lv_obj_t *it = s.list_items[k];
         if (!it) continue;
-        lv_obj_set_style_border_width(it, k == i ? 2 : 0, 0);
-        lv_obj_set_style_border_color(it, C_FORTE, 0);
-        lv_obj_set_style_bg_color(it, k == i ? C_BORDER : C_BTN, 0);
+        const bool on = (k == i);
+        lv_obj_set_style_bg_color(it, on ? C_FORTE : C_BTN, 0);
+        lv_obj_set_style_bg_color(it, on ? C_FORTE_DK : lv_color_darken(C_BTN, 70), LV_STATE_PRESSED);
+        for (uint32_t j = 0; j < lv_obj_get_child_count(it); j++)
+            lv_obj_set_style_text_color(lv_obj_get_child(it, j), on ? C_ON_FORTE : C_TEXT, 0);
     }
     s.cursor = i;
 }
@@ -379,7 +382,8 @@ static void softkeys_on(lv_obj_t *host, const char *g, const char *r, const char
         lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
         lv_obj_set_style_border_side(c, LV_BORDER_SIDE_TOP, 0);
         lv_obj_set_style_border_width(c, UI_SK_BORDER, 0);
-        lv_obj_set_style_border_color(c, txt[k] ? key_color((r4p_key_t)k) : C_BORDER, 0);
+        lv_obj_set_style_border_color(c, txt[k] ? key_color((r4p_key_t)k) : C_PANEL, 0);   /* ô rỗng: không vạch */
+        if (!txt[k]) lv_obj_set_style_bg_opa(c, LV_OPA_50, 0);                              /* … và mờ đi */
         lv_obj_set_flex_flow(c, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(c, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lv_obj_set_style_pad_row(c, 0, 0);
@@ -915,13 +919,15 @@ static void build_start(void)
     lv_obj_set_style_pad_column(brand, GAP + 4, 0);
     ui_logo_create(brand, UI_HOME_LOGO_H, false);
     mk_label(brand, R4P_PRODUCT_NAME, F_BODY, C_FORTE);
+    /* Gợi ý 18 px (nông dân đọc từ xa), tối đa 2 dòng: ngân sách content 144 = brand 44 + 44 + chip 30 + 2 gap 12.
+     * IP · version chuyển sang màn Cập nhật (kỹ thuật viên). */
     if (redo_ok) {
-        snprintf(buf, sizeof(buf), "%s: %s  ·  %s", r4p_str(STR_LAST_RUN),
+        snprintf(buf, sizeof(buf), "%s: %s · %s", r4p_str(STR_LAST_RUN),
                  r4p_sick_label(cfg->last_sick), r4p_sample_label(cfg->last_sample));
-        mk_text(s.content, buf, F_SMALL, C_TEXT);
+        mk_text(s.content, buf, F_BODY, C_TEXT);
     } else {
-        mk_text(s.content, alive > 0 ? r4p_str(STR_START_HINT) : r4p_str(STR_SENSOR_NONE_HINT),
-                F_SMALL, alive > 0 ? C_TEXT : C_AMBER);
+        mk_text(s.content, alive > 0 ? r4p_str(STR_START_HINT_KEYS) : r4p_str(STR_SENSOR_NONE_HINT),
+                alive > 0 ? F_BODY : F_SMALL, alive > 0 ? C_TEXT : C_AMBER);
     }
 #else
     ui_logo_create(s.content, UI_HOME_LOGO_H, UI_HOME_LOGO_H >= 90);   /* logo vector (ui_logo.c); chữ chỉ đọc được khi ≥ 90 px */
@@ -938,11 +944,6 @@ static void build_start(void)
     snprintf(buf, sizeof(buf), "%s: %s", r4p_str(STR_DEVICE_ID),
              g_r4p_cfg.device_id[0] ? g_r4p_cfg.device_id : "--");
     mk_chip(chips, NULL, buf, C_BORDER);
-#if !UI_STATUS_FULL
-    /* 2.8": header không chứa IP/version → hiện ở đây (dashboard cần IP). */
-    snprintf(buf, sizeof(buf), "%s  ·  %s", s.wifi_connected ? s.ip : "--", R4P_FW_VERSION);
-    mk_label(s.content, buf, F_TINY, C_MUTED);
-#endif
 
 #if UI_SCALE_SMALL
     /* Vỏ máy 3 nút (ReaderPlus): XANH = Bắt đầu · ĐỎ = Đo lại (mẫu + ống lần trước; ô rỗng khi
@@ -997,7 +998,7 @@ static void build_prepare(void)
     /* 2.8": " · " một khoảng trắng để "Chứng Dương · Tôm Thẻ" vừa 210 px tiêu đề (camera 2026-09-21). */
     snprintf(buf, sizeof(buf), UI_SCALE_SMALL ? "%s · %s" : "%s  ·  %s", r4p_sick_label(s.sick), r4p_sample_label(s.sample));
     set_step_title(3, buf);
-    snprintf(buf, sizeof(buf), r4p_str(STR_PREPARE_PUT_TUBE), R4P_SLOTS);
+    snprintf(buf, sizeof(buf), r4p_str(UI_SCALE_SMALL ? STR_PREPARE_KEYS : STR_PREPARE_PUT_TUBE), R4P_SLOTS);
     mk_text(s.content, buf, UI_SCALE_SMALL ? F_SMALL : F_BODY, C_TEXT);
     build_slot_tiles(s.content, "-");       /* gợi ý hình: N khe trống */
     bool calibrated = true;
@@ -1051,10 +1052,11 @@ static void build_measure_error(void)
     const measure_result_t *r = measure_last();
     char buf[96];
     set_title(r4p_str(STR_SENSOR_ERROR));
+    /* Tiêu đề đã là "Lỗi cảm biến" → dòng to chỉ khe hỏng (ảnh camera 2026-09-21: lặp chữ). */
     lv_obj_t *hdr = mk_row(s.content, UI_ROW_SMALL_H + 8);
     mk_label(hdr, LV_SYMBOL_WARNING, F_ICON, C_RED);
-    snprintf(buf, sizeof(buf), "%s  ·  %s %d", r4p_str(STR_SENSOR_ERROR), r4p_str(STR_SLOT), r->slot + 1);
-    mk_label(hdr, buf, F_BODY, C_RED);
+    snprintf(buf, sizeof(buf), "%s %d", r4p_str(STR_SLOT), r->slot + 1);
+    mk_label(hdr, buf, F_HERO, C_RED);
     mk_text(s.content, r4p_str(STR_MEASURE_ERROR_HINT), UI_SCALE_SMALL ? F_SMALL : F_BODY, C_TEXT);
     mk_label(s.content, esp_err_to_name(r->err), F_TINY, C_MUTED);   /* mã lỗi cho kỹ thuật viên */
 #if UI_SCALE_SMALL
@@ -1287,7 +1289,15 @@ static void build_update(void)
     lv_bar_set_range(s.upd_bar, 0, 100);
     ui_theme_brand_bar(s.upd_bar);
     if (!online) lv_obj_add_flag(s.upd_bar, LV_OBJ_FLAG_HIDDEN);
+#if UI_STATUS_FULL
     mk_label(s.content, "Firmware " R4P_FW_VERSION, F_SMALL, C_MUTED);
+#else
+    {   /* 2.8": header không có IP → hiện ở đây (dashboard http://<ip>/), thay cho dòng ở màn chính */
+        char ver[64];
+        snprintf(ver, sizeof(ver), "Firmware " R4P_FW_VERSION "  ·  %s: %s", r4p_str(STR_IP), s.wifi_connected ? s.ip : "--");
+        mk_label(s.content, ver, F_SMALL, C_MUTED);
+    }
+#endif
 #if UI_SCALE_SMALL
     softkeys(r4p_str(STR_BACK), NULL, NULL);
 #else

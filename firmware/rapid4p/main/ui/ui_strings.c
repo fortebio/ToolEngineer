@@ -71,6 +71,9 @@ static const char *const s_vi[STR_COUNT] = {
     [STR_DONT_OPEN]         = "Đừng mở nắp",
     [STR_MEASURE_ERROR_HINT]= "Kiểm tra bo cảm biến rồi thử lại",
     [STR_SETTINGS_SHORT]    = "Cài đặt",
+    [STR_START_HINT_KEYS]   = "Nhấn nút XANH để bắt đầu",
+    [STR_PREPARE_KEYS]      = "Đặt ống vào %d khe, đậy nắp rồi nhấn nút ĐỎ",
+    [STR_IP]                = "IP",
 };
 
 static const char *const s_en[STR_COUNT] = {
@@ -142,6 +145,9 @@ static const char *const s_en[STR_COUNT] = {
     [STR_DONT_OPEN]         = "Keep the lid closed",
     [STR_MEASURE_ERROR_HINT]= "Check the sensor board and retry",
     [STR_SETTINGS_SHORT]    = "Settings",
+    [STR_START_HINT_KEYS]   = "Press the GREEN button to start",
+    [STR_PREPARE_KEYS]      = "Put tubes in %d slots, close the lid, press RED",
+    [STR_IP]                = "IP",
 };
 
 /* Giữ nguyên chuỗi ZH của bản gốc; chuỗi mới (nút chạm) dịch ngắn gọn. */
@@ -214,6 +220,9 @@ static const char *const s_zh[STR_COUNT] = {
     [STR_DONT_OPEN]         = "请勿打开盖子",
     [STR_MEASURE_ERROR_HINT]= "请检查传感器板后重试",
     [STR_SETTINGS_SHORT]    = "设置",
+    [STR_START_HINT_KEYS]   = "按绿键开始",
+    [STR_PREPARE_KEYS]      = "将试管放入%d个槽位，关盖后按红键",
+    [STR_IP]                = "IP",
 };
 
 static const char *const *table_for(r4p_lang_t lang)
