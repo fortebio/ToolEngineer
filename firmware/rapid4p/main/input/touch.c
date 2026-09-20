@@ -261,6 +261,9 @@ esp_err_t touch_init(void)
     s_indev = lv_indev_create();
     lv_indev_set_type(s_indev, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(s_indev, indev_read_cb);
+    /* Chạm GIỮ ô softkey = giữ nút cơ → cùng ngưỡng BOARD_BTN_HOLD_MS (mặc định LVGL 400 ms quá ngắn:
+     * chạm lâu một chút ở "Đang đo" đã thành Dừng). Nút ± màn ngưỡng lặp sau ngưỡng này (như nút cơ). */
+    lv_indev_set_long_press_time(s_indev, BOARD_BTN_HOLD_MS);
     display_unlock();
     s_ready = true;
     ESP_LOGI(TAG_MAIN, "Touch " TOUCH_DRIVER_NAME " init OK (SCL=%d SDA=%d addr=0x%02X) -> lv_indev",

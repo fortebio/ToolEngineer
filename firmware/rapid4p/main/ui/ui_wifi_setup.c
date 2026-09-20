@@ -648,3 +648,14 @@ void ui_wifi_setup_set_client_count(int clients) {
 bool ui_wifi_setup_is_active(void) { return s_active; }
 
 lv_obj_t *ui_wifi_setup_footer(void) { return s_footer; }
+
+/* Nút ĐỎ "Đổi mã" trên softkey 2.8" (apply_key UI_WIFI): lật thẻ WiFi ↔ mã máy như chạm thẻ —
+ * nông dân đeo găng không chạm được màn. 4.3": cả hai thẻ luôn hiện, không làm gì. */
+void ui_wifi_setup_toggle_card(void)
+{
+#if UI_SCALE_SMALL
+    if (!s_active) return;
+    s_small_flip = !s_small_flip;
+    small_pick_card();
+#endif
+}

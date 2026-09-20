@@ -55,11 +55,15 @@ if(CONFIG_RAPID4P_BOARD_P4_43LCD)
 elseif(CONFIG_RAPID4P_BOARD_S3_28LCD)
     list(APPEND SOURCES ui/display_hw_spi.c)
 endif()
+# Bíp qua ES8311 (chỉ S3; Kconfig depends on RAPID4P_BOARD_S3_28LCD). Tắt → audio/beep.h inline rỗng.
+if(CONFIG_RAPID4P_BEEP)
+    list(APPEND SOURCES audio/beep.c)
+endif()
 
 set(REQS
     nvs_flash esp_wifi esp_event esp_netif esp_http_client esp_http_server
     esp_partition app_update esp_https_ota esp_psram esp_mm
-    driver esp_lcd esp_timer esp_driver_i2c esp_driver_spi esp_driver_ledc esp_driver_gpio
+    driver esp_lcd esp_timer esp_driver_i2c esp_driver_spi esp_driver_ledc esp_driver_gpio esp_driver_i2s
     mbedtls esp-tls json console
 )
 set(PRIV_REQS
@@ -74,13 +78,14 @@ if(target STREQUAL "esp32p4")
     # CMakeLists gốc set(COMPONENTS main) nên S3 không kéo component này vào build.
     list(APPEND PRIV_REQS esp_lcd_st7102)
 else()
-    # Board S3 2.8": panel ILI9341 SPI từ registry (main/idf_component.yml, rules target == esp32s3).
-    list(APPEND PRIV_REQS espressif__esp_lcd_ili9341)
+    # Board S3 2.8": panel ILI9341 SPI từ registry (main/idf_component.yml, rules target == esp32s3)
+    # + esp_codec_dev (ES8311) cho bíp (audio/beep.c).
+    list(APPEND PRIV_REQS espressif__esp_lcd_ili9341 espressif__esp_codec_dev)
 endif()
 
 idf_component_register(
     SRCS ${SOURCES}
-    INCLUDE_DIRS "." "core" "network" "ui" "input" "sensor" "app" "boards"
+    INCLUDE_DIRS "." "core" "network" "ui" "input" "sensor" "app" "boards" "audio"
     EMBED_TXTFILES "web/dashboard.html"
     REQUIRES ${REQS}
     PRIV_REQUIRES ${PRIV_REQS}

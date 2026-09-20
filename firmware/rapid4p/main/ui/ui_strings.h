@@ -6,7 +6,7 @@
  * của bản 3 nút bỏ đi; thay bằng nhãn nút chạm (Back/Next/Đo...).
  *
  * FONT: lv_font_vimate_* chỉ có Latin + tiếng Việt. Khi chưa sinh font CJK
- * (R4P_HAVE_CJK_FONT 0) thì ZH/TW rơi về EN để không hiện ô vuông — MAPPING §4.4:
+ * (R4P_HAVE_CJK_FONT 0, khai ở rapid4p.h) thì ZH/TW rơi về EN để không hiện ô vuông — MAPPING §4.4:
  * sinh font theo đúng 107 chữ Hán đang dùng, rồi bật cờ + khai font trong ui_reader.c.
  */
 #pragma once
@@ -14,10 +14,6 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#ifndef R4P_HAVE_CJK_FONT
-#define R4P_HAVE_CJK_FONT 0
 #endif
 
 typedef enum {
@@ -77,6 +73,19 @@ typedef enum {
     STR_SELECT,             /* "Chọn" (softkey XANH trong danh sách) */
     STR_HOLD_HINT_THR,      /* "Giữ: ±50 · Giữ TRẮNG: huỷ" (màn sửa ngưỡng 2.8") */
     STR_CLEAR,              /* "Xoá" (softkey TRẮNG màn cân chỉnh) */
+    /* 2026-09-20 — tối ưu cho nông dân (3 nút cơ, găng tay): */
+    STR_REDO_LAST,          /* "Đo lại" (softkey ĐỎ màn chính: mẫu + ống lần trước) */
+    STR_LAST_RUN,           /* "Lần trước" (dòng phụ màn chính: "Lần trước: PC · Tôm Thẻ") */
+    STR_DONE,               /* "Xong" (softkey ĐỎ màn kết quả → màn chính) */
+    STR_HOLD,               /* "giữ" (chữ nhỏ trên nhãn softkey cần nhấn giữ) */
+    STR_RETRY,              /* "Thử lại" (màn đo lỗi) */
+    STR_TOGGLE_CARD,        /* "Đổi mã" (màn WiFi 2.8": lật thẻ WiFi/mã máy) */
+    STR_REMAINING,          /* "còn ~%d s" (font không có ≈) (đếm ngược khi đang đo) */
+    STR_POSITIVE_COUNT,     /* "%d/%d DƯƠNG TÍNH" (tổng kết kết quả) */
+    STR_ALL_NEGATIVE,       /* "ÂM TÍNH %d/%d" */
+    STR_DONT_OPEN,          /* "Đừng mở nắp" (đang đo) */
+    STR_MEASURE_ERROR_HINT, /* "Kiểm tra bo cảm biến rồi thử lại" (màn đo lỗi) */
+    STR_SETTINGS_SHORT,     /* "Cài đặt" (nhãn softkey; STR_SETTINGS "THIẾT LẬP RAPID" là tiêu đề) */
     STR_COUNT
 } r4p_str_t;
 

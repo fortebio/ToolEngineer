@@ -46,6 +46,13 @@ extern "C" {
 typedef enum { R4P_SICK_PC = 0, R4P_SICK_EHP, R4P_SICK_EMS, R4P_SICK_WSSV, R4P_SICK_TPD, R4P_SICK_COUNT } r4p_sick_t;
 typedef enum { R4P_SAMPLE_VANNAMEI = 0, R4P_SAMPLE_MONODON, R4P_SAMPLE_TILAPIA, R4P_SAMPLE_PIG, R4P_SAMPLE_WATER, R4P_SAMPLE_COUNT } r4p_sample_t;
 typedef enum { R4P_LANG_VI = 0, R4P_LANG_EN, R4P_LANG_ZH, R4P_LANG_TW, R4P_LANG_COUNT } r4p_lang_t;
+/* Font LVGL hiện chỉ có Latin + tiếng Việt. 0 → ZH/TW không chọn được (menu ngôn ngữ chỉ 2 mục,
+ * NVS lang ≥ ZH về VI, ui_strings rơi về EN). Sinh font CJK xong thì đặt 1 (MAPPING §4.4). */
+#ifndef R4P_HAVE_CJK_FONT
+#define R4P_HAVE_CJK_FONT 0
+#endif
+/* Số ngôn ngữ CHỌN ĐƯỢC trong menu (không phải R4P_LANG_COUNT). */
+#define R4P_LANG_SELECTABLE (R4P_HAVE_CJK_FONT ? R4P_LANG_COUNT : (R4P_LANG_EN + 1))
 
 const char *r4p_sick_name(r4p_sick_t s);       /* "PC", "EHP", ... (khoá payload/NVS) */
 const char *r4p_sample_name(r4p_sample_t s);   /* "PRAWN Vannamei", ... */
@@ -79,6 +86,9 @@ typedef enum {
 #define R4P_EVT_BTN_GREEN_LONG BIT11
 #define R4P_EVT_BTN_RED_LONG   BIT12
 #define R4P_EVT_BTN_WHITE_LONG BIT13
+/* Cờ kèm *_LONG: lần LẶP khi còn giữ (button.c mỗi REPEAT_MS), không phải lần giữ đầu — UI chỉ
+ * nhận lặp ở màn ngưỡng (±50) và danh sách (cuộn), và chỉ khi màn chưa đổi từ lần giữ đầu. */
+#define R4P_EVT_BTN_REPEAT     BIT14
 
 typedef enum { R4P_KEY_GREEN = 0, R4P_KEY_RED, R4P_KEY_WHITE, R4P_KEY_COUNT } r4p_key_t;
 

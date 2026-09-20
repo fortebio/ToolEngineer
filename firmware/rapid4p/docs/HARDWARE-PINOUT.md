@@ -592,6 +592,18 @@ Trống: **2, 9, 14, 21, 38, 39, 40, 41, 47, 48** (10 chân).
 - Cảm biến đi chung I2C0 để dành GPIO41 cho nút TRẮNG (2026-09-20); `sensor_bus.c` tái dùng bus qua
   `i2c_master_get_bus_handle()`, driver `i2c_master` khoá theo giao dịch. Muốn tách bus: `I2C_NUM_1` trên 40/41 và
   chuyển nút TRẮNG sang GPIO40.
+
+**Audio — loa bíp (2026-09-20, `main/audio/beep.c`, `CONFIG_RAPID4P_BEEP`)** — phần cứng có sẵn trên ES3N28P:
+
+| Chức năng | GPIO | Knob |
+|---|---|---|
+| Codec ES8311 (I2C0 chung, 0x18) | 16 / 15 | `BOARD_AUDIO_CODEC_I2C_*` |
+| I2S0 MCLK / BCLK / WS / DOUT (DIN 6 = mic, không dùng) | 4 / 5 / 7 / 8 | `BOARD_AUDIO_I2S_*` |
+| PA enable — **ACTIVE-LOW** (LOW = bật amp) | 1 | `BOARD_AUDIO_PA_PIN`, `BOARD_AUDIO_PA_ON_LEVEL 0` |
+| Loa 8 Ω ~1 W nối ngõ PA của board (vỏ máy Rapid gắn loa nhỏ) | — | `BOARD_BEEP_VOLUME 80` |
+
+Bíp: phím 2 kHz 40 ms · đo xong 1,2 kHz + 1,6 kHz · lỗi 400 Hz 400 ms · boot 1 kHz + 1,5 kHz. Không có codec → `beep_init`
+WARN một lần, không bíp, máy chạy bình thường.
 - Bo con (TCA9548A 0x70 + 5× TCS34725 0x29, LED VOUT+ chung + LIGHT1..5 sink) cần bo giao tiếp
   như `Rapid4P-IF` (`docs/HARDWARE-ARCHITECTURE.md`): nguồn LED, công tắc khe, pull-up 4,7 K.
 - Không có PMIC/pin/SD trên board; WiFi 2,4 GHz nội (không ESP-Hosted), BT tắt trong sdkconfig.

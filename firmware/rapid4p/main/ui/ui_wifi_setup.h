@@ -55,6 +55,9 @@ bool ui_wifi_setup_is_active(void);
  *  (LV_ALIGN_LEFT_MID) để cùng quy ước với các màn khác. NULL nếu màn chưa dựng. */
 lv_obj_t *ui_wifi_setup_footer(void);
 
+/** 2.8": lật thẻ WiFi ↔ mã máy (= chạm thẻ), gọi từ softkey ĐỎ; 4.3" không làm gì. Trong LVGL task. */
+void ui_wifi_setup_toggle_card(void);
+
 #ifdef __cplusplus
 }
 #endif

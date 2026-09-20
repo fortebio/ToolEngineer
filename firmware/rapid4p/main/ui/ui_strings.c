@@ -1,6 +1,6 @@
 #include "ui_strings.h"
 
-static r4p_lang_t s_lang = R4P_LANG_EN;
+static r4p_lang_t s_lang = R4P_LANG_VI;   /* calib_store_load ghi đè theo NVS; mặc định VI */
 
 static const char *const s_vi[STR_COUNT] = {
     [STR_START_HINT]        = "Nhấn ĐO để bắt đầu",
@@ -59,6 +59,18 @@ static const char *const s_vi[STR_COUNT] = {
     [STR_SELECT]            = "Chọn",
     [STR_HOLD_HINT_THR]     = "Giữ: ±50  ·  Giữ TRẮNG: huỷ",
     [STR_CLEAR]             = "Xoá",
+    [STR_REDO_LAST]         = "Đo lại",
+    [STR_LAST_RUN]          = "Lần trước",
+    [STR_DONE]              = "Xong",
+    [STR_HOLD]              = "giữ",
+    [STR_RETRY]             = "Thử lại",
+    [STR_TOGGLE_CARD]       = "Đổi mã",
+    [STR_REMAINING]         = "còn ~%d s",
+    [STR_POSITIVE_COUNT]    = "%d/%d DƯƠNG TÍNH",
+    [STR_ALL_NEGATIVE]      = "ÂM TÍNH %d/%d",
+    [STR_DONT_OPEN]         = "Đừng mở nắp",
+    [STR_MEASURE_ERROR_HINT]= "Kiểm tra bo cảm biến rồi thử lại",
+    [STR_SETTINGS_SHORT]    = "Cài đặt",
 };
 
 static const char *const s_en[STR_COUNT] = {
@@ -118,6 +130,18 @@ static const char *const s_en[STR_COUNT] = {
     [STR_SELECT]            = "Select",
     [STR_HOLD_HINT_THR]     = "Hold: +/-50  ·  Hold WHITE: cancel",
     [STR_CLEAR]             = "Clear",
+    [STR_REDO_LAST]         = "Redo",
+    [STR_LAST_RUN]          = "Last run",
+    [STR_DONE]              = "Done",
+    [STR_HOLD]              = "hold",
+    [STR_RETRY]             = "Retry",
+    [STR_TOGGLE_CARD]       = "Flip",
+    [STR_REMAINING]         = "~%d s left",
+    [STR_POSITIVE_COUNT]    = "%d/%d POSITIVE",
+    [STR_ALL_NEGATIVE]      = "NEGATIVE %d/%d",
+    [STR_DONT_OPEN]         = "Keep the lid closed",
+    [STR_MEASURE_ERROR_HINT]= "Check the sensor board and retry",
+    [STR_SETTINGS_SHORT]    = "Settings",
 };
 
 /* Giữ nguyên chuỗi ZH của bản gốc; chuỗi mới (nút chạm) dịch ngắn gọn. */
@@ -178,6 +202,18 @@ static const char *const s_zh[STR_COUNT] = {
     [STR_SELECT]            = "选择",
     [STR_HOLD_HINT_THR]     = "长按: ±50  ·  长按白键: 取消",
     [STR_CLEAR]             = "清除",
+    [STR_REDO_LAST]         = "重测",
+    [STR_LAST_RUN]          = "上次",
+    [STR_DONE]              = "完成",
+    [STR_HOLD]              = "长按",
+    [STR_RETRY]             = "重试",
+    [STR_TOGGLE_CARD]       = "切换",
+    [STR_REMAINING]         = "还剩约 %d 秒",
+    [STR_POSITIVE_COUNT]    = "%d/%d 阳性",
+    [STR_ALL_NEGATIVE]      = "阴性 %d/%d",
+    [STR_DONT_OPEN]         = "请勿打开盖子",
+    [STR_MEASURE_ERROR_HINT]= "请检查传感器板后重试",
+    [STR_SETTINGS_SHORT]    = "设置",
 };
 
 static const char *const *table_for(r4p_lang_t lang)

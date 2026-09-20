@@ -20,8 +20,21 @@ START ─► Cân chỉnh: mỗi khe đọc Cao nhất rồi Thấp nhất → N
 START ─► Cài đặt: Ngôn ngữ (VI/EN/ZH/TW) · WiFi (SoftAP + portal: SSID, mật khẩu, Mã máy, Token) ·
          Cập nhật (OTA) · Threshold (5 bệnh, mặc định 600)
 ```
-Nút vật lý: **ĐO** = xác nhận/đo (P4: BTN3 GPIO0; S3: nút ngoài GPIO47 ĐỀ XUẤT, −1 = chỉ chạm/web);
-**BOOT** (P4 GPIO35 / S3 GPIO0) tap = quay lại, giữ 5 s = xoá WiFi + khởi động lại.
+Nút vật lý: **ĐO** = xác nhận/đo (P4: BTN3 GPIO0); **BOOT** (P4 GPIO35 / S3 GPIO0) tap = quay lại, giữ 5 s = xoá WiFi +
+khởi động lại. S3 2.8": 3 nút cơ của vỏ máy (dưới).
+
+### 2.8" — 3 nút cơ XANH · ĐỎ · TRẮNG (tối ưu nông dân, 2026-09-20)
+
+Nông dân đeo găng, tay to, nhìn từ xa → mọi việc làm bằng 3 nút cơ dưới màn (GPIO 47/48/41; chạm màn chỉ là phụ, cho kỹ thuật viên):
+
+- **Đo lần đầu**: XANH *Bắt đầu* → chọn mẫu (ĐỎ ▼ / TRẮNG ▲ / XANH *Chọn*) → chọn ống → *Đặt ống vào 5 khe, đậy nắp* → ĐỎ **ĐO**
+  → *Đang đo* (đếm ngược "còn ~N s", "Đừng mở nắp", bíp 2 tiếng khi xong) → *Kết quả* ("2/5 DƯƠNG TÍNH" đỏ / "ÂM TÍNH 5/5" xanh)
+  → ĐỎ *Xong*.
+- **Đo lại cùng loại** (máy nhớ mẫu + ống lần trước): màn chính ĐỎ **Đo lại** → *Đặt ống* → ĐỎ **ĐO** — 2 nhấn.
+- **Kỹ thuật viên**: màn chính **giữ TRẮNG 1,5 s** → Cài đặt (Ngôn ngữ · WiFi · Cập nhật · Threshold · Cân chỉnh · Quay lại).
+  Dừng đo = **giữ ĐỎ**; xoá cân chỉnh = **giữ TRẮNG** + hộp thoại (XANH Huỷ · ĐỎ Xác nhận).
+- Chống nhầm: nhấn khi màn tắt chỉ sáng màn; 350 ms sau khi đổi màn phím bị bỏ (nhấn đôi); 2 nút cùng lúc nhận 1; mỗi phím bíp
+  ngắn (loa qua ES8311, `CONFIG_RAPID4P_BEEP`) + ô softkey nháy. Mặc định tiếng Việt; Trung/Đài ẩn tới khi có font CJK.
 
 ## Cấu trúc
 

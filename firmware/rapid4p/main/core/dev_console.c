@@ -21,7 +21,7 @@ static const char *const s_ui_names[UI_COUNT] = {
     [UI_PREPARE] = "prepare",   [UI_MEASURING] = "measuring", [UI_RESULT] = "result",
     [UI_CALIB] = "calib",       [UI_SETTINGS] = "settings",   [UI_LANGUAGE] = "language",
     [UI_WIFI] = "wifi",         [UI_UPDATE] = "update",       [UI_THRESHOLD] = "threshold",
-    [UI_THRESHOLD_EDIT] = "thredit",
+    [UI_THRESHOLD_EDIT] = "thredit", [UI_MEASURE_ERROR] = "measerr",
 };
 
 static int cmd_ui(int argc, char **argv)
@@ -53,21 +53,33 @@ static int cmd_ui(int argc, char **argv)
     return 0;
 }
 
+/* btn do|boot | green|red|white [hold|rep] — gia lap nut. 3 nut mau di qua event group nhu button.c
+ * (khong goi thang ui_reader) de test ca duong app_main else-if / co REPEAT. */
 static int cmd_btn(int argc, char **argv)
 {
     if (argc < 2) {
-        printf("btn do|boot\n");
+        printf("btn do|boot|green|red|white [hold|rep]\n");
         return 1;
     }
+    const bool hold = argc >= 3 && (strcmp(argv[2], "hold") == 0 || strcmp(argv[2], "rep") == 0);
+    const bool rep = argc >= 3 && strcmp(argv[2], "rep") == 0;
+    EventBits_t bit = 0;
     if (strcmp(argv[1], "do") == 0) {
         ui_reader_on_measure_button();
     } else if (strcmp(argv[1], "boot") == 0) {
         ui_reader_on_boot_button();
+    } else if (strcmp(argv[1], "green") == 0) {
+        bit = hold ? R4P_EVT_BTN_GREEN_LONG : R4P_EVT_BTN_GREEN;
+    } else if (strcmp(argv[1], "red") == 0) {
+        bit = hold ? R4P_EVT_BTN_RED_LONG : R4P_EVT_BTN_RED;
+    } else if (strcmp(argv[1], "white") == 0) {
+        bit = hold ? R4P_EVT_BTN_WHITE_LONG : R4P_EVT_BTN_WHITE;
     } else {
         printf("btn: khong biet '%s'\n", argv[1]);
         return 1;
     }
-    printf("btn: %s\n", argv[1]);
+    if (bit) xEventGroupSetBits(g_r4p_events, bit | (rep ? R4P_EVT_BTN_REPEAT : 0));
+    printf("btn: %s%s%s\n", argv[1], hold ? " hold" : "", rep ? " rep" : "");
     return 0;
 }
 
@@ -88,21 +100,31 @@ esp_err_t dev_console_start(void)
     esp_console_repl_config_t repl_cfg = ESP_CONSOLE_REPL_CONFIG_DEFAULT();
     repl_cfg.prompt = "r4p> ";
     repl_cfg.max_cmdline_length = 128;
+    /* Cong console theo sdkconfig: S3 2.8" (ES3N28P) chi co cong USB native -> CONSOLE_USB_SERIAL_JTAG
+     * (sdkconfig.defaults.s3_28lcd) de go lenh qua COM cua USB-JTAG (jtaglog.py/uicmd.py cung cong);
+     * P4 giu UART0. */
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+    esp_console_dev_usb_serial_jtag_config_t hw_cfg = ESP_CONSOLE_DEV_USB_SERIAL_JTAG_CONFIG_DEFAULT();
+    esp_err_t r = esp_console_new_repl_usb_serial_jtag(&hw_cfg, &repl_cfg, &repl);
+    const char *port_name = "USB-JTAG";
+#else
     esp_console_dev_uart_config_t hw_cfg = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
     esp_err_t r = esp_console_new_repl_uart(&hw_cfg, &repl_cfg, &repl);
+    const char *port_name = "UART0";
+#endif
     if (r != ESP_OK) {
         ESP_LOGW(TAG_MAIN, "dev console: %s", esp_err_to_name(r));
         return r;
     }
     const esp_console_cmd_t cmds[] = {
         { .command = "ui",   .help = "ui [<0..12>|<ten man>]  - chuyen man (khong tham so: liet ke)", .func = cmd_ui },
-        { .command = "btn",  .help = "btn do|boot             - gia lap nut DO / BOOT",              .func = cmd_btn },
+        { .command = "btn",  .help = "btn do|boot|green|red|white [hold|rep] - gia lap nut",       .func = cmd_btn },
         { .command = "heap", .help = "heap                    - heap internal/psram",                .func = cmd_heap },
     };
     for (size_t i = 0; i < sizeof(cmds) / sizeof(cmds[0]); i++) ESP_ERROR_CHECK(esp_console_cmd_register(&cmds[i]));
     esp_console_register_help_command();
     r = esp_console_start_repl(repl);
-    ESP_LOGI(TAG_MAIN, "dev console UART0 san sang (ui/btn/heap/help): %s", esp_err_to_name(r));
+    ESP_LOGI(TAG_MAIN, "dev console %s san sang (ui/btn/heap/help): %s", port_name, esp_err_to_name(r));
     return r;
 }
 

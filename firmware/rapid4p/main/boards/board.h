@@ -98,6 +98,10 @@
 #ifndef BOARD_BTN_WHITE_GPIO
 #define BOARD_BTN_WHITE_GPIO -1
 #endif
+/* Audio (bíp): board có codec ES8311 + PA → 1 và khai các knob BOARD_AUDIO_x, BOARD_SPK_x (S3 2.8"). */
+#ifndef BOARD_AUDIO_USE_ES8311
+#define BOARD_AUDIO_USE_ES8311 0
+#endif
 #ifndef BOARD_BTN_HOLD_MS
 #define BOARD_BTN_HOLD_MS 1500   /* giữ nút softkey = hành động phụ (ReaderPlus dùng 5 s cho chức năng ẩn) */
 #endif

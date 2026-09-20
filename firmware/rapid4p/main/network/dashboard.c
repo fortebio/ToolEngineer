@@ -34,7 +34,7 @@ static const char *ui_state_name(ui_state_t st)
 {
     static const char *const names[UI_COUNT] = {
         "start", "sample", "tube", "prepare", "measuring", "result", "calib",
-        "settings", "language", "wifi", "update", "threshold", "thredit" };
+        "settings", "language", "wifi", "update", "threshold", "thredit", "measerr" };
     return st < UI_COUNT ? names[st] : "?";
 }
 

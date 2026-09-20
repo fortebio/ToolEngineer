@@ -27,6 +27,7 @@
 #include "ui/ui_reader.h"
 #include "input/button.h"
 #include "input/touch.h"
+#include "audio/beep.h"
 
 #include "esp_event.h"
 #include "esp_netif.h"
@@ -102,7 +103,7 @@ static void main_task(void *arg)
             R4P_EVT_WIFI_UP | R4P_EVT_WIFI_DOWN | R4P_EVT_BTN_PRESS | R4P_EVT_BTN_LONG |
             R4P_EVT_BTN_MEASURE | R4P_EVT_MEASURE_DONE | R4P_EVT_UPLOAD_QUEUED |
             R4P_EVT_BTN_GREEN | R4P_EVT_BTN_RED | R4P_EVT_BTN_WHITE |
-            R4P_EVT_BTN_GREEN_LONG | R4P_EVT_BTN_RED_LONG | R4P_EVT_BTN_WHITE_LONG,
+            R4P_EVT_BTN_GREEN_LONG | R4P_EVT_BTN_RED_LONG | R4P_EVT_BTN_WHITE_LONG | R4P_EVT_BTN_REPEAT,
             pdTRUE, pdFALSE, pdMS_TO_TICKS(5000));
         if (bits & R4P_EVT_WIFI_UP) {
             ESP_LOGI(TAG_MAIN, "WiFi up %s", wifi_mgr_ip_address());
@@ -114,13 +115,16 @@ static void main_task(void *arg)
         }
         if (bits & R4P_EVT_BTN_PRESS) ui_reader_on_boot_button();
         if (bits & R4P_EVT_BTN_MEASURE) ui_reader_on_measure_button();
-        /* 3 nút vật lý XANH/ĐỎ/TRẮNG → softkey của màn đang hiện (ui_reader quyết định). */
-        if (bits & R4P_EVT_BTN_GREEN)      ui_reader_on_key(R4P_KEY_GREEN, false);
-        if (bits & R4P_EVT_BTN_RED)        ui_reader_on_key(R4P_KEY_RED, false);
-        if (bits & R4P_EVT_BTN_WHITE)      ui_reader_on_key(R4P_KEY_WHITE, false);
-        if (bits & R4P_EVT_BTN_GREEN_LONG) ui_reader_on_key(R4P_KEY_GREEN, true);
-        if (bits & R4P_EVT_BTN_RED_LONG)   ui_reader_on_key(R4P_KEY_RED, true);
-        if (bits & R4P_EVT_BTN_WHITE_LONG) ui_reader_on_key(R4P_KEY_WHITE, true);
+        /* 3 nút vật lý XANH/ĐỎ/TRẮNG → softkey của màn đang hiện (ui_reader quyết định).
+         * else-if: tay to/găng tay đè 2 nút cùng lúc chỉ nhận MỘT phím mỗi lần thức (giữ ưu tiên
+         * hơn tap vì là hành động cố ý; XANH > ĐỎ > TRẮNG). */
+        const bool rep = (bits & R4P_EVT_BTN_REPEAT) != 0;   /* lần lặp khi còn giữ */
+        if      (bits & R4P_EVT_BTN_GREEN_LONG) ui_reader_on_key_ex(R4P_KEY_GREEN, true, rep);
+        else if (bits & R4P_EVT_BTN_RED_LONG)   ui_reader_on_key_ex(R4P_KEY_RED, true, rep);
+        else if (bits & R4P_EVT_BTN_WHITE_LONG) ui_reader_on_key_ex(R4P_KEY_WHITE, true, rep);
+        else if (bits & R4P_EVT_BTN_GREEN)      ui_reader_on_key(R4P_KEY_GREEN, false);
+        else if (bits & R4P_EVT_BTN_RED)        ui_reader_on_key(R4P_KEY_RED, false);
+        else if (bits & R4P_EVT_BTN_WHITE)      ui_reader_on_key(R4P_KEY_WHITE, false);
         if (bits & R4P_EVT_BTN_LONG) {
             /* Giữ BOOT 5 s: xoá WiFi đã lưu rồi khởi động lại (như vimate). Token/mã máy
              * giữ nguyên. */
@@ -163,6 +167,7 @@ void r4p_app_start(void)
     if (display_ok) touch_init();
 
     measure_init();          /* bus I2C riêng + LED slot; lỗi cảm biến không chặn boot */
+    beep_init();             /* S3: ES8311 + loa (bíp phím/đo xong/lỗi); không codec → no-op */
     result_upload_init();
 
     if (display_ok) {

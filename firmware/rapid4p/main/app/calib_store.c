@@ -46,17 +46,36 @@ esp_err_t calib_store_load(void)
         }
         s_cfg.threshold[i] = v;
     }
-    uint32_t lang = 0;
+    /* Ngôn ngữ: mặc định TIẾNG VIỆT (người dùng cuối là nông dân VN; bản gốc mặc định EN).
+     * Khoá chưa có → get trả OK + 0 = VI. Chưa có font CJK thì ZH/TW không hiện được (rơi về EN
+     * trong ui_strings) → coi là không hợp lệ, về VI (máy thử 2026-09-20 kẹt ở lang=3 do chọn
+     * nhầm lúc chạm còn ngược); khi có font, R4P_HAVE_CJK_FONT=1 mở lại. */
+    uint32_t lang = R4P_LANG_VI;
     nvs_store_get_u32("lang", &lang);
-    if (lang >= R4P_LANG_COUNT) lang = R4P_LANG_EN;   /* mặc định EN như bản gốc */
+    if (lang >= R4P_LANG_COUNT) lang = R4P_LANG_VI;
+#if !R4P_HAVE_CJK_FONT
+    if (lang >= R4P_LANG_ZH) {
+        ESP_LOGW(TAG_NVS, "lang=%lu (CJK) chua co font -> ve VI", (unsigned long)lang);
+        lang = R4P_LANG_VI;
+        nvs_store_set_u32("lang", lang);
+    }
+#endif
     s_cfg.lang = (r4p_lang_t)lang;
     load_slot_blob("led_pwm", s_cfg.led_pwm, sizeof(s_cfg.led_pwm[0]), 127);
+    /* Lần đo trước: lưu giá trị + 1 để 0 = chưa có (get_u32 trả OK + 0 khi thiếu khoá). */
+    uint32_t ls = 0, lp = 0;
+    nvs_store_get_u32("last_sick", &ls);
+    nvs_store_get_u32("last_sample", &lp);
+    s_cfg.last_valid = ls >= 1 && ls <= R4P_SICK_COUNT && lp >= 1 && lp <= R4P_SAMPLE_COUNT;
+    s_cfg.last_sick = s_cfg.last_valid ? (r4p_sick_t)(ls - 1) : R4P_SICK_PC;
+    s_cfg.last_sample = s_cfg.last_valid ? (r4p_sample_t)(lp - 1) : R4P_SAMPLE_VANNAMEI;
     for (int i = 0; i < R4P_SLOTS; i++)
         ESP_LOGI(TAG_NVS, "settings: khe %d cal min=%u max=%u led=%u", i + 1, s_cfg.cal_min[i], s_cfg.cal_max[i], s_cfg.led_pwm[i]);
-    ESP_LOGI(TAG_NVS, "settings: thr=%lu/%lu/%lu/%lu/%lu lang=%d",
+    ESP_LOGI(TAG_NVS, "settings: thr=%lu/%lu/%lu/%lu/%lu lang=%d last=%s",
              (unsigned long)s_cfg.threshold[0], (unsigned long)s_cfg.threshold[1],
              (unsigned long)s_cfg.threshold[2], (unsigned long)s_cfg.threshold[3],
-             (unsigned long)s_cfg.threshold[4], (int)s_cfg.lang);
+             (unsigned long)s_cfg.threshold[4], (int)s_cfg.lang,
+             s_cfg.last_valid ? r4p_sick_name(s_cfg.last_sick) : "-");
     return ESP_OK;
 }
 
@@ -109,4 +128,17 @@ esp_err_t calib_store_set_led_pwm(int slot, uint8_t pwm)
     if (slot < 0 || slot >= R4P_SLOTS) return ESP_ERR_INVALID_ARG;
     s_cfg.led_pwm[slot] = pwm;
     return nvs_store_set_blob("led_pwm", s_cfg.led_pwm, sizeof(s_cfg.led_pwm));
+}
+
+esp_err_t calib_store_set_last(r4p_sick_t sick, r4p_sample_t sample)
+{
+    if (sick >= R4P_SICK_COUNT || sample >= R4P_SAMPLE_COUNT) return ESP_ERR_INVALID_ARG;
+    /* Không ghi lại NVS nếu không đổi (tiết kiệm chu kỳ flash: nông dân đo cùng loại cả ngày). */
+    if (s_cfg.last_valid && s_cfg.last_sick == sick && s_cfg.last_sample == sample) return ESP_OK;
+    s_cfg.last_sick = sick;
+    s_cfg.last_sample = sample;
+    s_cfg.last_valid = true;
+    esp_err_t r = nvs_store_set_u32("last_sick", (uint32_t)sick + 1);
+    if (r == ESP_OK) r = nvs_store_set_u32("last_sample", (uint32_t)sample + 1);
+    return r;
 }

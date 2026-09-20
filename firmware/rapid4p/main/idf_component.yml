@@ -29,3 +29,10 @@ dependencies:
     version: "^2.0.0"
     rules:
       - if: "target == esp32s3"
+
+  # Bíp qua codec ES8311 + PA của board S3 (audio/beep.c, CONFIG_RAPID4P_BEEP). Cùng ràng buộc
+  # vimate (^1.3.0). P4 không có codec → không kéo.
+  espressif/esp_codec_dev:
+    version: "^1.3.0"
+    rules:
+      - if: "target == esp32s3"

@@ -21,8 +21,10 @@
 #include "network/result_upload.h"
 #include "ui/ui_wifi_setup.h"
 #include "ui/ui_logo.h"
+#include "audio/beep.h"
 
 #include "esp_system.h"
+#include "esp_timer.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -65,7 +67,19 @@ static struct {
     lv_obj_t *sk_cell[R4P_KEY_COUNT];
     lv_obj_t *list_items[8];
     int list_n, cursor;
+    /* Chống thao tác nhầm (nông dân, găng tay): khoá phím KEY_LOCK_US sau mỗi lần đổi màn —
+     * nhấn đôi ĐỎ ở "Đặt ống" không thành Dừng đo; phím tới sớm hơn bị bỏ. */
+    int64_t key_lock_until_us;
+    ui_state_t hold_state;      /* màn lúc bắt đầu giữ — lặp chỉ hợp lệ khi màn chưa đổi */
+    /* Đang đo: đếm ngược "còn ~N s" (ước lượng từ thời gian trung bình mỗi bước). */
+    lv_obj_t *remain_lbl;
+    lv_timer_t *remain_timer;
+    int64_t remain_deadline_us;
 } s;
+
+#define KEY_LOCK_US     350000      /* 350 ms sau show(): bỏ phím tới sớm (nhấn đôi/đè tay) */
+#define SK_FLASH_MS     150         /* ô softkey nháy khi nhấn nút cơ (phản hồi nhìn thấy) */
+#define STEP_FIRST_US   1600000     /* bước đo đầu chưa có thống kê: LED_SETTLE 1 s + 3 lần đọc ≈ 1,6 s */
 
 static lv_style_transition_dsc_t s_tr_press;   /* đổi màu nền 120 ms khi nhấn/nhả */
 
@@ -239,6 +253,8 @@ static void content_clear(void)
     memset(s.slot_val, 0, sizeof(s.slot_val));
     memset(s.slot_sub, 0, sizeof(s.slot_sub));
     s.round_lbl = s.bar = s.bar_lbl = s.calib_status = s.thr_lbl = s.upd_lbl = s.upd_bar = NULL;
+    s.remain_lbl = NULL;
+    if (s.remain_timer) { lv_timer_delete(s.remain_timer); s.remain_timer = NULL; }
     memset(s.list_items, 0, sizeof(s.list_items));
     s.list_n = 0;
     s.cursor = 0;
@@ -273,7 +289,9 @@ static void list_add(lv_obj_t *it)
 
 #if UI_SCALE_SMALL
 /* ===== softkey bar 2.8": 3 ô thẳng hàng với 3 nút vật lý XANH · ĐỎ · TRẮNG dưới màn =====
- * Chấm màu + nhãn (không dựa vào màu đơn thuần: vị trí ô = vị trí nút). Chạm ô = nhấn nút.
+ * Ô = vạch màu nút dày UI_SK_BORDER trên + nhãn 18 px (vị trí ô = vị trí nút; không dựa vào màu
+ * đơn thuần). Nhãn có tiền tố '~' = hành động cần GIỮ nút → ô hai dòng: "giữ" nhỏ trên nhãn.
+ * Chạm ô = nhấn nút (chạm ngắn = tap, chạm giữ = hold) — kỹ thuật viên không cần nút cơ.
  * Hành động thật nằm ở apply_key() theo s.state — một nguồn sự thật cho cả nút cơ lẫn chạm. */
 static lv_color_t key_color(r4p_key_t k)
 {
@@ -283,7 +301,15 @@ static lv_color_t key_color(r4p_key_t k)
         default:            return C_TEXT;      /* trắng */
     }
 }
-static void on_softkey(lv_event_t *e) { ui_reader_on_key((r4p_key_t)(intptr_t)lv_event_get_user_data(e), false); }
+static void on_softkey(lv_event_t *e)
+{
+    const r4p_key_t k = (r4p_key_t)(intptr_t)lv_event_get_user_data(e);
+    const lv_event_code_t code = lv_event_get_code(e);
+    /* SHORT_CLICKED (nhả trước long_press_time) = tap; LONG_PRESSED (một lần) = giữ. Không dùng
+     * CLICKED vì nó bắn thêm khi nhả sau giữ → hành động kép. */
+    if (code == LV_EVENT_SHORT_CLICKED) ui_reader_on_key(k, false);
+    else if (code == LV_EVENT_LONG_PRESSED) ui_reader_on_key(k, true);
+}
 
 static void softkeys_clear(void)
 {
@@ -308,25 +334,24 @@ static void softkeys_on(lv_obj_t *host, const char *g, const char *r, const char
         lv_obj_set_style_bg_color(c, txt[k] ? C_CARD : C_PANEL, 0);
         lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
         lv_obj_set_style_border_side(c, LV_BORDER_SIDE_TOP, 0);
-        lv_obj_set_style_border_width(c, 3, 0);
+        lv_obj_set_style_border_width(c, UI_SK_BORDER, 0);
         lv_obj_set_style_border_color(c, txt[k] ? key_color((r4p_key_t)k) : C_BORDER, 0);
-        lv_obj_set_flex_flow(c, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_flow(c, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(c, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_column(c, 6, 0);
+        lv_obj_set_style_pad_row(c, 0, 0);
+        lv_obj_set_style_pad_top(c, UI_SK_BORDER / 2, 0);   /* bù vạch trên để chữ cân giữa */
         lv_obj_set_scrollable(c, false);
         if (txt[k]) {
-            lv_obj_t *dot = lv_obj_create(c);
-            lv_obj_remove_style_all(dot);
-            lv_obj_set_size(dot, 10, 10);
-            lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
-            lv_obj_set_style_bg_color(dot, key_color((r4p_key_t)k), 0);
-            lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+            const bool need_hold = (txt[k][0] == '~');
+            const char *lbl = need_hold ? txt[k] + 1 : txt[k];
+            if (need_hold) mk_label(c, r4p_str(STR_HOLD), F_TINY, C_MUTED);   /* 14 + 18 = 32 ≤ 44 − vạch 4 */
             /* LV_SYMBOL_* (U+F000+) là UTF-8 3 byte bắt đầu 0xEF — chỉ Montserrat có glyph. */
-            const bool sym = ((unsigned char)txt[k][0] == 0xEF);
-            mk_label(c, txt[k], sym ? F_ICON_SM : F_SMALL, C_TEXT);
+            const bool sym = ((unsigned char)lbl[0] == 0xEF);
+            mk_label(c, lbl, sym ? F_ICON : fit_font(lbl, cell_w - 4), C_TEXT);   /* 18 px, co 14 nếu dài */
             lv_obj_set_style_bg_color(c, C_BTN, LV_STATE_PRESSED);
             lv_obj_set_style_transition(c, &s_tr_press, 0);
-            lv_obj_add_event_cb(c, on_softkey, LV_EVENT_CLICKED, (void *)(intptr_t)k);
+            lv_obj_add_event_cb(c, on_softkey, LV_EVENT_SHORT_CLICKED, (void *)(intptr_t)k);
+            lv_obj_add_event_cb(c, on_softkey, LV_EVENT_LONG_PRESSED, (void *)(intptr_t)k);
         } else {
             lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
         }
@@ -334,6 +359,30 @@ static void softkeys_on(lv_obj_t *host, const char *g, const char *r, const char
     }
 }
 static void softkeys(const char *g, const char *r, const char *w) { softkeys_on(s.footer, g, r, w); }
+
+/* Nút cơ nhấn → ô softkey tương ứng nháy SK_FLASH_MS (LV_STATE_PRESSED) để người dùng thấy máy
+ * đã nhận phím, kể cả khi hành động không đổi màn (▼/▲, ±10) hoặc bị bỏ qua (ô rỗng). */
+static void sk_flash_end(lv_timer_t *t)
+{
+    lv_obj_t *c = lv_timer_get_user_data(t);
+    if (c && lv_obj_is_valid(c)) lv_obj_remove_state(c, LV_STATE_PRESSED);
+}
+static void sk_flash(r4p_key_t k)
+{
+    lv_obj_t *c = s.sk_cell[k];
+    if (!c || !lv_obj_is_valid(c) || lv_obj_get_child_count(c) == 0) return;
+    lv_obj_add_state(c, LV_STATE_PRESSED);
+    lv_timer_t *t = lv_timer_create(sk_flash_end, SK_FLASH_MS, c);
+    lv_timer_set_repeat_count(t, 1);   /* one-shot, tự xoá */
+}
+
+/* Nhãn softkey "giữ": "~" + chuỗi (buf tĩnh theo ô — softkeys() chỉ đọc trong lúc dựng). */
+static const char *hold_lbl(r4p_key_t k, const char *txt)
+{
+    static char buf[R4P_KEY_COUNT][40];
+    snprintf(buf[k], sizeof(buf[k]), "~%s", txt);
+    return buf[k];
+}
 #endif
 
 static void set_title(const char *t) { lv_label_set_text(s.title, t); }
@@ -459,6 +508,7 @@ static void start_measure(void)
         ESP_LOGW(TAG_UI, "measure_start: %s", esp_err_to_name(r));
         return;
     }
+    calib_store_set_last(s.sick, s.sample);   /* nhớ cho nút ĐỎ "Đo lại" ở màn chính */
     show_async(UI_MEASURING);
 }
 
@@ -621,19 +671,50 @@ static void bar_set(int pct)
     }
 }
 
+/* Đếm ngược "còn ~N s": deadline ước lượng lại mỗi SLOT_START (thời gian trung bình các bước đã
+ * xong; bước đầu dùng STEP_FIRST_US); lv_timer 500 ms chỉ vẽ lại số, không đo. Nông dân nhìn từ xa
+ * cần con số to thay vì phần trăm. */
+static void remain_refresh(lv_timer_t *t)
+{
+    (void)t;
+    if (!s.remain_lbl || !lv_obj_is_valid(s.remain_lbl)) return;
+    int64_t left = s.remain_deadline_us - esp_timer_get_time();
+    int sec = (int)((left + 999999) / 1000000);
+    if (sec < 1) sec = 1;                     /* không hiện 0 khi bước cuối trễ hơn ước lượng */
+    char buf[32];
+    snprintf(buf, sizeof(buf), r4p_str(STR_REMAINING), sec);
+    lv_label_set_text(s.remain_lbl, buf);
+}
+static void remain_estimate(const measure_result_t *r)
+{
+    const int total = R4P_ROUNDS * R4P_SLOTS;
+    const int done = (r->round - 1) * R4P_SLOTS + r->slot;        /* bước sắp làm = done */
+    const int64_t now = esp_timer_get_time();
+    const int64_t per = done > 0 ? (now - r->started_us) / done : STEP_FIRST_US;
+    s.remain_deadline_us = now + per * (total - done);
+    remain_refresh(NULL);
+}
+
 static void apply_progress(void *arg)
 {
     prog_msg_t *m = arg;
     const measure_result_t *r = &m->r;
-    char buf[48];
+    char buf[64];
     switch (m->phase) {
         case MEASURE_PHASE_SLOT_START:
             if (s.state != UI_MEASURING) break;
+            display_note_user_activity();     /* màn KHÔNG ngủ khi đang đo (~25 s, ngưỡng ngủ có thể ngắn hơn) */
+#if UI_SCALE_SMALL
+            snprintf(buf, sizeof(buf), "%s  ·  %s %d/%d  ·  %s %d", r4p_str(STR_DONT_OPEN), r4p_str(STR_ROUND),
+                     r->round, R4P_ROUNDS, r4p_str(STR_SLOT), r->slot + 1);
+#else
             snprintf(buf, sizeof(buf), "%s %d/%d  ·  %s %d", r4p_str(STR_ROUND), r->round, R4P_ROUNDS,
                      r4p_str(STR_SLOT), r->slot + 1);
+#endif
             if (s.round_lbl) lv_label_set_text(s.round_lbl, buf);
             slot_tile_set(r->slot, "...", C_AMBER);
             bar_set(((r->round - 1) * R4P_SLOTS + r->slot) * 100 / (R4P_ROUNDS * R4P_SLOTS));
+            remain_estimate(r);
             break;
         case MEASURE_PHASE_SLOT_DONE:
             if (s.state != UI_MEASURING) break;
@@ -643,19 +724,16 @@ static void apply_progress(void *arg)
             break;
         case MEASURE_PHASE_DONE:
             result_upload_enqueue(r);
+            beep_done();
             if (s.state == UI_MEASURING) show(UI_RESULT);
             break;
         case MEASURE_PHASE_ABORTED:
             break;
         case MEASURE_PHASE_ERROR:
+            beep_error();
             if (s.state == UI_MEASURING) {
-                slot_tile_set(r->slot, LV_SYMBOL_WARNING, C_RED);
-                if (s.slot_val[r->slot]) lv_obj_set_style_text_font(s.slot_val[r->slot], F_ICON, 0);
-                if (s.round_lbl) {
-                    snprintf(buf, sizeof(buf), "%s: %s", r4p_str(STR_SENSOR_ERROR), esp_err_to_name(r->err));
-                    lv_label_set_text(s.round_lbl, buf);
-                    lv_obj_set_style_text_color(s.round_lbl, C_RED, 0);
-                }
+                /* Màn riêng thay vì kẹt ở "Đang đo" với icon lỗi nhỏ: nói lỗi gì, nút Thử lại / Quay lại. */
+                show(UI_MEASURE_ERROR);
             } else if (s.state == UI_CALIB) {
                 s.calib_running = false;
                 if (s.calib_status) {
@@ -666,6 +744,7 @@ static void apply_progress(void *arg)
             break;
         case MEASURE_PHASE_CALIB_DONE:
             s.calib_running = false;
+            beep_done();
             if (s.state != UI_CALIB) break;
             if (s.calib_step == 0) {
                 s.calib_max_tmp = r->calib_value;
@@ -761,13 +840,23 @@ static void build_start(void)
     char buf[64];
 #if UI_SCALE_SMALL
     /* 2.8" (content 304×148): KHÔNG logo lớn/tên máy 48 px — một hàng [mark 40 + tên máy 18 teal],
-     * câu gợi ý 14 px xuống dòng, chip cảm biến + mã máy, dòng IP · version (header không có chỗ). */
+     * một dòng gợi ý 14 px, chip cảm biến + mã máy, dòng IP · version (header không có chỗ).
+     * Dòng gợi ý: có lần đo trước → "Lần trước: PC · Tôm Thẻ" (nút ĐỎ Đo lại dùng đúng bộ này);
+     * chưa có → "Nhấn ĐO để bắt đầu"; không cảm biến → cảnh báo. */
+    const r4p_settings_t *cfg = calib_store_get();
+    const bool redo_ok = alive > 0 && cfg->last_valid;
     lv_obj_t *brand = mk_row(s.content, UI_HOME_LOGO_H + 4);
     lv_obj_set_style_pad_column(brand, GAP + 4, 0);
     ui_logo_create(brand, UI_HOME_LOGO_H, false);
     mk_label(brand, R4P_PRODUCT_NAME, F_BODY, C_FORTE);
-    mk_text(s.content, alive > 0 ? r4p_str(STR_START_HINT) : r4p_str(STR_SENSOR_NONE_HINT),
-            F_SMALL, alive > 0 ? C_TEXT : C_AMBER);
+    if (redo_ok) {
+        snprintf(buf, sizeof(buf), "%s: %s  ·  %s", r4p_str(STR_LAST_RUN),
+                 r4p_sick_label(cfg->last_sick), r4p_sample_label(cfg->last_sample));
+        mk_text(s.content, buf, F_SMALL, C_TEXT);
+    } else {
+        mk_text(s.content, alive > 0 ? r4p_str(STR_START_HINT) : r4p_str(STR_SENSOR_NONE_HINT),
+                F_SMALL, alive > 0 ? C_TEXT : C_AMBER);
+    }
 #else
     ui_logo_create(s.content, UI_HOME_LOGO_H, UI_HOME_LOGO_H >= 90);   /* logo vector (ui_logo.c); chữ chỉ đọc được khi ≥ 90 px */
     lv_obj_t *hero = mk_label(s.content, R4P_PRODUCT_NAME, F_HERO, C_FORTE);
@@ -790,9 +879,11 @@ static void build_start(void)
 #endif
 
 #if UI_SCALE_SMALL
-    /* Vỏ máy 3 nút (ReaderPlus): XANH = Bắt đầu, ĐỎ = Cài đặt, TRẮNG = Cân chỉnh. Không có cảm
-     * biến: apply_key chặn Bắt đầu, câu gợi ý màu cảnh báo ở trên đã nói lý do. */
-    softkeys(r4p_str(STR_START), r4p_str(STR_SETTINGS), r4p_str(STR_CALIBRATE));
+    /* Vỏ máy 3 nút (ReaderPlus): XANH = Bắt đầu · ĐỎ = Đo lại (mẫu + ống lần trước; ô rỗng khi
+     * chưa có) · TRẮNG GIỮ = Cài đặt (Cân chỉnh nằm trong Cài đặt — kỹ thuật viên, không phải nông
+     * dân). Không có cảm biến: apply_key chặn Bắt đầu/Đo lại, câu gợi ý cảnh báo ở trên nói lý do. */
+    softkeys(r4p_str(STR_START), redo_ok ? r4p_str(STR_REDO_LAST) : NULL,
+             hold_lbl(R4P_KEY_WHITE, r4p_str(STR_SETTINGS_SHORT)));
 #else
     footer_left(LV_SYMBOL_EDIT, r4p_str(STR_CALIBRATE), on_goto, (void *)UI_CALIB);
     footer_mid(LV_SYMBOL_SETTINGS, r4p_str(STR_SETTINGS), on_goto, (void *)UI_SETTINGS, C_BTN);
@@ -857,21 +948,53 @@ static void build_prepare(void)
 static void build_measuring(void)
 {
     set_title(r4p_str(STR_MEASURING));
-    s.round_lbl = mk_text(s.content, r4p_str(STR_PLEASE_WAIT), UI_SCALE_SMALL ? F_SMALL : F_BODY, C_TEXT);
+    /* 2.8": dòng đầu "Đừng mở nắp" ngay từ lúc vào (SLOT_START nối thêm Vòng/Khe). */
+    s.round_lbl = mk_text(s.content, UI_SCALE_SMALL ? r4p_str(STR_DONT_OPEN) : r4p_str(STR_PLEASE_WAIT),
+                          UI_SCALE_SMALL ? F_SMALL : F_BODY, C_TEXT);
     build_slot_tiles(s.content, "-");
-    lv_obj_t *prow = mk_row(s.content, UI_PROGRESS_ROW_H);
+    /* Hàng [thanh tiến độ][còn ~N s to teal]: con số giây đọc được từ xa thay cho phần trăm. */
+    lv_obj_t *prow = mk_row(s.content, UI_MEASURE_ROW_H);
+    lv_obj_set_style_pad_column(prow, GAP + 4, 0);
     s.bar = lv_bar_create(prow);
-    lv_obj_set_size(s.bar, UI_BAR_W, UI_BAR_H);
+    lv_obj_set_size(s.bar, UI_BAR_MEAS_W, UI_BAR_H);
     lv_bar_set_range(s.bar, 0, 100);
     lv_bar_set_value(s.bar, 0, LV_ANIM_OFF);
     ui_theme_brand_bar(s.bar);
+#if !UI_SCALE_SMALL
     s.bar_lbl = mk_label(prow, "0%", F_SMALL, C_MUTED);
     lv_obj_set_width(s.bar_lbl, UI_BAR_LBL_W);
     lv_obj_set_style_text_align(s.bar_lbl, LV_TEXT_ALIGN_RIGHT, 0);
+#endif
+    char buf[32];
+    snprintf(buf, sizeof(buf), r4p_str(STR_REMAINING), R4P_ROUNDS * R4P_SLOTS * (STEP_FIRST_US / 1000000));
+    s.remain_lbl = mk_label(prow, buf, F_HERO, C_FORTE);
+    s.remain_deadline_us = esp_timer_get_time() + (int64_t)R4P_ROUNDS * R4P_SLOTS * STEP_FIRST_US;
+    s.remain_timer = lv_timer_create(remain_refresh, 500, NULL);
 #if UI_SCALE_SMALL
-    softkeys(NULL, r4p_str(STR_STOP), NULL);
+    /* Dừng phải GIỮ ĐỎ 1,5 s (+ khoá phím sau đổi màn): nhấn đôi ĐỎ ở "Đặt ống" không huỷ đo. */
+    softkeys(NULL, hold_lbl(R4P_KEY_RED, r4p_str(STR_STOP)), NULL);
 #else
     footer_right(LV_SYMBOL_STOP, r4p_str(STR_STOP), on_abort, NULL, C_RED);
+#endif
+}
+
+/* Đo lỗi cảm biến (MEASURE_PHASE_ERROR): màn riêng — lỗi gì, khe nào, làm gì tiếp. */
+static void build_measure_error(void)
+{
+    const measure_result_t *r = measure_last();
+    char buf[96];
+    set_title(r4p_str(STR_SENSOR_ERROR));
+    lv_obj_t *hdr = mk_row(s.content, UI_ROW_SMALL_H + 8);
+    mk_label(hdr, LV_SYMBOL_WARNING, F_ICON, C_RED);
+    snprintf(buf, sizeof(buf), "%s  ·  %s %d", r4p_str(STR_SENSOR_ERROR), r4p_str(STR_SLOT), r->slot + 1);
+    mk_label(hdr, buf, F_BODY, C_RED);
+    mk_text(s.content, r4p_str(STR_MEASURE_ERROR_HINT), UI_SCALE_SMALL ? F_SMALL : F_BODY, C_TEXT);
+    mk_label(s.content, esp_err_to_name(r->err), F_TINY, C_MUTED);   /* mã lỗi cho kỹ thuật viên */
+#if UI_SCALE_SMALL
+    softkeys(r4p_str(STR_RETRY), r4p_str(STR_BACK), NULL);     /* XANH Thử lại → Đặt ống · ĐỎ Quay lại → Chính */
+#else
+    footer_left(LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)UI_START);
+    footer_right(LV_SYMBOL_REFRESH, r4p_str(STR_RETRY), on_goto, (void *)UI_PREPARE, C_FORTE);
 #endif
 }
 
@@ -882,6 +1005,12 @@ static void build_result(void)
     snprintf(buf, sizeof(buf), "%s  ·  %s%s  ·  %s", r4p_str(STR_RESULT), r4p_str(STR_RESULT_TUBE),
              r4p_sick_label(r->sick), r4p_sample_label(r->sample));
     set_title(buf);
+    /* Dòng tổng kết TO (đọc từ xa, ngoài trời): "2/5 DƯƠNG TÍNH" đỏ hoặc "ÂM TÍNH 5/5" xanh. */
+    int npos = 0;
+    for (int i = 0; i < R4P_SLOTS; i++) npos += r->positive[i] ? 1 : 0;
+    if (npos > 0) snprintf(buf, sizeof(buf), r4p_str(STR_POSITIVE_COUNT), npos, R4P_SLOTS);
+    else snprintf(buf, sizeof(buf), r4p_str(STR_ALL_NEGATIVE), R4P_SLOTS, R4P_SLOTS);
+    mk_label(s.content, buf, F_HERO, npos > 0 ? C_RED : C_GREEN);
     build_slot_tiles(s.content, "");
     const r4p_settings_t *c = calib_store_get();
     for (int i = 0; i < R4P_SLOTS; i++) {
@@ -889,6 +1018,8 @@ static void build_result(void)
         lv_label_set_text(s.slot_val[i], buf);
         lv_color_t col = r->positive[i] ? C_RED : C_GREEN;
         lv_obj_set_style_border_color(s.slot_tile[i], col, 0);
+        /* nền ô nhuốm 25 % màu kết quả: khe dương tính nổi lên cả khi không đọc chữ */
+        lv_obj_set_style_bg_color(s.slot_tile[i], lv_color_mix(col, C_CARD, LV_OPA_30), 0);
         /* kết quả = icon + chữ + màu viền (không dựa vào màu đơn thuần) */
         lv_obj_delete(s.slot_sub[i]);
         lv_obj_t *sub = lv_obj_create(s.slot_tile[i]);
@@ -905,7 +1036,7 @@ static void build_result(void)
              r4p_str(STR_UPLOAD_PENDING), result_upload_pending());
     mk_text(s.content, buf, F_SMALL, C_MUTED);
 #if UI_SCALE_SMALL
-    softkeys(r4p_str(STR_REDO), r4p_str(STR_FINISH), NULL);        /* "Nút Xanh: Đo lại · Nút Đỏ: Kết thúc" */
+    softkeys(r4p_str(STR_REDO), r4p_str(STR_DONE), NULL);   /* XANH Đo lại → Đặt ống · ĐỎ Xong → màn chính */
 #else
     footer_left(LV_SYMBOL_REFRESH, r4p_str(STR_REDO), on_goto, (void *)UI_PREPARE);
     footer_right(LV_SYMBOL_OK, r4p_str(STR_FINISH), on_finish, NULL, C_FORTE);
@@ -937,7 +1068,8 @@ static void build_calib(void)
     s.calib_status = mk_text(s.content, s.calib_running ? r4p_str(STR_CALIBRATING) : buf, F_SMALL,
                              s.calib_running ? C_AMBER : C_FORTE);
 #if UI_SCALE_SMALL
-    softkeys(r4p_str(STR_BACK), r4p_str(STR_CALIBRATE), r4p_str(STR_CLEAR));   /* Xanh: Thoát · Đỏ: Cân chỉnh · Trắng: Xoá */
+    /* XANH Thoát (về Cài đặt) · ĐỎ Cân chỉnh (đọc) · TRẮNG GIỮ Xoá (+ hộp thoại) — xoá là phá huỷ. */
+    softkeys(r4p_str(STR_BACK), r4p_str(STR_CALIBRATE), hold_lbl(R4P_KEY_WHITE, r4p_str(STR_CLEAR)));
 #else
     footer_left(LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)UI_START);
     footer_mid(LV_SYMBOL_TRASH, r4p_str(STR_CALIB_CLEAR), on_calib_clear, NULL, C_RED);
@@ -950,11 +1082,13 @@ static void build_settings(void)
     set_title(r4p_str(STR_SETTINGS));
     lv_obj_t *grid = mk_grid(s.content);
 #if UI_SCALE_SMALL
-    /* 2.8": danh sách 3 cột chữ (không icon — 94 px không đủ), mục cuối = Quay lại; điều hướng bằng 3 nút. */
+    /* 2.8": danh sách 3 cột × 2 hàng chữ (không icon — 94 px không đủ), mục cuối = Quay lại; điều
+     * hướng bằng 3 nút. Cân chỉnh nằm ở đây (không ở màn chính) — việc của kỹ thuật viên. */
     list_add(mk_btn(grid, NULL, r4p_str(STR_LANGUAGE), on_goto, (void *)UI_LANGUAGE, UI_BTN_LIST_W, BTN_H, C_BTN));
     list_add(mk_btn(grid, NULL, r4p_str(STR_WIFI), on_goto, (void *)UI_WIFI, UI_BTN_LIST_W, BTN_H, C_BTN));
     list_add(mk_btn(grid, NULL, r4p_str(STR_UPDATE), on_goto, (void *)UI_UPDATE, UI_BTN_LIST_W, BTN_H, C_BTN));
     list_add(mk_btn(grid, NULL, r4p_str(STR_THRESHOLD), on_goto, (void *)UI_THRESHOLD, UI_BTN_LIST_W, BTN_H, C_BTN));
+    list_add(mk_btn(grid, NULL, r4p_str(STR_CALIBRATE), on_goto, (void *)UI_CALIB, UI_BTN_LIST_W, BTN_H, C_BTN));
     list_add(mk_btn(grid, LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)UI_START, UI_BTN_LIST_W, BTN_H, C_BTN));
     list_focus(0);
     softkeys(r4p_str(STR_SELECT), LV_SYMBOL_DOWN, LV_SYMBOL_UP);
@@ -1030,7 +1164,8 @@ static void build_wifi(void)
     lv_obj_t *host = ui_wifi_setup_footer();
     if (host) {
 #if UI_SCALE_SMALL
-        softkeys_on(host, r4p_str(STR_BACK), NULL, NULL);          /* XANH = Quay lại (apply_key UI_WIFI) */
+        /* XANH Quay lại · ĐỎ Đổi mã (lật thẻ WiFi ↔ mã máy thay cho chạm thẻ) — apply_key UI_WIFI */
+        softkeys_on(host, r4p_str(STR_BACK), r4p_str(STR_TOGGLE_CARD), NULL);
 #else
         if (s.wifi_back_btn && lv_obj_is_valid(s.wifi_back_btn)) lv_obj_delete(s.wifi_back_btn);
         lv_obj_t *b = mk_btn(host, LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_wifi_back, NULL, UI_BTN_BACK_W, BTN_H, C_BTN);
@@ -1068,6 +1203,7 @@ static void build_update(void)
 static void show(ui_state_t st)
 {
     s.state = st;
+    s.key_lock_until_us = esp_timer_get_time() + KEY_LOCK_US;   /* chống nhấn đôi sang màn mới */
     modal_close();
 #if UI_SCALE_SMALL
     softkeys_clear();                     /* ô softkey trên footer màn WiFi (host khác s.footer) */
@@ -1080,10 +1216,12 @@ static void show(ui_state_t st)
         case UI_CHOOSE_TUBE: build_choose_tube(); break;
         case UI_PREPARE: build_prepare(); break;
         case UI_MEASURING: build_measuring(); break;
+        case UI_MEASURE_ERROR: build_measure_error(); break;
         case UI_RESULT: build_result(); break;
         case UI_CALIB: build_calib(); break;
         case UI_SETTINGS: build_settings(); break;
-        case UI_LANGUAGE: build_list(r4p_str(STR_LANGUAGE_SETTING), R4P_LANG_COUNT, lang_label_i, on_pick_lang, UI_SETTINGS); break;
+        /* Chỉ liệt kê ngôn ngữ hiện được (chưa font CJK → VI, EN); NVS ≥ ZH đã về VI ở calib_store_load. */
+        case UI_LANGUAGE: build_list(r4p_str(STR_LANGUAGE_SETTING), R4P_LANG_SELECTABLE, lang_label_i, on_pick_lang, UI_SETTINGS); break;
         case UI_WIFI: build_wifi(); break;
         case UI_UPDATE: build_update(); break;
         case UI_THRESHOLD: build_list(r4p_str(STR_THRESHOLD_SETTING), R4P_SICK_COUNT, thr_label_i, on_pick_thr, UI_SETTINGS); break;
@@ -1101,52 +1239,85 @@ static void apply_measure_button(void *arg)
     switch (s.state) {
         case UI_START: if (measure_sensors_alive() > 0) show(UI_CHOOSE_SAMPLE); break;
         case UI_PREPARE: start_measure(); break;
+        case UI_MEASURE_ERROR: show(UI_PREPARE); break;
         case UI_RESULT: show(UI_CHOOSE_SAMPLE); break;
         case UI_CALIB: on_calib_read(NULL); break;
         default: break;
     }
 }
 
+/* Nút ĐỎ "Đo lại" ở màn chính: dùng mẫu + ống của lần đo trước (NVS) → thẳng tới "Đặt ống". */
+static void redo_last(void)
+{
+    const r4p_settings_t *c = calib_store_get();
+    if (!c->last_valid || measure_sensors_alive() == 0) return;
+    s.sick = c->last_sick;
+    s.sample = c->last_sample;
+    show(UI_PREPARE);
+}
+
 /* 3 nút vật lý XANH/ĐỎ/TRẮNG (và chạm ô softkey): MỘT nguồn sự thật theo màn — nhãn ô softkey ở
- * từng build_* phải khớp bảng này. Quy ước kế thừa ReaderPlus: XANH = bắt đầu/chọn/đo lại,
- * ĐỎ = đo/kết thúc/xuống, TRẮNG = lên/xoá. Danh sách (s.list_n > 0): XANH chọn · ĐỎ ▼ · TRẮNG ▲. */
+ * từng build_* phải khớp bảng này (docs: firmware/rapid4p/CLAUDE.md §1 "Bảng softkey").
+ * Quy ước 2026-09-20 (nông dân): XANH = bắt đầu/chọn/đo lại/thử lại · ĐỎ = ĐO/Đo lại (chính)/
+ * Xong/▼ · TRẮNG = ▲/giữ Cài đặt/giữ Xoá. Hành động kỹ thuật/phá huỷ PHẢI giữ (hold): Cài đặt, Dừng
+ * đo, Xoá cân chỉnh. Danh sách (s.list_n > 0): XANH chọn · ĐỎ ▼ · TRẮNG ▲. */
 static void apply_key(void *arg)
 {
     const int v = (int)(intptr_t)arg;
     const r4p_key_t key = (r4p_key_t)(v & 0xFF);
     const bool hold = (v & 0x100) != 0;
+    const bool repeat = (v & 0x200) != 0;
+    if (repeat) {
+        /* Lặp khi còn giữ: chỉ ±50 (ngưỡng) và cuộn danh sách, và chỉ khi màn CHƯA đổi kể từ lần giữ
+         * đầu (giữ TRẮNG huỷ sửa ngưỡng → về danh sách, tay còn giữ thì không cuộn danh sách). */
+        if (s.state != s.hold_state || !(s.state == UI_THRESHOLD_EDIT || s.list_n > 0)) return;
+    } else {
+        if (esp_timer_get_time() < s.key_lock_until_us) {   /* vừa đổi màn: bỏ phím tới quá sớm */
+            ESP_LOGI(TAG_UI, "key %d bo (khoa phim sau doi man)", (int)key);
+            return;
+        }
+        if (hold) s.hold_state = s.state;
+    }
+#if UI_SCALE_SMALL
+    sk_flash(key);
+#endif
+    if (!repeat) beep_key();                            /* phản hồi nghe được: máy đã nhận phím */
     if (s.modal) {                                      /* hộp thoại: XANH = Huỷ, ĐỎ = Xác nhận */
         if (key == R4P_KEY_GREEN) modal_close();
-        else if (key == R4P_KEY_RED) apply_modal_yes(NULL);
+        else if (key == R4P_KEY_RED && !hold) apply_modal_yes(NULL);   /* giữ lặp không xác nhận 2 lần */
         return;
     }
     if (s.list_n > 0) {
-        if (key == R4P_KEY_GREEN) list_activate();
-        else if (key == R4P_KEY_RED) list_move(+1);
+        if (key == R4P_KEY_GREEN) { if (!hold) list_activate(); }
+        else if (key == R4P_KEY_RED) list_move(+1);     /* giữ = lặp mỗi 400 ms (button.c) → cuộn nhanh */
         else list_move(-1);
         return;
     }
     switch (s.state) {
         case UI_START:
-            if (key == R4P_KEY_GREEN) { if (measure_sensors_alive() > 0) show(UI_CHOOSE_SAMPLE); }
-            else if (key == R4P_KEY_RED) show(UI_SETTINGS);
-            else show(UI_CALIB);
+            if (key == R4P_KEY_GREEN) { if (!hold && measure_sensors_alive() > 0) show(UI_CHOOSE_SAMPLE); }
+            else if (key == R4P_KEY_RED) { if (!hold) redo_last(); }
+            else if (hold) show(UI_SETTINGS);            /* TRẮNG phải GIỮ: nông dân không lạc vào Cài đặt */
             break;
         case UI_PREPARE:
             if (key == R4P_KEY_GREEN) show(UI_CHOOSE_TUBE);
-            else if (key == R4P_KEY_RED) start_measure();
+            else if (key == R4P_KEY_RED) start_measure();   /* tap hay giữ đều đo (nhấn mạnh/lâu vẫn được) */
             break;
         case UI_MEASURING:
-            if (key == R4P_KEY_RED) { measure_abort(); show(UI_PREPARE); }
+            if (key == R4P_KEY_RED && hold) { measure_abort(); show(UI_PREPARE); }   /* dừng = GIỮ ĐỎ */
+            break;
+        case UI_MEASURE_ERROR:
+            if (key == R4P_KEY_GREEN) show(UI_PREPARE);  /* Thử lại */
+            else if (key == R4P_KEY_RED) show(UI_START);
             break;
         case UI_RESULT:
-            if (key == R4P_KEY_GREEN) show(UI_PREPARE);
-            else if (key == R4P_KEY_RED) show(UI_CHOOSE_SAMPLE);
+            if (key == R4P_KEY_GREEN) show(UI_PREPARE);  /* Đo lại cùng bộ mẫu/ống */
+            else if (key == R4P_KEY_RED) show(UI_START); /* Xong */
             break;
         case UI_CALIB:
-            if (key == R4P_KEY_GREEN) show(UI_START);
-            else if (key == R4P_KEY_RED) on_calib_read(NULL);
-            else on_calib_clear(NULL);
+            if (key == R4P_KEY_GREEN) show(UI_SCALE_SMALL ? UI_SETTINGS : UI_START);
+            else if (key == R4P_KEY_RED) { if (!hold) on_calib_read(NULL); }
+            else if (hold) on_calib_clear(NULL);         /* xoá = GIỮ TRẮNG + hộp thoại */
             break;
         case UI_THRESHOLD_EDIT:
             if (key == R4P_KEY_GREEN) thr_apply_delta(hold ? 50 : 10);
@@ -1159,16 +1330,18 @@ static void apply_key(void *arg)
             break;
         case UI_WIFI:
             if (key == R4P_KEY_GREEN) on_wifi_back(NULL);
+            else if (key == R4P_KEY_RED && !hold) ui_wifi_setup_toggle_card();
             break;
         default:
             break;
     }
 }
 
-void ui_reader_on_key(r4p_key_t key, bool hold)
+void ui_reader_on_key_ex(r4p_key_t key, bool hold, bool repeat)
 {
-    display_schedule(apply_key, (void *)(intptr_t)((int)key | (hold ? 0x100 : 0)));
+    display_schedule(apply_key, (void *)(intptr_t)((int)key | (hold ? 0x100 : 0) | (repeat ? 0x200 : 0)));
 }
+void ui_reader_on_key(r4p_key_t key, bool hold) { ui_reader_on_key_ex(key, hold, false); }
 
 static void apply_boot_button(void *arg)
 {
@@ -1177,10 +1350,11 @@ static void apply_boot_button(void *arg)
     switch (s.state) {
         case UI_WIFI: on_wifi_back(NULL); break;
         case UI_MEASURING: measure_abort(); show(UI_PREPARE); break;
-        case UI_CHOOSE_SAMPLE: case UI_CALIB: case UI_SETTINGS: show(UI_START); break;
+        case UI_CHOOSE_SAMPLE: case UI_SETTINGS: case UI_MEASURE_ERROR: show(UI_START); break;
+        case UI_CALIB: show(UI_SCALE_SMALL ? UI_SETTINGS : UI_START); break;
         case UI_CHOOSE_TUBE: show(UI_CHOOSE_SAMPLE); break;
         case UI_PREPARE: show(UI_CHOOSE_TUBE); break;
-        case UI_RESULT: show(UI_CHOOSE_SAMPLE); break;
+        case UI_RESULT: show(UI_START); break;
         case UI_LANGUAGE: case UI_UPDATE: case UI_THRESHOLD: show(UI_SETTINGS); break;
         case UI_THRESHOLD_EDIT: show(UI_THRESHOLD); break;
         default: break;

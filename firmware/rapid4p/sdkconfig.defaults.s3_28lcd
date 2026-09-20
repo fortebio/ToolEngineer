@@ -28,5 +28,11 @@ CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM=16
 # --- CPU 240 MHz (PSRAM/flash @ 80 MHz doc lap, +50% CPU cho LVGL) ---
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 
+# --- Console: board chi co cong USB native (UART0 43/44 khong ra header) -> REPL dev console + log
+# cung di qua USB-Serial/JTAG (COMxx cua jtaglog.py). P4 giu UART0 (sdkconfig.defaults). ---
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+# CONFIG_ESP_CONSOLE_UART_DEFAULT is not set
+# CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG is not set
+
 # --- Board ---
 CONFIG_RAPID4P_BOARD_S3_28LCD=y

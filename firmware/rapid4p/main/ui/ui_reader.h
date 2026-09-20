@@ -32,6 +32,7 @@ typedef enum {
     UI_UPDATE,
     UI_THRESHOLD,
     UI_THRESHOLD_EDIT,
+    UI_MEASURE_ERROR,      /* đo lỗi cảm biến (MEASURE_PHASE_ERROR): Thử lại / Quay lại — thêm 2026-09-20 */
     UI_COUNT
 } ui_state_t;
 
@@ -45,6 +46,8 @@ void ui_reader_on_boot_button(void);         /* BOOT tap: thoát màn WiFi / qua
 /* 3 nút vật lý XANH/ĐỎ/TRẮNG (vỏ máy Rapid 2.8"): hành động = softkey của màn đang hiện
  * (ui_reader.c apply_key). hold = giữ ≥ BOARD_BTN_HOLD_MS. Chạm ô softkey trên màn gọi cùng hàm. */
 void ui_reader_on_key(r4p_key_t key, bool hold);
+/* Như trên, repeat = lần lặp khi còn giữ (R4P_EVT_BTN_REPEAT): chỉ có tác dụng ở màn ngưỡng/danh sách. */
+void ui_reader_on_key_ex(r4p_key_t key, bool hold, bool repeat);
 /* Bring-up trục chạm (CONFIG_RAPID4P_TOUCH_LOG): touch.c gọi TRONG LVGL task khi nhấn xuống →
  * header phải hiện "T x,y r x,y" thay trạng thái WiFi để người cầm máy đọc số ngay trên LCD. */
 void ui_reader_touch_debug(int x, int y, int raw_x, int raw_y);

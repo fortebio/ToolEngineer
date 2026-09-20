@@ -7,11 +7,11 @@
  * ĐÃ BUILD VÀ CHẠY THẬT 12/09/2026; bản chép trong repo:
  * `firmware/maping new product/firmware-vimate-p4/main/boards/board_esp32s3_28lcd.h`), gốc từ
  * xiaozhi-esp32_vietnam/main/boards/xiaozhi-ai-iot-vietnam-es3n28p-lcd-2.8/config.h.
- * Rapid4P bỏ khối audio ES8311/I2S (không dùng loa/mic), thêm khối "Bo cảm biến quang 5 slot"
- * (ĐỀ XUẤT) ở cuối file.
+ * Rapid4P giữ khối audio ES8311/I2S CHỈ để BÍP (audio/beep.c — loa nhỏ trong vỏ máy, không mic),
+ * thêm khối "Bo cảm biến quang 5 slot" (ĐỀ XUẤT) ở cuối file.
  *
- * GPIO board ĐÃ DÙNG: 0 BOOT · 1 PA loa (không dùng) · 4/5/6/7/8 I2S codec (không dùng) ·
- * 10/11/12/13 SPI LCD · 15/16 I2C0 (touch + codec) · 17/18 touch INT/RST · 42 LED · 45 BL · 46 DC.
+ * GPIO board ĐÃ DÙNG: 0 BOOT · 1 PA loa · 4/5/6/7/8 I2S codec (6 = mic in, không dùng) ·
+ * 10/11/12/13 SPI LCD · 15/16 I2C0 (touch + codec + cảm biến) · 17/18 touch INT/RST · 42 LED · 45 BL · 46 DC.
  * GPIO KHÔNG được dùng: 3 (strap JTAG), 19/20 (USB D−/D+), 26–37 (flash + PSRAM octal),
  * 43/44 (UART0 console/nạp), 45/46 (strap — đã là BL/DC).
  * GPIO CÒN TRỐNG: 2, 9, 14, 21, 38, 39, 40, 41, 47, 48 (10 chân) → bo cảm biến 6 (LED ×5 + PWM,
@@ -85,6 +85,26 @@ extern "C" {
 #define BOARD_TOUCH_SWAP_XY          BOARD_LCD_SWAP_XY
 #define BOARD_TOUCH_MIRROR_X         BOARD_LCD_MIRROR_X
 #define BOARD_TOUCH_MIRROR_Y         1
+
+/* ========================== Audio: ES8311 + PA — chỉ BÍP (audio/beep.c) ==========================
+ * Pinout y firmware-vimate s3-28lcd (chạy thật). Codec 0x18 trên I2C0 chung; I2S0 TX 24 kHz
+ * 16-bit; PA GPIO1 ACTIVE-LOW (xiaozhi freenove 2.8": LOW = bật amp). Không có loa gắn → codec vẫn
+ * init được (không hại); không có codec (probe 0x18 fail) → beep_init trả NOT_FOUND, no-op. */
+#define BOARD_AUDIO_USE_ES8311       1
+#define BOARD_AUDIO_I2S_NUM          I2S_NUM_0
+#define BOARD_AUDIO_I2S_MCLK         4
+#define BOARD_AUDIO_I2S_BCLK         5
+#define BOARD_AUDIO_I2S_WS           7
+#define BOARD_AUDIO_I2S_DIN          6     /* mic — không dùng */
+#define BOARD_AUDIO_I2S_DOUT         8
+#define BOARD_AUDIO_PA_PIN           1
+#define BOARD_AUDIO_PA_ON_LEVEL      0     /* active-low */
+#define BOARD_AUDIO_CODEC_I2C_NUM    I2C_NUM_0
+#define BOARD_AUDIO_CODEC_I2C_SCL    15
+#define BOARD_AUDIO_CODEC_I2C_SDA    16
+#define BOARD_AUDIO_CODEC_I2C_ADDR   0x18  /* ES8311_CODEC_DEFAULT_ADDR */
+#define BOARD_SPK_SAMPLE_RATE        24000
+#define BOARD_BEEP_VOLUME            80    /* % — loa nhỏ trong vỏ, dùng ngoài trời */
 
 /* ========================== WiFi (native, chỉ 2,4 GHz) ========================== */
 #define BOARD_WIFI_BAND_2G_ONLY      0     /* S3 không có 5 GHz — không cần khoá băng */

@@ -41,11 +41,22 @@ menu "Rapid4P Configuration"
                 la DE XUAT — xem docs/HARDWARE-PINOUT.md.
     endchoice
 
+    config RAPID4P_BEEP
+        bool "Beep feedback via ES8311 codec + speaker (S3 2.8in board)"
+        default y
+        depends on RAPID4P_BOARD_S3_28LCD
+        help
+            audio/beep.c: bip ngan khi nhan nut co, 2 tieng khi do xong, tieng tram khi loi
+            (nong dan deo gang, nhin man tu xa). Can loa gan vao PA cua board ES3N28P; khong
+            thay ES8311 tren I2C -> log WARN mot lan, moi beep_* thanh no-op. Keo component
+            espressif/esp_codec_dev (main/idf_component.yml, rules target == esp32s3).
+
     config RAPID4P_DEV_CONSOLE
-        bool "Dev console on UART0 (ui/btn/heap commands)"
+        bool "Dev console (ui/btn/heap commands) on UART0 or USB-Serial/JTAG"
         default y
         help
-            REPL esp_console trên UART0 để lái UI từ máy dev (scripts/uicmd.py) khi bring-up.
+            REPL esp_console để lái UI từ máy dev khi bring-up: UART0 (P4, scripts/uicmd.py) hoặc
+            USB-Serial/JTAG khi CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG (S3 2.8in, scripts/keytest.py).
             TẮT ở bản phát hành: mở luôn crash/reboot/mem-dump của esp_hosted qua cổng USB.
 
     config RAPID4P_TOUCH_LOG
