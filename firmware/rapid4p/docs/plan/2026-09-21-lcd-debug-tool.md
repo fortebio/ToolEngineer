@@ -67,11 +67,32 @@ Hướng A còn tái dùng cho **P4 4.3"** (console UART0 `uicmd.py`, framebuffe
 | 4 | (tuỳ chọn) `GET /api/screen.bmp` dashboard + lcdtool tự chọn HTTP | 1 h |
 | 5 | Docs: CLAUDE.md §4 (quy trình mới thay uishot), README | 0,5 h |
 
+## Trạng thái việc (rà 2026-09-21 cuối ngày)
+
+| # | Việc | Trạng thái |
+|---|---|---|
+| 1 | Kconfig snapshot + `screen` console | ✅ (stack REPL 16 KB) |
+| 2 | `lcdtool.py` web + `--shot`/`--gallery` | ✅ + `--cam` đối chiếu máy thật (bổ sung theo yêu cầu) |
+| 3 | Bộ màn vào docs | ✅ 13 màn PNG + `_cam.jpg`, 2 ảnh tổng |
+| 4 | HTTP `/api/screen.bmp` | ⏸ chưa làm (tuỳ chọn, chỉ cần khi bo có WiFi và không cắm USB) |
+| 5 | Docs | ✅ CLAUDE.md §1/§4/§5, README |
+
 ## Việc UI/UX còn lại sẽ làm bằng tool này (từ ảnh camera 2026-09-21)
 
-- Kiểm bezel vỏ máy có che mép dưới softkey không (ảnh trong vỏ chưa rõ) → nếu che, nâng footer lên `UI_FOOTER_BOTTOM_PAD`.
-- Màn chính: cân nhắc bỏ tiêu đề "Rapid4P" trùng "RAPID READER 5 SLOT"; chip "Mã máy" chỉ hiện khi đã cấu hình.
-- Đang đo: highlight khe đang đọc rõ hơn (nền amber nhạt thay vì chỉ viền).
-- Kết quả: khe dương tính thêm nhãn "+"/"−" dưới icon nếu còn chỗ (không chỉ màu).
-- Ngủ màn: hạ `CONFIG_RAPID4P_SCREEN_SLEEP_SEC` 300 → 120 cho máy chạy pin? (hỏi).
-- P4 4.3": chưa rà lại sau các đổi chung (`mk_btn` 2 dòng, `set_title`), cần chụp qua tool khi có bo.
+- [ ] **Màu xanh lá trên panel**: `green-500 #1BD1A5` qua ILI9341 nhìn gần teal (ảnh đối chiếu) → người dùng xác nhận bằng mắt;
+      nếu đúng, thêm token "xanh nút" thuần lục hơn cho LCD (`tokens.json` trước, đo tương phản).
+- [ ] Kiểm bezel vỏ máy có che mép dưới softkey không (bo hiện đã tháo khỏi vỏ; ảnh trong vỏ trước đó chưa rõ) → nếu che, nâng
+      footer lên `UI_FOOTER_BOTTOM_PAD`.
+- [ ] Màn chính: cân nhắc bỏ tiêu đề "Rapid4P" trùng "RAPID READER 5 SLOT"; chip "Mã máy" chỉ hiện khi đã cấu hình.
+- [ ] Đang đo: highlight khe đang đọc rõ hơn (nền amber nhạt thay vì chỉ viền).
+- [ ] Kết quả: khe dương tính thêm nhãn "+"/"−" dưới icon nếu còn chỗ (không chỉ màu).
+- [ ] Ngủ màn: hạ `CONFIG_RAPID4P_SCREEN_SLEEP_SEC` 300 → 120 cho máy chạy pin? (hỏi).
+- [ ] P4 4.3": chưa rà lại sau các đổi chung (`mk_btn` 2 dòng, `set_title`), cần chụp qua tool (`uicmd.py` UART0 + `screen`) khi có bo.
+
+## Còn chờ phần cứng (từ kế hoạch nông dân 3 nút 2026-09-20)
+
+- [ ] Nối 3 nút cơ 47/48/41 → kiểm wake-only (`CONFIG_RAPID4P_SCREEN_SLEEP_SEC` 20: nhấn lúc màn tắt chỉ sáng màn), giữ 1,5 s,
+      lặp 400 ms (console `btn` đi tắt qua event group nên KHÔNG kiểm được wake-only/thời gian giữ).
+- [ ] Gắn loa → nghe bíp boot/phím/đo xong/lỗi (log đã `beep: ES8311 ok`).
+- [ ] Bo cảm biến → "Lần trước: … / Đo lại" ở màn chính (NVS đã lưu `last=PC`, nhưng ô ĐỎ chỉ hiện khi có cảm biến), đếm ngược
+      thật (~25 s), màn không ngủ khi đo, kết quả dương tính thật (tô đỏ).
