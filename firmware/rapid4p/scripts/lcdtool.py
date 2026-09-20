@@ -7,11 +7,16 @@ Phương án A trong docs/plan/2026-09-21-lcd-debug-tool.md.
     python scripts/lcdtool.py COM20 --shot out.png       # chụp MỘT ảnh rồi thoát (Claude: Read out.png)
     python scripts/lcdtool.py COM20 --gallery out_dir    # chạy `ui N` cho mọi màn, lưu NN_<tên>.png rồi thoát
     python scripts/lcdtool.py COM20 --cmd "btn red hold" --shot out.png   # gửi lệnh rồi chụp
+    python scripts/lcdtool.py COM20 --cam 2                # + camera UGREEN (DSHOW idx 2) đối chiếu MÁY THẬT cạnh
+                                                           #   framebuffer; --shot/--gallery lưu thêm *_cam.jpg + *_pair.png
 
 Cách hoạt động: firmware lệnh `screen` in framebuffer LVGL (RGB565 logical, nén RLE, base64, CRC32 —
 core/dev_console.c::cmd_screen); tool đọc cổng liên tục (mở KHÔNG DTR/RTS — kéo DTR/RTS làm chip USB-JTAG câm),
 tách khối `SCR … SCR-END` khỏi log, giải mã thành PNG (OpenCV, venv IDF). Lệnh `btn green|red|white [hold|rep]`
 đi qua event group như nút cơ thật và đánh thức màn; `ui <tên>` nhảy màn để xem bố cục.
+Đối chiếu sản phẩm thật (--cam): framebuffer là "máy vẽ gì", camera là "mắt thấy gì" (màu panel, độ sáng, vỏ máy che
+mép, chạm/nút cơ thật). Camera mở một lần (MJPG 1920×1080, autofocus, warm-up 3 s), mỗi lần chụp bỏ khung đệm cũ,
+xoay --cam-rot (UGREEN đặt ngược = 180), tự cắt vùng LCD theo mask màu theme (như uishot.py).
 Chỉ thư viện có sẵn trong venv IDF: pyserial, numpy, opencv.
 """
 import argparse
@@ -176,6 +181,111 @@ class Device:
         return None
 
 
+class Camera:
+    """Webcam đối chiếu máy thật: mở một lần, grab() trả (khung đầy đủ, vùng LCD cắt) BGR hoặc None."""
+
+    def __init__(self, idx, w=1920, h=1080, rot=180):
+        self.idx, self.rot = idx, rot
+        self.cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+        if not self.cap.isOpened():
+            raise SystemExit("khong mo duoc camera %d (python scripts/webcam_shot.py --list)" % idx)
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+        self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+        self._lock = threading.Lock()
+        self.last_box = None                # khung LCD tốt gần nhất (x0,y0,x1,y1) — màn ít màu thì dùng lại
+        t0 = time.time()
+        while time.time() - t0 < 3.0:       # warm-up exposure/autofocus
+            self.cap.read()
+
+    def grab(self):
+        with self._lock:
+            frame = None
+            for _ in range(6):              # bỏ khung đệm cũ, lấy khung mới nhất
+                ok, f = self.cap.read()
+                if ok:
+                    frame = f
+        if frame is None:
+            return None
+        if self.rot == 180:
+            frame = cv2.rotate(frame, cv2.ROTATE_180)
+        box = self.find_lcd(frame)
+        if box is None:
+            box = self.last_box
+        elif self.last_box is not None:
+            # Màn ít màu (vd Cập nhật: chỉ vạch header + 1 softkey) cho hộp nhỏ hơn hẳn → giữ hộp cũ (camera/bo không đổi chỗ)
+            a_new = (box[2] - box[0]) * (box[3] - box[1])
+            a_old = (self.last_box[2] - self.last_box[0]) * (self.last_box[3] - self.last_box[1])
+            if a_new < 0.75 * a_old and box[0] >= self.last_box[0] - 40 and box[1] >= self.last_box[1] - 40:
+                box = self.last_box
+        if box is None:
+            return frame, frame
+        self.last_box = box
+        x0, y0, x1, y1 = box
+        return frame, frame[y0:y1, x0:x1]
+
+    @staticmethod
+    def crop_lcd(frame):
+        box = Camera.find_lcd(frame)
+        if box is None:
+            return frame
+        x0, y0, x1, y1 = box
+        return frame[y0:y1, x0:x1]
+
+    @staticmethod
+    def find_lcd(frame):
+        """Vùng LCD = hộp bao của MỌI điểm có màu bão hoà (vạch teal header trên cùng + vạch softkey dưới cùng
+        + chip/nút) — nền navy của màn qua camera gần đen nên không dựa vào nó; giấy trắng/bo đen không bão hoà."""
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        mask = cv2.inRange(hsv, (0, 70, 50), (180, 255, 255))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))   # bỏ hạt nhiễu
+        pts = cv2.findNonZero(mask)
+        if pts is None:
+            return None
+        x, y, w, h = cv2.boundingRect(pts)
+        if w < frame.shape[1] // 8 or h < frame.shape[0] // 8:
+            return None
+        pad = 14
+        pad_b = max(pad, w // 18)       # đáy: dưới chữ softkey còn ~8 px màn tối không bão hoà → nới thêm
+        x0, y0 = max(0, x - pad), max(0, y - pad)
+        x1, y1 = min(frame.shape[1], x + w + pad), min(frame.shape[0], y + h + pad_b)
+        return (x0, y0, x1, y1)
+
+
+def make_pair(png_bytes, cam_crop):
+    """Ảnh đối chiếu: framebuffer ×2 (trái) | camera cắt LCD co về cao 480 (phải)."""
+    fb = cv2.imdecode(np.frombuffer(png_bytes, np.uint8), cv2.IMREAD_COLOR)
+    fb2 = cv2.resize(fb, (fb.shape[1] * 2, fb.shape[0] * 2), interpolation=cv2.INTER_NEAREST)
+    h = fb2.shape[0]
+    cam = cv2.resize(cam_crop, (int(cam_crop.shape[1] * h / cam_crop.shape[0]), h), interpolation=cv2.INTER_AREA)
+    div = np.full((h, 8, 3), 60, np.uint8)
+    out = np.hstack([fb2, div, cam])
+    cv2.putText(out, "framebuffer", (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1, cv2.LINE_AA)
+    cv2.putText(out, "camera (may that)", (fb2.shape[1] + 16, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1, cv2.LINE_AA)
+    return out
+
+
+def save_shot(dev, cam, path, png, extra=True):
+    """Lưu PNG framebuffer; có camera thì thêm <path>_cam.jpg (vùng LCD, rộng 640 — đủ cho docs) và, khi extra,
+    <path>_full.jpg (khung đầy đủ) + <path>_pair.jpg (framebuffer | camera)."""
+    open(path, "wb").write(png)
+    saved = [path]
+    if cam:
+        g = cam.grab()
+        if g:
+            full, crop = g
+            base = path[:-4] if path.lower().endswith(".png") else path
+            small = cv2.resize(crop, (640, int(crop.shape[0] * 640 / crop.shape[1])), interpolation=cv2.INTER_AREA)
+            cv2.imwrite(base + "_cam.jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            saved.append(base + "_cam.jpg")
+            if extra:
+                cv2.imwrite(base + "_full.jpg", full, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                cv2.imwrite(base + "_pair.jpg", make_pair(png, crop), [cv2.IMWRITE_JPEG_QUALITY, 85])
+                saved += [base + "_full.jpg", base + "_pair.jpg"]
+    return saved
+
+
 PAGE = r"""<!doctype html>
 <html lang="vi"><head><meta charset="utf-8"><title>Rapid4P LCD</title>
 <style>
@@ -203,7 +313,8 @@ label{color:var(--muted);font-size:13px;margin-left:8px}
 <header><h1>Rapid4P LCD</h1><span id="st">…</span>
  <label><input type="checkbox" id="auto" checked> tự làm mới</label>
  <label>mỗi <input id="iv" type="number" value="1.5" step="0.5" min="0.5" style="width:56px"> s</label>
- <button onclick="shot()">Lưu PNG</button><button onclick="gallery()">Chụp bộ màn</button></header>
+ <label id="camlbl" style="display:none"><input type="checkbox" id="camon" checked> camera</label>
+ <button onclick="shot()">Lưu PNG (+ cặp đối chiếu)</button><button onclick="gallery()">Chụp bộ màn</button></header>
 <main>
  <section>
   <img id="scr" src="/screen.png" alt="LCD">
@@ -213,6 +324,9 @@ label{color:var(--muted);font-size:13px;margin-left:8px}
    <button class="k-w" data-k="white">TRẮNG</button>
   </div>
   <div class="hint">Click = nhấn · giữ chuột ≥ 1,5 s = giữ (hold) · Shift+click = lặp (rep) · phím tắt: 1 / 2 / 3, giữ = Shift+1/2/3</div>
+  <div id="cambox" class="card" style="display:none;margin-top:12px;max-width:640px"><h2>Máy thật (camera) — đối chiếu</h2>
+   <img id="cam" alt="camera" style="display:block;width:100%;border-radius:8px;background:#000">
+   <div class="hint">Cùng thời điểm với ảnh framebuffer ở trên: so màu panel, độ sáng, vỏ máy che mép, chữ có đọc được từ xa.</div></div>
  </section>
  <aside class="side">
   <div class="card"><h2>Màn (ui N)</h2><div class="ui" id="ui"></div></div>
@@ -236,7 +350,9 @@ document.querySelectorAll('.keys button').forEach(b=>{
 document.addEventListener('keydown',e=>{const m={'1':'green','2':'red','3':'white','!':'green','@':'red','#':'white'};
   if(document.activeElement.tagName==='INPUT')return;
   const k=m[e.key];if(!k)return;post('btn '+k+(e.shiftKey?' hold':''));});
-async function refresh(){const r=await fetch('/screen.png?t='+Date.now());if(r.ok){const b=await r.blob();document.getElementById('scr').src=URL.createObjectURL(b);}}
+async function refresh(){const r=await fetch('/screen.png?t='+Date.now());if(r.ok){const b=await r.blob();document.getElementById('scr').src=URL.createObjectURL(b);}
+  if(HAS_CAM&&document.getElementById('camon').checked){const c=await fetch('/cam.jpg?t='+Date.now());if(c.ok){const b=await c.blob();document.getElementById('cam').src=URL.createObjectURL(b);}}}
+const HAS_CAM=%HAS_CAM%;if(HAS_CAM){document.getElementById('cambox').style.display='';document.getElementById('camlbl').style.display='';}
 async function status(){const r=await fetch('/log');const j=await r.json();
   document.getElementById('log').textContent=j.log.join('\n');const p=document.getElementById('log');p.scrollTop=p.scrollHeight;
   document.getElementById('st').textContent=j.port+' · khung #'+j.frame+' '+j.wh+' · '+(j.err||'ok');}
@@ -248,7 +364,7 @@ loop();
 </script></body></html>"""
 
 
-def make_handler(dev, out_dir):
+def make_handler(dev, out_dir, cam=None):
     class H(BaseHTTPRequestHandler):
         def log_message(self, *a):  # im
             pass
@@ -264,7 +380,15 @@ def make_handler(dev, out_dir):
         def do_GET(self):
             path = self.path.split("?")[0]
             if path == "/":
-                self._send(200, "text/html; charset=utf-8", PAGE.replace("%UI_NAMES%", json.dumps(UI_NAMES)).encode())
+                page = PAGE.replace("%UI_NAMES%", json.dumps(UI_NAMES)).replace("%HAS_CAM%", "true" if cam else "false")
+                self._send(200, "text/html; charset=utf-8", page.encode())
+            elif path == "/cam.jpg":
+                g = cam.grab() if cam else None
+                if not g:
+                    self._send(404, "text/plain", b"khong co camera")
+                    return
+                ok, jpg = cv2.imencode(".jpg", g[1], [cv2.IMWRITE_JPEG_QUALITY, 85])
+                self._send(200, "image/jpeg", jpg.tobytes())
             elif path == "/screen.png":
                 if dev.png:
                     self._send(200, "image/png", dev.png)
@@ -284,10 +408,10 @@ def make_handler(dev, out_dir):
                     return
                 os.makedirs(out_dir, exist_ok=True)
                 p = os.path.join(out_dir, time.strftime("lcd_%Y%m%d_%H%M%S.png"))
-                open(p, "wb").write(png)
-                self._send(200, "text/plain; charset=utf-8", ("da luu " + p).encode())
+                saved = save_shot(dev, cam, p, png)
+                self._send(200, "text/plain; charset=utf-8", ("da luu " + ", ".join(saved)).encode())
             elif path == "/gallery":
-                paths = capture_gallery(dev, out_dir)
+                paths = capture_gallery(dev, out_dir, cam=cam)
                 self._send(200, "text/plain; charset=utf-8", ("\n".join(paths) or "khong chup duoc").encode())
             else:
                 self._send(404, "text/plain", b"?")
@@ -308,7 +432,7 @@ def make_handler(dev, out_dir):
     return H
 
 
-def capture_gallery(dev, out_dir, wait=1.2):
+def capture_gallery(dev, out_dir, wait=1.2, cam=None):
     os.makedirs(out_dir, exist_ok=True)
     paths = []
     for i, name in enumerate(UI_NAMES):
@@ -319,8 +443,7 @@ def capture_gallery(dev, out_dir, wait=1.2):
         png = dev.grab()
         if png:
             p = os.path.join(out_dir, "%02d_%s.png" % (i, name))
-            open(p, "wb").write(png)
-            paths.append(p)
+            paths += save_shot(dev, cam, p, png, extra=False)   # gallery cho docs: chỉ PNG + cam 640
     dev.send("ui start")
     return paths
 
@@ -334,8 +457,15 @@ def main():
     ap.add_argument("--gallery", help="chụp mọi màn vào thư mục rồi thoát")
     ap.add_argument("--cmd", action="append", default=[], help="lệnh gửi trước khi chụp (lặp được)")
     ap.add_argument("--wait", type=float, default=1.2, help="chờ sau mỗi --cmd (s)")
+    ap.add_argument("--cam", type=int, help="index camera DSHOW đối chiếu máy thật (webcam_shot.py --list; UGREEN = 2)")
+    ap.add_argument("--cam-res", default="1920x1080")
+    ap.add_argument("--cam-rot", type=int, default=180, help="xoay ảnh camera (UGREEN đặt ngược = 180)")
     a = ap.parse_args()
 
+    cam = None
+    if a.cam is not None:
+        cw, ch = a.cam_res.lower().split("x")
+        cam = Camera(a.cam, int(cw), int(ch), a.cam_rot)
     dev = Device(a.port)
     time.sleep(0.6)
     for c in a.cmd:
@@ -347,14 +477,14 @@ def main():
             print("khong nhan duoc khung (firmware co lenh `screen`? cong dung?)")
             return 1
         os.makedirs(os.path.dirname(os.path.abspath(a.shot)), exist_ok=True)
-        open(a.shot, "wb").write(png)
-        print("da luu", a.shot, "%dx%d" % dev.frame_wh)
+        for p in save_shot(dev, cam, a.shot, png):
+            print("da luu", p)
         return 0
     if a.gallery:
-        for p in capture_gallery(dev, a.gallery, a.wait):
+        for p in capture_gallery(dev, a.gallery, a.wait, cam=cam):
             print(p)
         return 0
-    srv = ThreadingHTTPServer(("127.0.0.1", a.http), make_handler(dev, a.out))
+    srv = ThreadingHTTPServer(("127.0.0.1", a.http), make_handler(dev, a.out, cam))
     print("Rapid4P LCD tool: http://127.0.0.1:%d/  (cong %s, Ctrl+C de thoat)" % (a.http, a.port))
     try:
         srv.serve_forever()

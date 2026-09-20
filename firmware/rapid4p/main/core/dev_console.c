@@ -51,7 +51,9 @@ static int cmd_ui(int argc, char **argv)
         printf("ui: khong biet man '%s'\n", argv[1]);
         return 1;
     }
-    /* MEASURING/RESULT dung du lieu do thuc; chi dung de xem bo cuc (ket qua = ban cuoi). */
+    /* MEASURING/RESULT dung du lieu do thuc; chi dung de xem bo cuc (ket qua = ban cuoi).
+     * Danh thuc man: xem man qua camera/lcdtool ma den nen da tat thi anh camera den (2026-09-21). */
+    display_note_user_activity();
     ui_reader_show_debug((ui_state_t)st);
     printf("ui: -> %d (%s)\n", st, st < UI_COUNT ? s_ui_names[st] : "confirm");
     return 0;

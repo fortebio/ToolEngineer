@@ -155,8 +155,15 @@ tích hợp của Claude CHẶN camera (`NotAllowedError`), ffmpeg thì được
 `python scripts/lcdtool.py COM20` → `http://127.0.0.1:8791/` (ảnh framebuffer ×2 tự làm mới, 3 nút ảo XANH/ĐỎ/TRẮNG — click = tap,
 giữ ≥ 1,5 s = hold, Shift = rep, phím 1/2/3 — danh sách `ui N`, ô gõ lệnh, log, Lưu PNG, Chụp bộ màn); Claude dùng
 `lcdtool.py COM20 --shot x.png` / `--cmd "btn red hold" --shot x.png` / `--gallery dir` rồi Read PNG (đúng pixel, 320×240).
-Cấu hình preview: `.claude/launch.json` › `rapid4p-lcd` (đổi COM ở đó). Bộ 13 màn: `docs/history/img/lcd/`, ảnh tổng
-`docs/history/img/2026-09-21-rapid4p-28-all-screens.png`. Camera chỉ còn để kiểm "mắt thật" (màu/độ sáng/vỏ máy).
+**Đối chiếu SẢN PHẨM THẬT**: thêm `--cam 2` (UGREEN, DSHOW idx 2) → trang web có thêm ảnh camera cùng thời điểm dưới
+framebuffer; `--shot`/nút "Lưu PNG" lưu thêm `_cam.jpg` (vùng LCD cắt tự động, rộng 640) + `_pair.jpg` (framebuffer | máy thật) +
+`_full.jpg`; `--gallery` lưu PNG + `_cam.jpg` mỗi màn. Camera mở một lần, autofocus + warm-up 3 s; crop = hộp bao mọi điểm màu
+bão hoà (vạch header + vạch softkey), màn ít màu dùng lại hộp trước. Cấu hình preview: `.claude/launch.json` › `rapid4p-lcd`
+(đổi COM/cam ở đó). Bộ 13 màn: `docs/history/img/lcd/` (`NN_<màn>.png` + `_cam.jpg`), ảnh tổng framebuffer
+`docs/history/img/2026-09-21-rapid4p-28-all-screens.png`, ảnh tổng ĐỐI CHIẾU `…-doi-chieu-camera.jpg`. Phát hiện 2026-09-21 nhờ
+đối chiếu: (1) `ui N` không đánh thức màn → camera đen dù framebuffer có hình (đã sửa: `ui` gọi `display_note_user_activity`);
+(2) **`green-500 #1BD1A5` trên ILI9341 nhìn gần như teal** (vạch XANH, "ÂM TÍNH", ✓ khó phân biệt với `teal-500`) — cần người
+nhìn máy xác nhận rồi cân nhắc token "xanh nút" thuần lục hơn cho LCD.
 **Vòng "đổi màn → chụp" bằng camera (S3, 2026-09-21)**: `python scripts/uishot.py COM20 2 out_dir "ui sample" "btn white hold" …` —
 gõ lệnh dev console qua USB-JTAG, chờ 1,2 s, chụp 1080p từ camera DSHOW idx 2, xoay 180° (UGREEN đặt ngược), **tự cắt vùng LCD**
 (mask HSV xanh navy/teal của theme) và phóng 960 px → `NN_<lệnh>.jpg`; xem bằng Read tool. Bật autofocus + warm-up 3 s mới nét

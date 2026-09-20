@@ -97,6 +97,12 @@ nhấn để đánh thức màn cũng kích hành động, mặc định EN và 
   `img/2026-09-21-rapid4p-28-all-screens.png`. Bẫy: decode RGB565 nhân 255 trên uint8 numpy tràn → ảnh đen (tính uint32).
   Một lần ảnh màn Cập nhật trong gallery bị lệch footer (4 ô, chữ nhiễu) ngay sau `ui wifi` (SoftAP đang lên) — chụp lại 3 lần
   không tái hiện; theo dõi.
+- **Đối chiếu sản phẩm thật** (yêu cầu người dùng, cùng ngày): `lcdtool.py --cam 2` — ảnh camera UGREEN cùng thời điểm cạnh
+  framebuffer trên web; `--shot`/`--gallery` lưu `_cam.jpg` (crop LCD tự động: hộp bao điểm màu bão hoà, nhớ hộp cũ khi màn ít
+  màu) + `_pair.jpg`. Bộ 13 màn có cả cam: `img/lcd/NN_<màn>_cam.jpg`, ảnh tổng `img/2026-09-21-rapid4p-28-doi-chieu-camera.jpg`.
+  Phát hiện: (1) `ui N` không đánh thức màn → camera đen (sửa: `cmd_ui` gọi `display_note_user_activity`); (2) bố cục khớp 100 %;
+  (3) **màu `green-500 #1BD1A5` trên panel ILI9341 nhìn gần teal** — vạch nút XANH / "ÂM TÍNH" / ✓ khó phân biệt với teal thương
+  hiệu; chờ người dùng xác nhận bằng mắt trước khi thêm token "xanh nút" cho LCD.
 
 Ảnh camera (UGREEN, `uishot.py`, sau khi sửa): `img/2026-09-21-rapid4p-28-{chinh,dat-ong,dang-do,ket-qua}.jpg`.
 

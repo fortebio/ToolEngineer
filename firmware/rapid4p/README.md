@@ -65,8 +65,10 @@ docs/HARDWARE-PINOUT.md   pinout P4C5 từ schematic thật (§1–14) + board E
 python scripts/lcdtool.py COM20            # http://127.0.0.1:8791/ — ảnh màn thật, 3 nút ảo, chọn màn, log
 python scripts/lcdtool.py COM20 --shot x.png
 python scripts/lcdtool.py COM20 --gallery out/
+python scripts/lcdtool.py COM20 --cam 2    # + camera UGREEN: ảnh máy thật cạnh framebuffer, lưu cặp đối chiếu
 ```
 Firmware lệnh console `screen` dump framebuffer (RLE + base64) qua USB-JTAG (S3) / UART0 (P4); tool giải mã thành PNG.
+Framebuffer = "máy vẽ gì", camera = "mắt thấy gì" (màu panel, độ sáng, vỏ máy che mép).
 
 ## Build / nạp
 
