@@ -11,10 +11,11 @@ MiniPC cũ dựng thành server chạy 24/7: **Debian + PostgreSQL**, truy cập
 | | |
 |---|---|
 | [app/](app/) | Package service FastAPI (`config`/`logic`/`db`/`auth`/`monitor`/`main`) — chạy `uvicorn app.main:app` |
-| [scripts/](scripts/) | CLI: `reconcile.py` (nạp bù file `data_plus/` khi DB down) · `import_accounts.py` (di cư tài khoản từ Sheet CSV) |
+| [scripts/](scripts/) | CLI: `reconcile.py` (nạp bù file `data_plus/` khi DB down) · `import_accounts.py` (di cư tài khoản từ Sheet CSV) · `deploy.ps1` (scp lên box) · **`check_deploy.py`** (so `openapi.json` prod với code local — không cần SSH/token) |
 | [tests/](tests/) | `test_logic.py` + `test_monitor.py` + `test_api.py` — chạy `python tests/test_logic.py` hoặc `pytest` |
 | [deploy/](deploy/) | `schema.sql` + `fbt-receiver.service` + migration |
 | 📖 **Dựng lại từ đầu** | [docs/plan/HUONG_DAN_DUNG_SERVER.md](docs/plan/HUONG_DAN_DUNG_SERVER.md) |
+| 📖 **Deploy bản mới** | [docs/plan/QUY_TRINH_DEPLOY.md](docs/plan/QUY_TRINH_DEPLOY.md) — checklist 9 bước + đợt 2026-09-20 (B1–B3) |
 | [legacy/](legacy/) | `receiver.py` (stdlib cũ), `import_drive_logs.py` (Drive — đã bỏ) — tham khảo |
 | [docs/plan/](docs/plan/) | Kế hoạch phát triển dự án |
 | [docs/history/](docs/history/) | Lịch sử chỉnh sửa (theo ngày) |
@@ -104,6 +105,7 @@ tailscale status ; tailscale ip -4
   và trả khối `ota{state: on|offered|waiting|skipped|unknown|none}` tính ở server; `/ota/check` ghi bản đã
   mời vào `fw_seen`; `GET /ota/{product}/progress`; khoá upload (hết lách 409) + `md5` manifest; thẻ từ
   `esp_app_desc_t` cho ảnh ESP-IDF (rapid4p upload không cần tên); `OTA_REQUIRE_TAG` theo sản phẩm; ghim
-  `stale` + `devices` mỗi kho — code + test xong 2026-09-18 (116/116), **CHƯA deploy**
+  `stale` + `devices` mỗi kho — code + test xong 2026-09-18 (116/116; 117/117 ngày 20), **CHƯA deploy** — phương án + lệnh
+  chạy sẵn ở [docs/plan/QUY_TRINH_DEPLOY.md](docs/plan/QUY_TRINH_DEPLOY.md) §A (kiểm 2026-09-20: prod thiếu đúng 4 route mới, không có code lạ trên box)
 
 > Xem chi tiết + thứ tự làm trong [docs/plan/KE_HOACH_PHAT_TRIEN.md](docs/plan/KE_HOACH_PHAT_TRIEN.md).

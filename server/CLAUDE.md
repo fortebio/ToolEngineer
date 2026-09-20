@@ -50,7 +50,10 @@ scripts/               # CLI dùng lại logic của app/
   reconcile.py         #   Nạp bù file data_plus/ vào DB (idempotent qua dedup nội dung)
   import_accounts.py   #   Di cư tài khoản từ CSV (export Google Sheet Accounts) vào bảng users
   import_drive_backup.py #  Nạp log Drive vào kho backup `drive_sessions` (TÁCH khỏi sessions)
-  deploy.ps1           #   scp CẢ app/*.py + scripts/migrate_ota.py (+ bản web apps/fbt_rapid/build/web_prod, -WebProd đổi) lên box; -DryRun in lệnh
+  deploy.ps1           #   scp CẢ app/*.py + scripts/migrate_ota.py (+ bản web apps/fbt_rapid/build/web_prod, -WebProd đổi) lên box; -DryRun in lệnh;
+                       #   sau scp tự `venv/bin/python -c 'import app.main'` trên box (IMPORT_OK) rồi in lệnh restart/rollback
+  check_deploy.py      #   So openapi.json PUBLIC của prod với app.openapi() local (không SSH, không token): route chỉ-local/chỉ-prod/
+                       #   đổi chữ ký + md5 app/*.py bản CRLF để đối chiếu md5sum trên box. exit 0 = giống hệt. Chạy TRƯỚC và SAU mỗi deploy
   localtest.ps1        #   Bật/tắt bộ test local: Postgres portable :5433 + uvicorn :8080 + tài khoản test. Base THẬT =
                        #   %LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\fbt-localtest (tự rơi sang khi
                        #   đường mặc định trống); dọn postmaster.pid cũ; đặt OTA_ADMIN_TOKEN/OTA_LEGACY_PRODUCT_BY_PREFIX/
@@ -79,6 +82,7 @@ docs/plan/             # Các kế hoạch phát triển dự án (.md)
                             #   + ota.state tính ở server; offered trong fw_seen; /ota/{product}/progress; khoá upload;
                             #   thẻ từ esp_app_desc_t (ảnh ESP-IDF); lộ trình B1–B5
   HUONG_DAN_DUNG_SERVER.md  # Runbook dựng lại server từ đầu trên máy mới
+  QUY_TRINH_DEPLOY.md       # Checklist deploy server 9 bước (+ web) và đợt deploy đang chờ (§A: 2026-09-20 B1–B3)
   plan.txt                  # Ý tưởng sơ bộ gốc của chủ dự án
 docs/history/          # Lịch sử chỉnh sửa (mỗi ngày 1 file YYYY-MM-DD.md)
 docs/data_sample/      # Mẫu dữ liệu thiết bị gửi lên (data_RPL.json)
@@ -117,6 +121,8 @@ docs/data_sample/      # Mẫu dữ liệu thiết bị gửi lên (data_RPL.jso
 - Trả lời bằng tiếng Việt.
 - Kế hoạch phát triển: [docs/plan/KE_HOACH_PHAT_TRIEN.md](docs/plan/KE_HOACH_PHAT_TRIEN.md).
 - Dựng lại server từ đầu: [docs/plan/HUONG_DAN_DUNG_SERVER.md](docs/plan/HUONG_DAN_DUNG_SERVER.md) (thay `KE_HOACH_DUNG_SERVER.md` đã thất lạc).
+- **Deploy bản mới lên box**: theo [docs/plan/QUY_TRINH_DEPLOY.md](docs/plan/QUY_TRINH_DEPLOY.md); AI chạy được
+  `python scripts/check_deploy.py` (public openapi, không SSH) để biết prod lệch gì — KHÔNG thử ssh.
 - **Tích hợp RAPID ERP** (2026-09-17, chờ chốt §10): plan xuyên phần `docs/plan/erp-feed-engineer-server.md`
   (gốc monorepo) — ERP **kéo** qua `/erp/v1/*` **chỉ GET** (POST catch-all), token riêng chỉ-đọc
   `ERP_READ_TOKENS`; KHÔNG đồng bộ lại kết quả đo vì firmware đã POST cùng payload thẳng vào ERP

@@ -59,13 +59,18 @@ if ($Server) {
     Run "scp -O `"$serverDir\scripts\migrate_ota.py`" ${Target}:$Remote/scripts/"
     Run "ssh $Target `"md5sum $Remote/app/*.py`""
     Write-Output "Local md5:"; Get-FileHash -Algorithm MD5 "$serverDir\app\*.py" | ForEach-Object { "  $($_.Hash.ToLower())  $($_.Path)" }
+    # KIỂM IMPORT bằng venv THẬT của box TRƯỚC khi restart (không cần sudo, không hạ service):
+    # bắt ImportError/thiếu package/lỗi cú pháp — nếu restart mà uvicorn không lên là mất /ingest
+    # của cả fleet. main.py chỉ mkdir lúc import (đường mặc định = ~/fbt_server/* đã có) nên vô hại.
+    # Lỗi ở đây → khôi phục ngay: ssh <host> "rm -rf ~/fbt_server/app && mv ~/fbt_server/app.bak.<stamp> ~/fbt_server/app"
+    Run "ssh $Target `"cd $Remote && venv/bin/python -c 'import app.main' && echo IMPORT_OK`""
     Write-Output ""
-    Write-Output "==> Xem trước di cư kho OTA phẳng → products/<legacy>/ (server cũng tự làm lúc restart):"
-    Write-Output "    ssh $Target `"cd $Remote && FBT_OTA_DIR=~/fbt_server/ota python3 -m scripts.migrate_ota --dry-run`""
     Write-Output "==> Giờ restart dịch vụ (cần sudo, tự dán):"
-    Write-Output "    ssh $Target `"sudo systemctl restart fbt-receiver`""
-    Write-Output "    rồi kiểm route đã nạp + log di cư:"
-    Write-Output "    ssh $Target `"curl -s http://127.0.0.1:8080/openapi.json | grep -o '/ota/products'; journalctl -u fbt-receiver -n 20 | grep 'ota migrate'`""
+    Write-Output "    ssh -t $Target `"sudo systemctl restart fbt-receiver && sleep 2 && systemctl is-active fbt-receiver && journalctl -u fbt-receiver -n 15 --no-pager`""
+    Write-Output "==> Kiểm code đã NẠP (từ máy dev, không cần SSH/token):"
+    Write-Output "    python scripts\check_deploy.py     # openapi prod == local → 'giống hệt: CÓ'"
+    Write-Output "==> Không lên / sai → quay lại bản cũ (30 giây):"
+    Write-Output "    ssh -t $Target `"rm -rf $Remote/app && mv $Remote/app.bak.$stamp $Remote/app && sudo systemctl restart fbt-receiver`""
 }
 
 if ($Web) {
