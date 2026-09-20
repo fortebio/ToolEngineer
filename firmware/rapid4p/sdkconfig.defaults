@@ -73,6 +73,9 @@ CONFIG_LV_DRAW_SW_CIRCLE_CACHE_SIZE=8
 # TJPGD: decoder_info() cap 4 KB tren stack moi lan lv_image_set_src -> tat (README-P4 5.6).
 # CONFIG_LV_USE_TJPGD is not set
 CONFIG_LV_USE_QRCODE=y
+# Chup man (lv_snapshot_take) cho lenh console `screen` -> scripts/lcdtool.py (docs/plan/2026-09-21-lcd-debug-tool.md).
+# Buffer RGB565 320x240 = 154 KB / 800x480 = 768 KB: lv_malloc = malloc -> PSRAM (SPIRAM_MALLOC_ALWAYSINTERNAL 512).
+CONFIG_LV_USE_SNAPSHOT=y
 # CONFIG_LV_USE_BUILTIN_MALLOC is not set
 CONFIG_LV_USE_CLIB_MALLOC=y
 # CONFIG_LV_USE_BUILTIN_STRING is not set

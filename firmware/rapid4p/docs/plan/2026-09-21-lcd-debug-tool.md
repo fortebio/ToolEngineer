@@ -1,6 +1,7 @@
 # Phương án: tool localhost debug màn hình Rapid4P (không cần camera)
 
-Trạng thái: **ĐỀ XUẤT** (2026-09-21) — chờ chốt. Mục tiêu: sửa UI/UX lặp nhanh, xem đúng từng pixel, bấm 3 nút
+Trạng thái: **A ĐÃ LÀM** (2026-09-21, người dùng chốt "làm phương án A"): firmware `screen` + `scripts/lcdtool.py`
+(web `:8791`, `--shot`, `--gallery`), bộ 13 màn `docs/history/img/lcd/`. Việc 4 (HTTP `/api/screen.bmp`) chưa làm. B để sau. Mục tiêu: sửa UI/UX lặp nhanh, xem đúng từng pixel, bấm 3 nút
 XANH/ĐỎ/TRẮNG từ PC, không phụ thuộc camera/ánh sáng/góc chụp (camera UGREEN vẫn giữ để kiểm "mắt thật").
 
 ## Bài toán

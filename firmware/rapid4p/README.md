@@ -59,6 +59,15 @@ scripts/                  build.bat [board] [COM] · flash.bat [board] COM · re
 docs/HARDWARE-PINOUT.md   pinout P4C5 từ schematic thật (§1–14) + board ES3N28P 2.8" (§15)
 ```
 
+## Xem màn từ PC (không camera)
+
+```
+python scripts/lcdtool.py COM20            # http://127.0.0.1:8791/ — ảnh màn thật, 3 nút ảo, chọn màn, log
+python scripts/lcdtool.py COM20 --shot x.png
+python scripts/lcdtool.py COM20 --gallery out/
+```
+Firmware lệnh console `screen` dump framebuffer (RLE + base64) qua USB-JTAG (S3) / UART0 (P4); tool giải mã thành PNG.
+
 ## Build / nạp
 
 ```bat

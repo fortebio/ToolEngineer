@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rapid4p-lcd",
+      "runtimeExecutable": "C:\\Espressif\\python_env\\idf5.5_py3.11_env\\Scripts\\python.exe",
+      "runtimeArgs": ["firmware/rapid4p/scripts/lcdtool.py", "COM20", "--port", "8791", "--out", "firmware/rapid4p/out_lcd"],
+      "port": 8791
+    }
+  ]
+}

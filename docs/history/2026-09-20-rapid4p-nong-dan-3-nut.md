@@ -88,6 +88,16 @@ nhấn để đánh thức màn cũng kích hành động, mặc định EN và 
   `screen` dump framebuffer RLE+base64 qua USB-JTAG → `scripts/lcdtool.py` web localhost với ảnh màn, 3 nút ảo, `ui N`, log;
   B giả lập LVGL trên PC để sau).
 
+- **Tool debug LCD localhost — phương án A ĐÃ LÀM** (2026-09-21): firmware lệnh console `screen` (`lv_snapshot_take` RGB565 →
+  RLE 3 byte/run → base64 → `SCR … SCR-END crc32`; 320×240 nén còn ~25 KB, < 1 s qua USB-JTAG; `CONFIG_LV_USE_SNAPSHOT=y`; stack
+  REPL 4 → 16 KB vì snapshot vẽ trong task console → Double exception). PC: `scripts/lcdtool.py` (pyserial + numpy + opencv, không
+  thư viện ngoài): luồng đọc cổng tách khối SCR khỏi log, web `http://127.0.0.1:8791/` (ảnh ×2 tự làm mới, 3 nút ảo tap/hold/rep,
+  phím 1/2/3, danh sách `ui N`, ô lệnh, log, Lưu PNG, Chụp bộ màn), `--shot`/`--gallery`/`--cmd`. Đã chạy: Shift+3 trên web →
+  `btn white hold` → máy sang Cài đặt, ảnh cập nhật đúng pixel. Bộ 13 màn `docs/history/img/lcd/` + ảnh tổng
+  `img/2026-09-21-rapid4p-28-all-screens.png`. Bẫy: decode RGB565 nhân 255 trên uint8 numpy tràn → ảnh đen (tính uint32).
+  Một lần ảnh màn Cập nhật trong gallery bị lệch footer (4 ô, chữ nhiễu) ngay sau `ui wifi` (SoftAP đang lên) — chụp lại 3 lần
+  không tái hiện; theo dõi.
+
 Ảnh camera (UGREEN, `uishot.py`, sau khi sửa): `img/2026-09-21-rapid4p-28-{chinh,dat-ong,dang-do,ket-qua}.jpg`.
 
 ## Bẫy mới
