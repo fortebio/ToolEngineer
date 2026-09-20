@@ -71,6 +71,7 @@ static struct {
      * nhấn đôi ĐỎ ở "Đặt ống" không thành Dừng đo; phím tới sớm hơn bị bỏ. */
     int64_t key_lock_until_us;
     ui_state_t hold_state;      /* màn lúc bắt đầu giữ — lặp chỉ hợp lệ khi màn chưa đổi */
+    lv_timer_t *sk_flash_timer; /* nháy ô softkey; huỷ khi xoá ô (con trỏ ô không được sống lâu hơn ô) */
     /* Đang đo: đếm ngược "còn ~N s" (ước lượng từ thời gian trung bình mỗi bước). */
     lv_obj_t *remain_lbl;
     lv_timer_t *remain_timer;
@@ -258,6 +259,9 @@ static void content_clear(void)
     s.round_lbl = s.bar = s.bar_lbl = s.calib_status = s.thr_lbl = s.upd_lbl = s.upd_bar = NULL;
     s.remain_lbl = NULL;
     if (s.remain_timer) { lv_timer_delete(s.remain_timer); s.remain_timer = NULL; }
+#if UI_SCALE_SMALL
+    if (s.sk_flash_timer) { lv_timer_delete(s.sk_flash_timer); s.sk_flash_timer = NULL; }   /* ô trong s.footer sắp bị clean */
+#endif
     memset(s.list_items, 0, sizeof(s.list_items));
     s.list_n = 0;
     s.cursor = 0;
@@ -316,6 +320,9 @@ static void on_softkey(lv_event_t *e)
 
 static void softkeys_clear(void)
 {
+    /* Huỷ timer nháy trước khi xoá ô: LVGL 9.6 lv_obj_is_valid() DEREF con trỏ (lv_obj_is_in_widget_tree đọc
+     * obj->parent) nên KHÔNG dùng được để dò con trỏ đã xoá — crash LoadProhibited 2026-09-21. */
+    if (s.sk_flash_timer) { lv_timer_delete(s.sk_flash_timer); s.sk_flash_timer = NULL; }
     for (int k = 0; k < R4P_KEY_COUNT; k++) {
         if (s.sk_cell[k] && lv_obj_is_valid(s.sk_cell[k])) lv_obj_delete(s.sk_cell[k]);
         s.sk_cell[k] = NULL;
@@ -369,15 +376,23 @@ static void softkeys(const char *g, const char *r, const char *w) { softkeys_on(
 static void sk_flash_end(lv_timer_t *t)
 {
     lv_obj_t *c = lv_timer_get_user_data(t);
-    if (c && lv_obj_is_valid(c)) lv_obj_remove_state(c, LV_STATE_PRESSED);
+    s.sk_flash_timer = NULL;           /* one-shot: LVGL tự xoá timer sau callback */
+    /* Ô còn sống chắc chắn: content_clear/softkeys_clear huỷ timer này trước khi xoá ô. */
+    if (c) lv_obj_remove_state(c, LV_STATE_PRESSED);
 }
 static void sk_flash(r4p_key_t k)
 {
     lv_obj_t *c = s.sk_cell[k];
-    if (!c || !lv_obj_is_valid(c) || lv_obj_get_child_count(c) == 0) return;
+    if (!c || lv_obj_get_child_count(c) == 0) return;   /* ô rỗng (không nhãn) không nháy */
+    if (s.sk_flash_timer) {            /* nhấn dồn: kết thúc nháy trước (ô cũ còn sống — cùng màn) */
+        lv_obj_t *old = lv_timer_get_user_data(s.sk_flash_timer);
+        lv_timer_delete(s.sk_flash_timer);
+        s.sk_flash_timer = NULL;
+        if (old) lv_obj_remove_state(old, LV_STATE_PRESSED);
+    }
     lv_obj_add_state(c, LV_STATE_PRESSED);
-    lv_timer_t *t = lv_timer_create(sk_flash_end, SK_FLASH_MS, c);
-    lv_timer_set_repeat_count(t, 1);   /* one-shot, tự xoá */
+    s.sk_flash_timer = lv_timer_create(sk_flash_end, SK_FLASH_MS, c);
+    lv_timer_set_repeat_count(s.sk_flash_timer, 1);   /* one-shot, LVGL tự xoá sau khi chạy */
 }
 
 /* Nhãn softkey "giữ": "~" + chuỗi (buf tĩnh theo ô — softkeys() chỉ đọc trong lúc dựng). */

@@ -191,6 +191,7 @@ log 60 s sạch; chạm đúng vị trí (không lệch trục — nếu lệch 
 | `"/*" within comment [-Werror=comment]` | ghi `sensor/*`, `display_hw_*.c` trong comment C → viết "thư mục sensor", `display_hw_<x>.c` |
 | `unknown type name 'BOARD_SPK_'` ngay dòng sau một comment | comment chứa `BOARD_AUDIO_*/BOARD_SPK_*` → chuỗi `*/` ĐÓNG comment sớm (2026-09-20). Không viết `x_*/y_*` trong comment C; ghi `x_*, y_*` |
 | Mở COM USB-JTAG bằng pyserial → console im bặt, `esptool` báo `No serial data received`, cổng vẫn hiện | `serial.Serial(port)` kéo DTR+RTS lúc mở/nhả lúc đóng → mạch auto-reset của USB-JTAG hiểu là chuỗi vào download mode, sau đó chip không trả lời cả reset (2026-09-20, phải rút/cắm USB). **Luôn** `s = serial.Serial(); s.dtr = False; s.rts = False; s.open()` (jtaglog.py, keytest.py đã làm) |
+| **Panic `LoadProhibited` trong `lv_obj_is_in_widget_tree` ← timer LVGL** (2026-09-21) | LVGL 9.6 `lv_obj_is_valid()` **deref con trỏ** (`obj->parent`) — KHÔNG dùng được để dò con trỏ đã xoá (bản cũ duyệt từ screen xuống nên an toàn). Timer/callback giữ con trỏ widget phải bị **huỷ trước khi widget bị xoá** (`content_clear`/`softkeys_clear` xoá `sk_flash_timer`, `remain_timer`), không dựa vào `lv_obj_is_valid` |
 | Chuỗi có `≈` hiện ô vuông | font vimate không có U+2248 (chỉ 0x20–0x24F, 0x1E00–0x1EFF, `…`, `→`) → dùng `~` ("còn ~%d s") |
 | Hai board đè `sdkconfig`/lock của nhau | `CMakeLists.txt` gốc đặt `SDKCONFIG=${CMAKE_BINARY_DIR}/sdkconfig` (idf.py đọc lại từ `build_<board>/project_description.json` sau lần configure đầu — `tools/idf_py_actions/tools.py::get_sdkconfig_filename`) + `DEPENDENCIES_LOCK dependencies.lock.${IDF_TARGET}` (lock có trường `target:`). Build dir cũ `build/` + `sdkconfig` gốc là rác — xoá được |
 | REQUIRES theo board không ăn (`esp_lcd_st7102.h: No such file`) | REQUIRES đọc ở pha early-expansion, `CONFIG_*` chưa có → điều kiện theo `idf_build_get_property(target IDF_TARGET)` (có ở pha đó); SRCS thì theo `CONFIG_RAPID4P_BOARD_*` được. `set(COMPONENTS main)` để component vendor P4-only trong `components/` không vào build S3 |
@@ -208,6 +209,9 @@ log 60 s sạch; chạm đúng vị trí (không lệch trục — nếu lệch 
    `scripts/keytest.py COM20 "btn green" …` giả lập qua event group). **Gắn loa vào PA board** rồi nghe bíp boot/phím/đo xong
    (`beep: ES8311 ok` trong log; không codec → WARN `khong thay ES8311`). Kiểm ngủ màn: `CONFIG_RAPID4P_SCREEN_SLEEP_SEC` 20 →
    nhấn nút lúc màn tắt chỉ sáng màn (`BTN X: man dang ngu -> chi danh thuc`), không đổi màn.
+   Đã kiểm 2026-09-21 qua `keytest.py` (giả lập bit nút, không có bo cảm biến): TRẮNG tap ở Chính = không; giữ → `man 7`; ĐỎ ×4 +
+   XANH → `man 6`; giữ TRẮNG ở Cân chỉnh → hộp thoại, XANH huỷ; `ui prepare` → ĐỎ 150 ms sau bị `key 1 bo (khoa phim)`; ĐỎ → `man 4` →
+   lỗi cảm biến → `man 13` → XANH → `man 3`, ĐỎ → `man 0`; giữ ĐỎ khi đang đo → `man 3`. `beep: ES8311 ok` (codec trả lời; chưa nghe loa).
 2. ~~Schematic bo cảm biến 5 slot~~ → **đã có bo LED + bo cảm biến 4 khe** (2026-09-18): làm theo `docs/HARDWARE-ARCHITECTURE.md`
    — đo 5 số liệu §7 → chốt D1–D6 → vẽ bo **Rapid4P-IF** (P4 JP1; bo S3 cần bản tương đương) → bring-up `BOARD_SENSOR_SLOTS 4` → rev hai bo lên 5 khe.
 3. P4: soak > 60 s; chu trình đo 34 s khi có bo con; màn WiFi chuỗi vẫn tiếng Việt cứng (chưa theo `ui_strings`, đi cùng portal web).

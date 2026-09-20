@@ -60,7 +60,16 @@ nhấn để đánh thức màn cũng kích hành động, mặc định EN và 
 - Build: `scripts\build.bat s3_28lcd` → `rapid4p-s3.bin` 2,04 MB, `BUILD_EXIT=0`; `scripts\build.bat p4_43lcd` → `rapid4p.bin`
   2,09 MB, `BUILD_EXIT=0`. Không warning mới ở `main/` (chỉ deprecated `lv_obj_add_flag` cũ).
 - Nạp S3 COM20 (bản trước bíp): boot `settings: … lang=0 last=-`, `Button init … XANH=GPIO47 DO(RED)=GPIO48 TRANG=GPIO41`,
-  `man 0`; console USB-JTAG trả lời `help` (ui/btn/heap). **Chưa chạy hết kịch bản nút** — xem "Còn mở".
+  `man 0`; console USB-JTAG trả lời `help` (ui/btn/heap).
+- **2026-09-21** (sau khi cắm lại USB, bản có bíp + vùng chạm to): boot `r4p.beep: ES8311 ok: I2S0 MCLK4 BCLK5 WS7 DOUT8 PA GPIO1`,
+  `dev console USB-JTAG san sang`. Kịch bản `keytest.py` (giả lập bit nút, chưa có bo cảm biến): TRẮNG tap ở Chính = không · giữ →
+  Cài đặt (`man 7`) · ĐỎ ×4 + XANH → Cân chỉnh (`man 6`) · TRẮNG tap = không · giữ → hộp thoại · XANH huỷ · XANH → Cài đặt · `btn red rep`
+  (lặp sau khi đổi màn) bị bỏ · ĐỎ ×5 + XANH → Chính · `ui prepare` rồi ĐỎ sau 150 ms → `key 1 bo (khoa phim sau doi man)` · ĐỎ → Đang đo
+  (`man 4`) → `slot 1 vong 1 loi` → màn lỗi (`man 13`) · XANH Thử lại → `man 3` · ĐỎ Quay lại → `man 0` · giữ ĐỎ khi đang đo → `man 3`.
+  **Bug bắt được**: panic `LoadProhibited` trong `lv_obj_is_in_widget_tree` ← `sk_flash_end` (timer nháy ô giữ con trỏ ô đã bị xoá khi
+  đổi màn; LVGL 9.6 `lv_obj_is_valid` deref con trỏ) → sửa: `s.sk_flash_timer` huỷ trong `content_clear`/`softkeys_clear`.
+- Camera: box chỉ có webcam laptop (MSMF 0 / DSHOW 1) + DroidCam ảo (MSMF 1, cần app điện thoại); UGREEN không được Windows nhận
+  (cả 2 ngày). Chụp UI phải đặt bo trước webcam laptop hoặc bật DroidCam.
 
 ## Bẫy mới
 
@@ -68,6 +77,7 @@ nhấn để đánh thức màn cũng kích hành động, mặc định EN và 
   `esptool` "No serial data received", cổng vẫn hiện) → phải rút/cắm USB. Luôn tắt `dtr/rts` trước `open()` (jtaglog.py,
   keytest.py). Ghi ở `firmware/rapid4p/CLAUDE.md` §5.
 - Comment C chứa `BOARD_AUDIO_*/BOARD_SPK_*` → `*/` đóng comment sớm → lỗi lạ ở dòng sau.
+- LVGL 9.6 `lv_obj_is_valid()` deref con trỏ → timer giữ con trỏ widget phải huỷ trước khi xoá widget (xem CLAUDE.md §5).
 - Heredoc Bash nuốt `\\` lần nữa (anchor `printf("…\\n")` không khớp; `2.8\\"` trong script) → mọi script patch ghi bằng Write tool.
 
 ## Còn mở
