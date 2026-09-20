@@ -61,6 +61,10 @@ static struct {
     bool wifi_connected;
     char ip[16];
     int pending, sent;
+    /* 2.8": softkey 3 nút vật lý + con trỏ danh sách (nút ĐỎ ▼ / TRẮNG ▲ / XANH chọn) */
+    lv_obj_t *sk_cell[R4P_KEY_COUNT];
+    lv_obj_t *list_items[8];
+    int list_n, cursor;
 } s;
 
 static lv_style_transition_dsc_t s_tr_press;   /* đổi màu nền 120 ms khi nhấn/nhả */
@@ -152,7 +156,7 @@ static lv_obj_t *mk_btn(lv_obj_t *parent, const char *icon, const char *txt, lv_
 
 /* Khoá nút: làm tay thay vì LV_STATE_DISABLED — theme mặc định đè style disabled thành khối
  * xám sáng, chữ mất (camera 2026-09-17). */
-static void btn_set_disabled(lv_obj_t *b)
+static __attribute__((unused)) void btn_set_disabled(lv_obj_t *b)   /* chỉ thang 4.3" */
 {
     lv_obj_set_style_bg_color(b, C_PANEL, 0);
     lv_obj_set_style_bg_color(b, C_PANEL, LV_STATE_PRESSED);
@@ -202,13 +206,13 @@ static lv_obj_t *footer_left(const char *icon, const char *txt, lv_event_cb_t cb
     lv_obj_align(b, LV_ALIGN_LEFT_MID, 0, 0);
     return b;
 }
-static lv_obj_t *footer_right(const char *icon, const char *txt, lv_event_cb_t cb, void *ud, lv_color_t bg)
+static __attribute__((unused)) lv_obj_t *footer_right(const char *icon, const char *txt, lv_event_cb_t cb, void *ud, lv_color_t bg)
 {
     lv_obj_t *b = mk_btn(s.footer, icon, txt, cb, ud, UI_BTN_MAIN_W, BTN_H, bg);
     lv_obj_align(b, LV_ALIGN_RIGHT_MID, 0, 0);
     return b;
 }
-static lv_obj_t *footer_mid(const char *icon, const char *txt, lv_event_cb_t cb, void *ud, lv_color_t bg)
+static __attribute__((unused)) lv_obj_t *footer_mid(const char *icon, const char *txt, lv_event_cb_t cb, void *ud, lv_color_t bg)
 {
 #if UI_SCALE_SMALL
     /* 2.8": không đủ chỗ cho 3 nút chữ → nút phụ/phá huỷ = icon 44×44 ngay cạnh nút trái. */
@@ -235,7 +239,102 @@ static void content_clear(void)
     memset(s.slot_val, 0, sizeof(s.slot_val));
     memset(s.slot_sub, 0, sizeof(s.slot_sub));
     s.round_lbl = s.bar = s.bar_lbl = s.calib_status = s.thr_lbl = s.upd_lbl = s.upd_bar = NULL;
+    memset(s.list_items, 0, sizeof(s.list_items));
+    s.list_n = 0;
+    s.cursor = 0;
+    memset(s.sk_cell, 0, sizeof(s.sk_cell));   /* ô trong s.footer vừa bị clean; ô trên màn WiFi xoá ở softkeys_clear */
 }
+
+/* ===== danh sách có con trỏ (2.8": ĐỎ ▼ · TRẮNG ▲ · XANH chọn; chạm thẳng vẫn được) ===== */
+static void list_focus(int i)
+{
+    for (int k = 0; k < s.list_n; k++) {
+        lv_obj_t *it = s.list_items[k];
+        if (!it) continue;
+        lv_obj_set_style_border_width(it, k == i ? 2 : 0, 0);
+        lv_obj_set_style_border_color(it, C_FORTE, 0);
+        lv_obj_set_style_bg_color(it, k == i ? C_BORDER : C_BTN, 0);
+    }
+    s.cursor = i;
+}
+static void list_move(int d)
+{
+    if (s.list_n <= 0) return;
+    list_focus((s.cursor + d + s.list_n) % s.list_n);
+}
+static void list_activate(void)
+{
+    if (s.list_n > 0 && s.list_items[s.cursor]) lv_obj_send_event(s.list_items[s.cursor], LV_EVENT_CLICKED, NULL);
+}
+static void list_add(lv_obj_t *it)
+{
+    if (s.list_n < (int)(sizeof(s.list_items) / sizeof(s.list_items[0]))) s.list_items[s.list_n++] = it;
+}
+
+#if UI_SCALE_SMALL
+/* ===== softkey bar 2.8": 3 ô thẳng hàng với 3 nút vật lý XANH · ĐỎ · TRẮNG dưới màn =====
+ * Chấm màu + nhãn (không dựa vào màu đơn thuần: vị trí ô = vị trí nút). Chạm ô = nhấn nút.
+ * Hành động thật nằm ở apply_key() theo s.state — một nguồn sự thật cho cả nút cơ lẫn chạm. */
+static lv_color_t key_color(r4p_key_t k)
+{
+    switch (k) {
+        case R4P_KEY_GREEN: return C_GREEN;
+        case R4P_KEY_RED:   return C_RED;
+        default:            return C_TEXT;      /* trắng */
+    }
+}
+static void on_softkey(lv_event_t *e) { ui_reader_on_key((r4p_key_t)(intptr_t)lv_event_get_user_data(e), false); }
+
+static void softkeys_clear(void)
+{
+    for (int k = 0; k < R4P_KEY_COUNT; k++) {
+        if (s.sk_cell[k] && lv_obj_is_valid(s.sk_cell[k])) lv_obj_delete(s.sk_cell[k]);
+        s.sk_cell[k] = NULL;
+    }
+}
+
+static void softkeys_on(lv_obj_t *host, const char *g, const char *r, const char *w)
+{
+    const char *txt[R4P_KEY_COUNT] = { g, r, w };
+    const int cell_w = (UI_W - 2 * UI_FOOTER_PAD - 2 * GAP) / 3;
+    softkeys_clear();
+    for (int k = 0; k < R4P_KEY_COUNT; k++) {
+        lv_obj_t *c = lv_obj_create(host);
+        lv_obj_remove_style_all(c);
+        lv_obj_set_size(c, cell_w, BTN_H);
+        lv_obj_set_pos(c, k * (cell_w + GAP), (FOOTER_H - BTN_H) / 2);
+        lv_obj_add_flag(c, LV_OBJ_FLAG_IGNORE_LAYOUT);
+        lv_obj_set_style_radius(c, UI_RADIUS, 0);
+        lv_obj_set_style_bg_color(c, txt[k] ? C_CARD : C_PANEL, 0);
+        lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_side(c, LV_BORDER_SIDE_TOP, 0);
+        lv_obj_set_style_border_width(c, 3, 0);
+        lv_obj_set_style_border_color(c, txt[k] ? key_color((r4p_key_t)k) : C_BORDER, 0);
+        lv_obj_set_flex_flow(c, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(c, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_column(c, 6, 0);
+        lv_obj_set_scrollable(c, false);
+        if (txt[k]) {
+            lv_obj_t *dot = lv_obj_create(c);
+            lv_obj_remove_style_all(dot);
+            lv_obj_set_size(dot, 10, 10);
+            lv_obj_set_style_radius(dot, LV_RADIUS_CIRCLE, 0);
+            lv_obj_set_style_bg_color(dot, key_color((r4p_key_t)k), 0);
+            lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
+            /* LV_SYMBOL_* (U+F000+) là UTF-8 3 byte bắt đầu 0xEF — chỉ Montserrat có glyph. */
+            const bool sym = ((unsigned char)txt[k][0] == 0xEF);
+            mk_label(c, txt[k], sym ? F_ICON_SM : F_SMALL, C_TEXT);
+            lv_obj_set_style_bg_color(c, C_BTN, LV_STATE_PRESSED);
+            lv_obj_set_style_transition(c, &s_tr_press, 0);
+            lv_obj_add_event_cb(c, on_softkey, LV_EVENT_CLICKED, (void *)(intptr_t)k);
+        } else {
+            lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
+        }
+        s.sk_cell[k] = c;
+    }
+}
+static void softkeys(const char *g, const char *r, const char *w) { softkeys_on(s.footer, g, r, w); }
+#endif
 
 static void set_title(const char *t) { lv_label_set_text(s.title, t); }
 
@@ -323,8 +422,19 @@ static void confirm_show(const char *question, void (*on_yes)(void))
     lv_obj_set_size(row, LV_PCT(100), BTN_H);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    mk_btn(row, NULL, r4p_str(STR_CANCEL), on_modal_no, NULL, UI_MODAL_BTN_NO_W, BTN_H, C_BTN);
-    mk_btn(row, LV_SYMBOL_TRASH, r4p_str(STR_CONFIRM), on_modal_yes, NULL, UI_MODAL_BTN_YES_W, BTN_H, C_RED);
+    lv_obj_t *bno = mk_btn(row, NULL, r4p_str(STR_CANCEL), on_modal_no, NULL, UI_MODAL_BTN_NO_W, BTN_H, C_BTN);
+    lv_obj_t *byes = mk_btn(row, LV_SYMBOL_TRASH, r4p_str(STR_CONFIRM), on_modal_yes, NULL, UI_MODAL_BTN_YES_W, BTN_H, C_RED);
+#if UI_SCALE_SMALL
+    /* Nút cơ: XANH = Huỷ, ĐỎ = Xác nhận (apply_key) — vạch màu trên nút để người dùng thấy. */
+    lv_obj_set_style_border_side(bno, LV_BORDER_SIDE_TOP, 0);
+    lv_obj_set_style_border_width(bno, 3, 0);
+    lv_obj_set_style_border_color(bno, C_GREEN, 0);
+    lv_obj_set_style_border_side(byes, LV_BORDER_SIDE_TOP, 0);
+    lv_obj_set_style_border_width(byes, 3, 0);
+    lv_obj_set_style_border_color(byes, C_RED, 0);
+#else
+    (void)bno; (void)byes;
+#endif
 }
 
 /* ===== callbacks nút ===== */
@@ -352,16 +462,16 @@ static void start_measure(void)
     show_async(UI_MEASURING);
 }
 
-static void on_measure(lv_event_t *e) { (void)e; start_measure(); }
+static __attribute__((unused)) void on_measure(lv_event_t *e) { (void)e; start_measure(); }   /* 4.3": nút footer; 2.8": apply_key */
 
-static void on_abort(lv_event_t *e)
+static __attribute__((unused)) void on_abort(lv_event_t *e)
 {
     (void)e;
     measure_abort();
     show_async(UI_PREPARE);
 }
 
-static void on_finish(lv_event_t *e)
+static __attribute__((unused)) void on_finish(lv_event_t *e)
 {
     (void)e;
     show_async(UI_CHOOSE_SAMPLE);
@@ -607,7 +717,7 @@ static void build_slot_tiles(lv_obj_t *parent, const char *placeholder)
 #else
     const lv_font_t *f_val = F_HERO;
 #endif
-    lv_obj_t *row = mk_row(parent, UI_TILE_H + 10);
+    lv_obj_t *row = mk_row(parent, UI_TILE_ROW_H);
     lv_obj_set_style_pad_column(row, UI_TILE_GAP, 0);
     for (int i = 0; i < R4P_SLOTS; i++) {
         lv_obj_t *t = lv_obj_create(row);
@@ -680,20 +790,15 @@ static void build_start(void)
 #endif
 
 #if UI_SCALE_SMALL
-    /* Footer 2.8": [⚙ Cài đặt 44][✎ Cân chỉnh 44][▶ ĐO rộng phần còn lại]. */
-    lv_obj_t *bs = mk_btn(s.footer, LV_SYMBOL_SETTINGS, NULL, on_goto, (void *)UI_SETTINGS, UI_BTN_ICON_ONLY_W, BTN_H, C_BTN);
-    lv_obj_align(bs, LV_ALIGN_LEFT_MID, 0, 0);
-    lv_obj_t *bc = mk_btn(s.footer, LV_SYMBOL_EDIT, NULL, on_goto, (void *)UI_CALIB, UI_BTN_ICON_ONLY_W, BTN_H, C_BTN);
-    lv_obj_align(bc, LV_ALIGN_LEFT_MID, UI_BTN_ICON_ONLY_W + GAP, 0);
-    const int go_w = UI_W - 2 * UI_FOOTER_PAD - 2 * (UI_BTN_ICON_ONLY_W + GAP);
-    lv_obj_t *go = mk_btn(s.footer, LV_SYMBOL_PLAY, r4p_str(STR_MEASURE), on_goto, (void *)UI_CHOOSE_SAMPLE, go_w, BTN_H, C_FORTE);
-    lv_obj_align(go, LV_ALIGN_RIGHT_MID, 0, 0);
+    /* Vỏ máy 3 nút (ReaderPlus): XANH = Bắt đầu, ĐỎ = Cài đặt, TRẮNG = Cân chỉnh. Không có cảm
+     * biến: apply_key chặn Bắt đầu, câu gợi ý màu cảnh báo ở trên đã nói lý do. */
+    softkeys(r4p_str(STR_START), r4p_str(STR_SETTINGS), r4p_str(STR_CALIBRATE));
 #else
     footer_left(LV_SYMBOL_EDIT, r4p_str(STR_CALIBRATE), on_goto, (void *)UI_CALIB);
     footer_mid(LV_SYMBOL_SETTINGS, r4p_str(STR_SETTINGS), on_goto, (void *)UI_SETTINGS, C_BTN);
     lv_obj_t *go = footer_right(LV_SYMBOL_PLAY, r4p_str(STR_MEASURE), on_goto, (void *)UI_CHOOSE_SAMPLE, C_FORTE);
-#endif
     if (alive == 0) btn_set_disabled(go);
+#endif
 }
 
 static void build_list(const char *title, int n, const char *(*label)(int), lv_event_cb_t cb, ui_state_t back)
@@ -701,9 +806,17 @@ static void build_list(const char *title, int n, const char *(*label)(int), lv_e
     set_title(title);
     lv_obj_t *grid = mk_grid(s.content);
     for (int i = 0; i < n; i++) {
-        mk_btn(grid, NULL, label(i), cb, (void *)(intptr_t)i, UI_BTN_LIST_W, BTN_H, C_BTN);
+        list_add(mk_btn(grid, NULL, label(i), cb, (void *)(intptr_t)i, UI_BTN_LIST_W, BTN_H, C_BTN));
     }
+#if UI_SCALE_SMALL
+    /* 2.8": "Quay lại" là mục cuối danh sách (kiểu điện thoại phím) — con trỏ tới được, chạm cũng được. */
+    list_add(mk_btn(grid, LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)back, UI_BTN_LIST_W, BTN_H, C_BTN));
+    list_focus(0);
+    softkeys(r4p_str(STR_SELECT), LV_SYMBOL_DOWN, LV_SYMBOL_UP);
+#else
+    (void)back;
     footer_left(LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)back);
+#endif
 }
 
 static const char *sample_label_i(int i) { return r4p_sample_label((r4p_sample_t)i); }
@@ -733,8 +846,12 @@ static void build_prepare(void)
     for (int i = 0; i < R4P_SLOTS; i++) calibrated = calibrated && calib_store_slot_calibrated(i);
     lv_obj_t *chips = mk_row(s.content, UI_CHIP_ROW_H - 4);
     if (!calibrated) mk_chip(chips, LV_SYMBOL_WARNING, r4p_str(STR_NOT_CALIBRATED), C_AMBER);
+#if UI_SCALE_SMALL
+    softkeys(r4p_str(STR_BACK), r4p_str(STR_MEASURE), NULL);      /* "Nhấn Nút Đỏ Để Đo!" như ReaderPlus */
+#else
     footer_left(LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)UI_CHOOSE_TUBE);
     footer_right(LV_SYMBOL_PLAY, r4p_str(STR_MEASURE), on_measure, NULL, C_FORTE);
+#endif
 }
 
 static void build_measuring(void)
@@ -751,7 +868,11 @@ static void build_measuring(void)
     s.bar_lbl = mk_label(prow, "0%", F_SMALL, C_MUTED);
     lv_obj_set_width(s.bar_lbl, UI_BAR_LBL_W);
     lv_obj_set_style_text_align(s.bar_lbl, LV_TEXT_ALIGN_RIGHT, 0);
+#if UI_SCALE_SMALL
+    softkeys(NULL, r4p_str(STR_STOP), NULL);
+#else
     footer_right(LV_SYMBOL_STOP, r4p_str(STR_STOP), on_abort, NULL, C_RED);
+#endif
 }
 
 static void build_result(void)
@@ -783,8 +904,12 @@ static void build_result(void)
     snprintf(buf, sizeof(buf), "%s: %lu     %s: %d", r4p_str(STR_THRESHOLD), (unsigned long)c->threshold[r->sick],
              r4p_str(STR_UPLOAD_PENDING), result_upload_pending());
     mk_text(s.content, buf, F_SMALL, C_MUTED);
+#if UI_SCALE_SMALL
+    softkeys(r4p_str(STR_REDO), r4p_str(STR_FINISH), NULL);        /* "Nút Xanh: Đo lại · Nút Đỏ: Kết thúc" */
+#else
     footer_left(LV_SYMBOL_REFRESH, r4p_str(STR_REDO), on_goto, (void *)UI_PREPARE);
     footer_right(LV_SYMBOL_OK, r4p_str(STR_FINISH), on_finish, NULL, C_FORTE);
+#endif
 }
 
 static void build_calib(void)
@@ -811,21 +936,36 @@ static void build_calib(void)
     else buf[0] = '\0';
     s.calib_status = mk_text(s.content, s.calib_running ? r4p_str(STR_CALIBRATING) : buf, F_SMALL,
                              s.calib_running ? C_AMBER : C_FORTE);
+#if UI_SCALE_SMALL
+    softkeys(r4p_str(STR_BACK), r4p_str(STR_CALIBRATE), r4p_str(STR_CLEAR));   /* Xanh: Thoát · Đỏ: Cân chỉnh · Trắng: Xoá */
+#else
     footer_left(LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)UI_START);
     footer_mid(LV_SYMBOL_TRASH, r4p_str(STR_CALIB_CLEAR), on_calib_clear, NULL, C_RED);
     footer_right(LV_SYMBOL_EDIT, r4p_str(STR_CALIBRATE), on_calib_read, NULL, C_FORTE);
+#endif
 }
 
 static void build_settings(void)
 {
     set_title(r4p_str(STR_SETTINGS));
     lv_obj_t *grid = mk_grid(s.content);
+#if UI_SCALE_SMALL
+    /* 2.8": danh sách 3 cột chữ (không icon — 94 px không đủ), mục cuối = Quay lại; điều hướng bằng 3 nút. */
+    list_add(mk_btn(grid, NULL, r4p_str(STR_LANGUAGE), on_goto, (void *)UI_LANGUAGE, UI_BTN_LIST_W, BTN_H, C_BTN));
+    list_add(mk_btn(grid, NULL, r4p_str(STR_WIFI), on_goto, (void *)UI_WIFI, UI_BTN_LIST_W, BTN_H, C_BTN));
+    list_add(mk_btn(grid, NULL, r4p_str(STR_UPDATE), on_goto, (void *)UI_UPDATE, UI_BTN_LIST_W, BTN_H, C_BTN));
+    list_add(mk_btn(grid, NULL, r4p_str(STR_THRESHOLD), on_goto, (void *)UI_THRESHOLD, UI_BTN_LIST_W, BTN_H, C_BTN));
+    list_add(mk_btn(grid, LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)UI_START, UI_BTN_LIST_W, BTN_H, C_BTN));
+    list_focus(0);
+    softkeys(r4p_str(STR_SELECT), LV_SYMBOL_DOWN, LV_SYMBOL_UP);
+#else
     lv_obj_set_width(grid, 2 * UI_BTN_GRID_W + GAP + 4);   /* 4 mục → lưới 2×2 */
     mk_btn(grid, LV_SYMBOL_LIST, r4p_str(STR_LANGUAGE), on_goto, (void *)UI_LANGUAGE, UI_BTN_GRID_W, BTN_H, C_BTN);
     mk_btn(grid, LV_SYMBOL_WIFI, r4p_str(STR_WIFI), on_goto, (void *)UI_WIFI, UI_BTN_GRID_W, BTN_H, C_BTN);
     mk_btn(grid, LV_SYMBOL_DOWNLOAD, r4p_str(STR_UPDATE), on_goto, (void *)UI_UPDATE, UI_BTN_GRID_W, BTN_H, C_BTN);
     mk_btn(grid, LV_SYMBOL_EDIT, r4p_str(STR_THRESHOLD), on_goto, (void *)UI_THRESHOLD, UI_BTN_GRID_W, BTN_H, C_BTN);
     footer_left(LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)UI_START);
+#endif
 }
 
 static const char *lang_label_i(int i) { return r4p_lang_display_name((r4p_lang_t)i); }
@@ -863,9 +1003,14 @@ static void build_threshold_edit(void)
     lv_obj_t *bp = mk_btn(row, LV_SYMBOL_PLUS, "", NULL, NULL, UI_THR_BTN_W, UI_THR_BTN_H, C_BTN);
     lv_obj_add_event_cb(bp, on_thr_btn, LV_EVENT_SHORT_CLICKED, (void *)(intptr_t)1);
     lv_obj_add_event_cb(bp, on_thr_btn, LV_EVENT_LONG_PRESSED_REPEAT, (void *)(intptr_t)1);
+#if UI_SCALE_SMALL
+    mk_text(s.content, r4p_str(STR_HOLD_HINT_THR), F_TINY, C_MUTED);
+    softkeys("+10", "-10", r4p_str(STR_SAVE));      /* ReaderPlus: Xanh tăng · Đỏ giảm · Trắng kế tiếp/lưu */
+#else
     mk_label(s.content, "+/- 10   " LV_SYMBOL_LOOP " +/- 50", F_ICON_SM, C_MUTED); /* giữ để lặp */
     footer_left(LV_SYMBOL_CLOSE, r4p_str(STR_CANCEL), on_goto, (void *)UI_THRESHOLD);
     footer_right(LV_SYMBOL_SAVE, r4p_str(STR_SAVE), on_thr_save, NULL, C_FORTE);
+#endif
 }
 
 static void build_wifi(void)
@@ -884,10 +1029,14 @@ static void build_wifi(void)
      * quy ước thanh hành động của mọi màn. */
     lv_obj_t *host = ui_wifi_setup_footer();
     if (host) {
+#if UI_SCALE_SMALL
+        softkeys_on(host, r4p_str(STR_BACK), NULL, NULL);          /* XANH = Quay lại (apply_key UI_WIFI) */
+#else
         if (s.wifi_back_btn && lv_obj_is_valid(s.wifi_back_btn)) lv_obj_delete(s.wifi_back_btn);
         lv_obj_t *b = mk_btn(host, LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_wifi_back, NULL, UI_BTN_BACK_W, BTN_H, C_BTN);
         lv_obj_align(b, LV_ALIGN_LEFT_MID, 0, 0);
         s.wifi_back_btn = b;
+#endif
     }
 }
 
@@ -905,7 +1054,11 @@ static void build_update(void)
     ui_theme_brand_bar(s.upd_bar);
     if (!online) lv_obj_add_flag(s.upd_bar, LV_OBJ_FLAG_HIDDEN);
     mk_label(s.content, "Firmware " R4P_FW_VERSION, F_SMALL, C_MUTED);
+#if UI_SCALE_SMALL
+    softkeys(r4p_str(STR_BACK), NULL, NULL);
+#else
     footer_left(LV_SYMBOL_LEFT, r4p_str(STR_BACK), on_goto, (void *)UI_SETTINGS);
+#endif
     if (online && !ota_client_busy()) {
         xTaskCreatePinnedToCore(update_task, "upd_ui", R4P_TASK_STACK_OTA, NULL,
                                 R4P_TASK_PRIO_BACKGROUND, NULL, R4P_TASK_CORE_IO);
@@ -916,6 +1069,9 @@ static void show(ui_state_t st)
 {
     s.state = st;
     modal_close();
+#if UI_SCALE_SMALL
+    softkeys_clear();                     /* ô softkey trên footer màn WiFi (host khác s.footer) */
+#endif
     if (lv_screen_active() != s.screen) lv_screen_load(s.screen);
     content_clear();
     switch (st) {
@@ -949,6 +1105,69 @@ static void apply_measure_button(void *arg)
         case UI_CALIB: on_calib_read(NULL); break;
         default: break;
     }
+}
+
+/* 3 nút vật lý XANH/ĐỎ/TRẮNG (và chạm ô softkey): MỘT nguồn sự thật theo màn — nhãn ô softkey ở
+ * từng build_* phải khớp bảng này. Quy ước kế thừa ReaderPlus: XANH = bắt đầu/chọn/đo lại,
+ * ĐỎ = đo/kết thúc/xuống, TRẮNG = lên/xoá. Danh sách (s.list_n > 0): XANH chọn · ĐỎ ▼ · TRẮNG ▲. */
+static void apply_key(void *arg)
+{
+    const int v = (int)(intptr_t)arg;
+    const r4p_key_t key = (r4p_key_t)(v & 0xFF);
+    const bool hold = (v & 0x100) != 0;
+    if (s.modal) {                                      /* hộp thoại: XANH = Huỷ, ĐỎ = Xác nhận */
+        if (key == R4P_KEY_GREEN) modal_close();
+        else if (key == R4P_KEY_RED) apply_modal_yes(NULL);
+        return;
+    }
+    if (s.list_n > 0) {
+        if (key == R4P_KEY_GREEN) list_activate();
+        else if (key == R4P_KEY_RED) list_move(+1);
+        else list_move(-1);
+        return;
+    }
+    switch (s.state) {
+        case UI_START:
+            if (key == R4P_KEY_GREEN) { if (measure_sensors_alive() > 0) show(UI_CHOOSE_SAMPLE); }
+            else if (key == R4P_KEY_RED) show(UI_SETTINGS);
+            else show(UI_CALIB);
+            break;
+        case UI_PREPARE:
+            if (key == R4P_KEY_GREEN) show(UI_CHOOSE_TUBE);
+            else if (key == R4P_KEY_RED) start_measure();
+            break;
+        case UI_MEASURING:
+            if (key == R4P_KEY_RED) { measure_abort(); show(UI_PREPARE); }
+            break;
+        case UI_RESULT:
+            if (key == R4P_KEY_GREEN) show(UI_PREPARE);
+            else if (key == R4P_KEY_RED) show(UI_CHOOSE_SAMPLE);
+            break;
+        case UI_CALIB:
+            if (key == R4P_KEY_GREEN) show(UI_START);
+            else if (key == R4P_KEY_RED) on_calib_read(NULL);
+            else on_calib_clear(NULL);
+            break;
+        case UI_THRESHOLD_EDIT:
+            if (key == R4P_KEY_GREEN) thr_apply_delta(hold ? 50 : 10);
+            else if (key == R4P_KEY_RED) thr_apply_delta(hold ? -50 : -10);
+            else if (hold) show(UI_THRESHOLD);            /* giữ TRẮNG = huỷ */
+            else on_thr_save(NULL);
+            break;
+        case UI_UPDATE:
+            if (key == R4P_KEY_GREEN) show(UI_SETTINGS);
+            break;
+        case UI_WIFI:
+            if (key == R4P_KEY_GREEN) on_wifi_back(NULL);
+            break;
+        default:
+            break;
+    }
+}
+
+void ui_reader_on_key(r4p_key_t key, bool hold)
+{
+    display_schedule(apply_key, (void *)(intptr_t)((int)key | (hold ? 0x100 : 0)));
 }
 
 static void apply_boot_button(void *arg)
@@ -1001,7 +1220,9 @@ void ui_reader_touch_debug(int x, int y, int raw_x, int raw_y)
     /* Gọi từ indev_read_cb (đã trong LVGL task, dưới lock của port) — không cần display_schedule. */
     if (!s.status || !lv_obj_is_valid(s.status)) return;
     char buf[48];
-    snprintf(buf, sizeof(buf), "T %d,%d r%d,%d", x, y, raw_x, raw_y);
+    /* Chỉ toạ độ logical (ngắn, không đè tiêu đề 2.8"); raw có trong log UART/USB-JTAG. */
+    (void)raw_x; (void)raw_y;
+    snprintf(buf, sizeof(buf), "T %d,%d", x, y);
     lv_label_set_text(s.status, buf);
     lv_obj_set_style_text_color(s.status, C_AMBER, 0);
 }

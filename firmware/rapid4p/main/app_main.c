@@ -100,7 +100,9 @@ static void main_task(void *arg)
     while (1) {
         EventBits_t bits = xEventGroupWaitBits(g_r4p_events,
             R4P_EVT_WIFI_UP | R4P_EVT_WIFI_DOWN | R4P_EVT_BTN_PRESS | R4P_EVT_BTN_LONG |
-            R4P_EVT_BTN_MEASURE | R4P_EVT_MEASURE_DONE | R4P_EVT_UPLOAD_QUEUED,
+            R4P_EVT_BTN_MEASURE | R4P_EVT_MEASURE_DONE | R4P_EVT_UPLOAD_QUEUED |
+            R4P_EVT_BTN_GREEN | R4P_EVT_BTN_RED | R4P_EVT_BTN_WHITE |
+            R4P_EVT_BTN_GREEN_LONG | R4P_EVT_BTN_RED_LONG | R4P_EVT_BTN_WHITE_LONG,
             pdTRUE, pdFALSE, pdMS_TO_TICKS(5000));
         if (bits & R4P_EVT_WIFI_UP) {
             ESP_LOGI(TAG_MAIN, "WiFi up %s", wifi_mgr_ip_address());
@@ -112,6 +114,13 @@ static void main_task(void *arg)
         }
         if (bits & R4P_EVT_BTN_PRESS) ui_reader_on_boot_button();
         if (bits & R4P_EVT_BTN_MEASURE) ui_reader_on_measure_button();
+        /* 3 nút vật lý XANH/ĐỎ/TRẮNG → softkey của màn đang hiện (ui_reader quyết định). */
+        if (bits & R4P_EVT_BTN_GREEN)      ui_reader_on_key(R4P_KEY_GREEN, false);
+        if (bits & R4P_EVT_BTN_RED)        ui_reader_on_key(R4P_KEY_RED, false);
+        if (bits & R4P_EVT_BTN_WHITE)      ui_reader_on_key(R4P_KEY_WHITE, false);
+        if (bits & R4P_EVT_BTN_GREEN_LONG) ui_reader_on_key(R4P_KEY_GREEN, true);
+        if (bits & R4P_EVT_BTN_RED_LONG)   ui_reader_on_key(R4P_KEY_RED, true);
+        if (bits & R4P_EVT_BTN_WHITE_LONG) ui_reader_on_key(R4P_KEY_WHITE, true);
         if (bits & R4P_EVT_BTN_LONG) {
             /* Giữ BOOT 5 s: xoá WiFi đã lưu rồi khởi động lại (như vimate). Token/mã máy
              * giữ nguyên. */

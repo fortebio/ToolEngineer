@@ -14,7 +14,8 @@
  * 10/11/12/13 SPI LCD · 15/16 I2C0 (touch + codec) · 17/18 touch INT/RST · 42 LED · 45 BL · 46 DC.
  * GPIO KHÔNG được dùng: 3 (strap JTAG), 19/20 (USB D−/D+), 26–37 (flash + PSRAM octal),
  * 43/44 (UART0 console/nạp), 45/46 (strap — đã là BL/DC).
- * GPIO CÒN TRỐNG cho bo cảm biến: 2, 9, 14, 21, 38, 39, 40, 41, 47, 48 (10 chân).
+ * GPIO CÒN TRỐNG: 2, 9, 14, 21, 38, 39, 40, 41, 47, 48 (10 chân) → bo cảm biến 6 (LED ×5 + PWM,
+ * I2C đi chung I2C0) + 3 nút XANH/ĐỎ/TRẮNG (47/48/41) — còn dư GPIO40.
  */
 
 #pragma once
@@ -91,9 +92,13 @@ extern "C" {
 /* ========================== Buttons ========================== */
 /* GPIO0 = BOOT (pull-up, nhấn = LOW): tap = quay lại, giữ 5 s = xoá WiFi vào SoftAP. */
 #define BOARD_BTN_BOOT_GPIO          0
-/* Nút ĐO vật lý: board không có nút thứ hai → ĐỀ XUẤT nút ngoài trên GPIO47 (pull-up nội,
- * nhấn = LOW). Không nối thì để -1: đo bằng chạm màn / nút web dashboard. */
-#define BOARD_BTN_MEASURE_GPIO       47
+/* Vỏ máy Rapid (ReaderPlus) có 3 nút cơ phát sáng XANH · ĐỎ · TRẮNG dưới màn 2.8" — UI 2.8" là
+ * softkey theo 3 nút này (ui_reader.c). GPIO ĐỀ XUẤT (nhấn = LOW, pull-up nội): 47 / 48 / 41
+ * (41 rảnh vì bo cảm biến đi I2C0 chung, xem dưới). Không nối thì -1: softkey vẫn chạm được. */
+#define BOARD_BTN_GREEN_GPIO         47
+#define BOARD_BTN_RED_GPIO           48
+#define BOARD_BTN_WHITE_GPIO         41
+#define BOARD_BTN_MEASURE_GPIO       -1    /* ĐO = nút ĐỎ (softkey), không cần nút riêng */
 
 /* ========================== LED ========================== */
 #define BOARD_STATUS_LED_GPIO        42    /* LED đơn trên board — tư liệu, chưa có driver */
@@ -112,12 +117,14 @@ extern "C" {
  * TCS34725 (0x29, ID 0x44/0x4D); LED chiếu: enable riêng từng khe + PWM chung (LEDC 5 kHz 8-bit,
  * mặc định 127/255). Nguồn LED / driver theo docs/HARDWARE-ARCHITECTURE.md (D1–D6).
  *
- * Bus riêng I2C_NUM_1 (S3 có 2 controller) để không chen lịch quét chạm 10 ms trên I2C0.
- * Muốn dùng chung I2C0 (15/16): đổi 3 dòng BOARD_SENSOR_I2C_* — sensor_bus.c tự tái dùng bus
- * qua i2c_master_get_bus_handle(). */
-#define BOARD_SENSOR_I2C_NUM         I2C_NUM_1
-#define BOARD_SENSOR_I2C_SDA         41
-#define BOARD_SENSOR_I2C_SCL         40
+ * Bus I2C0 DÙNG CHUNG với touch FT6236 (SCL15/SDA16) — sensor_bus.c tái dùng bus qua
+ * i2c_master_get_bus_handle(), mỗi device có tốc độ riêng (touch 400 kHz, mux/TCS 100 kHz);
+ * driver i2c_master khoá theo giao dịch nên quét chạm 30 ms không chen chu trình đọc màu.
+ * Chọn chung bus để dành 41 cho nút TRẮNG (bo chỉ còn 10 GPIO trống). Muốn tách bus lại:
+ * I2C_NUM_1 trên 40/41 và đổi nút TRẮNG sang GPIO40. */
+#define BOARD_SENSOR_I2C_NUM         I2C_NUM_0
+#define BOARD_SENSOR_I2C_SDA         16
+#define BOARD_SENSOR_I2C_SCL         15
 /* 100 kHz: dây tới bo con + 5 nhánh sau mux; pull-up nội S3 (~45 K) quá yếu — bo con PHẢI có
  * pull-up 4,7 K. */
 #define BOARD_SENSOR_I2C_FREQ_HZ     100000
@@ -134,7 +141,7 @@ extern "C" {
 /* LEDC: kênh 0 + timer 0 đã dành cho đèn nền LCD (display.c). */
 #define BOARD_SLOT_LED_LEDC_CHANNEL  LEDC_CHANNEL_1
 #define BOARD_SLOT_LED_LEDC_TIMER    LEDC_TIMER_1
-/* Còn trống sau khi gán: GPIO48. */
+/* Còn trống sau khi gán: GPIO40. */
 
 /* ========================== Board metadata ========================== */
 #define BOARD_NAME                   "rapid4p_s3_ili9341_lcd28"

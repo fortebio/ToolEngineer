@@ -42,6 +42,9 @@ ui_state_t ui_reader_state(void);
 /* Sự kiện từ ngoài (thread-safe, qua display_schedule) */
 void ui_reader_on_measure_button(void);      /* BTN3 GPIO0: xác nhận/đo như nút ĐO trên màn */
 void ui_reader_on_boot_button(void);         /* BOOT tap: thoát màn WiFi / quay lại */
+/* 3 nút vật lý XANH/ĐỎ/TRẮNG (vỏ máy Rapid 2.8"): hành động = softkey của màn đang hiện
+ * (ui_reader.c apply_key). hold = giữ ≥ BOARD_BTN_HOLD_MS. Chạm ô softkey trên màn gọi cùng hàm. */
+void ui_reader_on_key(r4p_key_t key, bool hold);
 /* Bring-up trục chạm (CONFIG_RAPID4P_TOUCH_LOG): touch.c gọi TRONG LVGL task khi nhấn xuống →
  * header phải hiện "T x,y r x,y" thay trạng thái WiFi để người cầm máy đọc số ngay trên LCD. */
 void ui_reader_touch_debug(int x, int y, int raw_x, int raw_y);

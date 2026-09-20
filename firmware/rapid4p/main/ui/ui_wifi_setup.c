@@ -433,6 +433,9 @@ static void build_screen(void) {
     s_hint = mk_label(s_footer, "", F_TINY, C_MUTED);
     lv_label_set_long_mode(s_hint, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(s_hint, HINT_W);
+#if UI_SCALE_SMALL
+    lv_obj_add_flag(s_hint, LV_OBJ_FLAG_HIDDEN);   /* footer 2.8" = softkey bar 3 nút (ui_reader); URL đã có trên thẻ ② */
+#endif
     lv_obj_set_style_text_align(s_hint, LV_TEXT_ALIGN_RIGHT, 0);
     lv_obj_align(s_hint, LV_ALIGN_RIGHT_MID, 0, 0);
 }

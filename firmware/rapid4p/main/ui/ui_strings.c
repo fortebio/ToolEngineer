@@ -55,6 +55,10 @@ static const char *const s_vi[STR_COUNT] = {
     [STR_STEP]              = "Bước",
     [STR_SENSORS]           = "Cảm biến",
     [STR_SENSOR_NONE_HINT]  = "Không có cảm biến - kiểm tra bo cảm biến rồi khởi động lại",
+    [STR_START]             = "Bắt đầu",
+    [STR_SELECT]            = "Chọn",
+    [STR_HOLD_HINT_THR]     = "Giữ: ±50  ·  Giữ TRẮNG: huỷ",
+    [STR_CLEAR]             = "Xoá",
 };
 
 static const char *const s_en[STR_COUNT] = {
@@ -110,6 +114,10 @@ static const char *const s_en[STR_COUNT] = {
     [STR_STEP]              = "Step",
     [STR_SENSORS]           = "Sensors",
     [STR_SENSOR_NONE_HINT]  = "No sensors found - check the sensor board and restart",
+    [STR_START]             = "Start",
+    [STR_SELECT]            = "Select",
+    [STR_HOLD_HINT_THR]     = "Hold: +/-50  ·  Hold WHITE: cancel",
+    [STR_CLEAR]             = "Clear",
 };
 
 /* Giữ nguyên chuỗi ZH của bản gốc; chuỗi mới (nút chạm) dịch ngắn gọn. */
@@ -166,6 +174,10 @@ static const char *const s_zh[STR_COUNT] = {
     [STR_STEP]              = "步骤",
     [STR_SENSORS]           = "传感器",
     [STR_SENSOR_NONE_HINT]  = "未检测到传感器 - 请检查传感器板后重启",
+    [STR_START]             = "开始",
+    [STR_SELECT]            = "选择",
+    [STR_HOLD_HINT_THR]     = "长按: ±50  ·  长按白键: 取消",
+    [STR_CLEAR]             = "清除",
 };
 
 static const char *const *table_for(r4p_lang_t lang)

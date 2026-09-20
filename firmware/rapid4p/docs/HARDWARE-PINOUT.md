@@ -583,14 +583,15 @@ Trống: **2, 9, 14, 21, 38, 39, 40, 41, 47, 48** (10 chân).
 
 | Chức năng | GPIO | Knob |
 |---|---|---|
-| I2C bus cảm biến (riêng, `I2C_NUM_1`, 100 kHz) SDA / SCL | 41 / 40 | `BOARD_SENSOR_I2C_SDA/SCL` |
+| I2C bus cảm biến — **chung I2C0 với touch** (SDA 16 / SCL 15, mux+TCS 100 kHz, touch 400 kHz) | 16 / 15 | `BOARD_SENSOR_I2C_SDA/SCL` (`I2C_NUM_0`) |
 | LED enable khe 1..5 | 2, 9, 14, 21, 38 | `BOARD_SLOT_LED_GPIOS` |
 | PWM độ sáng LED chung (LEDC ch1/timer1, 5 kHz) | 39 | `BOARD_SLOT_LED_PWM_GPIO` |
-| Nút ĐO ngoài (pull-up nội, nhấn = LOW) | 47 | `BOARD_BTN_MEASURE_GPIO` (−1 nếu không nối) |
-| Dư | 48 | — |
+| **Nút XANH / ĐỎ / TRẮNG** của vỏ máy (pull-up nội, nhấn = LOW; ReaderPlus cũ 16/13/4) | 47 / 48 / 41 | `BOARD_BTN_GREEN/RED/WHITE_GPIO` (−1 nếu không nối) |
+| Dư | 40 | — |
 
-- Dùng chung I2C0 (15/16) với touch cũng được: đổi 3 knob `BOARD_SENSOR_I2C_*`; `sensor_bus.c` tự
-  tái dùng bus qua `i2c_master_get_bus_handle()`. Bus riêng được chọn để không chen lịch quét chạm.
+- Cảm biến đi chung I2C0 để dành GPIO41 cho nút TRẮNG (2026-09-20); `sensor_bus.c` tái dùng bus qua
+  `i2c_master_get_bus_handle()`, driver `i2c_master` khoá theo giao dịch. Muốn tách bus: `I2C_NUM_1` trên 40/41 và
+  chuyển nút TRẮNG sang GPIO40.
 - Bo con (TCA9548A 0x70 + 5× TCS34725 0x29, LED VOUT+ chung + LIGHT1..5 sink) cần bo giao tiếp
   như `Rapid4P-IF` (`docs/HARDWARE-ARCHITECTURE.md`): nguồn LED, công tắc khe, pull-up 4,7 K.
 - Không có PMIC/pin/SD trên board; WiFi 2,4 GHz nội (không ESP-Hosted), BT tắt trong sdkconfig.

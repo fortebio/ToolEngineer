@@ -73,6 +73,10 @@ typedef enum {
     STR_STEP,               /* "Bước" (Bước 1/3) */
     STR_SENSORS,            /* "Cảm biến" (chip "Cảm biến 4/4") */
     STR_SENSOR_NONE_HINT,   /* "Không có cảm biến - kiểm tra bo cảm biến" */
+    STR_START,              /* "Bắt đầu" (softkey XANH màn chính) */
+    STR_SELECT,             /* "Chọn" (softkey XANH trong danh sách) */
+    STR_HOLD_HINT_THR,      /* "Giữ: ±50 · Giữ TRẮNG: huỷ" (màn sửa ngưỡng 2.8") */
+    STR_CLEAR,              /* "Xoá" (softkey TRẮNG màn cân chỉnh) */
     STR_COUNT
 } r4p_str_t;
 

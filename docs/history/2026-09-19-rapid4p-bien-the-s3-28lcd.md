@@ -80,6 +80,20 @@ touch FT6236G). Firmware `rapid4p` hiện chỉ build cho ESP32-P4C5 + LCD 4.3" 
 - cmd.exe: dấu `)` trong `echo` bên trong khối `if ( … )` đóng khối sớm → `exit /b` chạy vô điều kiện, không in gì.
 - `sensor/*` trong comment C = lỗi `-Werror=comment`.
 
+## 2026-09-20 — UI 2.8" theo 3 nút vật lý của vỏ máy (softkey)
+
+Ảnh sản phẩm thật: vỏ máy Rapid (thế hệ ReaderPlus) — LCD 2.8" + **3 nút cơ phát sáng XANH · ĐỎ · TRẮNG** dưới màn,
+UI cũ điều khiển bằng nút ("Nhấn Nút Xanh Để Bắt Đầu", "Nút Đỏ: Kết thúc"). UI 2.8" đổi sang mô hình **softkey**:
+- Footer = 3 ô thẳng hàng với 3 nút (chấm màu + nhãn; chạm ô = nhấn nút) — `softkeys()`; hành động ở `apply_key()`
+  theo màn (một nguồn sự thật cho nút cơ lẫn chạm). Quy ước kế thừa ReaderPlus §3.3 MAPPING: XANH bắt đầu/chọn/đo lại,
+  ĐỎ đo/kết thúc/xuống, TRẮNG lên/xoá; hộp thoại XANH huỷ · ĐỎ xác nhận; ngưỡng XANH +10 · ĐỎ −10 · TRẮNG lưu (giữ ±50/huỷ).
+- Danh sách có con trỏ (`list_focus`), mục cuối "Quay lại"; màn chính bỏ icon ⚙/✎ → [Bắt đầu][Cài đặt][Cân chỉnh].
+- `button.c` 5 nút (BOOT, ĐO, XANH, ĐỎ, TRẮNG; giữ theo từng nút `BOARD_BTN_HOLD_MS` 1,5 s), sự kiện `R4P_EVT_BTN_<X>[_LONG]`,
+  `ui_reader_on_key()`. GPIO ĐỀ XUẤT 47/48/41; để có 41, **bo cảm biến chuyển sang I2C0 chung với touch** (SDA16/SCL15).
+- Đã nạp bo: log `Button init … XANH=GPIO47 DO(RED)=GPIO48 TRANG=GPIO41`, `sensor bus I2C0 SDA=16 SCL=15`; chạm ô ĐỎ "Cài đặt"
+  → `man 7` (Settings) — softkey chạm chạy; nút cơ chưa nối. Trục chạm đã chốt `MIRROR_Y 1` (chạm góc trên-trái kích nút dưới-trái khi 0).
+- Máy đang ở `lang=3` (TW → rơi về EN vì chưa font CJK): người dùng chọn nhầm lúc chạm còn ngược; đổi lại ở Cài đặt › Ngôn ngữ.
+
 ## Còn mở
 
 1. Người cầm bo ES3N28P xác nhận hướng xoay màn, trục chạm (`BOARD_TOUCH_*`), 13 màn + màn WiFi thang 2.8" bằng mắt, chỉnh token; soak > 60 s.

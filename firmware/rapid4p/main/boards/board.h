@@ -88,6 +88,19 @@
 #ifndef BOARD_BTN_MEASURE_GPIO
 #define BOARD_BTN_MEASURE_GPIO -1
 #endif
+/* 3 nút vật lý XANH/ĐỎ/TRẮNG (vỏ máy Rapid 2.8"); -1 = board không có → UI softkey vẫn chạm được. */
+#ifndef BOARD_BTN_GREEN_GPIO
+#define BOARD_BTN_GREEN_GPIO -1
+#endif
+#ifndef BOARD_BTN_RED_GPIO
+#define BOARD_BTN_RED_GPIO -1
+#endif
+#ifndef BOARD_BTN_WHITE_GPIO
+#define BOARD_BTN_WHITE_GPIO -1
+#endif
+#ifndef BOARD_BTN_HOLD_MS
+#define BOARD_BTN_HOLD_MS 1500   /* giữ nút softkey = hành động phụ (ReaderPlus dùng 5 s cho chức năng ẩn) */
+#endif
 #ifndef BOARD_STATUS_LED_GPIO
 #define BOARD_STATUS_LED_GPIO -1   /* LED đơn báo trạng thái (chưa có driver — tư liệu) */
 #endif

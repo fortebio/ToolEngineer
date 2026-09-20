@@ -47,10 +47,10 @@
 | Màn hình chung | `main/ui/display.c`, `display_hw.h` | đèn nền LEDC ch0/timer0, ngủ màn, `lvgl_port_init` (core UI prio 6), hàng đợi + display task; `display_init()` = LEDC → lvgl_port → `display_hw_init` → BL 100 % → queue |
 | Màn hình HW P4 | `main/ui/display_hw_dsi.c` | LDO DPHY → reset GPIO22 → DSI → DPI 2 fb → `lvgl_port_add_disp_dsi` → PPA xoay 270°; mọi chú thích "vì sao" giữ nguyên văn |
 | Màn hình HW S3 | `main/ui/display_hw_spi.c` | SPI3 40 MHz → ILI9341 (BGR, invert) → `lvgl_port_add_disp` 2 buffer × `BOARD_LCD_DRAW_BUF_LINES` 40 dòng RAM nội DMA, swap_bytes, xoay MADCTL (swap_xy) |
-| Màn hình app | `main/ui/ui_reader.c`, `ui_strings.[ch]` | máy trạng thái 13 màn (theo ReaderPlus). Bố cục header · content · footer = thanh hành động (Quay lại/Huỷ LUÔN trái, hành động chính LUÔN phải teal, phá huỷ đỏ giữa + hộp thoại `confirm_show`). **Mọi kích thước qua token `UI_*` của `ui_theme.h`** — 2 thang: 4.3" (56/96/72/12, chữ 24/18/14, số khe 48) và 2.8" (`UI_SCALE_SMALL`: 32/52/44/6, chữ 18/14, số khe 24 tự hạ qua `fit_font_from`); 2.8" header chỉ icon WiFi + số chờ gửi, IP/version xuống màn chính. **Luật footer 2.8"**: tối đa 2 nút chữ (trái 104 · phải 146), nút phụ/phá huỷ = icon 44×44 cạnh nút trái (`footer_mid`), màn chính = [⚙][✎][ĐO 208]; danh sách 5 mục = 3 cột × 2 hàng (`UI_BTN_LIST_W 94`); câu gợi ý dài dùng `mk_text()` (wrap, 100 %, canh giữa) chứ không `mk_label`; không logo lớn/tên máy 48 px. Token màu/font = bản C của `system/brand/tokens.json` (`typography.scales`); `ui_theme_brand_bar()`, `mk_btn(icon, txt)` tự co font theo token, `mk_chip` |
+| Màn hình app | `main/ui/ui_reader.c`, `ui_strings.[ch]` | máy trạng thái 13 màn (theo ReaderPlus). Bố cục header · content · footer = thanh hành động (Quay lại/Huỷ LUÔN trái, hành động chính LUÔN phải teal, phá huỷ đỏ giữa + hộp thoại `confirm_show`). **Mọi kích thước qua token `UI_*` của `ui_theme.h`** — 2 thang: 4.3" (56/96/72/12, chữ 24/18/14, số khe 48) và 2.8" (`UI_SCALE_SMALL`: 32/52/44/6, chữ 18/14, số khe 24 tự hạ qua `fit_font_from`); 2.8" header chỉ icon WiFi + số chờ gửi, IP/version xuống màn chính. **Footer 2.8" = SOFTKEY BAR 3 nút vật lý** (2026-09-20, theo vỏ máy Rapid/ReaderPlus: XANH · ĐỎ · TRẮNG dưới màn): `softkeys(g, r, w)` vẽ 3 ô thẳng hàng với 3 nút (chấm màu + nhãn, chạm ô = nhấn nút); hành động ở **`apply_key()` theo `s.state` — một nguồn sự thật**, nhãn ô ở `build_*` phải khớp. Quy ước kế thừa ReaderPlus: XANH = Bắt đầu/Chọn/Đo lại/Quay lại · ĐỎ = ĐO/Kết thúc/Cài đặt/▼ · TRẮNG = Cân chỉnh/Xoá/▲; hộp thoại XANH=Huỷ ĐỎ=Xác nhận; sửa ngưỡng XANH +10 ĐỎ −10 TRẮNG Lưu (giữ = ±50 / huỷ). Danh sách (`s.list_n > 0`): 3 cột × 2 hàng (`UI_BTN_LIST_W 94`), mục cuối "Quay lại", con trỏ `list_focus` (viền teal) — ĐỎ ▼ TRẮNG ▲ XANH Chọn, chạm thẳng vẫn được. Câu gợi ý dài dùng `mk_text()` (wrap, 100 %, canh giữa); không logo lớn/tên máy 48 px. Token màu/font = bản C của `system/brand/tokens.json` (`typography.scales`); `ui_theme_brand_bar()`, `mk_btn(icon, txt)` tự co font theo token, `mk_chip` |
 | Logo | `main/ui/ui_logo.c` | Logo FORTE BIOTECH **vẽ vector** (5 `lv_draw_triangle` + 2 label) theo toạ độ file chuẩn 2000×1780 — không dùng PNG. `ui_logo_create(parent, h, with_text)`; chữ chỉ đọc được khi h ≥ ~90 (2.8": mark 56 px không chữ). Góc trái header mọi màn mark `HEADER_LOGO_H` |
 | Chạm | `main/input/touch.c` | 2 nhánh `#if BOARD_TOUCH_USE_ST7123` (reg16) / `BOARD_TOUCH_USE_FT6236` (reg8: 0x02 số điểm, 0x03..0x06 XY, RST xung 10/300 ms) → cùng `lv_indev` (đọc trong LVGL task); xoay native→logical qua `BOARD_TOUCH_SWAP_XY/MIRROR_*` |
-| Nút | `main/input/button.c` | BOOT (tap/giữ 5 s), ĐO — GPIO theo board (`BOARD_BTN_*`, −1 = không có) |
+| Nút | `main/input/button.c` | BOOT (tap/giữ 5 s), ĐO (P4), **3 nút XANH/ĐỎ/TRẮNG** (tap + giữ `BOARD_BTN_HOLD_MS` 1,5 s → `R4P_EVT_BTN_<X>[_LONG]` → `ui_reader_on_key(key, hold)`) — GPIO theo board (`BOARD_BTN_*`, −1 = không có) |
 | Cảm biến | `main/sensor/{sensor_bus,tca9548,tcs34725,slot_led}.c` | I2C riêng `BOARD_SENSOR_I2C_NUM` (tái dùng bus nếu đã có), mux 0x70 kênh 0..N−1, TCS 0x29 ×N (AGC riêng từng slot), LED enable ×N + PWM LEDC ch1 chung |
 | Đo / calib | `main/app/measure.c`, `calib_store.c` | task đo core 1 prio 4 (~34 s/chu trình), map 0..3000, ngưỡng, NVS |
 | Mạng | `main/network/{engineer_api,ota_client,result_upload}.c` | Bearer token từ NVS, `/ota/check?product=<khoá board>&hw=<board>` + esp_https_ota + rollback guard, POST kết quả + hàng đợi offline NVS |
@@ -86,10 +86,12 @@
 - Touch FT6236G I2C0 SCL15/SDA16 0x38, INT17, **RST18 phải xung LOW 10 ms → HIGH 300 ms** trước khi nói I2C.
   Chạm (đo bo thật 2026-09-20): `SWAP_XY 1`, `MIRROR_X 0`, **`MIRROR_Y 1`** — với mirror_y 0, chạm góc trên-trái kích hoạt nút
   góc dưới-trái (trục dọc ngược). Ghi chú "không mirror Y" của vimate KHÔNG áp cho cây này.
-- Nút: chỉ BOOT GPIO0. ĐO = GPIO47 (ĐỀ XUẤT, nút ngoài). LED đơn GPIO42 (chưa driver). Không PMIC/pin/SD.
-- GPIO trống: 2, 9, 14, 21, 38, 39, 40, 41, 47, 48 → cảm biến I2C1 SDA41/SCL40, LED 2/9/14/21/38, PWM 39
-  (**ĐỀ XUẤT** — chưa có schematic/header thật, `docs/HARDWARE-PINOUT.md` §15). Tránh 3 (strap), 19/20 (USB),
-  26–37 (flash/PSRAM), 43/44 (UART0), 45/46 (strap, đã dùng cho BL/DC).
+- Nút: BOOT GPIO0 trên bo; vỏ máy Rapid có **3 nút cơ XANH/ĐỎ/TRẮNG** → GPIO **47 / 48 / 41** (ĐỀ XUẤT, nhấn = LOW,
+  pull-up nội; ReaderPlus cũ dùng 16/13/4). LED đơn GPIO42 (chưa driver). Không PMIC/pin/SD.
+- GPIO trống: 2, 9, 14, 21, 38, 39, 40, 41, 47, 48 → bo cảm biến đi **I2C0 CHUNG với touch** (SDA16/SCL15, `sensor_bus`
+  tái dùng bus, tốc độ riêng từng device), LED 2/9/14/21/38, PWM 39; 3 nút 47/48/41; dư GPIO40 (**ĐỀ XUẤT** — chưa có
+  schematic/header thật, `docs/HARDWARE-PINOUT.md` §15). Tránh 3 (strap), 19/20 (USB), 26–37 (flash/PSRAM), 43/44 (UART0),
+  45/46 (strap, đã dùng cho BL/DC).
 - Console UART0 (43/44) + USB-Serial/JTAG phụ; `readlog.py auto` KHÔNG tìm được (chỉ tìm CH343 của P4) → ghi COM.
 
 ## 3. Luật riêng cây này
@@ -141,6 +143,9 @@ dưới-phải (~W−1,~H−1); lệch → chỉnh `BOARD_TOUCH_SWAP_XY/MIRROR_*
 tích hợp của Claude CHẶN camera (`NotAllowedError`), ffmpeg thì được:
 `ffmpeg -f dshow -video_size 1280x720 -vcodec mjpeg -i video="Integrated Webcam" -ss 1.2 -frames:v 1 -update 1 -vf "crop=640:260:440:140,scale=1280:-1" shot.jpg`
 (crop theo vị trí máy trên bàn 2026-09-17 — chỉnh lại). Vòng lặp: `uicmd ui N` → chụp → xem.
+**Box ADM không có ffmpeg** → `python scripts/webcam_shot.py --list` (OpenCV trong venv IDF `C:/Espressif/python_env/idf5.5_py3.11_env`,
+đã `pip install opencv-python` 2026-09-20) rồi `webcam_shot.py <idx> shot.jpg --crop x,y,w,h --scale 2`; xem ảnh bằng Read tool. Camera USB
+không hiện tên riêng trong PnP (cam laptop = 2 mục "Integrated Webcam", MSMF idx 0/1) — nhận diện bằng ảnh thử từng index.
 Từ Git Bash: `MSYS_NO_PATHCONV=1 cmd.exe /c "scripts\build.bat s3_28lcd"`. Lần đầu mỗi target cần mạng để
 component manager kéo component (~2 phút); lock riêng `dependencies.lock.<target>` (track git).
 Script tự đọc id bản ESP-IDF đang chọn từ `C:\Espressif\esp_idf.json`; muốn bản khác đặt `R4P_IDF_ID=esp-idf-<hash>`.
@@ -190,6 +195,8 @@ log 60 s sạch; chạm đúng vị trí (không lệch trục — nếu lệch 
 1. ~~Nạp bo ES3N28P 2.8"~~ (đã nạp 2026-09-19, log đạt §4 trừ phần mắt/chạm). Còn: **người cầm máy** xác nhận hướng xoay màn,
    trục chạm (chỉnh `BOARD_TOUCH_SWAP_XY/MIRROR_*`), 13 màn + màn WiFi thang 2.8" (chữ tràn? QR quét được?), chỉnh token theo mắt;
    soak > 60 s; xác nhận header thật của board → sửa chân cảm biến ĐỀ XUẤT; cắm cổng UART0 để dùng `uicmd.py`.
+   **Nối 3 nút XANH/ĐỎ/TRẮNG của vỏ máy vào GPIO 47/48/41** (nhấn = GND) rồi kiểm softkey bằng nút cơ (hiện mới kiểm bằng chạm:
+   ĐỎ "Cài đặt" → `man 7` OK).
 2. ~~Schematic bo cảm biến 5 slot~~ → **đã có bo LED + bo cảm biến 4 khe** (2026-09-18): làm theo `docs/HARDWARE-ARCHITECTURE.md`
    — đo 5 số liệu §7 → chốt D1–D6 → vẽ bo **Rapid4P-IF** (P4 JP1; bo S3 cần bản tương đương) → bring-up `BOARD_SENSOR_SLOTS 4` → rev hai bo lên 5 khe.
 3. P4: soak > 60 s; chu trình đo 34 s khi có bo con; màn WiFi chuỗi vẫn tiếng Việt cứng (chưa theo `ui_strings`, đi cùng portal web).

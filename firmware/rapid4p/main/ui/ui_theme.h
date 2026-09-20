@@ -81,6 +81,7 @@ static inline void ui_theme_brand_bar(lv_obj_t *bar)
 #define UI_BAR_H        16
 #define UI_BAR_LBL_W    60
 #define UI_TILE_H       156
+#define UI_TILE_ROW_H   166     /* hàng chứa ô khe */
 #define UI_TILE_GAP     (GAP + 4)
 #define UI_TILE_PAD     8
 #define UI_TILE_BORDER  3
@@ -137,10 +138,11 @@ static inline void ui_theme_brand_bar(lv_obj_t *bar)
 #define UI_BAR_H        10
 #define UI_BAR_LBL_W    40
 #define UI_TILE_H       84
+#define UI_TILE_ROW_H   88      /* content 148 px: chữ 17 + hàng ô 88 + chip 26 + 2 gap 12 = 143 */
 #define UI_TILE_GAP     4
 #define UI_TILE_PAD     2
 #define UI_TILE_BORDER  1
-#define UI_TITLE_W      200     /* trạng thái header 2.8" chỉ còn icon + số → tiêu đề rộng hơn */
+#define UI_TITLE_W      210     /* 320 − HEADER_TITLE_X 39 − trạng thái ~60 (icon + số) − lề */
 #define UI_TITLE_H      22
 #define UI_HOME_LOGO_H  40      /* mark nhỏ cạnh tên máy (một hàng), không logo lớn */
 #define UI_CHIP_H       26

@@ -72,6 +72,15 @@ typedef enum {
 #define R4P_EVT_MEASURE_DONE   BIT5   /* app/measure.c xong một chu trình */
 #define R4P_EVT_UPLOAD_QUEUED  BIT6   /* có kết quả chờ gửi */
 #define R4P_EVT_OTA_AVAILABLE  BIT7
+/* 3 nút vật lý XANH/ĐỎ/TRẮNG của vỏ máy Rapid (ReaderPlus): tap + giữ (BOARD_BTN_HOLD_MS). */
+#define R4P_EVT_BTN_GREEN      BIT8
+#define R4P_EVT_BTN_RED        BIT9
+#define R4P_EVT_BTN_WHITE      BIT10
+#define R4P_EVT_BTN_GREEN_LONG BIT11
+#define R4P_EVT_BTN_RED_LONG   BIT12
+#define R4P_EVT_BTN_WHITE_LONG BIT13
+
+typedef enum { R4P_KEY_GREEN = 0, R4P_KEY_RED, R4P_KEY_WHITE, R4P_KEY_COUNT } r4p_key_t;
 
 extern EventGroupHandle_t g_r4p_events;
 
