@@ -66,7 +66,7 @@ Quyền: mọi route ghi lô/số đo/bộ gác `auth` (token thường) — app
 
 | Pha | Nội dung | Trạng thái |
 |---|---|---|
-| P0 | Server `/calib/*` + `app/calib.py` + `tests/test_calib.py` (13 test, số liệu sheet bàn giao + template LOD) | **Xong 2026-09-21**, chưa deploy |
+| P0 | Server `/calib/*` + `app/calib.py` + `tests/test_calib.py` (13 test, số liệu sheet bàn giao + template LOD) | **Xong 2026-09-21**, ĐÃ DEPLOY 2026-09-23 |
 | P0 | App: tab Hiệu chuẩn 3 mục + màn lô | **Xong 2026-09-21** — `flutter analyze` sạch, chạy thử bản web local (server Docker) |
 | P1 | **Đọc raw tự động** (`services/calib_reader.dart`, test 11 ca): panel "Đọc từ máy" ở thẻ số đo — COM (desktop) / Web Serial (web), gửi ĐÚNG 1 byte `'0'..'9'` = khe 1..10 (firmware `OptoCommandProcess`, `recvLen == 1`), nhận `{Green: N}` (fleet) hoặc `raw,calibrated` (Beta WI), điền ô đang chọn, LƯU NGAY từng ô, tự nhảy ống kế; Enter/Space = ĐỌC (HardwareKeyboard, bỏ qua khi đang gõ ô nhập/dialog) | **Xong 2026-09-21**, thử bằng cổng Web Serial giả: 5 ống đọc liên tiếp, byte gửi đúng, server nhận đủ. Chưa thử máy thật |
 | P1 | **Firmware máy tham chiếu** (`firmware/FBT-RapidPlus/`, clone riêng FBT-DXD, nhánh `v2.4.5at-calib-solution`, v2.4.6): fix `testShot` không giữ `gI2CMutex` (máy thật báo "Opto sensor error" ngay lệnh đầu — SensorTask quay LED qua I2C khi rảnh); chế độ **`eCalibTube`**: LCD hiện khe/nhãn app gửi/số thô cỡ lớn/#lần, lệnh `CalibStart/Slot/Label/Shot/End`, nút ĐỎ trên máy = đọc (app tự điền qua stream `readings`), XANH = khe +1, TRẮNG = thoát | **Code xong 2026-09-21** (build + guard web xanh; app 17 test), CHƯA nạp máy thật — kịch bản thử trong `firmware/FBT-RapidPlus/docs/history/2026-09-21-che-do-doc-ong-chuan-calib-tube.md` |

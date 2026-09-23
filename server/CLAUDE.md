@@ -92,7 +92,7 @@ docs/plan/             # Các kế hoạch phát triển dự án (.md)
                             #   (firmware + app + lộ trình 4 giai đoạn) ở `apps/fbt_rapid/docs/plan/ota-nhieu-san-pham.md`
   calib-ong-chuan.md        # (2026-09-21) ống chuẩn hiệu chuẩn: quy trình đối chiếu bàn giao Khai ↔ WI DxD Hub, lệch đơn vị
                             #   stock 52 mM/µM, hợp đồng /calib/*, kho file, quyền, lộ trình P1 đọc raw qua UART + in nhãn
-  ota-quan-ly-may-nhieu-san-pham.md  # (2026-09-18, B1–B3 ĐÃ CODE+TEST, chưa deploy; B4–B5 chưa) quản lý MÁY theo kho: product_effective = tự khai >
+  ota-quan-ly-may-nhieu-san-pham.md  # (2026-09-18, B1–B3 ĐÃ DEPLOY 2026-09-23; B4–B5 chưa) quản lý MÁY theo kho: product_effective = tự khai >
                             #   gán tay devices.json > tiền tố > legacy; /devices hợp nhất sessions∪fw_seen∪devices.json
                             #   + ota.state tính ở server; offered trong fw_seen; /ota/{product}/progress; khoá upload;
                             #   thẻ từ esp_app_desc_t (ảnh ESP-IDF); lộ trình B1–B5
@@ -144,7 +144,7 @@ docs/data_sample/      # Mẫu dữ liệu thiết bị gửi lên (data_RPL.jso
   không phải lỗi code). **Máy Admin**: venv IDF `C:\Espressif\python_env\idf5.5_py3.11_env` đã cài thêm
   fastapi/uvicorn/jsonschema (2026-09-21) → `…\Scripts\python.exe -m pytest tests -q` chạy thẳng cả bộ (130 test),
   nhớ `PYTHONIOENCODING=utf-8` vì thông báo test tiếng Việt. Kiểm 2026-09-21: prod vẫn 36 route (bản 09-12),
-  đợt B1–B3 CHƯA deploy.
+  đợt B1–B3 + `/calib/*` + `/logs` ĐÃ DEPLOY 2026-09-23 (prod = local 56 route). SSH từ máy Admin: `deploy.ps1 -Server -Target fbt-server` (host mặc định không khớp `~/.ssh/config` → Permission denied).
 - **Tích hợp RAPID ERP** (2026-09-17, chờ chốt §10): plan xuyên phần `docs/plan/erp-feed-engineer-server.md`
   (gốc monorepo) — ERP **kéo** qua `/erp/v1/*` **chỉ GET** (POST catch-all), token riêng chỉ-đọc
   `ERP_READ_TOKENS`; KHÔNG đồng bộ lại kết quả đo vì firmware đã POST cùng payload thẳng vào ERP
