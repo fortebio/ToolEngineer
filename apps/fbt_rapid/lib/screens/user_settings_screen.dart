@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import '../services/app_prefs.dart';
 import '../services/app_settings.dart';
@@ -11,6 +12,7 @@ import '../services/backup_service.dart';
 import '../services/session_store.dart';
 import '../services/storage_paths.dart';
 import '../theme/app_theme.dart';
+import '../util/app_version.dart';
 import '../util/i18n.dart';
 import '../util/platform_files.dart' as pf;
 
@@ -442,6 +444,16 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
             ),
           ),
 
+          // --- Phiên bản ứng dụng ---
+          //
+          // KHÔNG gác quyền: ở xưởng và phòng khám, câu đầu tiên khi báo lỗi
+          // luôn là "máy anh đang chạy bản nào" — bắt người dùng đi tìm trong
+          // Control Panel thì không ai tìm. Nút chép để dán thẳng vào tin nhắn
+          // gửi kỹ thuật.
+          const SizedBox(height: 24),
+          _section(tr('ver.title')),
+          const _VersionCard(),
+
           // --- RAPID ERP (API ngoài) — CHỈ admin nhập ---
           if (SessionStore.canWriteClinical) ...[
             const SizedBox(height: 24),
@@ -560,4 +572,125 @@ class _UserSettingsScreenState extends State<UserSettingsScreen> {
           );
         },
       );
+}
+
+/// Thẻ **Phiên bản** trong màn Thiết lập: số version đang chạy, kênh (đang phát
+/// triển / phát hành), ngày dựng, commit, và — khi là bản dev — danh sách việc
+/// đang thêm ([kDevHighlights]).
+///
+/// Mọi con số lấy từ `util/app_version.dart` (một chỗ duy nhất), không màn nào
+/// tự gõ lại chuỗi version.
+class _VersionCard extends StatelessWidget {
+  const _VersionCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final dev = kIsDevBuild;
+
+    Widget row(IconData icon, String label, String value, {bool mono = false}) =>
+        ListTile(
+          dense: true,
+          leading: Icon(icon, size: 20, color: cs.primary),
+          title: Text(label,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: cs.onSurfaceVariant)),
+          subtitle: Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontFamily: mono ? 'JetBrains Mono' : null,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        );
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          row(Icons.tag, tr('ver.app'), appVersionLabel, mono: true),
+          row(
+            dev ? Icons.construction_outlined : Icons.verified_outlined,
+            tr('ver.channel'),
+            dev ? tr('ver.dev') : tr('ver.release'),
+          ),
+          row(Icons.event_outlined, tr('ver.buildDate'), kAppBuildDate, mono: true),
+          if (kAppBuildRev.isNotEmpty)
+            row(Icons.commit_outlined, tr('ver.rev'), kAppBuildRev, mono: true),
+          if (dev) ...[
+            row(Icons.history_outlined, tr('ver.lastRelease'), 'v$kAppLastRelease',
+                mono: true),
+            // Cảnh báo "chưa phát hành" phải NỔI, không lẫn vào các dòng trên:
+            // người cầm máy cần biết ngay bản này có thể còn lỗi.
+            Container(
+              margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: kWarning.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(AppRadius.base),
+                border: Border.all(color: kWarning.withValues(alpha: 0.45)),
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.info_outline, size: 18, color: kWarning),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(tr('ver.devNote'),
+                      style: theme.textTheme.bodySmall),
+                ),
+              ]),
+            ),
+            if (kDevHighlights.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(tr('ver.whatsNew'),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: cs.onSurfaceVariant)),
+                    const SizedBox(height: 6),
+                    for (final h in kDevHighlights)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6, right: 8),
+                              child: Icon(Icons.circle, size: 5, color: cs.primary),
+                            ),
+                            Expanded(
+                                child: Text(h,
+                                    style: theme.textTheme.bodySmall)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 8, 8),
+              child: TextButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(
+                      ClipboardData(text: 'FBT_RAPID $appVersionFull'));
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(tr('ver.copied'))));
+                },
+                icon: const Icon(Icons.copy_outlined, size: 18),
+                label: Text(tr('ver.copy')),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

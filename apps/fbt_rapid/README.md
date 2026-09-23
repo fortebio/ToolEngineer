@@ -26,7 +26,8 @@ Sau khi **đăng nhập** (§1.6), giao diện dùng **thanh điều hướng d�
 
 - **Khách hàng** (`user`): **Lịch sử**.
 - **Nhân sự** (`admin`/`root`): **+ Chăm sóc KH** (Thông tin máy · Xử lý sự cố — §1.8) **+ Quản lý máy**
-  **+ Sản xuất** (trạm ATE — §1.10) **+ Kỹ Thuật** (Log nhiệt · Đọc serial · Nạp code).
+  **+ Sản xuất** (trạm ATE — §1.10) **+ Hiệu chuẩn** (ống chuẩn quang — server `docs/plan/calib-ong-chuan.md`)
+  **+ Kỹ Thuật** (Log nhiệt · Đọc serial · Nạp code).
 - **Root**: **+ Quản lý User** (§1.7).
 
 **Thiết lập** + **Đăng xuất** nằm trong **menu của icon tài khoản** (cuối thanh dọc) — KHÔNG còn là tab.
@@ -384,6 +385,10 @@ lib/
   screens/ate_run_screen.dart            #   Chạy trạm: quét số máy → 5 bước → PASS/FAIL → hồ sơ
   screens/ate_profile_screen.dart        #   Hồ sơ máy: hồ sơ khai sinh + mọi lần qua trạm
   screens/ate_stats_screen.dart          #   Thống kê: FPY, sản lượng/ngày, Pareto mã bước hỏng
+  screens/calib_screen.dart              # tab Hiệu chuẩn (2026-09-21): Lô pha | Bộ ống | Ngưỡng — ống chuẩn Fluorescein
+  screens/calib_batch_screen.dart        #   một lô: nguyên liệu → checklist pha → bảng số đo → xếp hạng/đóng bộ → bộ ống
+  services/calib_api.dart                #   client /calib/* (Engineer Server); model CalibBatchMeta/CalibSet/CalibCombo/CalibRank
+  services/calib_reader.dart             #   đọc raw từ máy tham chiếu qua SerialLink: gửi 1 byte khe, parse {Green: N} / raw,calibrated
   services/ate_runner.dart               # kịch bản ATE (THUẦN Dart, test được — interface AteStation)
   services/ate_station_io.dart           #   bản thật của AteStation: esptool (Process) + cổng COM
   services/ate_api.dart                  #   client /ate/* của Engineer Server (PUT/GET)

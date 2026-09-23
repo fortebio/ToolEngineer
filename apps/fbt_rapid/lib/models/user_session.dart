@@ -141,6 +141,13 @@ class UserSession {
   /// phải là quyết định của kỹ thuật chứ không của người đang chạy sản lượng.
   bool get canEditLimits => isStaff;
 
+  /// Tab **Hiệu chuẩn** (ống chuẩn quang, 2026-09-21): pha dung dịch, ghi số đo, đóng
+  /// bộ ống, cấp phát cho máy. Kỹ sư lẫn người của xưởng đều làm (chủ dự án chốt);
+  /// khách hàng (`user`) KHÔNG thấy — đây là công cụ nội bộ. Ngưỡng PASS đi theo
+  /// [canEditLimits] (chỉ nhân sự kỹ thuật) như tiêu chuẩn ATE.
+  bool get canSeeCalib => isStaff || isFactory;
+  bool get canWriteCalib => isStaff || isFactory;
+
   /// Vào được màn Quản lý User. Phạm vi cụ thể xem [canManageRole].
   bool get canManageUsers => isRoot || isManager;
 

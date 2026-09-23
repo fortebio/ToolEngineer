@@ -1023,6 +1023,21 @@ detection_margin_time` không ràng buộc gì lên sàn Ct.)
    (phân mảnh heap) **nay hết** vì nhả BT sớm cho block liền mạch 68KB (GOTCHA 1/2) — thừa cho
    TLS dù còn SSE socket. Chi tiết:
    [docs/history/2026-07-21-erp-upload-and-bt-early-release-heap-fix.md](docs/history/2026-07-21-erp-upload-and-bt-early-release-heap-fix.md).
+15. **Lệnh serial `0`–`9` (`testShot`) chạy trên `SettingTask` KHÔNG giữ `gI2CMutex`** (thấy trên máy thật
+   2026-09-21 khi app tab Hiệu chuẩn gửi lệnh đọc ống chuẩn: máy hiện ngay "Opto sensor error / Please
+   power off/on"). Đường đi: `SettingTask` → `_ForteSetting.loop()` → `OptoCommandProcess(recvData[0])`
+   (`ForteSetting.cpp:1580`, chỉ khi `recvLen == 1`) → `testShot(slot)` gọi thẳng `_LED.LED_on_unguarded`
+   + `openSensorChannel` (mux) + `VEML6035_GET_ALS_DATA_I2C_Res` — toàn hàm "caller MUST hold mutex" —
+   trong khi `SensorTask` (`main.cpp:94`) lấy mutex mỗi 20 ms và LED/buzzer/MCP cũng đi I2C có mutex →
+   đọc lỗi 10 lần → `isMaxErrorReached()`. Cùng đường này là bước **ATE OPT-03** của app (gửi `0`–`9`).
+   Sửa: bọc `OptoCommandProcess()` bằng `xSemaphoreTake(gI2CMutex, pdMS_TO_TICKS(500))…Give` (testShot
+   giữ ~1 s, máy đang `eSensorwait` nên vô hại); nếu vẫn lỗi thì cảm biến đang shutdown khi rảnh —
+   `VEML6035_SET_SD`/`openSensorChannel` đầu `testShot` đang bị comment (`sensor6035.cpp:2032-2033`).
+   Kèm: màn lỗi in `String(iChannel + 1)` (biến vòng đo chính) chứ không phải `slot + 1` → "Slot N" trên
+   LCD không phải khe vừa nhận. Hợp đồng với app GIỮ NGUYÊN: lệnh đúng 1 byte không newline, `'0'` = khe 1,
+   trả lời một dòng `{Green: <số>}` (app `calib_reader.dart`/`parseGreenMean`). **Đã sửa ở clone riêng
+   `firmware/FBT-RapidPlus/` (v2.4.6, `readSlotRaw` + `I2CLock` + chế độ `eCalibTube`)** — cây
+   `firmware/rapidplus/` này CHƯA mang fix; khi gộp về nhớ cherry-pick cả 3 commit.
 
 ## Brand (Forte Biotech)
 

@@ -39,10 +39,24 @@ flutter build web --release            # build WEB → build\web (host tĩnh ở
 `installer.iss` nằm ở **gốc thư mục app (`apps/fbt_rapid/`)** (source/icon/vendor dùng path tương đối `AddBackslash(SourcePath)`
 — đừng hardcode đường dẫn tuyệt đối); mỗi lần phát hành nhớ nâng `MyAppVersion` trong file.
 Version phát hành = `MyAppVersion` (khớp tag commit `vX.Y.Z`); `pubspec.yaml` KHÔNG đồng bộ (vẫn 1.0.2) — đừng lấy đó làm chuẩn:
+**Version app HIỆN TRÊN MÀN HÌNH** (2026-09-22) lấy từ `lib/util/app_version.dart` — một chỗ duy nhất cho
+cả ba nơi bày: màn đăng nhập, chân thanh điều hướng (rail bung / ngăn kéo điện thoại), **Thiết lập › Phiên bản**.
+`kAppVersion` = bản ĐANG PHÁT TRIỂN (hiện `v1.1.0-dev`), `kAppLastRelease` = `MyAppVersion` của `installer.iss`
+(`test/app_version_test.dart` đọc file .iss và bắt lệch — đây là cách giữ hai chỗ khỏi trôi như `pubspec.yaml` đã trôi).
+Dựng bản phát hành thì thêm `--dart-define=FBT_CHANNEL=release` (+ `FBT_BUILD_DATE`, `FBT_BUILD_REV`) —
+không có cờ này thì app tự nhận mình là bản dev và in cảnh báo vàng "chưa phát hành".
 ```powershell
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer.iss
 # → <OutputDir trong installer.iss>\FBT_RAPID-Setup-vX.Y.Z.exe
 ```
+**Xem MÀN SAU ĐĂNG NHẬP mà không cần tài khoản/mạng** (máy không build được Windows desktop, vd máy
+`Admin`) — dùng `mock-server.js` (2026-09-22): `flutter build web --release --base-href /app/
+--dart-define=FBT_URL=http://localhost:8090` rồi `node mock-server.js 8090` (chạy nền) → mở
+`http://localhost:8090/app/`, **đăng nhập bằng user/pass BẤT KỲ, vào thẳng vai trò root** nên thấy đủ
+mọi tab. Khác `serve-web-local.js` (file kia PROXY về server thật, cần mạng + tài khoản). Trình duyệt
+của Claude bấm được bằng toạ độ (Flutter web canvas → `find`/`read_page` KHÔNG thấy chữ, phải chụp màn
+hình rồi click theo pixel); sửa Dart xong phải **build lại** (~60 s) mới thấy đổi.
+
 **Chạy + chụp màn hình tự động** (cho AI/agent — GUI không có curl/Playwright): skill
 `.claude/skills/run-fbt-rapid/` (ở GỐC monorepo; `driver.ps1`, mặc định trỏ `apps\fbt_rapid`) build/launch `fbt_dxd_app.exe` rồi chụp ĐÚNG cửa
 sổ ra PNG. Vd `& ..\..\.claude\skills\run-fbt-rapid\driver.ps1` (launch Debug → chụp `_smoke.png` →
@@ -94,9 +108,32 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   đoán 3 shape data.json/payload/run cloud vẫn còn cho nơi khác dùng, test `test/loose_json_test.dart`.)
   Thiết lập đẩy như route (admin
   **1 màn DÙNG CHUNG** `user_settings_screen.dart` cho cả admin lẫn user (đồng bộ giống nhau;
-  `settings_screen.dart` cũ KHÔNG còn dùng). **Thanh nav ẩn hẳn** — hover mép trái (vùng 14px +
-  "tay nắm" gợi ý) mới hiện như **overlay trong `Stack`** (KHÔNG dùng `Row`): bung/thu thanh nav KHÔNG
-  relayout nội dung → tránh giật `fl_chart`.
+  `settings_screen.dart` cũ KHÔNG còn dùng). **Thanh nav (rail) LUÔN HIỆN, rộng 64px chỉ-icon**, rê
+  chuột vào thì bung 248px kèm nhãn; dựng bằng `Stack` + 2 `AnimatedPositioned` (KHÔNG `Row`).
+  **Từ 2026-09-23 nội dung CO THEO rail**: mép trái vùng nội dung animate cùng nhịp (`_railAnim`
+  220ms / `_railCurve`) nên bung ra không che gì. Bản trước inset nội dung cố định 64px để rail phủ
+  lên (tránh `fl_chart` relayout) — nhưng 184px chênh nuốt mất thanh mục con + đầu dòng dữ liệu, đúng
+  lúc người dùng đang rê chuột để đọc tên mục. **Cửa sổ hẹp thì giữ kiểu phủ lên**: đẩy chỉ khi
+  `maxWidth - 248 >= _minContentWidth` (560) — dưới ngưỡng đó bảng số đo tab Hiệu chuẩn vỡ cột, tệ hơn
+  bị che tạm lúc hover. Đổi `_slim`/`_open` thì đổi luôn `_minContentWidth`.
+  **Nút THU/MỞ ở CHÂN rail** (`_RailFoot`, 2026-09-23) là nút DUY NHẤT đổi bề rộng — đặt cạnh dòng
+  version theo mẫu sidebar hubOTA (`04.FBT-OTA`). Trạng thái là MỘT `bool _collapsed`: mở = rail đứng
+  nguyên 248px và nội dung co theo; thu = 64px, **cứng**.
+  ⚠️ **"Rê chuột vào rail thì bung" ĐANG TẠM ĐÓNG** (cờ const `kRailHoverExpand = false`, 2026-09-23
+  theo yêu cầu chủ dự án — bật lại đổi thành `true`, code hover còn nguyên chỗ): bề rộng rail giờ CHỈ
+  đổi bằng nút ở chân rail, đưa chuột ngang qua không làm bố cục nhảy nữa. Vì vậy **tooltip tên mục
+  trong `_RailItem` là đường DUY NHẤT đọc tên mục khi rail thu — đừng bỏ**. `MouseRegion` cũng không
+  `setState` khi cờ đóng (chuột đi ngang mà dựng lại cả cây widget là phí, nhất là tab có `fl_chart`). Icon chỉ **hướng SẼ ĐI** (`»` khi đang thu = bấm là
+  mở), vẽ ngược là ai cũng bấm nhầm một lần. *(Nút ghim `_PinButton` ở ĐẦU rail và enum 3 nấc
+  `_RailMode` là hai bản nháp cùng ngày, chủ dự án đã bác — hai nút cho một việc là rối. Đừng dựng lại.)*
+  Nhớ giữa các lần mở app qua `shared_preferences` khoá **`rail_collapsed_v1`**, có đọc bù hai khoá nháp
+  cũ (`rail_mode_v1` == `'open'`, `rail_pinned_v1` == true) để máy đang để rail mở sẵn không bị thu lại
+  sau khi cập nhật; đọc/ghi THẲNG trong `_HomeShellState`, KHÔNG nhét vào `AppPrefs`
+  (`AppPrefs.notifyListeners()` dựng lại `MaterialApp`, mọi màn đang mở mất vị trí cuộn chỉ vì một nút
+  bố cục). **Mở thì LUÔN đẩy nội dung**, kể cả dưới `_minContentWidth`: ngưỡng đó để bảo vệ người rê
+  chuột ngang qua, còn mở là lựa chọn chủ động — che nội dung vĩnh viễn mới là hỏng. Bấm THU phải tự hạ
+  `_wide = false`: lúc bấm, con trỏ vẫn nằm trên rail nên `MouseRegion.onExit` KHÔNG bắn, không hạ tay
+  thì rail kẹt bung và trông như nút hỏng.
 - **Tab Quản lý máy** (`manager_machine_screen.dart`, nhân sự; chỉ HTTP nên chạy cả web): **Cập nhật
   OTA** (kho `.bin` trên Engineer Server: tải lên `PUT /ota/{file}` với tên `fbt_v<version>.bin`, chọn
   bản chung/ghim máy `PUT /ota/target/…`, xoá `DELETE`, **tải về** `FbtApi.downloadOta` = `GET /ota/{file}`
@@ -132,6 +169,54 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   dựng list tab bằng `add` để biết chỉ số và truyền `active: _index == supportIndex`; màn nhả cổng
   (giữ log) khi `active` → false. Lệnh nhanh CHỈ lệnh an toàn (`ParaRead`/`M`/`TemperatureOutput`/`Res`
   có xác nhận) — KHÔNG `P` (treo firmware).
+- **Tab Hiệu chuẩn** (`calib_screen.dart` + `calib_batch_screen.dart` + `services/calib_api.dart`, 2026-09-21;
+  kế hoạch + hợp đồng server `server/docs/plan/calib-ong-chuan.md`): ống chuẩn Fluorescein cho `eSensorcalib`
+  — Lô pha (checklist pha C1V1=C2V2 tick = ghi giờ/người NGAY, bảng số đo ống × nồng độ, xếp hạng tổ hợp +
+  LOD theo WI, gợi ý bộ không trùng ống, Đóng gói) · Bộ ống (stored → issued(SN) → used/discarded) · Ngưỡng
+  (`canEditLimits`). Gác `canSeeCalib`/`canWriteCalib` (root/admin/manager/operator; `user` không thấy).
+  Chỉ HTTP → chạy cả web, KHÔNG có bản `_web` riêng (analyze sạch + chạy thử web local 2026-09-21).
+  **Nhãn QR** (`services/calib_label.dart` + `screens/calib_label_print.dart` + `widgets/qr_view.dart`,
+  2026-09-23, test `test/calib_label_test.dart`): nút "Nhãn QR" trên thẻ bộ + "In nhãn QR" cho cả danh
+  sách → tờ A4 10 nhãn. QR mang TEXT rời `FBTCAL1|mã bộ|lô|hạn|slope|intercept|R²|LOD|ống|ngưỡng`
+  (không phải URL: kho lạnh không mạng, `/calib/sets/{id}` lại đòi token). **Chỉ bộ ĐẠT còn dùng được**
+  mới in được — chi tiết + lý do ở `docs/history/2026-09-23-nhan-qr-ong-chuan.md`.
+  **Đọc số thô TỰ ĐỘNG** (`services/calib_reader.dart`, THUẦN Dart qua `SerialLink`, test
+  `test/calib_reader_test.dart`): panel "Đọc từ máy" ở thẻ 3 màn lô — nối cổng (COM desktop / Web Serial),
+  chọn **Khe đọc 1–10** ngay trong panel (viền đỏ khi lô chưa ghi khe; chọn = ghi ô thẻ 1 + PUT `reader.slot`
+  ngay — khe là dữ liệu truy vết), đặt ống → ĐỌC hoặc **Enter/Space** → gửi **ĐÚNG 1 byte** `'0'..'9'` (khe 1..10; firmware
+  `ForteSetting::loop` chỉ vào `OptoCommandProcess` khi `recvLen == 1`, kèm `
+` là thành lệnh 2 byte bị
+  bỏ qua) → chờ dòng `{Green: N}` (fleet) hay `raw,calibrated` (Beta prototype WI) → điền ô đang chọn →
+  **PUT ngay ô đó** → nhảy ống kế (`nextCalibCell`). Phím tắt bắt bằng `HardwareKeyboard.instance.addHandler`
+  (bỏ qua khi focus đang ở `EditableText` hoặc route không phải current) chứ KHÔNG `CallbackShortcuts`+`Focus`:
+  bản đầu dùng cách đó, sau khi bấm nút ĐỌC thì Enter không tới đâu — kỹ sư một tay cầm ống không thể
+  "bấm vào panel cho có focus" trước mỗi lần đọc.
+  **Firmware v2.4.6 (`firmware/FBT-RapidPlus/`, chế độ `eCalibTube`)**: Kết nối → `CalibStart,<khe>` +
+  `CalibLabel,<ô đang chọn>` (ASCII ≤ 31, `calibLabelFor`), máy hiện LCD; **nút ĐỎ trên máy** in `{Green: N}`
+  không ai hỏi → `CalibReader.readings` (chỉ phát khi KHÔNG có `readSlot` đang chờ — tránh điền hai lần) →
+  `_applyReading` y như Enter; XANH trên máy → `{CalibSlot: n}` → `_setSlot(n, fromDevice: true)` (không gửi
+  ngược, tránh vòng lặp); Ngắt/rời màn → `CalibEnd`. `readSlot` GIỮ 1 byte để fleet firmware cũ vẫn đọc
+  được (nó trả "Command is not supported!" cho `Calib*`, vô hại).
+  **Nghi "truyền số lên app lỗi" thì kiểm theo thứ tự** (2026-09-22): (1) `GET /calib/batches/<id>` trên server
+  (`readings.<conc>.<ống>`) — mỗi ô PUT ngay lúc đọc nên số trên server = số app đã nhận; (2) muốn bắt log thô
+  máy thì app phải **Ngắt** trước — cổng COM bị Web Serial giữ, pyserial báo `PermissionError(13, 'Access is
+  denied')`; (3) **ô ghi đúng số = byte khe (khe 4 → 3) là số GIẢ**: firmware gom byte tới trong 1 s vào một
+  buffer rồi echo nguyên buffer — Enter ngay sau `CalibLabel` (app gửi sau mỗi lần đọc) → máy in dòng `3` →
+  parser số trần nhận làm số đo (11/40 ô một lô, 2026-09-22). Nay `readSlot` khi `modeOn` gửi `CalibShot` và
+  CHỈ nhận `{Green: N}`; số trần/`raw,calibrated` chỉ còn cho Beta prototype. Firmware ≥ aaee4c8 cũng không echo
+  buffer `Calib*` nữa. **Đừng nới parser nhận số trần trong chế độ** dù log máy trông "sạch".
+  **Màn viết cho NHÂN VIÊN KHÔNG CHUYÊN, không phải cho kỹ sư** (2026-09-22): đầu màn có thanh 4 việc +
+  ô "Việc tiếp theo" nói bằng lời thường (suy từ dữ liệu lô trong `_nextAction`, bấm là cuộn tới thẻ đó);
+  mỗi thẻ chỉ MỘT câu hướng dẫn, mọi công thức/ngưỡng/giao thức nằm trong `tech:` của `_card()` = khối
+  "Chi tiết kỹ thuật" gập sẵn; nút ĐỌC cao 56 px kèm câu "Đặt ống <nồng độ · số> vào khe <n>"; bộ gợi ý
+  đọc là "300 nM số 3, 200 nM số 5" (`_tubesPlain`) chứ không phải `300/3 · 200/5`. **Thêm gì vào màn này
+  thì đặt số liệu kỹ thuật vào `tech:`, đừng nối thêm vào `hint:`** — hint dày biệt ngữ chính là thứ vừa
+  gỡ. Chi tiết: [docs/history/2026-09-22-tab-hieu-chuan-cho-nguoi-khong-chuyen.md](docs/history/2026-09-22-tab-hieu-chuan-cho-nguoi-khong-chuyen.md).
+  **Nút TRẮNG trên máy giữa lô** (2026-09-22): máy in `{CalibMode: off}` về màn chính; app cũ vẫn gửi `CalibLabel`
+  sau mỗi ô → máy trả `notInMode` → hiện "Máy từ chối đọc/Máy báo: notInMode" cho mọi ống kế. Nay `CalibReader`
+  nhớ `_modeSeen`: máy đã thoát thì `setLabel` chỉ ghi nhớ, `readSlot` kế gửi **một gói** `CalibStart,<khe>` +
+  `CalibLabel,<nhãn cuối>` + `CalibShot` (firmware tách dòng) và chỉ chờ `{Green}`; màn nghe `modeChanges`
+  để báo "bấm ĐỌC là máy vào lại" thay vì lỗi. Test `nút TRẮNG trên máy ({CalibMode: off})…`.
 - **Tab Sản xuất (ATE)** (`ate_screen.dart`, nhân sự, 2026-09-07; doc `docs/08-tram-san-xuat-ate.md`,
   kế hoạch đầy đủ `docs/plan/ate-san-xuat.md`): trạm nghiệm thu máy ở xưởng, **pha P0** = nạp → khai
   sinh → hồ sơ. Mẫu segmented **Chạy trạm | Hồ sơ máy | Thống kê**. Ba lớp tách BẠCH, đừng trộn:
@@ -275,8 +360,13 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   spec desktop (KHÔNG đụng code serial desktop): parse TimeRT/TimeRB + TemperatureOutput y hệt,
   console đa cổng + HEX + cap buffer y hệt, flasher offsets/flash mode/size + monitor-sau-nạp y hệt
   (khác: "Dừng" = ngắt cổng vì không có process để kill; "Lưu" = tải Downloads). GOTCHA giữ nguyên
-  từ desktop: sau `port.open()` PHẢI `setSignals({dataTerminalReady:false, requestToSend:false})`
-  — không set là Chrome bật DTR/RTS → ESP32 auto-reset (đã ghim trong `WebSerialPort.open`).
+  từ desktop: sau `port.open()` PHẢI tắt DTR/RTS — không set là Chrome bật DTR/RTS → ESP32 auto-reset
+  (đã ghim trong `WebSerialPort.open`). **Nhưng tắt gộp một lệnh `setSignals({dtr:false, rts:false})`
+  VẪN reset** (2026-09-22, máy vẫn reboot mỗi lần Kết nối dù code "đã tắt"): Chromium thực thi thành
+  CLRDTR rồi CLRRTS, mà EN bị kéo xuống đúng lúc *RTS còn bật, DTR đã tắt*. Đo Rapid+ CH340: tắt DTR
+  trước → reset 3/3, tắt RTS trước → 0/3, mở cổng với cả hai bật → 0/15. Nay `open()` gọi **hai lệnh:
+  `setSignals(rts:false)` rồi `setSignals(dtr:false)`** — đừng gộp lại. Script đo:
+  `firmware/FBT-RapidPlus/tools/dtr_probe.py`.
   **esptool-js vendor**: bundle 1 file IIFE bằng esbuild (`npm i esptool-js esbuild` →
   `npx esbuild entry.mjs --bundle --format=iife --global-name=esptoolJS --minify`) → `web/esptool.js`
   kèm thẻ `<script src="esptool.js" defer>` trong `web/index.html`; nâng version esptool-js thì làm
@@ -418,6 +508,25 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   `DropdownButtonFormField` bỏ giá trị lạ là ĐÚNG. Bài học kép: (1) so danh sách thật với giá trị đã
   lưu trước khi mổ widget; (2) trạng thái "tên đã lưu không còn trong kho" phải **nói ra**
   (`ate.binGone`), vì ô trống trông y hệt "chưa ai cấu hình".
+- **Browser tool `key` KHÔNG tới được canvas Flutter web** (2026-09-21): `computer{action:key,text:Return}`
+  không làm app thấy phím dù `HardwareKeyboard` handler đúng; muốn thử phím tắt thì bắn thẳng
+  `document.querySelector('flutter-view').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',
+  keyCode:13,bubbles:true}))` (+ `keyup`) qua `javascript_tool` — app phản ứng ngay. `scroll` của tool cũng
+  hay rơi im (trang đứng yên) → cuộn bằng `dispatchEvent(new WheelEvent('wheel',{deltaY:300,clientX,clientY,
+  bubbles:true}))` lặp vài lần, ảnh chụp timeout thì chụp lại lần hai là ra. **Pane trình duyệt bị ẨN thì
+  `left_click` cũng không tới canvas** (viewport co còn 640×360, click rơi lệch một mục rail) → `resize_window`
+  1280×800 rồi bắn `PointerEvent` vào `flutter-view`: `pointermove` → chờ ~150 ms → `pointerdown` (`buttons:1`,
+  `pointerId:1`, `pointerType:'mouse'`, `isPrimary:true`) → `pointerup` (`buttons:0`), toạ độ CSS = toạ độ ảnh ×
+  (1280/800); Flutter nhận như click thật (đã dùng để mở tab Hiệu chuẩn, mở lô, bấm Kết nối 2026-09-21). Cổng serial giả cho
+  Web Serial (công thức TEST LOCAL bên dưới) + `window.__fakeWrites` là cách rẻ nhất để xác nhận app gửi
+  ĐÚNG byte (`[48]` = `'0'`) mà không cần máy.
+  ⚠️ **Khung xem trước TỰ ĐỔI KÍCH THƯỚC giữa chừng mà ảnh chụp KHÔNG nói** (2026-09-23): `resize_window`
+  1280×800 xong vài lệnh sau pane đã co còn ~656×410, nhưng ảnh trả về vẫn ghi "800x500" y hệt — chỉ khác
+  ở chỗ mọi thứ trong ảnh to gấp đôi. Toạ độ quy từ khung 1280 lúc đó lệch cả trăm px → click rơi vào MỤC
+  KHÁC của rail mà trông như "click trượt". Trước mỗi loạt click theo toạ độ phải hỏi lại
+  `javascript_tool` → `({w: innerWidth, h: innerHeight})` và tính tỉ lệ `w / bề-ngang-ảnh`, đừng tin con
+  số đã `resize_window`. Thử **hover** (rail bung) thì chuỗi `pointermove` đi dần vào mép trái rồi DỪNG —
+  trạng thái hover giữ nguyên qua lệnh chụp màn hình, chụp được cả lúc rail đang bung.
 - **Lái bản WEB bằng browser tool: BẬT SEMANTICS trước, đừng đoán toạ độ**. Flutter web vẽ lên canvas
   nên `find`/`read_page` trả rỗng và click theo pixel hay trượt im lặng. Bấm nút ẩn của Flutter một
   lần là có cây accessibility để click theo `ref`:
@@ -426,6 +535,27 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   lại `read_page` trước mỗi click), và menu `DropdownButton` chỉ đưa vào cây **những mục đang thấy** —
   cuộn trong menu rồi đọc lại mới đủ. Ảnh chụp thỉnh thoảng timeout/ra khung phóng to (pane bị che):
   đó là lỗi CHỤP, không phải app — kiểm bằng `read_page` hoặc đọc thẳng `localStorage` để biết state.
+  ⚠️ **`document.querySelector('flt-semantics…')` trả RỖNG vì cây nằm trong SHADOW DOM** (Flutter 3.44,
+  2026-09-23): cả `flt-semantics-placeholder` lẫn `flt-semantics-host` đều không thấy từ `document` →
+  tưởng semantics không bật được rồi quay về đoán toạ độ (mất nhiều lượt). Phải duyệt đệ quy
+  `shadowRoot`: gom `querySelectorAll('*')`, cái nào có `.shadowRoot` thì đẩy vào stack, tìm tiếp.
+  Có host rồi thì **đừng quy toạ độ từ ảnh chụp nữa** — `getBoundingClientRect()` của node semantics
+  CHÍNH LÀ toạ độ `clientX/clientY` cần cho `PointerEvent`; hoặc gọi thẳng `node.click()` (ăn ngay, đã
+  dùng để bỏ ghim rail). Nhãn có khi nằm ở `textContent` chứ không phải `aria-label` → lọc bằng cả hai.
+  ⚠️ **ĐÍNH CHÍNH 2026-09-23 (chiều) — cách bấm RẺ NHẤT là `computer{left_click}` với toạ độ ĐỌC THẲNG
+  TỪ ẢNH `screenshot{scale:1}`, KHÔNG quy đổi gì.** Hệ toạ độ của tool chính là pixel của ảnh nó trả về
+  (ở đây 800×500), KHÔNG phải CSS viewport (1280×800) — nhân 1,6 cho "đúng CSS" là sai và trượt hoài.
+  Bấm nút thu/mở ở chân rail: đọc ảnh thấy nút ở (139, 486) → `left_click [139, 486]` trúng ngay phát
+  đầu, sau khi đã phí hàng chục lượt dò `PointerEvent` ở (222, 778). Ghi chú cũ "left_click không tới
+  canvas Flutter" là do lần đó pane đang ẩn/khác cỡ, KHÔNG phải luật.
+  `PointerEvent` tự dựng (`clientX/clientY` = CSS px — hệ KHÁC) chỉ dùng khi cần thứ `left_click` không
+  làm được: giữ **hover** một chỗ, hoặc move+down cùng tick cho nút đổi chỗ theo hover (dưới).
+  Cây semantics cũng đừng phụ thuộc: `flt-semantics-placeholder` **biến mất sau lần bật đầu tiên** và
+  tree có lúc trả về RỖNG dù `flt-semantics-host` vẫn còn — dùng được thì tốt, không thì quay về ảnh.
+  ⚠️ **Nút ĐỔI CHỖ theo hover thì `pointermove` rồi chờ là hụt**: nút ghim rail nằm giữa khi rail thu,
+  trượt sang phải (~222 CSS) khi rail bung. Rê vào → chờ → `pointerdown` thì lúc down nút đã đi mất.
+  Bắn `pointermove` + `pointerdown` **trong CÙNG một tick** (không `await` ở giữa) để hit-test rơi vào
+  bố cục lúc chưa hover.
 - **ATE — `AteStation` nói Ý ĐỊNH, không nói cú pháp esptool**: `chipInfo()` / `flash(AteFlashRequest)`
   chứ không phải `esptool(List<String> args)`. Đổi từ bản cũ (truyền tham số dòng lệnh) vì bản web
   không có tiến trình nào để chạy — nó gọi esptool-js. Đặt ranh giới ở cú pháp CLI thì bản web phải đi
@@ -688,3 +818,22 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   `[updatedAt dòng này, updatedAt dòng kế)` **và** vẫn khớp version — giờ trong phiên là giờ MÁY tự khai,
   mốc `fw-log` là giờ SERVER, lệch đồng hồ thì thà không đếm còn hơn đếm nhầm bản. Test:
   `flutter test test/firmware_history_test.dart`.
+- **In giấy từ app (nhãn QR ống chuẩn, 2026-09-23)** — `services/calib_label.dart` + `util/printable.dart`:
+  app dựng **HTML tự chứa** (QR vẽ bằng SVG inline, gói `qr` thuần Dart; không tải gì từ mạng để máy kho
+  không internet vẫn in được) rồi nhờ TRÌNH DUYỆT in, không dùng plugin `printing`/`pdf` — một đường cho
+  cả desktop lẫn web. Desktop ghi ra `%TEMP%\fbt_rapid_in\*.html` **kèm BOM UTF-8** (mở file cục bộ không
+  có header Content-Type → thiếu BOM thì bản in tiếng Việt ra "Ã´ng chuáº©n") rồi `cmd /c start "" <file>`
+  (tham số rỗng đầu tiên là TIÊU ĐỀ của `start`, thiếu nó thì không mở gì).
+  ⚠️ **Web: ĐỪNG in bằng `window.open`** — pop-up bị chặn thì `dart:html` KHÔNG trả `null` như kiểu
+  `WindowBase` hứa mà **ném** `Attempting to use a null window opened in Window.open` (gặp thật). Dùng
+  **iframe ẩn** + trang tự gọi `window.print()` trong `onload` của nó: iframe không phải pop-up nên không
+  ai chặn, và Chrome in đúng nội dung iframe. Hỏng nữa thì lùi về tải file .html xuống Downloads.
+  ⚠️ Hộp thoại in bật lên sẽ **khoá khung xem trước của Claude** (screenshot/phím time-out) → đóng tab rồi
+  `preview_start` lại; đó cũng chính là dấu hiệu lệnh in đã chạy.
+- **Kiểm mã QR thì phải QUÉT THỬ, đừng tin mắt** (2026-09-23): SVG QR lật hàng/cột vẫn "đúng" với chính
+  nó và vẫn qua mọi test Dart. Cách kiểm đã dùng: sinh `qr.svg` ra scratchpad → trang HTML nhỏ vẽ nó lên
+  canvas rồi giải bằng **jsQR** (`curl` về từ `cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js` — cdnjs trả
+  404, và trang trong khung xem trước KHÔNG tải được script CDN nên phải tải về rồi tự phục vụ) → so
+  chuỗi giải ra với payload. Phải phục vụ qua HTTP (`file://` làm canvas bị taint, `getImageData` ném).
+- **`mock-server.js` giờ có route `/calib/*` giả** (2026-09-23): xem được tab Hiệu chuẩn trên bản web mà
+  không cần server thật — dữ liệu cố tình có đủ bộ PASS / FAIL / đã huỷ để thấy nút nào hiện với bộ nào.

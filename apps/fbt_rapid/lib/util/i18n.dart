@@ -33,6 +33,19 @@ const Map<String, Map<String, String>> _t = {
   'nav.temperature': {'vi': 'Log nhiệt', 'en': 'Temperature', 'zh': '温度', 'th': 'อุณหภูมิ'},
   'nav.tech': {'vi': 'Kỹ Thuật', 'en': 'Engineering', 'zh': '技术', 'th': 'ช่างเทคนิค'},
   'nav.settings': {'vi': 'Cài đặt', 'en': 'Settings', 'zh': '设置', 'th': 'ตั้งค่า'},
+  // Nút THU/MỞ ở chân rail (`_RailFoot`) — nút DUY NHẤT đổi bề rộng rail.
+  'nav.railCollapse': {
+    'vi': 'Thu gọn thanh điều hướng',
+    'en': 'Collapse navigation',
+    'zh': '收起导航栏',
+    'th': 'ย่อแถบนำทาง'
+  },
+  'nav.railExpand': {
+    'vi': 'Mở rộng thanh điều hướng',
+    'en': 'Expand navigation',
+    'zh': '展开导航栏',
+    'th': 'ขยายแถบนำทาง'
+  },
 
   // --- Kỹ Thuật (nhân sự): Log nhiệt | Đọc serial | Nạp code ---
   'tech.comShared': {'vi': 'Ba công cụ dùng CHUNG một cổng COM — đóng cổng trước khi nạp.', 'en': 'All three tools share one COM port — close it before flashing.', 'zh': '三个工具共用一个 COM 端口——烧录前请先关闭。', 'th': 'ทั้งสามเครื่องมือใช้พอร์ต COM ร่วมกัน — ปิดพอร์ตก่อนแฟลช'},
@@ -292,6 +305,23 @@ const Map<String, Map<String, String>> _t = {
   'us.changePassword': {'vi': 'Đổi mật khẩu', 'en': 'Change password'},
   'us.changeEmail': {'vi': 'Đổi email', 'en': 'Change email'},
   'us.provider': {'vi': 'Nhà cung cấp', 'en': 'Provider'},
+
+  // --- Phiên bản ứng dụng (Thiết lập › Phiên bản) ---
+  'ver.title': {'vi': 'Phiên bản', 'en': 'Version', 'zh': '版本', 'th': 'เวอร์ชัน'},
+  'ver.app': {'vi': 'Phiên bản ứng dụng', 'en': 'App version'},
+  'ver.channel': {'vi': 'Kênh', 'en': 'Channel'},
+  'ver.dev': {'vi': 'Đang phát triển', 'en': 'In development'},
+  'ver.release': {'vi': 'Bản phát hành', 'en': 'Release'},
+  'ver.buildDate': {'vi': 'Ngày dựng', 'en': 'Build date'},
+  'ver.rev': {'vi': 'Commit', 'en': 'Commit'},
+  'ver.lastRelease': {'vi': 'Phát hành gần nhất', 'en': 'Last release'},
+  'ver.devNote': {
+    'vi': 'Bản này chưa phát hành — đang phát triển, có thể còn lỗi.',
+    'en': 'This build is not released yet — in development, may contain bugs.'
+  },
+  'ver.whatsNew': {'vi': 'Đang thêm trong bản này', 'en': 'New in this build'},
+  'ver.copy': {'vi': 'Chép thông tin phiên bản', 'en': 'Copy version info'},
+  'ver.copied': {'vi': 'Đã chép thông tin phiên bản.', 'en': 'Version info copied.'},
   'us.rapidErp': {
     'vi': 'RAPID ERP (admin)',
     'en': 'RAPID ERP (admin)',
@@ -622,6 +652,16 @@ const Map<String, Map<String, String>> _t = {
   'ce.title': {'vi': 'Đổi email', 'en': 'Change email'},
   'ce.new': {'vi': 'Email mới', 'en': 'New email'},
   'ce.ok': {'vi': 'Đã đổi email.', 'en': 'Email updated.'},
+
+  // --- Tab Hiệu chuẩn (ống chuẩn quang): Lô pha | Bộ ống | Ngưỡng ---
+  'nav.calib': {'vi': 'Hiệu chuẩn', 'en': 'Calibration', 'zh': '校准', 'th': 'การสอบเทียบ'},
+  'calib.hint': {
+    'vi': 'Pha ống chuẩn để hiệu chuẩn máy: pha dung dịch → đo từng ống → chọn bộ đạt → cấp cho máy.',
+    'en': 'Reference tubes for calibrating devices: dilute → measure each tube → pick passing sets → issue to devices.'
+  },
+  'calib.batches': {'vi': 'Lô pha', 'en': 'Batches'},
+  'calib.sets': {'vi': 'Bộ ống', 'en': 'Tube sets'},
+  'calib.limits': {'vi': 'Ngưỡng', 'en': 'Limits'},
 
   // --- Tab Sản xuất (ATE): Chạy trạm | Hồ sơ máy | Thống kê ---
   'nav.ate': {'vi': 'Sản xuất', 'en': 'Production', 'zh': '生产', 'th': 'การผลิต'},

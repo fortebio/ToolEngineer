@@ -34,6 +34,11 @@ class SessionStore {
       current?.canSeeProductionStats ?? false;
   static bool get canRunStation => current?.canRunStation ?? false;
   static bool get canEditLimits => current?.canEditLimits ?? false;
+  static bool get canSeeCalib => current?.canSeeCalib ?? false;
+  static bool get canWriteCalib => current?.canWriteCalib ?? false;
+
+  /// Tên đăng nhập hiện tại — ghi vào `by=` của các thao tác server (lô pha, bộ ống…).
+  static String get username => current?.username ?? '';
 
   /// True nếu được phép **quản lý tài khoản**: root (mọi vai trò) hoặc quản lý
   /// sản xuất (chỉ thao tác viên — xem `UserSession.canManageRole`).

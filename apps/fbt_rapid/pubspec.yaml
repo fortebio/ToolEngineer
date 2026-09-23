@@ -15,6 +15,7 @@ dependencies:
   flutter_libserialport: ^0.4.0 # đọc UART/COM (Log nhiệt)
   file_selector: ^1.0.3 # hộp thoại chọn file (sao lưu / khôi phục)
   archive: ^4.2.0
+  qr: ^4.0.0
 
 dev_dependencies:
   flutter_test:

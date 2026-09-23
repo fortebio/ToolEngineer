@@ -14,6 +14,7 @@
 | `firmware/rapidplus/` | Firmware Forte Rapid+ (PlatformIO, ESP32) — fleet ~109 máy | `firmware/rapidplus/CLAUDE.md` |
 | `firmware/rapidplus-prod/` | Firmware Rapid+ viết lại theo IEC 62304 (dev, chưa nạp máy) | `firmware/rapidplus-prod/CLAUDE.md` |
 | `firmware/FBT-Reader/` | Firmware **Forte Rapid Reader** v2.6.8 (PlatformIO, ESP32, core Arduino 1.0.6) — **REPO GIT RIÊNG** `github.com/wuanpham/FBT-Reader` lồng trong cây này, monorepo KHÔNG track (đã cho vào `.gitignore`). Tổ chức lại theo mẫu rapidplus 2026-09-18; bản chép cũ `firmware/reader/` (v2.6.6) đã xoá. **v2.6.8 (2026-09-18): OTA qua Engineer Server** (`/ota/check?product=reader`, token nhập qua web, thẻ `FBTIMG1`) — chưa nạp máy thật; đội máy ≤ v2.6.7 còn đọc GitHub `FBTRapidReaderOTA` nhánh `v2.6.7` | `firmware/FBT-Reader/CLAUDE.md`, `README.md`, `docs/architecture/`, `docs/history/2026-09-18-reader-ota-server.md` |
+| `firmware/FBT-RapidPlus/` | Firmware Rapid+ **REPO GIT RIÊNG** (clone `github.com/wuanpham/FBT-DXD`, nhánh `v2.4.5at-calib-solution`, **v2.4.6/v2.4.6a**, 2026-09-21) — **chế độ đọc ống chuẩn** cho tab Hiệu chuẩn của app: fix `testShot` không giữ `gI2CMutex` ("Opto sensor error"), màn LCD `eCalibTube`, lệnh serial `Calib*`, nút ĐỎ = đọc; **2026-09-22** bố cục màn LCD sửa theo ảnh máy thật (`tools/lcdcam.py` chụp LCD qua webcam UGREEN — quy trình chụp trước/sau khi sửa màn) + lệnh `Calib*` gửi liền nhau được tách dòng. Monorepo KHÔNG track (`.gitignore`); `firmware/rapidplus/` vẫn là bản fleet trong monorepo | `firmware/FBT-RapidPlus/CLAUDE.md`, `docs/history/2026-09-21-che-do-doc-ong-chuan-calib-tube.md`, `docs/history/2026-09-22-lcd-doc-ong-chuan-lech-va-quy-trinh-chup-webcam.md` |
 | `firmware/rapid4p/` | Firmware **Forte Rapid4P** (RAPID READER **5** SLOT — số khe = `BOARD_SENSOR_SLOTS`, kế hoạch `docs/plan/rapid4p-5-slot.md`), **ESP-IDF native** (`build_system: idf`), **hai board** một mã nguồn (2026-09-19): `p4_43lcd` ESP32-P4C5 + LCD 4.3" DSI (khoá `rapid4p`, đã nạp máy 2026-09-17, chưa có bo cảm biến) · `s3_28lcd` ES3N28P ESP32-S3 + LCD 2.8" SPI (khoá **`rapid4p-s3`** `variant_of`, build được, chưa nạp). `scriptsuild.bat <board>` | `firmware/rapid4p/CLAUDE.md`, `README.md`, `docs/history/2026-09-19-rapid4p-bien-the-s3-28lcd.md` |
 | `firmware/maping new product/` | Khảo sát Rapid4P: phần cứng tham chiếu `firmware-vimate-p4/` (dự án ngoài — chỉ đọc, `AGENTS.md`/`README-P4.md` là nhật ký bring-up của board) + firmware gốc `FBT-ReaderPlus-1.0/` (Arduino) + `tham-khao/` (chép chọn lọc **xiaozhi-esp32** — ESP32-P4/DSI/ESP-Hosted, driver AXP2101, ML307 — và **CrossInk** — quy trình/AGENTS.md/heap/simulator; cả hai MIT, chỉ đọc) | `MAPPING-Rapid4P.md` (mapping + quyết định §5), `THAM-KHAO-xiaozhi-CrossInk.md` (bài học + 12 việc đề xuất), `firmware-vimate-p4/docs/HARDWARE-PINOUT.md` |
 | `legacy/sheet/` | Apps Script `getData.js` (**CÒN SỐNG**: fw ≤ v2.4.5 + reader vẫn POST) · `userAuth.js` (đường lùi đăng nhập) | `legacy/sheet/README.md` |
@@ -24,6 +25,12 @@
 
 Hệ NGOÀI repo (chỉ khai báo hợp đồng trong `system/products.yaml` › `external_systems`): **RAPID ERP**
 `fbterp` (`api.fortebio.tech`, team khác), tool cơ khí Drawing/DrawingGEN, hubRD.
+
+Project ANH EM trên cùng máy, KHÔNG nằm trong repo này — người dùng hay gọi bằng tên hiển thị trên
+giao diện nên dễ tưởng thiếu file: **hubOTA** = `C:\Users\Admin\Documents\04.FBT-OTA` (React + Vite,
+`app/src/`, "Phase 1 · v0.1.0"; OTA riêng, khác `server/app/ota.py` của monorepo). Cạnh đó còn
+`01. EngineerHub`, `03.FBT-ToolRapidPlus`, `05.FBT-CAD`, `07.HubCAD`. Đụng tới thì phải xin quyền thư
+mục trước (`request_directory`) — `grep` trong monorepo sẽ ra rỗng chứ không phải chưa có code.
 
 ## Quy tắc toàn hệ thống
 
@@ -74,12 +81,30 @@ Hệ NGOÀI repo (chỉ khai báo hợp đồng trong `system/products.yaml` ›
 - **Máy `Admin` (khác box ADM)**: `python` trên PATH là Python 3.11 của ESP-IDF (`C:\Espressif\tools\idf-python`)
   **không có pip** → tool Python của repo (`registry_check.py`, pytest server) chạy bằng venv IDF
   `C:\Espressif\python_env\idf5.5_py3.11_env\Scripts\python.exe` (đã cài pyyaml/jsonschema/pytest/httpx 2026-09-17);
-  venv `%LOCALAPPDATA%\fbt-localtest` KHÔNG có trên máy này.
+  venv `%LOCALAPPDATA%\fbt-localtest` KHÔNG có trên máy này. Ở đây `registry_check.py` **luôn exit 1**
+  (`✖ FWDIR reader — thư mục firmware/FBT-Reader không tồn tại`) vì repo riêng đó chưa clone về máy này —
+  KHÔNG phải lỗi registry, đừng sửa `products.yaml` theo. Repo cũng **không có `.github/workflows`** (kiểm
+  2026-09-23) → "CI `registry`" ở quy tắc 2 là cổng CHẠY TAY, không có gì chặn thay người.
+  **Server local trên máy Admin** (2026-09-21):
+  `Set-Location server; .\scripts\localtest.ps1` — không có Postgres portable/Flutter nên script tự dùng **Docker**
+  (`fbt-localtest-pg` :5433) + venv `%USERPROFILE%\fbt-localtest\venv`. PowerShell của người dùng máy này
+  `ExecutionPolicy Restricted` → đưa lệnh dạng `powershell -ExecutionPolicy Bypass -File …\localtest.ps1`.
+  **Flutter 3.44.1 đã cài 2026-09-21** tại `C:\Users\Admin\fvm\versions\3.44.1` (git clone shallow tag, cùng bố cục
+  ADM → lệnh Flutter ở trên dùng nguyên, đổi `ADM`→`Admin`); web `/app/` local build bằng `flutter build web
+  --release --base-href /app/ --dart-define=FBT_URL=http://127.0.0.1:8080 --dart-define=FBT_TOKEN=localtok`
+  rồi chạy lại `localtest.ps1` (server mount `build\web` lúc khởi động).
+  **PlatformIO có trên máy Admin** (`%USERPROFILE%\.platformio\penv\Scripts\pio.exe`, toolchain esp32 đã tải) nhưng
+  build `esp32dev` của `firmware/FBT-RapidPlus` lần đầu mất **~18 phút** (2026-09-21) → vượt timeout 600 s của tool
+  PowerShell/Bash: chạy `run_in_background` rồi đợi `.pio/build/esp32dev/firmware.bin`, đừng gọi thẳng.
   Git trên máy này **không có user.name/email toàn cục** → `git commit` fail ("Author identity unknown")
   nhưng lệnh `git push` nối sau vẫn đẩy HEAD CŨ lên (trông như thành công) — đã đặt identity cục bộ cho
   repo (`git config user.email fbt.engineer@gmail.com`, 2026-09-17); sau commit phải kiểm `git log -1`.
 - Node 24, Docker 29 (daemon không tự chạy), Git 2.50 (`git subtree` có; `git filter-repo` cài
-  `pip install --user git-filter-repo`, gọi `python -m git_filter_repo`).
+  `pip install --user git-filter-repo`, gọi `python -m git_filter_repo`). **KHÔNG có `gh` CLI** (2026-09-21) —
+  muốn tạo PR từ AI phải cài `winget install -e --id GitHub.cli` + `gh auth login` trước.
+- **Nút "Create PR" của desktop app mặc định base = `claude/claude-md-docs-namqct`** — nhánh stale (1 commit
+  "starter CLAUDE.md", `main` đi trước 172 commit). ĐỪNG mở PR `main → nhánh đó`; làm việc trên nhánh feature
+  tách từ `main` rồi PR về `main` (hoặc xoá nhánh stale trên origin để app hết trỏ nhầm).
 
 ## Kiểm nhanh (từ gốc)
 
@@ -104,6 +129,10 @@ Set-Location firmware\rapid4p; cmd /c scripts\build.bat                 # ESP-ID
   mà `rm -rf` của Git Bash không qua).
 - **`grep -c` trả 0 khớp = mã thoát 1** → đặt giữa chuỗi `a && grep -c … && b` thì `b` (vd build) LẶNG LẼ không chạy và
   log cũ vẫn nằm đó để đọc nhầm (2026-09-19). Kiểm form-feed bằng `grep -c … ;` (dấu `;`) hoặc `|| true`, đừng nối `&&`.
+- **PowerShell `-replace` với chuỗi thay thế chứa `$_`** (2026-09-21): trong .NET Regex, `$_` = **TOÀN BỘ input**
+  → `'khe $_slot'` nhét nguyên cả file vào giữa file (74 KB → 2 bản chồng nhau, compile vỡ). Sửa text
+  Dart/JSON có `$` thì dùng Edit tool hoặc script Python; buộc dùng `-replace` thì thoát `$$` hoặc dùng
+  `.Replace()` (chuỗi thường, không regex). Khôi phục được vì bản gốc còn nguyên bên trong file lỗi.
 - **Shell môi trường KHÔNG có `jq`** — viết hook/script xử lý JSON bằng **bash thuần** (`case`/`grep`)
   hoặc node/python, đừng phụ thuộc `jq`. (Windows `python` cũng không hiểu path `/tmp` của Git Bash.)
 - **KHÔNG dán token/API key trần vào lệnh inline** (vd `curl -H "Authorization: Bearer <token>"`):
@@ -128,6 +157,10 @@ Set-Location firmware\rapid4p; cmd /c scripts\build.bat                 # ESP-ID
   đổi giữa lúc đọc và lúc ghi — phiên khác vừa làm xong OTA reader v2.6.8 mà phiên này đang lên kế hoạch
   chính phần đó). Trước khi ghi file đã đọc từ lâu: `git status`/`md5sum` lại, script patch dùng
   **anchor phải xuất hiện đúng 1 lần** (`assert t.count(old) == 1`) để bắt lệch thay vì ghi đè mù;
+  cắt theo DẢI (`t[t.index(a):t.index(b)]`) thì `index(b)` **phải có tham số start** — 2026-09-22 anchor `b`
+  (`// Thẻ 4`) còn một bản trùng trong khối khai báo trường ở ĐẦU file → dải cắt lùi về trước `a`, file Dart
+  thành 2 bản chồng nhau (74 lỗi `duplicate_definition`). Khôi phục được vì bản gốc còn nguyên bên trong file
+  lỗi, nhưng rẻ hơn là `assert t.count(b) == 1` trước khi cắt;
   `ListAgents` cho biết phiên nào đang chạy/idle; quyết định đã chốt có thể **đã bị một phiên khác làm
   theo hướng ngược lại** → đọc `docs/history/` mới nhất của phần đó trước khi hỏi người dùng chốt.
   **Gộp nhánh của các phiên song song vào `main`** (2026-09-18): xung đột lặp ở 2 chỗ — **cuối `CLAUDE.md`

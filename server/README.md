@@ -87,6 +87,11 @@ tailscale status ; tailscale ip -4
   — code + test xong 2026-09-07 (47/47 pass, xem [docs/history/2026-09-07.md](docs/history/2026-09-07.md));
   **ĐÃ DEPLOY 2026-09-12** (qua Terminal Cockpit, xem [docs/history/2026-09-11.md](docs/history/2026-09-11.md))
 
+- [x] **Ống chuẩn hiệu chuẩn quang** (app tab Hiệu chuẩn, thay Google Sheet + Apps Script bàn giao): `/calib/template` ·
+  `/calib/limits` · `/calib/batches[/{id}[/rank|/sets]]` · `/calib/sets[/{id}]` → file trong `~/fbt_server/calib/`
+  — code + test xong 2026-09-21 (130/130 pass cả bộ, xem [docs/plan/calib-ong-chuan.md](docs/plan/calib-ong-chuan.md));
+  **CHƯA DEPLOY** (thêm `FBT_CALIB_DIR` vào `/etc/fbt-receiver.env` khi deploy)
+
 - [x] **Vai trò xưởng** `manager`/`operator` cho app (bước A kế hoạch tài khoản nhà máy): `app/auth.py`
   nhận 2 vai trò mới, quản lý SX chỉ quản lý được thao tác viên, và **chỉ root/admin nhận token ghi OTA**
   — code + test xong 2026-09-07 (57/57 pass); **ĐÃ DEPLOY 2026-09-12**

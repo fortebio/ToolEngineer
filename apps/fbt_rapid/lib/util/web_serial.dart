@@ -78,6 +78,12 @@ class WebSerialPort {
   /// DTR→EN, RTS→GPIO0 là mạch auto-reset — ghim OFF ngay sau open (tương
   /// đương `..dtr = off ..rts = off` của bản desktop), nếu không trình duyệt
   /// bật 2 chân này lúc mở/ghi → thiết bị tự reset.
+  ///
+  /// **Thứ tự tắt là bắt buộc: RTS trước, DTR sau, HAI lệnh riêng** (đo trên Rapid+
+  /// CH340 2026-09-22: tắt DTR trước → reset 3/3, tắt RTS trước → 0/3, mở cổng với cả hai
+  /// bật → 0/15). EN bị kéo xuống khi *RTS còn bật mà DTR đã tắt*; Chromium thực thi
+  /// `setSignals({dtr, rts})` thành CLRDTR rồi CLRRTS nên gộp một lệnh là đi đúng qua
+  /// trạng thái reset — máy reboot mỗi lần app Kết nối dù code "đã tắt DTR/RTS".
   Future<void> open({required int baud, bool pinSignalsOff = true}) async {
     await js
         .callMethod<JSPromise<JSAny?>>(
@@ -90,7 +96,10 @@ class WebSerialPort {
               'flowControl': 'none',
             }.jsify())
         .toDart;
-    if (pinSignalsOff) await setSignals(dtr: false, rts: false);
+    if (pinSignalsOff) {
+      await setSignals(rts: false); // RTS trước: DTR còn bật thì EN không bị kéo xuống
+      await setSignals(dtr: false);
+    }
     _open = true;
   }
 

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_api.dart';
 import '../services/session_store.dart';
 import '../theme/app_theme.dart';
+import '../util/app_version.dart';
 import 'home_shell.dart';
 
 /// Màn đăng nhập (username + mật khẩu) — gọi `POST /auth` của Engineer Server để
@@ -165,6 +166,26 @@ class _LoginScreenState extends State<LoginScreen> {
                         // xuất hiện HAI lần trong một thẻ. Dashboard web của
                         // firmware đã gặp và sửa đúng lỗi này khi đổi sang logo
                         // đầy đủ (FBT-DXD243/CLAUDE.md, mục Brand).
+                        //
+                        // Phiên bản thì CÓ in: màn đăng nhập là chỗ duy nhất
+                        // ai cũng đi qua, và khi hỗ trợ từ xa câu hỏi đầu tiên
+                        // luôn là "bản nào". Chỉ nhãn ngắn — chi tiết ở
+                        // Thiết lập › Phiên bản sau khi vào.
+                        const SizedBox(height: 18),
+                        Center(
+                          child: Text(
+                            kIsDevBuild
+                                ? '$appVersionLabel · $kAppBuildDate'
+                                : appVersionLabel,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontFamily: 'JetBrains Mono',
+                              fontSize: 11.5,
+                              color: kIsDevBuild
+                                  ? kWarning
+                                  : cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),

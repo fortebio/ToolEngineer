@@ -218,6 +218,43 @@ function api(req, res, url) {
     });
   }
 
+  // --- Hieu chuan (/calib/*) - du de XEM tab Hieu chuan + in nhan QR ----------
+  // Co ca bo DAT, bo FAIL, bo da huy: nut "Nhan QR" chi duoc hien o bo dung duoc.
+  if (p === '/calib/limits') {
+    return json(res, {
+      version: '2026-09-v1', r2_min: 0.995, lod_max: 20, slope_min: 8, slope_max: 20,
+      shelf_days: 90, source: 'mock', updated_at: ago(60 * 24), updated_by: 'mock',
+    });
+  }
+  if (p === '/calib/batches') {
+    return json(res, { items: [{
+      id: 'B2609A', status: 'ranked', created_at: ago(60 * 48), created_by: 'khai',
+      updated_at: ago(60 * 24), stock_lot: 'F36915-2609', reader: 'RPL03003',
+      steps_done: 8, steps_total: 8, readings_done: 40, readings_total: 40,
+      sets: 3, note: 'lo mock',
+    }] });
+  }
+  if (p === '/calib/sets') {
+    const mk = (n, status, verdict, r2) => ({
+      id: 'B2609A-S0' + n, batch: 'B2609A', rank: n, status,
+      tubes: { '300': String(n), '200': String(n + 1), '100': String(n), '0': '3' },
+      raw: { '300': 3740, '200': 2500, '100': 1270, '0': 40 },
+      slope: 12.3456, intercept: 41.2, r2, lod: 8.42, verdict,
+      created_at: ago(60 * 24), created_by: 'khai', expires_at: '2026-12-20',
+      device: status === 'issued' ? 'RPL03010' : '', updated_at: ago(60 * 2),
+      limits_ver: '2026-09-v1', history: [],
+    });
+    const all = [
+      mk(1, 'stored', 'PASS', 0.99871),
+      mk(2, 'issued', 'PASS', 0.99742),
+      mk(3, 'stored', 'FAIL', 0.98110),
+      mk(4, 'discarded', 'PASS', 0.99650),
+    ];
+    const st = q.get('status');
+    return json(res, { items: st ? all.filter((s) => s.status === st) : all });
+  }
+  if (p.startsWith('/calib/')) return json(res, { ok: true, items: [] });
+
   if (p === '/' || p === '/whoami') return json(res, { ok: true, service: 'MOCK' });
   json(res, { ok: false, error: 'mock: chua lam route ' + p }, 404);
 }

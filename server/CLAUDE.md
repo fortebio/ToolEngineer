@@ -28,6 +28,12 @@ app/                   # Package service (FastAPI) — chạy: uvicorn app.main:
                        #   (read_devices/assign_product/unassign_product), product_for(device, declared) = tự khai > gán tay >
                        #   tiền tố > legacy (+conflict), device_status → ota.state ∈ OTA_STATES (on|offered|waiting|skipped|
                        #   unknown|none — MỘT chỗ so version, giữ hậu tố), md5_for, listing/products_summary(effective) → stale/devices
+  calib.py             #   ỐNG CHUẨN HIỆU CHUẨN (2026-09-21, thay Sheet+Apps Script bàn giao): pha loãng C1V1=C2V2
+                       #   (plan_steps/template), hồi quy linear_fit, blank_stats + lod_nM (3,3·SD/slope theo WI DxD Hub),
+                       #   rank_combinations (mọi tổ hợp 1 ống/nồng độ, R²↓ slope↓, PASS theo limits, suggested_sets
+                       #   KHÔNG trùng ống), kho file CALIB_DIR/{batches,sets}/<id>.json + limits.json + history.jsonl;
+                       #   create_sets tính LẠI hồi quy, chặn ống trùng bộ; update_set theo SET_TRANSITIONS.
+                       #   Plan: docs/plan/calib-ong-chuan.md
   monitor.py           #   Số liệu tab Giám sát (root): /proc + statvfs + db.monitor_flow, KHÔNG psutil; route GET /monitor
                        #   gác ota_admin (nhánh ota-rollout-docs-tests 28/08 — ghép lại vào main 2026-09-12)
   db.py                #   Truy cập PostgreSQL: insert_session + query đọc + CRUD bảng users + monitor_flow
@@ -36,7 +42,9 @@ app/                   # Package service (FastAPI) — chạy: uvicorn app.main:
                        #   manager (quản lý SX) CHỈ quản lý operator; api_token_for: chỉ root/admin nhận token ghi OTA
   main.py              #   FastAPI app + routes (/auth + ingest POST catch-all + /devices /sessions + /ota + log CSKH:
                        #   PUT /devices/{id}/logs, GET /logs/{file} + hồ sơ ATE: PUT|GET /ate/records, /ate/sn/{sn},
-                       #   /ate/stats?batch= + TIÊU CHUẨN THEO LÔ: GET|PUT /ate/limits?batch=, GET /ate/limits/list)
+                       #   /ate/stats?batch= + TIÊU CHUẨN THEO LÔ: GET|PUT /ate/limits?batch=, GET /ate/limits/list
+                       #   + ỐNG CHUẨN /calib/*: GET template · GET|PUT limits · GET|PUT batches · GET|PUT|DELETE
+                       #   batches/{id} · GET batches/{id}/rank · PUT batches/{id}/sets · GET sets[/{id}] · PUT sets/{id})
                        #   OTA: /ota/check?device&ver&updated&product&hw · GET /ota[?product=] · GET /ota/products ·
                        #   route CŨ không {product} (= kho LEGACY_PRODUCT, app đang phát hành gọi) · route MỚI
                        #   PUT /ota/{product}[/{file}] (không tên = server đặt từ thẻ) · PUT|DELETE /ota/{product}/target[/{f}]
@@ -54,7 +62,9 @@ scripts/               # CLI dùng lại logic của app/
                        #   sau scp tự `venv/bin/python -c 'import app.main'` trên box (IMPORT_OK) rồi in lệnh restart/rollback
   check_deploy.py      #   So openapi.json PUBLIC của prod với app.openapi() local (không SSH, không token): route chỉ-local/chỉ-prod/
                        #   đổi chữ ký + md5 app/*.py bản CRLF để đối chiếu md5sum trên box. exit 0 = giống hệt. Chạy TRƯỚC và SAU mỗi deploy
-  localtest.ps1        #   Bật/tắt bộ test local: Postgres portable :5433 + uvicorn :8080 + tài khoản test. Base THẬT =
+  localtest.ps1        #   Bật/tắt bộ test local: Postgres :5433 + uvicorn :8080 + tài khoản test. KHÔNG có Postgres portable
+                       #   mà có `docker` → container `fbt-localtest-pg` (postgres:18-alpine, volume mount /var/lib/postgresql),
+                       #   Base %USERPROFILE%\fbt-localtest, tự nạp schema + 3 tài khoản lần đầu (máy Admin 2026-09-21). Base THẬT =
                        #   %LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Local\fbt-localtest (tự rơi sang khi
                        #   đường mặc định trống); dọn postmaster.pid cũ; đặt OTA_ADMIN_TOKEN/OTA_LEGACY_PRODUCT_BY_PREFIX/
                        #   OTA_REQUIRE_TAG=rapid4p giống env production. Web build trước vào apps/fbt_rapid/build/web.
@@ -62,6 +72,9 @@ tests/                 # test_logic.py + test_monitor.py (thuần) + test_api.py
                        #   quản lý tài khoản, thay app.db bằng kho RAM) + test_ota_products.py (kho OTA theo sản
                        #   phẩm; fixture `kho` vá config.OTA_DIR mỗi test) + test_ota_devices.py (quản lý máy: devices.json,
                        #   ota.state, offered, progress, app_desc, khoá upload; vá cả main._FW_FILE + db.list_devices)
+                       #   + test_calib.py (ống chuẩn: hàm thuần theo số liệu sheet bàn giao + template LOD, luồng
+                       #   lô → số đo → xếp hạng → bộ → cấp phát; fixture `kho` vá config.CALIB_DIR; ĐỪNG setdefault
+                       #   OTA_ADMIN_TOKEN ở đầu file — test_ota_products chạy chung sẽ rớt 401, monkeypatch trong test)
                        #   — chạy được không cần Postgres.
                        #   Env test đặt bằng os.environ.setdefault ở MỌI module (module nào import app.main trước
                        #   cũng ra cùng thư mục; gán đè sau import là module sau trỏ vào thư mục app không dùng)
@@ -77,6 +90,8 @@ docs/plan/             # Các kế hoạch phát triển dự án (.md)
   ate-ho-so-nghiem-thu.md   # Phần server của trạm ATE (/ate/*) — vì sao lưu file, khi nào chuyển sang bảng
   ota-nhieu-san-pham.md     # Phần server của OTA nhiều sản phẩm: hợp đồng /ota/*, bố cục kho, env; bản đầy đủ
                             #   (firmware + app + lộ trình 4 giai đoạn) ở `apps/fbt_rapid/docs/plan/ota-nhieu-san-pham.md`
+  calib-ong-chuan.md        # (2026-09-21) ống chuẩn hiệu chuẩn: quy trình đối chiếu bàn giao Khai ↔ WI DxD Hub, lệch đơn vị
+                            #   stock 52 mM/µM, hợp đồng /calib/*, kho file, quyền, lộ trình P1 đọc raw qua UART + in nhãn
   ota-quan-ly-may-nhieu-san-pham.md  # (2026-09-18, B1–B3 ĐÃ CODE+TEST, chưa deploy; B4–B5 chưa) quản lý MÁY theo kho: product_effective = tự khai >
                             #   gán tay devices.json > tiền tố > legacy; /devices hợp nhất sessions∪fw_seen∪devices.json
                             #   + ota.state tính ở server; offered trong fw_seen; /ota/{product}/progress; khoá upload;
@@ -123,6 +138,13 @@ docs/data_sample/      # Mẫu dữ liệu thiết bị gửi lên (data_RPL.jso
 - Dựng lại server từ đầu: [docs/plan/HUONG_DAN_DUNG_SERVER.md](docs/plan/HUONG_DAN_DUNG_SERVER.md) (thay `KE_HOACH_DUNG_SERVER.md` đã thất lạc).
 - **Deploy bản mới lên box**: theo [docs/plan/QUY_TRINH_DEPLOY.md](docs/plan/QUY_TRINH_DEPLOY.md); AI chạy được
   `python scripts/check_deploy.py` (public openapi, không SSH) để biết prod lệch gì — KHÔNG thử ssh.
+  Script import `app.main` nên **python hệ thống thiếu fastapi → lỗi ngay**; venv `%LOCALAPPDATA%\fbt-localtest`
+  shell AI không thấy → tạo venv trong scratchpad: `pip install fastapi httpx pytest jsonschema psycopg[binary]
+  uvicorn` (thiếu `jsonschema` thì `tests/test_api.py::test_ingest_reader_theo_hop_dong` fail, 116/117 —
+  không phải lỗi code). **Máy Admin**: venv IDF `C:\Espressif\python_env\idf5.5_py3.11_env` đã cài thêm
+  fastapi/uvicorn/jsonschema (2026-09-21) → `…\Scripts\python.exe -m pytest tests -q` chạy thẳng cả bộ (130 test),
+  nhớ `PYTHONIOENCODING=utf-8` vì thông báo test tiếng Việt. Kiểm 2026-09-21: prod vẫn 36 route (bản 09-12),
+  đợt B1–B3 CHƯA deploy.
 - **Tích hợp RAPID ERP** (2026-09-17, chờ chốt §10): plan xuyên phần `docs/plan/erp-feed-engineer-server.md`
   (gốc monorepo) — ERP **kéo** qua `/erp/v1/*` **chỉ GET** (POST catch-all), token riêng chỉ-đọc
   `ERP_READ_TOKENS`; KHÔNG đồng bộ lại kết quả đo vì firmware đã POST cùng payload thẳng vào ERP
@@ -245,6 +267,19 @@ ull`), dùng `xargs -I{}`; dọn `web.bak.*` phải xếp theo TÊN
   lỗi app. `/ingest` vẫn 200 (file-first, catch lỗi DB) nên thiết bị đẩy được mà app không đọc được.
   Chẩn đoán trên box: `journalctl -u fbt-receiver -n 30`; sau khi tạo schema phải chạy
   `reconcile.py` nạp file JSON cũ vào DB, không thì `/devices` trả danh sách RỖNG.
+- **`localtest.ps1` chế độ Docker (máy không có Postgres portable, 2026-09-21)**: ảnh `postgres:18-alpine` đổi chỗ
+  dữ liệu — volume phải mount ở **`/var/lib/postgresql`** (PG ≤ 17 là `…/data`); mount kiểu cũ thì container
+  thoát ngay với "unused mount/volume" và `docker exec … pg_isready` báo "container is not running" — xem
+  `docker logs fbt-localtest-pg`, `docker rm -f` + `docker volume rm` rồi chạy lại. Tài khoản test chỉ tạo khi
+  bảng `users` trống (kiểm bằng `db.list_users()` qua venv), nên chạy lặp vô hại. Base ở chế độ này là
+  `%USERPROFILE%\fbt-localtest` (không dùng `AppData\Local` vì sandbox gói Claude ảo hoá — gotcha bên dưới).
+  PowerShell CỦA NGƯỜI DÙNG máy Admin có `ExecutionPolicy Restricted` → script chạy từ tool AI được nhưng người
+  dùng gõ `.\scripts\localtest.ps1` bị "running scripts is disabled": đưa lệnh dạng
+  `powershell -ExecutionPolicy Bypass -File <đường dẫn>\localtest.ps1 [-Stop]` (hoặc họ tự
+  `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` một lần).
+  Tool PowerShell của AI gọi script LỒNG qua `powershell -File …` thì TREO tới timeout (uvicorn con giữ pipe) dù
+  server đã lên — gọi thẳng `.\scripts\localtest.ps1` từ tool, hoặc kiểm bằng `curl /openapi.json` thay vì đợi.
+  Server mount `FBT_WEB_DIR` lúc khởi động → build lại web xong phải chạy lại script mới thấy `/app/` (405 = chưa mount).
 - **Kiểm server local (`localtest.ps1`) ĐỪNG tin `Test-Path "$env:LOCALAPPDATA\fbt-localtest\…"` từ tool
   shell của AI** (2026-09-17): trả `False` cho cả `pgsql`, `pgdata`, `venv` trong khi Postgres :5433 +
   uvicorn :8080 đang chạy đúng từ các path đó — Windows ảo hoá `AppData\Local` (gotcha Python 3.14 ở

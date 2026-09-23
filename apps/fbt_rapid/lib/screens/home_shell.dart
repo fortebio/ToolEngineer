@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/app_settings.dart';
 import '../services/session_store.dart';
 import '../services/storage_paths.dart';
 import '../theme/app_theme.dart';
+import '../util/app_version.dart';
 import '../util/i18n.dart';
 import '../util/serial_support.dart';
 // Tab Sản xuất (ATE): bản desktop chạy trạm (esptool + cổng COM qua dart:io);
 // bản web chỉ tra hồ sơ + thống kê (HTTP) — cùng tên class, khác nội dung.
 import 'ate_screen.dart' if (dart.library.html) 'ate_screen_web.dart';
+import 'calib_screen.dart';
 import 'folder_screen.dart';
 import 'history_combined_screen.dart';
 import 'login_screen.dart';
@@ -20,6 +23,14 @@ import 'support_screen.dart';
 import 'tech_screen.dart' if (dart.library.html) 'tech_screen_web.dart';
 import 'user_management_screen.dart';
 import 'user_settings_screen.dart';
+
+/// Cờ TẠM ĐÓNG "rê chuột vào rail thì bung" (2026-09-23, yêu cầu chủ dự án).
+///
+/// Đóng rồi thì bề rộng rail CHỈ đổi bằng nút thu/mở ở chân rail (`_RailFoot`) —
+/// đưa chuột ngang qua không còn làm bố cục nhảy. Không mất thông tin: rail thu
+/// đã có tooltip tên mục (`_RailItem`). Bật lại = đổi thành `true`, toàn bộ code
+/// hover vẫn nằm nguyên chỗ.
+const bool kRailHoverExpand = false;
 
 /// Cờ TẠM ẩn tab Thư Mục (JSON data). Bật lại = đổi thành `true`.
 /// ponytail: 1 cờ const thay vì xoá code / thêm mục Cài đặt — chưa ai cần bật-tắt lúc chạy.
@@ -36,21 +47,61 @@ class _HomeShellState extends State<HomeShell> {
   int _index = 0;
   bool _wide = false; // rail đang bung rộng (phủ LÊN nội dung, không đẩy)
   bool _menuOpen = false; // menu tài khoản mở → giữ rail bung
+  /// Rail đang THU (64px) — mặc định, và là thứ nút thu/mở ở CHÂN rail bật tắt.
+  bool _collapsed = true;
+
   AppSettings? _settings;
+
+  /// Khoá lưu trạng thái thu/mở rail (`shared_preferences`).
+  ///
+  /// Lưu CỤC BỘ trong màn này chứ không nhét vào `AppPrefs`: `AppPrefs` gọi
+  /// `notifyListeners()` để dựng lại `MaterialApp`, mà thu/mở rail chỉ là
+  /// chuyện bố cục của `HomeShell` — dựng lại cả app cho nó là phí và làm mọi
+  /// màn đang mở mất trạng thái cuộn.
+  static const String _kCollapsed = 'rail_collapsed_v1';
+
+  /// Khoá CŨ của hai bản nháp cùng ngày (nút ghim, rồi enum 3 nấc). Đọc bù để
+  /// máy nào đang để rail mở sẵn thì giữ nguyên sau khi cập nhật app.
+  static const String _kRailModeLegacy = 'rail_mode_v1';
+  static const String _kPinnedLegacy = 'rail_pinned_v1';
+
+  /// Rail có đang bung hay không.
+  ///
+  /// ĐANG MỞ thì luôn bung. ĐANG THU thì xưa nay vẫn bung TẠM lúc rê chuột vào
+  /// (hành vi từ 2026-08-19) — nay nhánh đó nằm sau [kRailHoverExpand], đang
+  /// TẠM ĐÓNG nên thu là thu hẳn.
+  bool get _isWide {
+    if (!_collapsed) return true;
+    if (kRailHoverExpand) return _wide || _menuOpen;
+    return false;
+  }
 
   /// Bề rộng rail khi thu. Nội dung inset đúng bằng con số này, **một lần**.
   ///
-  /// **Thu = CHỈ ICON** (2026-08-19, theo yêu cầu chủ dự án). Nhãn chỉ hiện khi
-  /// rê chuột vào — mà rê vào là rail tự bung, nên không mất thông tin: ai cũng
-  /// đọc được tên mục ngay khi định bấm.
+  /// **Thu = CHỈ ICON** (2026-08-19, theo yêu cầu chủ dự án). Không mất thông
+  /// tin: mỗi icon có **tooltip** tên mục (`_RailItem`) — từ khi [kRailHoverExpand]
+  /// tạm đóng thì tooltip là đường DUY NHẤT đọc tên mục mà không bung rail, nên
+  /// đừng bỏ nó.
   ///
   /// Nhờ bỏ nhãn, rail 96 → **64**: trả 32px cho vùng nội dung ở MỌI màn. 64 =
   /// lề ListView 10×2 + ô bấm 44 (icon 22 nằm giữa). Ràng buộc "đo theo từ dài
   /// nhất" của bản cũ cũng hết hiệu lực luôn — không còn chữ nào để vỡ dòng.
   static const double _slim = 64;
 
-  /// Bề rộng khi bung. Phần chênh phủ LÊN nội dung — nội dung không relayout.
+  /// Bề rộng khi bung. Nội dung **co theo** (xem `_buildDesktop`).
   static const double _open = 248;
+
+  /// Bề ngang tối thiểu vùng nội dung khi rail bung thì mới ĐẨY nội dung.
+  ///
+  /// Dưới ngưỡng này rail quay về kiểu cũ — phủ LÊN nội dung — vì ép tab Hiệu
+  /// chuẩn/Sản xuất xuống ~500px là bảng số đo vỡ cột, tệ hơn hẳn việc bị che
+  /// trong lúc rê chuột. 560 = bảng hẹp nhất còn đọc được (đo ở tab Hiệu chuẩn).
+  static const double _minContentWidth = 560;
+
+  /// Nhịp bung/thu rail. Nội dung dùng CHUNG hằng này để hai bên chạy khớp —
+  /// lệch nhịp là thấy sọc nền lọt giữa rail và nội dung suốt lúc animate.
+  static const Duration _railAnim = Duration(milliseconds: 220);
+  static const Curve _railCurve = Curves.easeOutCubic;
 
   @override
   void initState() {
@@ -60,6 +111,29 @@ class _HomeShellState extends State<HomeShell> {
       if (!mounted) return;
       setState(() => _settings = s);
     });
+    SharedPreferences.getInstance().then((p) {
+      if (!mounted) return;
+      final collapsed = p.getBool(_kCollapsed) ??
+          // Chưa có khoá mới → suy từ hai khoá nháp cũ: ai đang để rail mở sẵn
+          // (`open` / đã ghim) thì vẫn mở, còn lại thu.
+          !(p.getString(_kRailModeLegacy) == 'open' ||
+              p.getBool(_kPinnedLegacy) == true);
+      setState(() => _collapsed = collapsed);
+    });
+  }
+
+  /// Thu / mở rail rồi ghi nhớ.
+  Future<void> _toggleCollapsed() async {
+    final next = !_collapsed;
+    setState(() {
+      _collapsed = next;
+      // Bấm THU lúc con trỏ vẫn đang nằm trên rail: `onExit` sẽ không bắn nữa
+      // (chuột có rời đâu) nên `_wide` kẹt `true` và rail vẫn bung — trông như
+      // nút hỏng. Hạ luôn ở đây; rê ra rồi vào lại là `onEnter` bật.
+      if (next) _wide = false;
+    });
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(_kCollapsed, next);
   }
 
   /// Mở màn Thiết lập (ẩn trong icon tài khoản). DÙNG CHUNG 1 màn cho cả admin
@@ -117,6 +191,7 @@ class _HomeShellState extends State<HomeShell> {
     final canSeeProduction = session?.canSeeProduction ?? false;
     final canUseTech = session?.canUseTech ?? false;
     final canManageUsers = session?.canManageUsers ?? false;
+    final canSeeCalib = session?.canSeeCalib ?? false;
     final isRoot = session?.isRoot ?? false; // tab Giám sát: hạ tầng, chỉ root
 
     // CHỈ các mục NỘI DUNG vào thanh tab dọc. Thiết lập nằm trong icon tài khoản.
@@ -197,6 +272,21 @@ class _HomeShellState extends State<HomeShell> {
         ),
       ));
     }
+    if (canSeeCalib) {
+      // Tab Hiệu chuẩn (2026-09-21): ống chuẩn quang — pha dung dịch Fluorescein,
+      // đo thô, xếp hạng tổ hợp, đóng bộ ống, cấp cho máy. Chỉ HTTP tới Engineer
+      // Server (/calib/*) nên chạy cả web. Kỹ sư + người của xưởng; ngưỡng PASS
+      // chỉ nhân sự kỹ thuật sửa (gác trong màn bằng `canEditLimits`).
+      tabs.add(_Tab(
+        icon: Icons.science_outlined,
+        selectedIcon: Icons.science,
+        label: tr('nav.calib'),
+        page: CalibScreen(
+          key: ValueKey('calib_${settings.engineerUrl}_${settings.engineerToken}'),
+          settings: settings,
+        ),
+      ));
+    }
     // Nhân sự: tab Kỹ Thuật (Log nhiệt | Đọc serial | Nạp code). Trên web =
     // bản Web Serial + esptool-js — conditional import ở đầu file chọn bản đúng.
     // `serialToolsAvailable`: trình duyệt ĐIỆN THOẠI không có Web Serial nên
@@ -241,14 +331,18 @@ class _HomeShellState extends State<HomeShell> {
     }
 
     if (_index >= tabs.length) _index = 0;
-    final wide = _wide || _menuOpen;
+    final wide = _isWide;
 
     return LayoutBuilder(builder: (context, c) {
       // Điện thoại: rail dọc 64px ăn mất 1/6 bề ngang một màn 390px, và không có
       // chuột thì cơ chế "rê vào để bung" không tồn tại. Đổi sang thanh điều
       // hướng DƯỚI — ngón cái với tới được, đúng chỗ mọi app điện thoại đặt nó.
       if (c.maxWidth < kMobileMaxWidth) return _buildMobile(tabs);
-      return _buildDesktop(tabs, wide);
+      // Bung rail có ĐẨY nội dung hay không phụ thuộc còn đủ chỗ hay không:
+      // cửa sổ hẹp mà vẫn đẩy thì nội dung bị ép xuống dưới ngưỡng dùng được,
+      // thà để rail phủ lên như cũ (người dùng nhả chuột là thấy lại ngay).
+      final pushes = c.maxWidth - _open >= _minContentWidth;
+      return _buildDesktop(tabs, wide, pushes);
     });
   }
 
@@ -297,15 +391,31 @@ class _HomeShellState extends State<HomeShell> {
   }
 
   /// Bố cục DESKTOP: rail dọc luôn hiện, bung khi rê chuột.
-  Widget _buildDesktop(List<_Tab> tabs, bool wide) {
+  ///
+  /// `pushes` = còn đủ bề ngang để **đẩy** nội dung sang phải khi rail bung.
+  /// Bản trước luôn inset nội dung đúng `_slim` rồi cho rail phủ lên (để
+  /// `fl_chart` khỏi relayout) — nhưng bung 248px là nuốt mất 184px mép trái:
+  /// thanh mục con của tab Hiệu chuẩn (`Lô pha | Bộ ống | Ngưỡng`) và đầu mã lô
+  /// biến mất, đúng lúc người dùng đang rê chuột để đọc tên mục. Nay nội dung co
+  /// theo rail bằng CÙNG nhịp animate (`_railAnim`/`_railCurve`) nên không còn
+  /// gì bị che; cái giá là tab có đồ thị relayout trong 220 ms đó.
+  Widget _buildDesktop(List<_Tab> tabs, bool wide, bool pushes) {
+    // Rail có ĐẨY nội dung hay không. Ghim thì LUÔN đẩy, kể cả khi dưới
+    // `_minContentWidth`: ngưỡng đó để bảo vệ người đang rê chuột ngang qua
+    // (bung/thu ngoài ý muốn), còn ghim là người dùng CHỦ ĐỘNG chọn giữ rail —
+    // che mất nội dung vĩnh viễn mới là hỏng. Hẹp quá thì họ bỏ ghim.
+    final pushing = wide && (!_collapsed || pushes);
+    final contentLeft = pushing ? _open : _slim;
     return Scaffold(
       body: Stack(
         children: [
-          // Nội dung inset ĐÚNG _slim px, một lần, không bao giờ đổi. Đây là điều
-          // kiện để rail bung/thu mà `fl_chart` không phải dựng lại — lý do bản
-          // trước phải giấu hẳn rail.
-          Positioned.fill(
-            left: _slim,
+          AnimatedPositioned(
+            duration: _railAnim,
+            curve: _railCurve,
+            left: contentLeft,
+            top: 0,
+            right: 0,
+            bottom: 0,
             child: IndexedStack(
               index: _index,
               children: [
@@ -314,23 +424,35 @@ class _HomeShellState extends State<HomeShell> {
               ],
             ),
           ),
-          // Rail LUÔN HIỆN. Bung ra chỉ phủ lên nội dung.
+          // Rail LUÔN HIỆN, nằm trên cùng để bóng đổ lên mép nội dung.
           AnimatedPositioned(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
+            duration: _railAnim,
+            curve: _railCurve,
             left: 0,
             top: 0,
             bottom: 0,
             width: wide ? _open : _slim,
             child: MouseRegion(
-              onEnter: (_) => setState(() => _wide = true),
+              // Đang đóng hover thì KHÔNG setState — chuột đi ngang qua rail
+              // mà dựng lại cả cây widget là phí, nhất là tab có `fl_chart`.
+              onEnter: (_) {
+                if (kRailHoverExpand) setState(() => _wide = true);
+              },
               onExit: (_) {
-                if (!_menuOpen) setState(() => _wide = false);
+                if (kRailHoverExpand && !_menuOpen) {
+                  setState(() => _wide = false);
+                }
               },
               child: _Rail(
                 tabs: tabs,
                 index: _index,
                 wide: wide,
+                // Chỉ đổ bóng khi rail THẬT SỰ nằm đè lên nội dung. Ghim (hoặc
+                // hover còn đủ chỗ đẩy) thì nó là panel đặt CẠNH nội dung —
+                // bóng dày ở đó đọc ra như một lớp nổi vô cớ.
+                overlay: wide && !pushing,
+                collapsed: _collapsed,
+                onToggleCollapsed: _toggleCollapsed,
                 onSelect: (i) => setState(() {
                   _index = i;
                   _wide = false;
@@ -373,6 +495,13 @@ class _Rail extends StatelessWidget {
   final List<_Tab> tabs;
   final int index;
   final bool wide;
+
+  /// Rail đang nằm ĐÈ lên nội dung (bung mà không đẩy được) → cần đổ bóng.
+  final bool overlay;
+
+  /// Rail đang thu (nút ở chân rail bật tắt).
+  final bool collapsed;
+  final VoidCallback onToggleCollapsed;
   final ValueChanged<int> onSelect;
   final VoidCallback onSettings;
   final VoidCallback onLogout;
@@ -382,6 +511,9 @@ class _Rail extends StatelessWidget {
     required this.tabs,
     required this.index,
     required this.wide,
+    required this.overlay,
+    required this.collapsed,
+    required this.onToggleCollapsed,
     required this.onSelect,
     required this.onSettings,
     required this.onLogout,
@@ -393,8 +525,8 @@ class _Rail extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Material(
       color: cs.surface,
-      // Bung ra là phủ LÊN nội dung nên phải có bóng, không thì chữ chồng chữ.
-      elevation: wide ? 10 : 0,
+      // Chỉ đổ bóng khi đang phủ LÊN nội dung, không thì chữ chồng chữ.
+      elevation: overlay ? 10 : 0,
       shadowColor: kBrandDeep.withValues(alpha: 0.35),
       // Bo hai góc PHẢI thôi. Ba mép kia áp sát cạnh cửa sổ — bo ở đó chỉ để hở
       // một mẩu nền ở góc màn hình chứ không ai đọc ra là "bo góc". Mép phải mới
@@ -441,6 +573,14 @@ class _Rail extends StatelessWidget {
               onLogout: onLogout,
               onMenuOpenChanged: onMenuOpenChanged,
             ),
+            // Chân rail: số phiên bản (CHỈ khi bung — thu chỉ rộng 64px, nhét
+            // chữ vào đó là vỡ) + nút thu/mở LUÔN hiện. Bản dev tô màu cảnh báo
+            // để ai ngồi trước máy cũng thấy mình đang chạy bản chưa phát hành.
+            // Chi tiết đầy đủ: Thiết lập › Phiên bản.
+            _RailFoot(
+                wide: wide,
+                collapsed: collapsed,
+                onToggle: onToggleCollapsed),
           ],
       ),
     );
@@ -516,8 +656,8 @@ class _RailItem extends StatelessWidget {
     // Tooltip CHỈ khi thu. Lúc bung thì nhãn đã nằm ngay cạnh icon — thêm
     // tooltip nữa là nói cùng một điều hai lần, và nó còn che mất mục bên dưới.
     //
-    // Vẫn cần dù rail tự bung khi rê chuột: bung có hiệu ứng 220ms, còn tooltip
-    // trả lời ngay cho người chỉ lướt qua để dò xem mục nào là mục nào.
+    // Từ khi `kRailHoverExpand` tạm đóng, đây là đường DUY NHẤT đọc tên mục lúc
+    // rail thu — bỏ tooltip là người dùng chỉ còn 8 cái icon để đoán.
     return wide
         ? item
         : Tooltip(message: tab.label, waitDuration: const Duration(milliseconds: 400), child: item);
@@ -565,7 +705,9 @@ class _AccountMenu extends StatelessWidget {
     );
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(wide ? 14 : 10, 12, wide ? 14 : 10, 16),
+      // Đáy 6 khi bung: ngay dưới còn dòng phiên bản (`_RailVersion`) tự mang
+      // đệm của nó. Lúc thu không có dòng đó nên giữ 16 như cũ.
+      padding: EdgeInsets.fromLTRB(wide ? 14 : 10, 12, wide ? 14 : 10, wide ? 6 : 16),
       child: PopupMenuButton<String>(
         tooltip: wide ? '' : '$who · $role',
         position: PopupMenuPosition.over,
@@ -709,8 +851,107 @@ class _MobileDrawer extends StatelessWidget {
                 onLogout();
               },
             ),
+            const _RailVersion(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Chân rail: số phiên bản (khi bung) + **nút THU/MỞ** (luôn hiện).
+///
+/// Đặt ở chân theo mẫu sidebar hubOTA (`04.FBT-OTA`): không tranh chỗ với mục
+/// điều hướng, và là nơi người ta đã quen tìm nút thu ngăn kéo.
+///
+/// Đây là nút DUY NHẤT điều khiển bề rộng rail (nút ghim ở đầu rail đã bỏ
+/// 2026-09-23 theo yêu cầu chủ dự án — hai nút cho một việc là rối). Mở = rail
+/// đứng nguyên 248px; thu = 64px nhưng rê chuột vào vẫn bung tạm để đọc tên mục.
+class _RailFoot extends StatelessWidget {
+  final bool wide;
+  final bool collapsed;
+  final VoidCallback onToggle;
+
+  const _RailFoot({
+    required this.wide,
+    required this.collapsed,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final button = IconButton(
+      tooltip: collapsed ? tr('nav.railExpand') : tr('nav.railCollapse'),
+      icon: Icon(
+        // Mũi tên CHỈ HƯỚNG SẼ ĐI, không phải trạng thái đang có: đang thu thì
+        // vẽ ">>" (bấm là mở ra). Vẽ ngược lại là ai cũng bấm nhầm một lần.
+        collapsed
+            ? Icons.keyboard_double_arrow_right
+            : Icons.keyboard_double_arrow_left,
+        size: 20,
+        color: cs.onSurfaceVariant,
+      ),
+      onPressed: onToggle,
+      visualDensity: VisualDensity.compact,
+    );
+
+    // Thu: chỉ nút, căn giữa như mọi icon khác. Bung: version bên trái, nút bên
+    // phải — `Expanded` để nhãn version dài không đẩy nút ra khỏi rail.
+    return Padding(
+      padding: EdgeInsets.fromLTRB(wide ? 12 : 6, 0, wide ? 8 : 6, 6),
+      child: wide
+          ? Row(children: [
+              const Expanded(child: _RailVersion(dense: true)),
+              button,
+            ])
+          : Align(alignment: Alignment.center, child: button),
+    );
+  }
+}
+
+/// Dòng phiên bản ở chân thanh điều hướng (rail bung + ngăn kéo điện thoại).
+///
+/// Chỉ NHÃN NGẮN (`v1.1.0-dev`); ngày dựng/commit/danh sách việc đang thêm nằm
+/// ở Thiết lập › Phiên bản. Bản dev in màu cảnh báo + tooltip nói rõ; bản phát
+/// hành in chữ phụ, im lặng.
+class _RailVersion extends StatelessWidget {
+  /// Bản gọn: bỏ đệm ngoài + căn trái, để nằm chung hàng với nút thu/mở
+  /// (`_RailFoot`). Bản thường (ngăn kéo điện thoại) tự mang đệm và căn giữa.
+  final bool dense;
+
+  const _RailVersion({this.dense = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final dev = kIsDevBuild;
+    return Tooltip(
+      message: dev ? '${tr('ver.devNote')} ($kAppBuildDate)' : appVersionFull,
+      child: Padding(
+        padding: dense
+            ? EdgeInsets.zero
+            : const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: Row(
+            mainAxisAlignment:
+                dense ? MainAxisAlignment.start : MainAxisAlignment.center,
+            children: [
+          if (dev) ...[
+            const Icon(Icons.construction_outlined, size: 13, color: kWarning),
+            const SizedBox(width: 5),
+          ],
+          Flexible(
+            child: Text(
+              appVersionLabel,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                fontFamily: 'JetBrains Mono',
+                color: dev ? kWarning : cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ]),
       ),
     );
   }

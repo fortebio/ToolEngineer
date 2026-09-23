@@ -136,3 +136,9 @@ SLOT_ARRAY_FIELDS = ("slot_value", "slot_result", "slot_positive", "calib_min", 
 # Kế hoạch gốc (docs/plan/ate-san-xuat.md §7.2) vẽ bảng `ate_records`; chuyển sang
 # DB khi số hồ sơ đủ lớn để glob thành nút cổ chai — hợp đồng REST không đổi.
 ATE_DIR = Path(os.environ.get("FBT_ATE_DIR", str(Path.home() / "fbt_server" / "ate")))
+
+# Thư mục ỐNG CHUẨN HIỆU CHUẨN (app: tab "Hiệu chuẩn", module app/calib.py): lô pha dung dịch
+# FAM (`batches/<id>.json`), bộ 4 ống đã chọn + vòng đời cấp phát (`sets/<id>.json`), ngưỡng
+# PASS có version (`limits.json`), nhật ký (`history.jsonl`). File, KHÔNG bảng DB — cùng lý do
+# với ATE_DIR: vài chục lô/năm, glob dư sức; thêm bảng là thêm migration + GRANT trên box.
+CALIB_DIR = Path(os.environ.get("FBT_CALIB_DIR", str(Path.home() / "fbt_server" / "calib")))

@@ -21,7 +21,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from app import auth as accounts, config, db, monitor as monitor_mod, ota, ratelimit
+from app import auth as accounts, calib, config, db, monitor as monitor_mod, ota, ratelimit
 from app.logic import (DEFAULT_ATE_LIMITS, ate_limits_conflict, ate_match,
                        ate_meta, ate_stats,
                        canonical_sha256, check_auth, normalize_ate_record,
@@ -51,6 +51,7 @@ config.DATA_DIR.mkdir(parents=True, exist_ok=True)  # tạo thư mục lưu file
 config.OTA_DIR.mkdir(parents=True, exist_ok=True)
 config.LOGS_DIR.mkdir(parents=True, exist_ok=True)  # log máy CSKH gửi lên (xem cuối file)
 config.ATE_DIR.mkdir(parents=True, exist_ok=True)  # hồ sơ trạm ATE (xem cuối file)
+config.CALIB_DIR.mkdir(parents=True, exist_ok=True)  # ống chuẩn hiệu chuẩn (app/calib.py)
 
 
 def auth(authorization: str = Header("")):
@@ -1339,6 +1340,140 @@ def ate_record_get(filename: str):
     if doc is None:
         raise HTTPException(500, "file hồ sơ hỏng")
     return doc
+
+
+# ---------------------------------------------------------------------------------------
+# ỐNG CHUẨN HIỆU CHUẨN — /calib/* (app: tab "Hiệu chuẩn"; logic + kho ở app/calib.py)
+# ---------------------------------------------------------------------------------------
+# Kỹ sư pha dãy FAM → chia ống → đọc số thô từng ống trên máy tham chiếu → server thử mọi
+# tổ hợp 1 ống/nồng độ, xếp R²/slope → các tổ hợp PASS không dùng chung ống thành BỘ ỐNG
+# (túi zip) có mã in nhãn + vòng đời (tủ lạnh → cấp máy → hết). Thay Google Sheet + Apps
+# Script bàn giao 2026-09. Mọi route ghi là PUT/DELETE (POST bị catch-all ingest nuốt).
+# Quyền: ghi lô/số đo/bộ = token thường (app tự gác vai trò root/admin/manager/operator);
+# đổi ngưỡng PASS = token admin OTA (như /ate/limits).
+
+
+def _calib_call(fn, *a, **kw):
+    try:
+        return fn(*a, **kw)
+    except calib.CalibError as e:
+        raise HTTPException(e.status, e.detail)
+
+
+async def _calib_json(request: Request) -> dict:
+    raw = await request.body()
+    if len(raw) > config.MAX_BODY:
+        raise HTTPException(413, "body too large")
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise HTTPException(400, f"invalid json: {e}")
+    if not isinstance(data, dict):
+        raise HTTPException(400, "body phải là JSON object")
+    return data
+
+
+@app.get("/calib/template", dependencies=[Depends(auth)])
+def calib_template(stock_nM: float = Query(0, ge=0), working_nM: float = Query(0, ge=0),
+                   working_total_ul: float = Query(0, ge=0),
+                   target_total_ul: float = Query(0, ge=0),
+                   tubes_per_conc: int = Query(0, ge=0, le=50),
+                   aliquot_ul: float = Query(0, ge=0)):
+    """Khung lô mới: nguyên liệu mặc định + bảng pha tính C1·V1 = C2·V2 từ tham số (0 = mặc
+    định theo bàn giao: stock 52 000 nM → 1000 nM/520 µL → 300/200/100 nM mỗi 300 µL, 25 µL ×
+    10 ống). App cho sửa rồi gửi lại nguyên khung vào `PUT /calib/batches`."""
+    return _calib_call(calib.template, stock_nM=stock_nM, working_nM=working_nM,
+                       working_total_ul=working_total_ul, target_total_ul=target_total_ul,
+                       tubes_per_conc=tubes_per_conc, aliquot_ul=aliquot_ul)
+
+
+@app.get("/calib/limits", dependencies=[Depends(auth)])
+def calib_limits_get():
+    """Ngưỡng PASS đang áp dụng (`source`: file | mặc định)."""
+    return calib.read_limits()
+
+
+@app.put("/calib/limits", dependencies=[Depends(ota_admin)])
+async def calib_limits_put(request: Request, by: str = ""):
+    """Đặt ngưỡng `{version, r2_min, slope_min, slope_max, shelf_days}`; một version = một
+    nội dung (bộ ống ghi `limits_ver`)."""
+    data = await _calib_json(request)
+    return _calib_call(calib.write_limits, data, by)
+
+
+@app.get("/calib/batches", dependencies=[Depends(auth)])
+def calib_batches(status: str = ""):
+    """Danh sách lô pha (tóm tắt, mới nhất trước)."""
+    if status and status not in calib.BATCH_STATUSES:
+        raise HTTPException(400, f"status phải là một trong {calib.BATCH_STATUSES}")
+    return {"items": calib.list_batches(status)}
+
+
+@app.put("/calib/batches", dependencies=[Depends(auth)])
+async def calib_batch_create(request: Request, by: str = ""):
+    """Tạo lô mới (body = khung từ /calib/template đã sửa, hoặc rỗng = mặc định). Trả tài
+    liệu lô, `id` dạng `CB<yymmdd>-<nn>`."""
+    data = await _calib_json(request)
+    return _calib_call(calib.create_batch, data, by)
+
+
+@app.get("/calib/batches/{bid}/rank", dependencies=[Depends(auth)])
+def calib_batch_rank(bid: str, top: int = Query(50, ge=1, le=2000)):
+    """Xếp hạng mọi tổ hợp 1 ống/nồng độ theo R² rồi slope + `suggested_sets` (PASS, không
+    dùng chung ống, loại ống đã đóng bộ)."""
+    return _calib_call(calib.rank_batch, bid, top)
+
+
+@app.put("/calib/batches/{bid}/sets", dependencies=[Depends(auth)])
+async def calib_sets_create(bid: str, request: Request, by: str = ""):
+    """Đóng gói `{combos: [{tubes}], expires_days?}` thành bộ ống `<lô>-S<nn>`; server tính lại
+    hồi quy, chặn ống trùng bộ."""
+    data = await _calib_json(request)
+    return _calib_call(calib.create_sets, bid, data, by)
+
+
+@app.get("/calib/batches/{bid}", dependencies=[Depends(auth)])
+def calib_batch_get(bid: str):
+    doc = _calib_call(calib.read_batch, bid)
+    doc["sets"] = calib.list_sets(batch=bid)
+    return doc
+
+
+@app.put("/calib/batches/{bid}", dependencies=[Depends(auth)])
+async def calib_batch_update(bid: str, request: Request, by: str = ""):
+    """Cập nhật một phần: `stock/buffer/reader/note/status`, `steps[{code, done_at, by,
+    actual_*}]` (gộp theo code), `readings{nồng_độ:{số_ống: raw|null}}` (gộp từng ống)."""
+    data = await _calib_json(request)
+    return _calib_call(calib.update_batch, bid, data, by)
+
+
+@app.delete("/calib/batches/{bid}", dependencies=[Depends(auth)])
+def calib_batch_delete(bid: str, by: str = ""):
+    """Xoá lô tạo nhầm — chỉ khi chưa có bộ ống."""
+    return _calib_call(calib.delete_batch, bid, by)
+
+
+@app.get("/calib/sets", dependencies=[Depends(auth)])
+def calib_sets(status: str = "", device: str = "", batch: str = ""):
+    """Bộ ống (mới nhất trước) — lọc `status` (stored|issued|used|discarded), `device` (máy
+    đang giữ), `batch`."""
+    if status and status not in calib.SET_STATUSES:
+        raise HTTPException(400, f"status phải là một trong {calib.SET_STATUSES}")
+    return {"items": calib.list_sets(status, device.strip(), batch.strip())}
+
+
+@app.get("/calib/sets/{sid}", dependencies=[Depends(auth)])
+def calib_set_get(sid: str):
+    return _calib_call(calib.read_set, sid)
+
+
+@app.put("/calib/sets/{sid}", dependencies=[Depends(auth)])
+def calib_set_update(sid: str, status: str, device: str = "", by: str = "", note: str = ""):
+    """Đổi trạng thái bộ: stored → issued(device bắt buộc)|discarded; issued → used|discarded|
+    stored (thu hồi). Ghi `history`."""
+    return _calib_call(calib.update_set, sid, status, device, by, note)
 
 
 # App WEB (Flutter build web, build với --base-href /app/) serve tĩnh CÙNG ORIGIN
