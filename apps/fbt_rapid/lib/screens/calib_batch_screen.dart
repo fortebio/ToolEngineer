@@ -1223,7 +1223,7 @@ class _CalibBatchScreenState extends State<CalibBatchScreen> {
                   : null,
               title: Text('Bộ #${c.rank}  —  ${_tubesPlain(c.tubes)}',
                   style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text('ĐẠT · độ tuyến tính R² ${calibNum(c.r2, 4)}'
+              subtitle: Text('ĐẠT · độ tuyến tính R² ${calibNum(c.r2, 6)}'
                   '${c.lod == null ? '' : ' · phát hiện tới ${calibNum(c.lod, 1)} nM'}',
                   style: TextStyle(color: sem.success)),
             ),
@@ -1281,6 +1281,11 @@ class _CalibBatchScreenState extends State<CalibBatchScreen> {
                 DataColumn(label: Text('Slope'), numeric: true),
                 DataColumn(label: Text('Intercept'), numeric: true),
                 DataColumn(label: Text('R²'), numeric: true),
+                // "Lệch" = sai số dư (đơn vị raw). Có vì R² với 4 điểm bão hoà
+                // ở 0,9999xx — cả chục dòng đầu bảng in ra y hệt nhau, nhìn
+                // tưởng máy tính sai (chủ dự án báo 2026-09-23). Số này KHÔNG
+                // bão hoà nên so được hai tổ hợp mà R² trông như nhau.
+                DataColumn(label: Text('Lệch'), numeric: true),
                 DataColumn(label: Text('LOD nM'), numeric: true),
                 DataColumn(label: Text('KQ')),
               ],
@@ -1291,7 +1296,8 @@ class _CalibBatchScreenState extends State<CalibBatchScreen> {
                     DataCell(Text(calibTubesLabel(c.tubes), style: const TextStyle(fontFamily: 'monospace'))),
                     DataCell(Text(calibNum(c.slope))),
                     DataCell(Text(calibNum(c.intercept, 1))),
-                    DataCell(Text(calibNum(c.r2, 5))),
+                    DataCell(Text(calibNum(c.r2, 6))),
+                    DataCell(Text(c.se == null ? '—' : calibNum(c.se, 2))),
                     DataCell(Text(c.lod == null ? '—' : calibNum(c.lod, 1))),
                     DataCell(Text(c.status,
                         style: TextStyle(

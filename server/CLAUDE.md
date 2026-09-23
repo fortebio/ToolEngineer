@@ -33,6 +33,11 @@ app/                   # Package service (FastAPI) — chạy: uvicorn app.main:
                        #   rank_combinations (mọi tổ hợp 1 ống/nồng độ, R²↓ slope↓, PASS theo limits, suggested_sets
                        #   KHÔNG trùng ống), kho file CALIB_DIR/{batches,sets}/<id>.json + limits.json + history.jsonl;
                        #   create_sets tính LẠI hồi quy, chặn ống trùng bộ; update_set theo SET_TRANSITIONS.
+                       #   ⚠️ linear_fit KHÔNG làm tròn r2 (2026-09-23): r2 là KHOÁ SẮP XẾP của rank_combinations —
+                       #   round(r2,6) gộp 8045 giá trị → 6449, "hoà" giả dồn ĐÚNG ở đỉnh bảng nên hạng #1 rơi sang
+                       #   khoá phụ slope (đo được: #2 đổi tổ hợp sau khi sửa). Làm tròn là việc của chỗ HIỂN THỊ.
+                       #   `se` = sai số dư √(SSres/(n−2)), None khi n=2: với 4 điểm R² bão hoà 0,9999xx nên KHÔNG
+                       #   so hai tổ hợp bằng R² được, `se` mới là số phân biệt (app hiện thành cột "Lệch").
                        #   Plan: docs/plan/calib-ong-chuan.md
   monitor.py           #   Số liệu tab Giám sát (root): /proc + statvfs + db.monitor_flow, KHÔNG psutil; route GET /monitor
                        #   gác ota_admin (nhánh ota-rollout-docs-tests 28/08 — ghép lại vào main 2026-09-12)
@@ -285,6 +290,14 @@ ull`), dùng `xargs -I{}`; dọn `web.bak.*` phải xếp theo TÊN
   Tool PowerShell của AI gọi script LỒNG qua `powershell -File …` thì TREO tới timeout (uvicorn con giữ pipe) dù
   server đã lên — gọi thẳng `.\scripts\localtest.ps1` từ tool, hoặc kiểm bằng `curl /openapi.json` thay vì đợi.
   Server mount `FBT_WEB_DIR` lúc khởi động → build lại web xong phải chạy lại script mới thấy `/app/` (405 = chưa mount).
+- **`check_deploy.py` báo "openapi giống hệt: CÓ" KHÔNG có nghĩa là đã deploy** khi thay đổi chỉ nằm ở
+  NỘI DUNG trả về chứ không ở chữ ký route (2026-09-23, sửa r2 trong `calib.py`): openapi không mô tả
+  từng trường nên nó mù với loại thay đổi này → phải so **md5 `app/*.py`** (bảng `check_deploy.py` in
+  sẵn). Cùng họ với bẫy "route có trong file nhưng service chưa restart" bên dưới.
+- **Chạy uvicorn local mà cổng đã có server khác chiếm thì curl trả lời bằng CODE CŨ** (2026-09-23):
+  uvicorn in `[Errno 10048] error while attempting to bind` rồi thoát, nhưng instance cũ ở cổng đó vẫn
+  phục vụ — tôi đọc kết quả và tưởng bản sửa không ăn. Kiểm `tail` log uvicorn vừa bật trước khi tin
+  kết quả curl, hoặc chọn cổng khác hẳn.
 - **Kiểm server local (`localtest.ps1`) ĐỪNG tin `Test-Path "$env:LOCALAPPDATA\fbt-localtest\…"` từ tool
   shell của AI** (2026-09-17): trả `False` cho cả `pgsql`, `pgdata`, `venv` trong khi Postgres :5433 +
   uvicorn :8080 đang chạy đúng từ các path đó — Windows ảo hoá `AppData\Local` (gotcha Python 3.14 ở

@@ -77,3 +77,24 @@ khi có máy build desktop.
 
 - Máy quét cầm tay/điện thoại trả về payload → app tự tra bộ (cần plugin camera, chưa làm).
 - In kèm mã vạch 1D cho máy quét cũ chỉ đọc Code-128.
+
+---
+
+# Cùng ngày — cột "Lệch" trong bảng xếp hạng (R² nhìn như luôn = 1)
+
+Chủ dự án báo bảng xếp hạng in `R² = 1.00000` ở mọi dòng. Chẩn đoán đầy đủ + lỗi THẬT ở server
+(`r2` bị làm tròn làm hỏng khoá sắp xếp): `server/docs/history/2026-09-23.md`.
+
+Phần app:
+
+- `CalibCombo` nhận thêm `se` (nullable — server bản cũ không có thì in `—`).
+- Bảng xếp hạng thêm cột **Lệch** = `se`, và R² hiển thị **6 chữ số** thay vì 5.
+- Dòng gợi ý bộ (`ĐẠT · độ tuyến tính R² …`) cũng lên 6 chữ số.
+
+Vì sao thêm cột thay vì chỉ tăng số chữ số: R² với 4 điểm bão hoà — kể cả in 6 chữ số, các dòng đỉnh
+bảng vẫn ra `0.999999`/`1.000000`. `se` không bão hoà. Thấy rõ khi chạy thử lô `CB260922-01`: dòng 1
+và dòng 3 cùng `R² 0.999999` nhưng `Lệch` 0,39 vs 0,63.
+
+Kiểm: dựng server thật ở local (`uvicorn … --port 8099`, `FBT_CALIB_DIR` trỏ kho lô thật) + build web
+trỏ vào đó, nhét phiên root vào `localStorage` vì máy không có Postgres → bấm "Tìm bộ đạt" và đọc
+bảng trên màn. `flutter analyze lib/` 10 info có sẵn; `flutter test` 261 pass (1 đỏ có sẵn).

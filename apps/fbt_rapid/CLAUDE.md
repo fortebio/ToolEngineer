@@ -175,6 +175,11 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   LOD theo WI, gợi ý bộ không trùng ống, Đóng gói) · Bộ ống (stored → issued(SN) → used/discarded) · Ngưỡng
   (`canEditLimits`). Gác `canSeeCalib`/`canWriteCalib` (root/admin/manager/operator; `user` không thấy).
   Chỉ HTTP → chạy cả web, KHÔNG có bản `_web` riêng (analyze sạch + chạy thử web local 2026-09-21).
+  ⚠️ **ĐỪNG so hai tổ hợp bằng R²** (2026-09-23, chủ dự án báo "R2 LUÔN LUÔN = 1"): với 4 điểm và dải
+  x rộng, R² bão hoà ở 0,9999xx nên cả chục dòng đầu bảng xếp hạng in ra y hệt nhau. Bảng giờ có cột
+  **Lệch** = `se` (sai số dư, đơn vị raw) — số KHÔNG bão hoà, dùng nó để so; R² hiển thị 6 chữ số
+  (server đã bỏ làm tròn `r2` vì nó là khoá sắp xếp — xem `server/CLAUDE.md`). Cột `Lệch` là `null`
+  khi server còn bản cũ → in `—`, đừng để `0`.
   **Nhãn QR** (`services/calib_label.dart` + `screens/calib_label_print.dart` + `widgets/qr_view.dart`,
   2026-09-23, test `test/calib_label_test.dart`): nút "Nhãn QR" trên thẻ bộ + "In nhãn QR" cho cả danh
   sách → tờ A4 10 nhãn. QR mang TEXT rời `FBTCAL1|mã bộ|lô|hạn|slope|intercept|R²|LOD|ống|ngưỡng`

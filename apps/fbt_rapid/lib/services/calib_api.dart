@@ -167,6 +167,11 @@ class CalibCombo {
   final double slope;
   final double intercept;
   final double r2;
+
+  /// Sai số dư của đường chuẩn (đơn vị raw) — server 2026-09-23. R² bão hoà ở
+  /// 0,9999xx với 4 điểm nên nhìn không phân biệt được tổ hợp; `se` thì có.
+  /// `null` khi chỉ có 2 điểm (không còn bậc tự do dư) hoặc server bản cũ.
+  final double? se;
   final double? lod;
   final String status; // PASS | FAIL
 
@@ -177,6 +182,7 @@ class CalibCombo {
     required this.slope,
     required this.intercept,
     required this.r2,
+    required this.se,
     required this.lod,
     required this.status,
   });
@@ -194,6 +200,7 @@ class CalibCombo {
         slope: (j['slope'] as num?)?.toDouble() ?? 0,
         intercept: (j['intercept'] as num?)?.toDouble() ?? 0,
         r2: (j['r2'] as num?)?.toDouble() ?? 0,
+        se: (j['se'] as num?)?.toDouble(),
         lod: (j['lod'] as num?)?.toDouble(),
         status: (j['status'] ?? '').toString(),
       );

@@ -83,6 +83,33 @@ def test_hoi_quy_khop_sheet():
     assert calib.linear_fit([1, 2], [5, 5])["r2"] == 0.0   # y phẳng: SStot = 0
 
 
+def test_r2_khong_lam_tron_va_sai_so_du():
+    """R² là KHOÁ SẮP XẾP nên KHÔNG được làm tròn (2026-09-23).
+
+    Bản cũ `round(r2, 6)` biến một đường gần-hoàn-hảo thành đúng `1.0` và gộp các tổ hợp
+    khác nhau ở đỉnh bảng thành "hoà" giả — thứ hạng #1 khi đó do `slope` quyết định chứ
+    không do độ khớp. Kèm theo: `se` (sai số dư) phải có và KHÔNG bão hoà như R².
+    """
+    # lệch 1 đơn vị trên dải raw ~12000 (cỡ máy thật): R² = 0,99999999 — làm tròn 6 chữ ra ĐÚNG 1.0
+    fit = calib.linear_fit([300, 200, 100, 0], [12001, 9000, 6000, 3000])
+    assert fit["r2"] < 1.0, "R² của đường KHÔNG hoàn hảo không được thành đúng 1.0"
+    assert round(fit["r2"], 6) == 1.0, "đúng là ca mà bản cũ làm tròn thành 1.0"
+    assert fit["se"] is not None and fit["se"] > 0
+
+    # khớp hoàn hảo thật thì R² = 1.0 và se = 0
+    perfect = calib.linear_fit([300, 200, 100, 0], [12000, 9000, 6000, 3000])
+    assert perfect["r2"] == 1.0 and perfect["se"] == 0.0
+
+    # 2 điểm: luôn khớp hoàn hảo, KHÔNG còn bậc tự do → se = None (đừng in 0)
+    assert calib.linear_fit([0, 300], [300, 1200])["se"] is None
+
+    # se phân biệt được hai tổ hợp mà R² nhìn như nhau ở 6 chữ số
+    a = calib.linear_fit([300, 200, 100, 0], [12001, 9000, 6000, 3000])
+    b = calib.linear_fit([300, 200, 100, 0], [12003, 9000, 6000, 3000])
+    assert round(a["r2"], 6) == round(b["r2"], 6) == 1.0
+    assert a["se"] < b["se"]
+
+
 def test_xep_hang_to_hop_va_goi_y_bo():
     res = calib.rank_combinations([300, 200, 100, 0], SHEET)
     assert res["total"] == 81 and res["pass"] >= 3

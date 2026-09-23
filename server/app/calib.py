@@ -185,7 +185,19 @@ def template(**kw) -> dict:
 
 def linear_fit(xs: list[float], ys: list[float]) -> dict | None:
     """Bình phương tối thiểu y = slope·x + intercept; None nếu không khớp được (x trùng nhau,
-    <2 điểm). R² = 1 − SSres/SStot; SStot = 0 (mọi y bằng nhau) → R² = 0."""
+    <2 điểm). R² = 1 − SSres/SStot; SStot = 0 (mọi y bằng nhau) → R² = 0.
+
+    **R² KHÔNG làm tròn** (2026-09-23): nó là KHOÁ SẮP XẾP của `rank_combinations`, không phải
+    số để in. Bản cũ `round(r2, 6)` gộp 8045 giá trị khác nhau còn 6449 trên một lô thật —
+    1596 cặp thành "hoà" giả ĐÚNG Ở ĐỈNH bảng (chỗ 0,99999x), nên thứ hạng #1 rơi sang khoá
+    phụ `slope` chứ không còn do độ khớp quyết định; dữ liệu sạch hơn thì `round` còn ép
+    0,9999996 thành đúng `1.0`. Làm tròn là việc của chỗ HIỂN THỊ.
+
+    `se` = sai số dư (residual standard error, đơn vị raw) = √(SSres/(n−2)). Với 4 điểm và dải
+    x rộng, R² bão hoà ở 0,9999xx nên nhìn không phân biệt được tổ hợp nào hơn — `se` nói
+    thẳng "đường chuẩn lệch khỏi số đo trung bình ± bao nhiêu đơn vị raw" và KHÔNG bão hoà.
+    n = 2 thì không có bậc tự do dư → `se = None` (đừng in 0, nó không phải "khớp hoàn hảo").
+    """
     n = len(xs)
     if n < 2 or n != len(ys):
         return None
@@ -200,7 +212,8 @@ def linear_fit(xs: list[float], ys: list[float]) -> dict | None:
     ss_res = sum((y - (slope * x + intercept)) ** 2 for x, y in zip(xs, ys))
     ss_tot = sum((y - my) ** 2 for y in ys)
     r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
-    return {"slope": round(slope, 4), "intercept": round(intercept, 2), "r2": round(r2, 6)}
+    se = round((ss_res / (n - 2)) ** 0.5, 2) if n > 2 else None
+    return {"slope": round(slope, 4), "intercept": round(intercept, 2), "r2": r2, "se": se}
 
 
 def effective_limits(doc: dict | None) -> dict:
