@@ -234,6 +234,55 @@ def test_log_device_path_traversal_lam_sach():
     assert all(p.parent == LOGS for p in LOGS.glob("*.json"))
 
 
+# --- Hộp thư log cho kỹ thuật: GET /logs, PUT /logs/{f}/status, DELETE /logs/{f} ---
+# (ghép từ code chỉ có trên box 2026-09-23). Gác ota_admin → token thiết bị bị 401 khi
+# OTA_ADMIN_TOKEN đặt; monkeypatch trong test, KHÔNG setdefault env (xem test_calib).
+ADMIN = {"Authorization": "Bearer admintok"}
+
+
+def test_log_hop_thu_gac_ota_admin(monkeypatch):
+    from app import config
+    monkeypatch.setattr(config, "OTA_ADMIN_TOKEN", "admintok")
+    up = client.put("/devices/RPL07777/logs", json=LOG_BODY, headers=AUTH).json()
+    assert client.get("/logs", headers=AUTH).status_code == 401
+    assert client.put(f"/logs/{up['file']}/status", json={"status": "done"}, headers=AUTH).status_code == 401
+    assert client.delete(f"/logs/{up['file']}", headers=AUTH).status_code == 401
+    assert client.get("/logs", headers=ADMIN).status_code == 200
+    # token thiết bị vẫn gửi + đọc theo máy được như cũ
+    assert client.get(f"/logs/{up['file']}", headers=AUTH).status_code == 200
+
+
+def test_log_hop_thu_loc_trang_thai_va_xoa(monkeypatch):
+    from app import config
+    monkeypatch.setattr(config, "OTA_ADMIN_TOKEN", "admintok")
+    a = client.put("/devices/RPL08881/logs", json=dict(LOG_BODY, text="log a\n"), headers=AUTH).json()
+    b = client.put("/devices/RPL08881/logs", json=dict(LOG_BODY, text="log b\n"), headers=AUTH).json()
+
+    r = client.get("/logs", params={"device": "RPL08881"}, headers=ADMIN).json()
+    assert r["total"] == 2 and r["counts"] == {"new": 2, "working": 0, "done": 0}
+    assert all("text" not in i and i["status"] == "new" for i in r["items"])
+
+    s = client.put(f"/logs/{a['file']}/status", json={"status": "done", "by": "kt01", "note": "thay nguồn"},
+                   headers=ADMIN)
+    assert s.status_code == 200, s.text
+    assert s.json()["status"] == "done" and s.json()["status_by"] == "kt01"
+    doc = json.loads((LOGS / a["file"]).read_text(encoding="utf-8"))
+    assert doc["status"] == "done" and doc["text"] == "log a\n" and list(doc)[-1] == "text"
+
+    r = client.get("/logs", params={"device": "RPL08881", "status": "new"}, headers=ADMIN).json()
+    assert [i["file"] for i in r["items"]] == [b["file"]]
+    assert r["counts"] == {"new": 1, "working": 0, "done": 1}  # counts trước lọc trạng thái
+
+    assert client.put(f"/logs/{a['file']}/status", json={"status": "xyz"}, headers=ADMIN).status_code == 400
+    assert client.get("/logs", params={"status": "xyz"}, headers=ADMIN).status_code == 400
+    assert client.put("/logs/khong_co.json/status", json={"status": "done"}, headers=ADMIN).status_code == 404
+
+    assert client.delete(f"/logs/{b['file']}", headers=ADMIN).json()["ok"] is True
+    assert not (LOGS / b["file"]).exists()
+    assert client.delete(f"/logs/{b['file']}", headers=ADMIN).status_code == 404
+    assert client.get("/logs", params={"device": "RPL08881"}, headers=ADMIN).json()["total"] == 1
+
+
 
 
 # --- Trạm ATE (tab "Sản xuất" của app) ---------------------------------------

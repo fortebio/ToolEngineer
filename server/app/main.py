@@ -952,9 +952,30 @@ def _log_file(name: str) -> str:
     return name
 
 
+# Trạng thái XỬ LÝ của một bản log — kỹ thuật đánh dấu để biết bản nào chưa ai
+# xem (app: tab Chăm sóc KH › Log đã nhận). File không có khoá `status` (gửi
+# trước 2026-09-17) = "new". Lưu NGAY TRONG file JSON của log (khoá `status*`),
+# không file phụ: một file = một hồ sơ, sao lưu/dọn dẹp không sợ lạc đôi.
+# (Khối này + 3 route `/logs` bên dưới từng CHỈ nằm trên box — ghép lại từ
+# `~/fbt_server/app/main.py` ngày 2026-09-23, xem docs/history/2026-09-23.md.)
+_LOG_STATUSES = ("new", "working", "done")
+
+# Cache metadata theo (mtime_ns, size): `GET /logs` liệt kê MỌI máy phải mở từng
+# file (mỗi file tới ~200K ký tự log) — không cache là đọc cả kho mỗi lần admin
+# bấm làm mới. Khoá = tên file; đổi trạng thái ghi lại file → mtime đổi → đọc lại.
+_LOG_META_CACHE: dict[str, tuple[int, int, dict]] = {}
+
+
 def _log_meta(path) -> dict | None:
     """Metadata một file log (KHÔNG kèm `text`) — file hỏng/sửa tay méo → None, bỏ qua
     thay vì làm 500 cả danh sách."""
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    cached = _LOG_META_CACHE.get(path.name)
+    if cached and cached[0] == st.st_mtime_ns and cached[1] == st.st_size:
+        return dict(cached[2])
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -963,7 +984,8 @@ def _log_meta(path) -> dict | None:
         return None
     text = doc.get("text")
     findings = doc.get("findings")
-    return {
+    status = str(doc.get("status") or "new")
+    meta = {
         "file": path.name,
         "device": str(doc.get("device") or ""),
         "received_at": str(doc.get("received_at") or ""),
@@ -974,7 +996,21 @@ def _log_meta(path) -> dict | None:
         "app": str(doc.get("app") or ""),
         "size": len(text) if isinstance(text, str) else 0,
         "findings": len(findings) if isinstance(findings, list) else 0,
+        # Trạng thái lạ (sửa tay) quy về "new": thà hiện lại trong hộp thư còn
+        # hơn biến mất khỏi mọi bộ lọc.
+        "status": status if status in _LOG_STATUSES else "new",
+        "status_by": str(doc.get("status_by") or ""),
+        "status_at": str(doc.get("status_at") or ""),
+        "status_note": str(doc.get("status_note") or ""),
     }
+    _LOG_META_CACHE[path.name] = (st.st_mtime_ns, st.st_size, meta)
+    return dict(meta)
+
+
+def _log_paths():
+    """Mọi file log thật trong kho — bỏ dotfile (`.tmp-*` của upload đang dở):
+    `Path.glob` KHỚP CẢ dotfile, khác glob của shell."""
+    return [p for p in config.LOGS_DIR.glob("*.json") if not p.name.startswith(".")]
 
 
 @app.put("/devices/{device}/logs", dependencies=[Depends(auth)])
@@ -1056,6 +1092,113 @@ def device_log_get(filename: str):
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         raise HTTPException(500, "log file hỏng")
+
+
+# Hộp thư log cho KỸ THUẬT (app: tab Chăm sóc KH › Log đã nhận, thêm 2026-09-17).
+# Trước đó chỉ tra được THEO MÃ MÁY (`GET /devices/{id}/logs`) — CSKH gửi log
+# xong thì kỹ thuật không biết có gì mới nếu không được nhắn. Ba route dưới gác
+# `ota_admin` = token NHÂN SỰ: danh sách mọi máy là dữ liệu khách hàng, token
+# thiết bị (nằm trong mọi .bin, và `/auth` phát cho manager/operator) không được
+# đọc; còn `PUT /devices/{id}/logs` (gửi) + tra theo máy giữ `auth` như cũ.
+
+
+@app.get("/logs", dependencies=[Depends(ota_admin)])
+def device_logs_all(
+    device: str = "",
+    status: str = "",
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=500),
+):
+    """Mọi bản log CSKH đã gửi, MỌI máy — **mới nhất trước** (theo `received_at`,
+    KHÔNG theo tên file: tên bắt đầu bằng mã máy nên xếp theo tên là xếp theo máy),
+    phân trang `page` 1-based. Lọc `device` (khớp đúng mã) và `status`
+    (`new|working|done`). Trả `counts` = số bản theo TỪNG trạng thái **sau lọc
+    máy, trước lọc trạng thái** — để app vẽ chip "Mới 3 · Đang xử lý 1 · Đã xử lý 12"
+    mà không phải gọi thêm 3 lần. KHÔNG kèm `text`."""
+    dev = safe_name(device) if device.strip() else ""
+    if status and status not in _LOG_STATUSES:
+        raise HTTPException(400, f"status phải là một trong {list(_LOG_STATUSES)}")
+    counts = {s: 0 for s in _LOG_STATUSES}
+    metas = []
+    for p in _log_paths():
+        m = _log_meta(p)
+        if m is None or (dev and m["device"] != dev):
+            continue
+        counts[m["status"]] += 1
+        if status and m["status"] != status:
+            continue
+        metas.append(m)
+    # received_at là ISO UTC do server ghi → so chuỗi = so thời gian; file thiếu
+    # (sửa tay) rơi xuống cuối. Tên file làm khoá phụ cho thứ tự ổn định.
+    metas.sort(key=lambda m: (m["received_at"], m["file"]), reverse=True)
+    start = (page - 1) * limit
+    return {
+        "items": metas[start:start + limit],
+        "total": len(metas),
+        "page": page,
+        "limit": limit,
+        "counts": counts,
+    }
+
+
+@app.put("/logs/{filename}/status", dependencies=[Depends(ota_admin)])
+async def device_log_set_status(filename: str, request: Request):
+    """Đổi trạng thái xử lý một bản log. Body JSON `{status (bắt buộc), by, note}`.
+    Ghi `status`/`status_by`/`status_at`/`status_note` vào CHÍNH file log (giữ nguyên
+    mọi khoá khác, `text` vẫn ở cuối file); trả metadata mới (như một item `/logs`).
+    `by` là client tự khai, cùng loại với `by` lúc gửi — ghi chú vận hành, không phải
+    kiểm toán."""
+    try:
+        data = json.loads(await request.body())
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise HTTPException(400, f"invalid json: {e}")
+    if not isinstance(data, dict):
+        raise HTTPException(400, "body phải là JSON object")
+    status = str(data.get("status") or "")
+    if status not in _LOG_STATUSES:
+        raise HTTPException(400, f"status phải là một trong {list(_LOG_STATUSES)}")
+    path = config.LOGS_DIR / _log_file(filename)
+    if not path.is_file():
+        raise HTTPException(404, "log not found")
+
+    def _write():
+        # Đọc + ghi lại cả file (tới MAX_LOG_TEXT) trong threadpool: handler async
+        # mà chặn loop là treo luôn `/ingest` của cả fleet (uvicorn 1 worker).
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(doc, dict):
+            return None
+        text = doc.pop("text", "")
+        doc["status"] = status
+        doc["status_by"] = str(data.get("by") or "")[:64]
+        doc["status_at"] = datetime.now(timezone.utc).isoformat()
+        doc["status_note"] = str(data.get("note") or "")[:2000]
+        doc["text"] = text  # để cuối cho người mở file bằng tay đọc header trước
+        tmp = config.LOGS_DIR / f".tmp-{path.name}"
+        tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, path)
+        return _log_meta(path)
+
+    meta = await run_in_threadpool(_write)
+    if meta is None:
+        raise HTTPException(500, "log file hỏng")
+    print(f"device log {path.name} status={status} by={meta['status_by']!r}", flush=True)
+    return {"ok": True, **meta}
+
+
+@app.delete("/logs/{filename}", dependencies=[Depends(ota_admin)])
+def device_log_delete(filename: str):
+    """Xoá hẳn một bản log (gửi nhầm / bản thử nghiệm). Không có thùng rác —
+    app hỏi xác nhận trước khi gọi."""
+    path = config.LOGS_DIR / _log_file(filename)
+    if not path.is_file():
+        raise HTTPException(404, "log not found")
+    path.unlink()
+    _LOG_META_CACHE.pop(path.name, None)
+    print(f"device log {path.name} deleted", flush=True)
+    return {"ok": True, "file": path.name}
 
 
 # --- Trạm ATE: hồ sơ nghiệm thu máy tại xưởng (app: tab "Sản xuất") ----------
