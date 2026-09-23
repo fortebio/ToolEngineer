@@ -213,6 +213,11 @@ ull`), dùng `xargs -I{}`; dọn `web.bak.*` phải xếp theo TÊN
   đặt `ota.migrate_legacy()` dưới `FastAPI(...)` làm `scripts/migrate_ota.py --dry-run` dời file
   THẬT (đã dính 2026-09-11). Việc "chạy một lần lúc khởi động" đặt trong `lifespan` (chỉ tiến
   trình uvicorn thật chạy; `TestClient` không dùng `with` thì cũng không chạy).
+- **Web deploy xong mà tab mới "không thấy" qua `hub.fortebio.tech` = Cloudflare ghi đè cache** (2026-09-23):
+  origin trả `Cache-Control: no-cache` nhưng CF phát `max-age=14400` cho `main.dart.js`, `flutter_bootstrap.js`,
+  `*.otf` → trình duyệt không hỏi lại 4 giờ (log box: máy đó GET `/app/` 304 mà KHÔNG GET `main.dart.js`).
+  `deploy.ps1 -Web` giờ gọi `apps/fbt_rapid/deploy-web.ps1` gắn hash vào tên file; đừng quay lại chép tên cố định.
+  Dò: `curl -sI https://hub.fortebio.tech/app/main.dart.js` so với `fbt.basa-luma.ts.net`.
 - **Web sau deploy: icon MỚI hiện thành ô trống, icon cũ vẫn hiện = FONT ICON CŨ bị cache, không phải
   lỗi build** (2026-09-12): Flutter tree-shake `MaterialIcons-Regular.otf` theo bộ icon của TỪNG build
   nhưng phát ở CÙNG URL; Cloudflare (`hub.fortebio.tech`) gắn `max-age=14400` cho file tĩnh → trình

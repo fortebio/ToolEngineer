@@ -82,9 +82,7 @@ if ($Web) {
         throw "Bundle web_prod đang nhúng URL/token TEST LOCAL — build lại KHÔNG --dart-define"
     }
     Write-Output "=== Web: $webProd -> $Remote/web ==="
-    # Sao lưu bản web đang host trước khi ghi đè (cùng lý do với app/ ở trên; box đã có nhiều web.bak.*).
-    $stampWeb = Get-Date -Format "yyyyMMdd-HHmmss"
-    Run "ssh $Target `"[ -d $Remote/web ] && cp -a $Remote/web $Remote/web.bak.$stampWeb; true`""
+    # Dọn bak cũ TRƯỚC; bản sao lưu của lần này do deploy-web.ps1 tạo (bước 4 của nó).
     # Chỉ giữ 3 bản web.bak.* MỚI NHẤT (~60 MB/bản; box từng tích 14 bản). Xoá bản cũ hơn.
     # Xếp theo TÊN (`sort -r`, tên mang timestamp), KHÔNG `ls -t`: `cp -a` giữ nguyên mtime của
     # web/ gốc nên bản vừa chép trông "cũ nhất" và bị xoá ngay (đã dính 2026-09-12 17:44).
@@ -94,17 +92,16 @@ if ($Web) {
     # diễn giải lại `$(` thành subexpression cục bộ (đã dính: `2>/dev/null` thành C:\dev\null).
     # xargs -I{} thay cho vòng for có biến.
     Run "ssh $Target `"cd $Remote && ls -d web.bak.* 2>/dev/null | sort -r | tail -n +4 | xargs -r -I{} sh -c 'chmod -R u+rwX {} && rm -rf {}'; ls -d web.bak.* 2>/dev/null; true`""
-    Run "ssh $Target `"mkdir -p $Remote/web/assets $Remote/web/canvaskit $Remote/web/icons && chmod -R u+rwX $Remote/web`""
-    # file rời ở gốc
-    $top = Get-ChildItem $webProd -File | ForEach-Object { "`"$($_.FullName)`"" }
-    Run "scp -O $($top -join ' ') ${Target}:$Remote/web/"
-    # NỘI DUNG từng thư mục con (assets có thư mục con lồng: assets/assets/fonts…, packages/… → -r trên nội dung)
-    foreach ($d in @("assets", "canvaskit", "icons")) {
-        if (Test-Path "$webProd\$d") {
-            $items = Get-ChildItem "$webProd\$d" | ForEach-Object { "`"$($_.FullName)`"" }
-            if ($items) { Run "scp -O -r $($items -join ' ') ${Target}:$Remote/web/$d/" }
-        }
-    }
-    Run "ssh $Target `"ls -la $Remote/web | head -20; ls $Remote/web/assets | head`""
-    Write-Output "Kiểm: mở https://hub.fortebio.tech/app/ (Ctrl+F5) → đăng nhập → thấy tab Chăm sóc KH."
+    # Chép bằng apps/fbt_rapid/deploy-web.ps1 — GẮN HASH vào tên main/bootstrap/font icon/favicon
+    # (2026-09-23). Chép thẳng `main.dart.js` như trước là dính Cloudflare: nó ghi đè `no-cache` của
+    # origin thành `max-age=14400` cho *.js/*.otf → trình duyệt chạy JS cũ tới 4 giờ sau deploy
+    # (tab Hiệu chuẩn "không thấy" dù box đã đúng). Tên mới theo nội dung = URL mới = buộc tải lại;
+    # index.html + FontManifest.json (nơi tham chiếu) thì CF không cache (DYNAMIC).
+    # Script đó còn chép CHỈ file khác md5, tự sao lưu web.bak.<stamp> và kiểm md5 sau chép.
+    $deployWeb = Join-Path $mono "apps\fbt_rapid\deploy-web.ps1"
+    Write-Output ">> $deployWeb -WebDir $webProd -RemoteHost $Target -RemoteDir $Remote/web$(if (-not $DryRun) { ' -Go' })"
+    if ($DryRun) { & $deployWeb -WebDir $webProd -RemoteHost $Target -RemoteDir "$Remote/web" }
+    else         { & $deployWeb -WebDir $webProd -RemoteHost $Target -RemoteDir "$Remote/web" -Go }
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "deploy-web.ps1 lỗi (exit $LASTEXITCODE)" }
+    Write-Output "Kiểm: curl https://hub.fortebio.tech/app/ → index.html trỏ flutter_bootstrap.<hash>.js → mainJsPath main.<hash>.dart.js"
 }

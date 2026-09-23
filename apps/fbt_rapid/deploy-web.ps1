@@ -21,16 +21,20 @@
 param(
   [switch]$Go,
   [string]$RemoteHost = "fbt-server",
-  [string]$RemoteDir  = "~/fbt_server/web"
+  [string]$RemoteDir  = "~/fbt_server/web",
+  # Thu muc ban build. Mac dinh build\web_prod (2026-09-23): build\web la ban TEST
+  # LOCAL (co --dart-define tro 127.0.0.1) - buoc 0b ben duoi se chan no.
+  # server\scripts\deploy.ps1 -Web goi script nay voi -WebDir.
+  [string]$WebDir = ""
 )
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$web  = Join-Path $root "build\web"
+$web  = if ($WebDir) { (Resolve-Path $WebDir).Path.TrimEnd('\') } else { Join-Path $root "build\web_prod" }
 
 # ---- 0. ban build co ton tai va dung base-href khong ----
 if (-not (Test-Path (Join-Path $web "index.html"))) {
-  throw "Chua co build\web. Chay truoc: flutter build web --release --base-href /app/"
+  throw "Chua co $web. Chay truoc: flutter build web --release --base-href /app/ --output build/web_prod"
 }
 $idx = Get-Content (Join-Path $web "index.html") -Raw
 if ($idx -notmatch '<base href="/app/"') {
@@ -48,7 +52,7 @@ if (Test-Path $mainProbe) {
     Write-Host ""
     Write-Host "DUNG: ban build nay tro ve $($Matches[0]) - la ban HOST LOCAL." -ForegroundColor Red
     Write-Host "Day len production se lam app goi API ve may khach. Build lai ban that:" -ForegroundColor Yellow
-    Write-Host "   flutter build web --release --base-href /app/"
+    Write-Host "   flutter build web --release --base-href /app/ --output build/web_prod"
     exit 1
   }
 }

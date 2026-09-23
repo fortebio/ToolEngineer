@@ -385,6 +385,9 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   từng hỏng: chỉ chép file THẬT SỰ khác (6 MB thay vì 43 MB), `scp -O` từng file, sao lưu
   `web.bak.<stamp>` trước, kiểm quyền ghi TRƯỚC khi đụng gì, gắn vân tay tên file
   (`main.<hash>.dart.js`) để qua cache Cloudflare 4 tiếng, và md5 lại sau khi chép.
+  **Từ 2026-09-23 đọc `build\web_prod`** (tham số `-WebDir`; `build\web` là bản test local) và
+  `server\scripts\deploy.ps1 -Web` GỌI script này — hai đường deploy web từng tách nhau, đường
+  của server chép thẳng `main.dart.js` không hash nên tab mới "không thấy" tới 4 giờ.
   Chạy xong nhớ 2 việc script in ra: nhờ **purge Cloudflare** `https://hub.fortebio.tech/app/*`
   (chưa purge thì người dùng vẫn thấy bản CŨ, không báo lỗi gì) và dọn file vân tay cũ trên box.
   ⚠️ **Build web PHẢI chạy bằng PowerShell hoặc `MSYS_NO_PATHCONV=1`**: qua Bash (Git Bash) thì

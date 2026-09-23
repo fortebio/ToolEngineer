@@ -94,8 +94,11 @@ trường `offered` trong `fw_seen.json`, `md5` trong manifest) là file JSON th
 # trong apps/fbt_rapid — KHÔNG --dart-define (bundle nhúng URL/token test là deploy.ps1 từ chối)
 $env:PUB_CACHE="$env:LOCALAPPDATA\Pub\Cache"; & C:\Users\ADM\fvm\versions\3.44.1\bin\flutter.bat build web --release --base-href /app/ --output build/web_prod
 # rồi tại server/
-.\scripts\deploy.ps1 -Web        # tự sao lưu web.bak.<stamp>, giữ 3 bản mới nhất, scp -O nội dung từng thư mục
+.\scripts\deploy.ps1 -Web -Target fbt-server   # gọi apps/fbt_rapid/deploy-web.ps1: gắn hash tên main/bootstrap/
+                                               # font icon/favicon, chép CHỈ file khác md5, sao lưu web.bak.<stamp>
 ```
-Kiểm: md5 `main.dart.js` tải từ `https://fbt.basa-luma.ts.net/app/` == `build/web_prod`; `hub.fortebio.tech` qua
+Vì sao gắn hash: Cloudflare ghi đè `no-cache` của origin thành `max-age=14400` cho `*.js`/`*.otf` → tên cố
+định là trình duyệt chạy JS cũ tới 4 giờ (dính 2026-09-23). `index.html`/`FontManifest.json` CF không cache.
+Kiểm: `index.html` trỏ `flutter_bootstrap.<hash>.js` → `mainJsPath` = `main.<hash>.dart.js`; md5 `main.dart.js` tải từ `https://fbt.basa-luma.ts.net/app/` == `build/web_prod`; `hub.fortebio.tech` qua
 Cloudflare có thể giữ bản cũ tới 4 h (`cf-cache-status: HIT`) — purge hoặc đợi, không phải lỗi deploy. Không cần
 restart service cho web (StaticFiles đọc đĩa).
