@@ -385,14 +385,23 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   `tech_screen.dart if (dart.library.html) tech_screen_web.dart` (home_shell) — bản web cùng tên
   class + constructor. Màn nào chỉ HTTP thì KHÔNG cần bản `_web`. File web-only (`web_*.dart`,
   `util/web_serial.dart`, `util/esptool_js.dart`) import trực tiếp `platform_files_web.dart` được.
-- **DEPLOY WEB giờ chạy `deploy-web.ps1`** (gốc repo), ĐỪNG gõ scp tay nữa: mặc định là **chạy thử**
-  (in danh sách file khác md5, không đụng server), thêm `-Go` mới chép. Script tự lo hết những chỗ
+- **DEPLOY WEB giờ chạy `deploy-web.ps1`** (gốc repo), ĐỪNG gõ scp tay nữa: gọi TRỰC TIẾP thì mặc định
+  là **chạy thử** (in danh sách file khác md5, không đụng server), thêm `-Go` mới chép.
+  ⚠️ **NHƯNG gọi qua wrapper `server\scripts\deploy.ps1 -Web` thì CHÉP THẬT NGAY** — wrapper tự truyền
+  `-Go`, muốn chạy thử phải thêm **`-DryRun`** (2026-09-25: tôi nói với chủ dự án "đây là chạy thử" rồi
+  nó deploy luôn). Hai script, hai mặc định NGƯỢC nhau — đọc kỹ đang gọi cái nào. Script tự lo hết những chỗ
   từng hỏng: chỉ chép file THẬT SỰ khác (6 MB thay vì 43 MB), `scp -O` từng file, sao lưu
   `web.bak.<stamp>` trước, kiểm quyền ghi TRƯỚC khi đụng gì, gắn vân tay tên file
   (`main.<hash>.dart.js`) để qua cache Cloudflare 4 tiếng, và md5 lại sau khi chép.
   **Từ 2026-09-23 đọc `build\web_prod`** (tham số `-WebDir`; `build\web` là bản test local) và
   `server\scripts\deploy.ps1 -Web` GỌI script này — hai đường deploy web từng tách nhau, đường
   của server chép thẳng `main.dart.js` không hash nên tab mới "không thấy" tới 4 giờ.
+  **`flutter_bootstrap.<hash>.js` ĐỔI HASH mỗi lần build dù `main.dart.js` giống hệt từng byte**
+  (2026-09-25) — bootstrap nhúng đường dẫn + dấu build. Nên **đừng lấy hash bootstrap làm bằng chứng
+  "app đã đổi"**; muốn biết prod có đúng mã nguồn hiện tại không thì `flutter build web --output
+  build/web_prod` rồi so **md5 `main.dart.js`** với bản tải từ `…/app/main.<hash>.dart.js` (trùng =
+  prod đúng HEAD từng byte). Grep chuỗi tiếng Việt trong bundle để kiểm tính năng là VÔ NGHĨA —
+  dart2js escape non-ASCII (gotcha "dò bằng ASCII" bên dưới).
   Chạy xong nhớ 2 việc script in ra: nhờ **purge Cloudflare** `https://hub.fortebio.tech/app/*`
   (chưa purge thì người dùng vẫn thấy bản CŨ, không báo lỗi gì) và dọn file vân tay cũ trên box.
   ⚠️ **Build web PHẢI chạy bằng PowerShell hoặc `MSYS_NO_PATHCONV=1`**: qua Bash (Git Bash) thì

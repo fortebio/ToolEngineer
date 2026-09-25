@@ -165,6 +165,11 @@ docs/data_sample/      # Mẫu dữ liệu thiết bị gửi lên (data_RPL.jso
   `check_deploy.py` phải ra *chỉ có ở local: (không)*; (3) **gọi thẳng route mới, không token: 401 =
   route SỐNG, 405 = CHƯA deploy** (catch-all `POST /{path}` nuốt path lạ). Web thì `curl …/app/index.html`
   rồi so tên `flutter_bootstrap.<hash>.js` với hash ghi trong nhật ký deploy.
+- **`hub.fortebio.tech` có thể KHÔNG phân giải từ máy dev** (2026-09-25): DNS router `gpon.net` trả
+  "Non-existent domain", trong khi `nslookup hub.fortebio.tech 1.1.1.1` ra đúng IP Cloudflare
+  (104.21.54.92 / 172.67.168.107). Tên miền KHÔNG chết — đừng kết luận "deploy hỏng". Muốn kiểm bản
+  Cloudflare đang phục vụ thì ép IP: `curl --resolve hub.fortebio.tech:443:104.21.54.92 https://…`;
+  hoặc dùng thẳng `https://fbt.basa-luma.ts.net/app/` (origin, không qua CF).
 - **Sau deploy, `grep "CHƯA DEPLOY" README.md`** — bước 9 quy trình dễ làm NỬA VỜI: 2026-09-23 commit
   6ae04fa sửa dòng trạng thái của đợt B1–B3 nhưng bỏ quên dòng của `/calib/*`, để người đọc README hai
   ngày sau tưởng tính năng chưa lên box (sửa ở a58a34a). Grep hết rồi hãy đóng việc.
