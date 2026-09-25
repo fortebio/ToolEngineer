@@ -123,6 +123,14 @@ LOGS_DIR = Path(os.environ.get("FBT_LOGS_DIR", str(Path.home() / "fbt_server" / 
 # Log UART một lần gửi tối đa 4M ký tự (app tự cắt ~200K; trần này chỉ chặn kẻ phá).
 MAX_LOG_TEXT = 4 * 1024 * 1024
 
+# Báo kỹ thuật qua TELEGRAM mỗi khi CSKH gửi log (2026-09-25). Hai biến cùng đặt mới bật;
+# thiếu một → im lặng như cũ. Tạo bot bằng @BotFather, lấy chat_id của nhóm kỹ thuật
+# (thêm bot vào nhóm rồi mở https://api.telegram.org/bot<token>/getUpdates).
+# LOG_NOTIFY_APP_URL (tuỳ chọn) = link app để in cuối tin, vd https://hub.fortebio.tech/app/.
+LOG_NOTIFY_TELEGRAM_TOKEN = os.environ.get("FBT_LOG_NOTIFY_TELEGRAM_TOKEN", "").strip()
+LOG_NOTIFY_TELEGRAM_CHAT = os.environ.get("FBT_LOG_NOTIFY_TELEGRAM_CHAT", "").strip()
+LOG_NOTIFY_APP_URL = os.environ.get("FBT_LOG_NOTIFY_APP_URL", "").strip()
+
 # Các mảng theo-slot của dữ liệu RPL: nếu có mặt thì phải đủ 10 phần tử
 ARRAY_FIELDS = ("CT_value", "result", "record_out", "amplification")
 # Mảng theo khe của sản phẩm N khe (rapid4p): độ dài = payload["slots"], không ghim số cứng.

@@ -159,10 +159,13 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   test `test/log_triage_test.dart`) → **Gửi log** `FbtApi.uploadDeviceLog` = `PUT /devices/{id}/logs`
   / `listDeviceLogs` / `fetchDeviceLog`). ⚠️ **Log CSKH là FILE `~/fbt_server/logs/<máy>_<UTC>_<sha8>.json`
   trên box (`FBT_LOGS_DIR`), KHÔNG vào Postgres → KHÔNG nằm trong `pg_dump`, chưa có backup/retention**;
-  và **chỉ tra được THEO MÃ MÁY** (`GET /devices/{id}/logs`) — không có `GET /logs` chung, không thông
-  báo, nên kỹ thuật không biết CSKH vừa gửi gì nếu không được nhắn (rà 2026-09-15: 1 bản `RPL01015`
-  ngày 14/09 nằm đó). Kiểm nhanh: `ssh engineer@100.109.127.87 'ls ~/fbt_server/logs'`. Muốn "quản lý"
-  thật thì thêm route liệt kê chung + mục Log CSKH trong tab Thư Mục + trạng thái xử lý (chưa làm). **MỘT màn cho cả desktop lẫn web** nhờ facade
+  **server ĐÃ CÓ hộp thư** (deploy 2026-09-23, gác `ota_admin`): `GET /logs?device&status&page&limit`
+  (kèm `counts` theo trạng thái), `PUT /logs/{file}/status` (`new|working|done` + by/note, ghi vào chính
+  file), `DELETE /logs/{file}`, `GET /logs/stats` (2026-09-25). App có từ 2026-09-25: mục **Log đã nhận**
+  (`screens/support_inbox_screen.dart`, badge số log Mới qua `AppTab.badge`) + **Thống kê lỗi**
+  (`screens/support_log_stats_screen.dart`); CSKH thấy trạng thái + ghi chú trả lời trong "Log đã gửi".
+  Test Dart import `package:RapidPlusApp/…` (tên package trong pubspec, KHÔNG phải `fbt_rapid`).
+  Kiểm nhanh: `ssh engineer@100.109.127.87 'ls ~/fbt_server/logs'`. **MỘT màn cho cả desktop lẫn web** nhờ facade
   **`util/serial_link.dart`** (`export _io if (dart.library.html) _web`; kiểu chung ở
   `serial_link_types.dart`): `serialLinkCanListPorts` false trên web → bỏ ô chọn cổng, `openSerialLink`
   bật hộp thoại trình duyệt và trả `null` khi Hủy. Cổng COM dùng chung tab Kỹ Thuật → `HomeShell`

@@ -81,6 +81,18 @@ class DeviceLogEntry {
   final int size; // số ký tự log
   final int findings; // số dấu hiệu bộ quét thấy lúc gửi
 
+  // Các trường dưới có từ 2026-09-25 (server cũ không trả → giá trị mặc định).
+  final String fw; // phiên bản firmware bộ quét rút từ log
+  final int errors; // số dấu hiệu mức lỗi
+  final int warnings; // số dấu hiệu mức cảnh báo
+  final List<String> keys; // khoá dấu hiệu lỗi/cảnh báo (`triage.<key>`)
+
+  /// Trạng thái kỹ thuật xử lý: `new` | `working` | `done` (hộp thư Log đã nhận).
+  final String status;
+  final String statusBy;
+  final DateTime? statusAt;
+  final String statusNote;
+
   const DeviceLogEntry({
     required this.file,
     required this.device,
@@ -89,7 +101,48 @@ class DeviceLogEntry {
     this.at,
     this.size = 0,
     this.findings = 0,
+    this.fw = '',
+    this.errors = 0,
+    this.warnings = 0,
+    this.keys = const [],
+    this.status = 'new',
+    this.statusBy = '',
+    this.statusAt,
+    this.statusNote = '',
   });
+
+  /// Một item của `GET /logs`, `GET /devices/{id}/logs` hoặc `PUT /logs/{f}/status`.
+  factory DeviceLogEntry.fromJson(Map e, {String device = ''}) {
+    int n(Object? v) => (v as num?)?.toInt() ?? 0;
+    String s(Object? v) => (v ?? '').toString();
+    DateTime? t(Object? v) => DateTime.tryParse(s(v))?.toLocal();
+    return DeviceLogEntry(
+      file: s(e['file']),
+      device: s(e['device']).isEmpty ? device : s(e['device']),
+      by: s(e['by']),
+      note: s(e['note']),
+      at: t(e['received_at']),
+      size: n(e['size']),
+      findings: n(e['findings']),
+      fw: s(e['fw']),
+      errors: n(e['errors']),
+      warnings: n(e['warnings']),
+      keys: [for (final k in (e['keys'] as List? ?? const [])) k.toString()],
+      status: s(e['status']).isEmpty ? 'new' : s(e['status']),
+      statusBy: s(e['status_by']),
+      statusAt: t(e['status_at']),
+      statusNote: s(e['status_note']),
+    );
+  }
+}
+
+/// Một trang hộp thư `GET /logs` + số bản theo từng trạng thái (sau lọc máy).
+class DeviceLogPage {
+  final List<DeviceLogEntry> items;
+  final int total;
+  final Map<String, int> counts; // new / working / done
+  const DeviceLogPage(
+      {required this.items, required this.total, required this.counts});
 }
 
 /// Kết quả `PUT /devices/{id}/logs`.
@@ -481,17 +534,73 @@ class FbtApi implements CloudHistoryClient {
     if (items == null) return const [];
     return [
       for (final e in items.whereType<Map>())
-        DeviceLogEntry(
-          file: (e['file'] ?? '').toString(),
-          device: (e['device'] ?? id).toString(),
-          by: (e['by'] ?? '').toString(),
-          note: (e['note'] ?? '').toString(),
-          at: DateTime.tryParse((e['received_at'] ?? '').toString())
-              ?.toLocal(),
-          size: (e['size'] as num?)?.toInt() ?? 0,
-          findings: (e['findings'] as num?)?.toInt() ?? 0,
-        )
+        DeviceLogEntry.fromJson(e, device: id)
     ];
+  }
+
+  // --- Hộp thư log cho kỹ thuật (Chăm sóc KH › Log đã nhận / Thống kê lỗi) ---
+  // Ba route dưới gác `ota_admin` = token NHÂN SỰ (root/admin nhận lúc đăng nhập);
+  // token thiết bị → 401.
+
+  /// Mọi bản log CSKH đã gửi, mọi máy — mới nhất trước. `GET /logs`.
+  Future<DeviceLogPage> listAllLogs({
+    String device = '',
+    String status = '',
+    int page = 1,
+    int limit = 50,
+  }) async {
+    final json = await _get(_uri('/logs', {
+      if (device.trim().isNotEmpty) 'device': device.trim(),
+      if (status.isNotEmpty) 'status': status,
+      'page': '$page',
+      'limit': '$limit',
+    }));
+    if (json is! Map) {
+      throw CloudApiException('Định dạng trả về của /logs không đúng.');
+    }
+    final counts = <String, int>{};
+    final c = json['counts'];
+    if (c is Map) {
+      c.forEach((k, v) => counts['$k'] = (v as num?)?.toInt() ?? 0);
+    }
+    return DeviceLogPage(
+      items: [
+        for (final e in (json['items'] as List? ?? const []).whereType<Map>())
+          DeviceLogEntry.fromJson(e)
+      ],
+      total: (json['total'] as num?)?.toInt() ?? 0,
+      counts: counts,
+    );
+  }
+
+  /// Đổi trạng thái xử lý một bản log. `PUT /logs/{file}/status`.
+  Future<DeviceLogEntry> setLogStatus(String file, String status,
+      {String by = '', String note = ''}) async {
+    final json = await _send(
+      'PUT',
+      '/logs/${Uri.encodeComponent(file)}/status',
+      body: utf8.encode(jsonEncode({'status': status, 'by': by, 'note': note})),
+      contentType: 'application/json',
+    );
+    if (json is! Map) {
+      throw CloudApiException('Định dạng trả về của /logs/status không đúng.');
+    }
+    return DeviceLogEntry.fromJson(json);
+  }
+
+  /// Xoá hẳn một bản log (không có thùng rác). `DELETE /logs/{file}`.
+  Future<void> deleteLog(String file) async {
+    await _send('DELETE', '/logs/${Uri.encodeComponent(file)}');
+  }
+
+  /// Thống kê log CSKH trong [days] ngày (0 = mọi lúc). `GET /logs/stats` —
+  /// trả nguyên JSON (`signs`, `devices`, `firmware`, `daily`…), màn tự đọc.
+  Future<Map<String, dynamic>> logStats({int days = 90}) async {
+    final json = await _get(_uri('/logs/stats', {'days': '$days'}));
+    if (json is! Map<String, dynamic>) {
+      throw CloudApiException('Định dạng trả về của /logs/stats không đúng.');
+    }
+    return json;
   }
 
   /// Nội dung đầy đủ một bản log (`GET /logs/{file}`) — có khoá `text`.

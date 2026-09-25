@@ -16,6 +16,7 @@ import '../util/log_triage.dart';
 import '../util/platform_files.dart' as pf;
 import '../util/serial_link.dart';
 import 'raw_uart_screen.dart';
+import 'support_inbox_screen.dart' show LogStatusChip;
 
 /// Mục **Xử lý sự cố** (tab Chăm sóc KH) — ba bước cho nhân viên CSKH:
 ///
@@ -379,6 +380,8 @@ class _SupportTroubleshootScreenState extends State<SupportTroubleshootScreen> {
         'baud': _baud,
         'captured_at': DateTime.now().toIso8601String(),
         'app': 'FBT_RAPID',
+        // Phiên bản bộ quét rút từ log — server gom theo nó ở Thống kê lỗi.
+        'fw': _report.version ?? '',
         'findings': [
           for (final f in _report.findings)
             {'level': f.level.name, 'key': f.key, 'count': f.count},
@@ -1151,20 +1154,29 @@ class _SentLogsDialogState extends State<_SentLogsDialog> {
                                   fontWeight: FontWeight.w600,
                                   fontFeatures: [FontFeature.tabularFigures()]),
                             ),
-                            subtitle: Text(
-                              e.note.isEmpty ? e.file : e.note,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                            // Phản hồi của kỹ thuật (trạng thái + ghi chú) để
+                            // CSKH trả lời khách mà không phải hỏi lại.
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  e.note.isEmpty ? e.file : e.note,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (e.statusNote.isNotEmpty)
+                                  Text(
+                                    '${tr('lg.reply')}: ${e.statusNote}'
+                                    '${e.statusBy.isEmpty ? '' : ' — ${e.statusBy}'}',
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        color: cs.primary,
+                                        fontStyle: FontStyle.italic),
+                                  ),
+                              ],
                             ),
-                            trailing: Text(
-                              '${(e.size / 1024).toStringAsFixed(1)} KB',
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  color: cs.onSurfaceVariant,
-                                  fontFeatures: const [
-                                    FontFeature.tabularFigures()
-                                  ]),
-                            ),
+                            trailing: LogStatusChip(status: e.status),
                             onTap: () => _open(e),
                           );
                         },

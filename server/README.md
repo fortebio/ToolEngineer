@@ -81,6 +81,10 @@ tailscale status ; tailscale ip -4
 - [x] Tài khoản đăng nhập app chuyển từ Google Sheet về bảng `users` — deploy 2026-07-14 (`POST /auth` hợp đồng userAuth.js, 3 tài khoản đã import; còn thiếu GRANT DELETE — xem [docs/history/2026-07-14.md](docs/history/2026-07-14.md))
 - [x] Host app WEB tại **`https://fbt.basa-luma.ts.net/app/`** — mount `/app` ← `~/fbt_server/web`, cùng origin hết CORS; login trả `apiToken`. Deploy lại 2026-09-12 16:26 từ `main` đã merge nhánh Giám sát (`7687b80`): có đủ Giám sát + tải hàng loạt + Chăm sóc KH + Sản xuất/ATE
 - [x] Nhận **log máy từ nhân viên CSKH** (app tab Chăm sóc KH › Xử lý sự cố): `PUT /devices/{id}/logs` · `GET /devices/{id}/logs` · `GET /logs/{file}` → file trong `~/fbt_server/logs/` — code + test xong 2026-09-04 (19/20 pass, xem [docs/history/2026-09-04.md](docs/history/2026-09-04.md)); **ĐÃ DEPLOY 2026-09-12**
+- [x] **Quản lý log CSKH** (2026-09-25, **CHƯA DEPLOY**): metadata thêm `fw`/`errors`/`warnings`/`keys`/`error_keys`;
+  `GET /logs/stats?days=` (gác `ota_admin`, khai báo TRƯỚC `/logs/{file}`) gom dấu hiệu/máy/firmware/ngày;
+  báo **Telegram** khi có log mới (env `FBT_LOG_NOTIFY_TELEGRAM_TOKEN` + `_CHAT`, thread nền, lỗi nuốt).
+  App: mục **Log đã nhận** + **Thống kê lỗi** — xem [docs/history/2026-09-25.md](docs/history/2026-09-25.md)
 
 - [x] Nhận **hồ sơ nghiệm thu trạm ATE** (app tab Sản xuất): `PUT /ate/records` · `GET /ate/records[/{id}]` ·
   `GET /ate/sn/{sn}` · `GET /ate/stats` (FPY/Pareto) · `GET|PUT /ate/limits` → file trong `~/fbt_server/ate/`

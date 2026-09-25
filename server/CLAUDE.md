@@ -46,7 +46,9 @@ app/                   # Package service (FastAPI) — chạy: uvicorn app.main:
                        #   5 vai trò (root/admin/manager/operator/user); _MANAGE_SCOPE: root quản lý mọi vai trò,
                        #   manager (quản lý SX) CHỈ quản lý operator; api_token_for: chỉ root/admin nhận token ghi OTA
   main.py              #   FastAPI app + routes (/auth + ingest POST catch-all + /devices /sessions + /ota + log CSKH:
-                       #   PUT /devices/{id}/logs, GET /logs/{file} + hồ sơ ATE: PUT|GET /ate/records, /ate/sn/{sn},
+                       #   PUT /devices/{id}/logs, GET /logs/{file} + HỘP THƯ (ota_admin): GET /logs, GET /logs/stats
+                       #   (TRƯỚC /logs/{file}), PUT /logs/{f}/status, DELETE /logs/{f} + báo Telegram log mới
+                       #   (config.LOG_NOTIFY_*) + hồ sơ ATE: PUT|GET /ate/records, /ate/sn/{sn},
                        #   /ate/stats?batch= + TIÊU CHUẨN THEO LÔ: GET|PUT /ate/limits?batch=, GET /ate/limits/list
                        #   + ỐNG CHUẨN /calib/*: GET template · GET|PUT limits · GET|PUT batches · GET|PUT|DELETE
                        #   batches/{id} · GET batches/{id}/rank · PUT batches/{id}/sets · GET sets[/{id}] · PUT sets/{id})

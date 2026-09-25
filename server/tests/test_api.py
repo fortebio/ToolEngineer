@@ -283,6 +283,85 @@ def test_log_hop_thu_loc_trang_thai_va_xoa(monkeypatch):
     assert client.get("/logs", params={"device": "RPL08881"}, headers=ADMIN).json()["total"] == 1
 
 
+def test_log_meta_fw_va_dau_hieu(monkeypatch):
+    """`fw` + mức dấu hiệu vào metadata (2026-09-25) — hộp thư tô màu, CSKH thấy trạng thái
+    qua route theo máy (token thiết bị)."""
+    from app import config
+    monkeypatch.setattr(config, "OTA_ADMIN_TOKEN", "admintok")
+    body = dict(LOG_BODY, text="meta fw\n", fw="2.4.5", findings=[
+        {"level": "error", "key": "brownout", "count": 2},
+        {"level": "warning", "key": "wifi", "count": 1},
+        {"level": "info", "key": "resetPower", "count": 1},
+        {"level": "??", "key": "la"}, "rác", {"level": "error"},
+    ])
+    up = client.put("/devices/RPL06661/logs", json=body, headers=AUTH).json()
+    client.put(f"/logs/{up['file']}/status", json={"status": "working", "by": "kt02", "note": "đang xem"},
+               headers=ADMIN)
+    item = client.get("/devices/RPL06661/logs", headers=AUTH).json()["items"][0]
+    assert item["fw"] == "2.4.5" and item["errors"] == 1 and item["warnings"] == 1
+    assert item["keys"] == ["brownout", "wifi"] and item["error_keys"] == ["brownout"]
+    assert item["status"] == "working" and item["status_by"] == "kt02" and item["status_note"] == "đang xem"
+
+
+def test_log_stats(monkeypatch):
+    from app import config
+    monkeypatch.setattr(config, "OTA_ADMIN_TOKEN", "admintok")
+    err = [{"level": "error", "key": "zzStatErr", "count": 1}]
+    warn = [{"level": "warning", "key": "zzStatErr", "count": 1}]  # cùng khoá, mức nhẹ hơn
+    client.put("/devices/RPL05551/logs", json=dict(LOG_BODY, text="s1\n", fw="9.9.1", findings=err), headers=AUTH)
+    client.put("/devices/RPL05551/logs", json=dict(LOG_BODY, text="s2\n", fw="9.9.1", findings=warn), headers=AUTH)
+    client.put("/devices/RPL05552/logs", json=dict(LOG_BODY, text="s3\n", fw="9.9.2", findings=[]), headers=AUTH)
+
+    assert client.get("/logs/stats", headers=AUTH).status_code == 401  # token thiết bị không xem
+    r = client.get("/logs/stats", headers=ADMIN)
+    assert r.status_code == 200, r.text  # KHÔNG rơi vào GET /logs/{filename} (400)
+    s = r.json()
+    assert s["days"] == 90 and s["since"] and s["total"] >= 3 and s["clean"] >= 1
+    assert s["device_count"] >= 2
+    assert sum(s["counts"].values()) == s["total"]
+    sign = next(x for x in s["signs"] if x["key"] == "zzStatErr")
+    assert sign == {"key": "zzStatErr", "level": "error", "logs": 2, "devices": 1}
+    dev = next(x for x in s["devices"] if x["device"] == "RPL05551")
+    assert dev["logs"] == 2 and dev["with_errors"] == 1 and dev["new"] == 2 and dev["last"]
+    fw = next(x for x in s["firmware"] if x["fw"] == "9.9.1")
+    assert fw == {"fw": "9.9.1", "logs": 2, "with_errors": 1, "devices": 1}
+    assert s["daily"] and sum(d["logs"] for d in s["daily"]) == s["total"]
+    assert client.get("/logs/stats", params={"days": 0}, headers=ADMIN).json()["since"] == ""
+    assert client.get("/logs/stats", params={"days": -1}, headers=ADMIN).status_code == 422
+
+
+def test_log_bao_telegram(monkeypatch):
+    """Có đủ 2 env → gửi tin (thread); lỗi mạng KHÔNG làm hỏng việc gửi log."""
+    import threading as th
+    from app import config, main
+    sent = []
+    done = th.Event()
+
+    def fake_send(text):
+        sent.append(text)
+        done.set()
+        raise OSError("mạng chặn")  # lỗi phải bị nuốt
+
+    monkeypatch.setattr(main, "_telegram_send", fake_send)
+    # Chưa bật → không gửi
+    monkeypatch.setattr(config, "LOG_NOTIFY_TELEGRAM_TOKEN", "")
+    monkeypatch.setattr(config, "LOG_NOTIFY_TELEGRAM_CHAT", "")
+    client.put("/devices/RPL04441/logs", json=dict(LOG_BODY, text="n0\n"), headers=AUTH)
+    assert sent == []
+
+    monkeypatch.setattr(config, "LOG_NOTIFY_TELEGRAM_TOKEN", "123:abc")
+    monkeypatch.setattr(config, "LOG_NOTIFY_TELEGRAM_CHAT", "-100")
+    monkeypatch.setattr(config, "LOG_NOTIFY_APP_URL", "https://hub.example/app/")
+    body = dict(LOG_BODY, text="n1\n", fw="2.4.6", note="máy tắt ngang",
+                findings=[{"level": "error", "key": "brownout", "count": 1}])
+    r = client.put("/devices/RPL04441/logs", json=body, headers=AUTH)
+    assert r.status_code == 200
+    assert done.wait(5)
+    msg = sent[0]
+    assert "RPL04441" in msg and "cskh01" in msg and "fw 2.4.6" in msg and "máy tắt ngang" in msg
+    assert "🔴 brownout" in msg and r.json()["file"] in msg and "https://hub.example/app/" in msg
+
+
 
 
 # --- Trạm ATE (tab "Sản xuất" của app) ---------------------------------------

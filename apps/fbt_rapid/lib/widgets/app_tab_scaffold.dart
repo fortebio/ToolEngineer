@@ -7,7 +7,14 @@ class AppTab {
   final IconData icon;
   final String label;
   final Widget page;
-  const AppTab({required this.icon, required this.label, required this.page});
+
+  /// Số hiện thành chấm đỏ trên icon mục (vd log CSKH chưa ai nhận). 0 = ẩn.
+  final int badge;
+  const AppTab(
+      {required this.icon,
+      required this.label,
+      required this.page,
+      this.badge = 0});
 }
 
 /// Khuôn dùng chung cho các tab có **mục con**: tiêu đề màn + dải chọn mục +
@@ -141,7 +148,11 @@ class AppTabScaffold extends StatelessWidget {
                         for (var i = 0; i < tabs.length; i++)
                           ButtonSegment(
                             value: i,
-                            icon: Icon(tabs[i].icon, size: 18),
+                            icon: Badge(
+                              isLabelVisible: tabs[i].badge > 0,
+                              label: Text('${tabs[i].badge > 99 ? '99+' : tabs[i].badge}'),
+                              child: Icon(tabs[i].icon, size: 18),
+                            ),
                             label: Text(tabs[i].label),
                           ),
                       ],

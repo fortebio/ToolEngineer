@@ -1,8 +1,8 @@
 # 07 — Chăm sóc khách hàng (Tab Chăm sóc KH)
 
 Tab **Chăm sóc KH** (nhân sự: root + nhân viên) là bộ công cụ cho **nhân viên chăm sóc
-khách hàng** vận hành mà không cần kiến thức kỹ thuật, gồm 2 mục con:
-**Thông tin máy | Xử lý sự cố**. Mã:
+khách hàng** vận hành mà không cần kiến thức kỹ thuật, gồm 4 mục con:
+**Thông tin máy | Xử lý sự cố | Log đã nhận | Thống kê lỗi** (2 mục sau thêm 2026-09-25 cho kỹ thuật). Mã:
 [lib/screens/support_screen.dart](../lib/screens/support_screen.dart),
 [lib/screens/support_info_screen.dart](../lib/screens/support_info_screen.dart),
 [lib/screens/support_troubleshoot_screen.dart](../lib/screens/support_troubleshoot_screen.dart),
@@ -99,4 +99,28 @@ qua). Server chưa deploy route → app nhận 405 → thông báo "server chưa
 năng này" (đã có sẵn trong `FbtApi._decode`).
 
 Mở lại log đã gửi: nút **Log đã gửi** → `_SentLogsDialog` (`listDeviceLogs`) → bấm một dòng →
-`fetchDeviceLog` → xem thô bằng `RawUartScreen`.
+`fetchDeviceLog` → xem thô bằng `RawUartScreen`. Từ 2026-09-25 mỗi dòng có **chip trạng thái** và
+**ghi chú trả lời của kỹ thuật** (`status_note` — "Kỹ thuật trả lời: …") để CSKH báo lại khách.
+
+Hộp thư cho kỹ thuật (gác `ota_admin` = token nhân sự): `GET /logs?device&status&page&limit` (+ `counts`),
+`PUT /logs/{file}/status` `{status: new|working|done, by, note}`, `DELETE /logs/{file}`,
+`GET /logs/stats?days=` (khai báo TRƯỚC `/logs/{file}`). Server báo **Telegram** khi có log mới nếu đặt
+`FBT_LOG_NOTIFY_TELEGRAM_TOKEN` + `_CHAT`. Log gửi từ 2026-09-25 kèm `fw` (phiên bản bộ quét rút từ log).
+
+## 4. Log đã nhận (kỹ thuật)
+
+[lib/screens/support_inbox_screen.dart](../lib/screens/support_inbox_screen.dart). Chip lọc
+**Tất cả · Mới · Đang xử lý · Đã xử lý** (số từ `counts`), ô lọc mã máy, mặc định mở ở **Mới**. Mỗi thẻ:
+máy · giờ · người gửi · fw, mô tả, dấu hiệu (`triage.<key>` đã dịch), viền trái đỏ/vàng theo mức. Bấm →
+hộp chi tiết: dấu hiệu kèm số lần, **Xem log thô**, ô **Ghi chú / trả lời CSKH**, nút **Nhận xử lý** /
+**Đã xử lý** / **Mở lại** / **Xoá** (hỏi xác nhận). Nạp khi mục đang xem (`TickerMode`) + làm mới nền 60 s.
+**Badge** số log Mới trên mục: `SupportScreen` poll `GET /logs?status=new&limit=1` mỗi 90 s khi tab
+Chăm sóc KH đang xem (lỗi 401/405 im lặng), hộp thư báo lại sau mỗi lần nạp.
+
+## 5. Thống kê lỗi
+
+[lib/screens/support_log_stats_screen.dart](../lib/screens/support_log_stats_screen.dart) — `GET /logs/stats`,
+khoảng 7/30/90/365 ngày/mọi lúc. Ô số: số log, chưa xong, có lỗi (%), số máy, không dấu hiệu. Thanh
+**dấu hiệu hay gặp** (số log + số máy — nhiều máy = vấn đề diện rộng), **máy gửi nhiều log** (bấm → hộp
+thư lọc theo máy), **theo firmware** (tỉ lệ log có lỗi — nhảy ở bản mới = nghi hồi quy), **cột theo ngày**.
+Dữ liệu là dấu hiệu bộ quét của APP lúc gửi, không phải chẩn đoán của kỹ thuật.

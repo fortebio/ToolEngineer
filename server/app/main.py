@@ -13,7 +13,7 @@ import re
 import threading
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
@@ -966,6 +966,38 @@ _LOG_STATUSES = ("new", "working", "done")
 _LOG_META_CACHE: dict[str, tuple[int, int, dict]] = {}
 
 
+def _clean_findings(findings) -> list[dict]:
+    """`findings[]` do app gửi (`{level, key, count}`) — client tự khai nên lọc lại:
+    chỉ giữ phần tử dict có `key`, mức lạ quy về "info"."""
+    out = []
+    if not isinstance(findings, list):
+        return out
+    for f in findings:
+        if not isinstance(f, dict) or not str(f.get("key") or "").strip():
+            continue
+        level = str(f.get("level") or "")
+        out.append({
+            "key": str(f["key"]).strip()[:40],
+            "level": level if level in ("error", "warning", "info") else "info",
+        })
+    return out
+
+
+def _count_level(findings, level: str) -> int:
+    return sum(1 for f in _clean_findings(findings) if f["level"] == level)
+
+
+def _finding_keys(findings, level: str = "") -> list[str]:
+    """Khoá dấu hiệu mức lỗi/cảnh báo (bỏ "info" như reset nguồn — không phải sự cố),
+    hoặc chỉ đúng mức `level`; theo thứ tự app gửi, không trùng."""
+    seen: list[str] = []
+    for f in _clean_findings(findings):
+        ok = f["level"] == level if level else f["level"] != "info"
+        if ok and f["key"] not in seen:
+            seen.append(f["key"])
+    return seen[:20]
+
+
 def _log_meta(path) -> dict | None:
     """Metadata một file log (KHÔNG kèm `text`) — file hỏng/sửa tay méo → None, bỏ qua
     thay vì làm 500 cả danh sách."""
@@ -996,6 +1028,13 @@ def _log_meta(path) -> dict | None:
         "app": str(doc.get("app") or ""),
         "size": len(text) if isinstance(text, str) else 0,
         "findings": len(findings) if isinstance(findings, list) else 0,
+        # Phiên bản firmware bộ quét của app rút ra từ log (gửi từ 2026-09-25; bản cũ = "").
+        "fw": str(doc.get("fw") or ""),
+        # Dấu hiệu theo mức — để hộp thư tô màu và `/logs/stats` gom, KHÔNG phải mở `text`.
+        "errors": _count_level(findings, "error"),
+        "warnings": _count_level(findings, "warning"),
+        "keys": _finding_keys(findings),
+        "error_keys": _finding_keys(findings, "error"),
         # Trạng thái lạ (sửa tay) quy về "new": thà hiện lại trong hộp thư còn
         # hơn biến mất khỏi mọi bộ lọc.
         "status": status if status in _LOG_STATUSES else "new",
@@ -1051,6 +1090,7 @@ async def device_log_upload(device: str, request: Request):
         "port": str(data.get("port") or "")[:64],
         "baud": data.get("baud") if isinstance(data.get("baud"), int) else None,
         "app": str(data.get("app") or "")[:64],
+        "fw": str(data.get("fw") or "")[:40],
         "findings": findings if isinstance(findings, list) else [],
         "text": text,
     }
@@ -1061,7 +1101,58 @@ async def device_log_upload(device: str, request: Request):
     tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(tmp, config.LOGS_DIR / name)
     print(f"device log {name} ({len(text)} chars, by={doc['by']!r})", flush=True)
+    _notify_new_log(doc, name)
     return {"ok": True, "file": name, "size": len(text)}
+
+
+# Báo kỹ thuật khi có log mới (Telegram, bật bằng env — xem config.LOG_NOTIFY_*).
+# Chạy trong THREAD daemon, nuốt mọi lỗi: Telegram chậm/chặn/sai token không bao giờ
+# được làm CSKH chờ hay nhận lỗi — log đã nằm trên đĩa, tin nhắn chỉ là tiện ích.
+
+_LEVEL_ICON = {"error": "🔴", "warning": "🟡"}
+
+
+def _log_notify_text(doc: dict, name: str) -> str:
+    lines = [f"📥 Log CSKH mới — máy {doc.get('device') or '?'}"]
+    who = doc.get("by") or "?"
+    fw = doc.get("fw") or ""
+    lines.append(f"Người gửi: {who}" + (f" · fw {fw}" if fw else ""))
+    note = (doc.get("note") or "").strip()
+    if note:
+        lines.append(f"Mô tả: {note[:300]}")
+    marks = [f"{_LEVEL_ICON[f['level']]} {f['key']}" for f in _clean_findings(doc.get("findings"))
+             if f["level"] in _LEVEL_ICON]
+    lines.append("Dấu hiệu: " + (", ".join(marks[:8]) if marks else "không thấy lỗi quen thuộc"))
+    lines.append(f"File: {name}")
+    if config.LOG_NOTIFY_APP_URL:
+        lines.append(config.LOG_NOTIFY_APP_URL)
+    return "\n".join(lines)
+
+
+def _telegram_send(text: str) -> None:
+    """Gửi một tin — tách riêng để test thay được (không gọi mạng thật)."""
+    import urllib.request
+    url = f"https://api.telegram.org/bot{config.LOG_NOTIFY_TELEGRAM_TOKEN}/sendMessage"
+    body = json.dumps({"chat_id": config.LOG_NOTIFY_TELEGRAM_CHAT, "text": text,
+                       "disable_web_page_preview": True}).encode("utf-8")
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=10) as r:  # noqa: S310 — URL cố định api.telegram.org
+        r.read()
+
+
+def _notify_new_log(doc: dict, name: str) -> None:
+    if not (config.LOG_NOTIFY_TELEGRAM_TOKEN and config.LOG_NOTIFY_TELEGRAM_CHAT):
+        return
+    text = _log_notify_text(doc, name)
+
+    def _run():
+        try:
+            _telegram_send(text)
+        except Exception as e:  # noqa: BLE001 — tiện ích, không được làm hỏng việc gửi log
+            # KHÔNG in `e` nguyên văn: URLError có thể kèm URL chứa token bot.
+            print(f"log notify FAILED for {name}: {type(e).__name__}", flush=True)
+
+    threading.Thread(target=_run, daemon=True, name="log-notify").start()
 
 
 @app.get("/devices/{device}/logs", dependencies=[Depends(auth)])
@@ -1080,6 +1171,82 @@ def device_logs(device: str, limit: int = Query(50, ge=1, le=500)):
         if len(items) >= limit:
             break
     return {"device": dev, "items": items}
+
+
+# ⚠️ PHẢI khai báo TRƯỚC `GET /logs/{filename}`: FastAPI khớp theo thứ tự đăng ký, để sau
+# thì "stats" rơi vào route file → 400 "tên file log không hợp lệ".
+@app.get("/logs/stats", dependencies=[Depends(ota_admin)])
+def device_logs_stats(days: int = Query(90, ge=0, le=3650)):
+    """Thống kê log CSKH (app: Chăm sóc KH › Thống kê lỗi) — gom từ METADATA (cache),
+    không đọc `text`. `days` = cửa sổ theo `received_at` (0 = mọi thời gian).
+
+    Trả `{days, since, total, clean, device_count, counts, signs[], devices[], firmware[], daily[]}`:
+    - `signs`: mỗi dấu hiệu lỗi/cảnh báo → số bản log + số máy có nó (nhiều nhất trước);
+    - `devices`: 30 máy gửi nhiều log nhất, kèm số bản còn `new` và bản có lỗi;
+    - `firmware`: theo phiên bản app rút từ log (`""` = không rút được / gửi trước 09-25);
+    - `daily`: số bản mỗi ngày (UTC) — chỉ ngày có log."""
+    since = ""
+    if days:
+        since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    counts = {s: 0 for s in _LOG_STATUSES}
+    signs: dict[str, dict] = {}
+    devs: dict[str, dict] = {}
+    fws: dict[str, dict] = {}
+    daily: dict[str, dict] = {}
+    total = clean = 0
+    for p in _log_paths():
+        m = _log_meta(p)
+        if m is None or (since and m["received_at"] < since):
+            continue
+        total += 1
+        counts[m["status"]] += 1
+        dev = m["device"]
+        has_err = m["errors"] > 0
+        if not m["keys"]:
+            clean += 1
+        for key in m["keys"]:
+            s = signs.setdefault(key, {"key": key, "level": "warning", "logs": 0, "_dev": set()})
+            s["logs"] += 1
+            s["_dev"].add(dev)
+        # Mức của dấu hiệu = mức nặng nhất từng thấy (app có thể đổi mức một luật giữa hai bản).
+        for key in m["error_keys"]:
+            if key in signs:
+                signs[key]["level"] = "error"
+        d = devs.setdefault(dev, {"device": dev, "logs": 0, "new": 0, "with_errors": 0, "last": ""})
+        d["logs"] += 1
+        d["new"] += m["status"] == "new"
+        d["with_errors"] += has_err
+        d["last"] = max(d["last"], m["received_at"])
+        f = fws.setdefault(m["fw"], {"fw": m["fw"], "logs": 0, "with_errors": 0, "_dev": set()})
+        f["logs"] += 1
+        f["with_errors"] += has_err
+        f["_dev"].add(dev)
+        day = m["received_at"][:10] or "?"
+        dd = daily.setdefault(day, {"day": day, "logs": 0, "with_errors": 0})
+        dd["logs"] += 1
+        dd["with_errors"] += has_err
+
+    def _fin(rows: dict) -> list[dict]:
+        out = []
+        for r in rows.values():
+            r = dict(r)
+            if "_dev" in r:
+                r["devices"] = len(r.pop("_dev"))
+            out.append(r)
+        return out
+
+    return {
+        "days": days,
+        "since": since,
+        "total": total,
+        "clean": clean,
+        "device_count": len(devs),  # `devices` bên dưới chỉ 30 máy đầu
+        "counts": counts,
+        "signs": sorted(_fin(signs), key=lambda r: (-r["logs"], r["key"])),
+        "devices": sorted(_fin(devs), key=lambda r: (-r["logs"], r["device"]))[:30],
+        "firmware": sorted(_fin(fws), key=lambda r: (-r["logs"], r["fw"])),
+        "daily": sorted(_fin(daily), key=lambda r: r["day"])[-366:],
+    }
 
 
 @app.get("/logs/{filename}", dependencies=[Depends(auth)])
