@@ -393,6 +393,13 @@ lái bằng `SendKeys` gõ đường dẫn đầy đủ + `{ENTER}`, và xác nh
   từng hỏng: chỉ chép file THẬT SỰ khác (6 MB thay vì 43 MB), `scp -O` từng file, sao lưu
   `web.bak.<stamp>` trước, kiểm quyền ghi TRƯỚC khi đụng gì, gắn vân tay tên file
   (`main.<hash>.dart.js`) để qua cache Cloudflare 4 tiếng, và md5 lại sau khi chép.
+  ⚠️ **Vân tay MỚI CHE ĐƯỢC 3 FILE** (đo 2026-09-25): `main.<hash>.dart.js`,
+  `flutter_bootstrap.<hash>.js`, `favicon.<hash>.png`. Bản build còn **20 file tĩnh TÊN CỐ ĐỊNH** mà
+  app nạp lúc chạy — `canvaskit/*.{js,wasm}` (14), `assets/assets/fonts/*.ttf` (3 font thương hiệu),
+  `assets/fonts/MaterialIcons-Regular.otf`, `esptool.js`, `flutter.js` — và CF ghi đè `no-cache` của
+  origin thành `max-age=14400` cho chúng. Nên **nâng Flutter SDK / đổi font thương hiệu / nâng bundle
+  esptool là lại dính 4 giờ**, im lặng. Đừng tưởng vân tay đã xử lý xong; cách dứt điểm là Cache Rule
+  ở Cloudflare — phương án đo sẵn: `server/docs/plan/cloudflare-cache-app.md`.
   **Từ 2026-09-23 đọc `build\web_prod`** (tham số `-WebDir`; `build\web` là bản test local) và
   `server\scripts\deploy.ps1 -Web` GỌI script này — hai đường deploy web từng tách nhau, đường
   của server chép thẳng `main.dart.js` không hash nên tab mới "không thấy" tới 4 giờ.

@@ -165,6 +165,10 @@ docs/data_sample/      # Mẫu dữ liệu thiết bị gửi lên (data_RPL.jso
   `check_deploy.py` phải ra *chỉ có ở local: (không)*; (3) **gọi thẳng route mới, không token: 401 =
   route SỐNG, 405 = CHƯA deploy** (catch-all `POST /{path}` nuốt path lạ). Web thì `curl …/app/index.html`
   rồi so tên `flutter_bootstrap.<hash>.js` với hash ghi trong nhật ký deploy.
+- **Zone Cloudflare `fortebio.tech` DÙNG CHUNG với `api.fortebio.tech` của team RAPID ERP** — mọi
+  setting mức ZONE (Caching → Configuration → Browser Cache TTL…) đụng luôn hệ của họ mà không ai báo.
+  Sửa cache cho `/app/` thì phải dùng **Caching Rule khớp host + path**, đừng vặn setting toàn zone.
+  Phương án đã đo sẵn + lệnh kiểm: `docs/plan/cloudflare-cache-app.md`.
 - **`hub.fortebio.tech` có thể KHÔNG phân giải từ máy dev** (2026-09-25): DNS router `gpon.net` trả
   "Non-existent domain", trong khi `nslookup hub.fortebio.tech 1.1.1.1` ra đúng IP Cloudflare
   (104.21.54.92 / 172.67.168.107). Tên miền KHÔNG chết — đừng kết luận "deploy hỏng". Muốn kiểm bản
