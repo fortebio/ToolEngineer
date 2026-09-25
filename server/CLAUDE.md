@@ -158,6 +158,17 @@ docs/data_sample/      # Mẫu dữ liệu thiết bị gửi lên (data_RPL.jso
 
 ## Gotchas server / deploy / box (chuyển từ CLAUDE.md app 2026-09-15 — đã gặp thật)
 
+- **TRƯỚC khi deploy: kiểm xem phiên khác đã deploy chưa** (2026-09-25 — được nhờ "deploy giúp tôi",
+  hoá ra bản sửa đã lên box từ 2 ngày trước do một phiên song song làm). Deploy lại vô ích thì restart
+  `fbt-receiver` cho cả fleet không vì lý do gì. Ba phép kiểm rẻ, KHÔNG cần SSH: (1) `git log --oneline`
+  + đọc `docs/history/` mới nhất — commit kiểu "ghi deploy …" là dấu phiên khác vừa đẩy; (2)
+  `check_deploy.py` phải ra *chỉ có ở local: (không)*; (3) **gọi thẳng route mới, không token: 401 =
+  route SỐNG, 405 = CHƯA deploy** (catch-all `POST /{path}` nuốt path lạ). Web thì `curl …/app/index.html`
+  rồi so tên `flutter_bootstrap.<hash>.js` với hash ghi trong nhật ký deploy.
+- **Sau deploy, `grep "CHƯA DEPLOY" README.md`** — bước 9 quy trình dễ làm NỬA VỜI: 2026-09-23 commit
+  6ae04fa sửa dòng trạng thái của đợt B1–B3 nhưng bỏ quên dòng của `/calib/*`, để người đọc README hai
+  ngày sau tưởng tính năng chưa lên box (sửa ở a58a34a). Grep hết rồi hãy đóng việc.
+
 - **Sản phẩm N khe (rapid4p, 2026-09-17)**: `logic.validate` KHÔNG ghim độ dài mảng bằng số cứng như Rapid+
   (`ARRAY_FIELDS` = 10) mà đọc `payload["slots"]` (1..16) và đòi mọi mảng `SLOT_ARRAY_FIELDS`
   (`slot_value/slot_result/slot_positive/calib_min/calib_max`, config.py) đúng `slots` phần tử. Hợp đồng:
