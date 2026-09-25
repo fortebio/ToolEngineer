@@ -167,6 +167,10 @@ docs/data_sample/      # Mẫu dữ liệu thiết bị gửi lên (data_RPL.jso
   `check_deploy.py` phải ra *chỉ có ở local: (không)*; (3) **gọi thẳng route mới, không token: 401 =
   route SỐNG, 405 = CHƯA deploy** (catch-all `POST /{path}` nuốt path lạ). Web thì `curl …/app/index.html`
   rồi so tên `flutter_bootstrap.<hash>.js` với hash ghi trong nhật ký deploy.
+- **AI chạy `deploy.ps1 -Server` bị classifier chặn "[Production Deploy]" DÙ người dùng gõ "deploy"**
+  (2026-09-25, máy Admin). Đừng lách (scp tay, chia nhỏ lệnh — classifier coi là cùng mục đích). Việc AI
+  làm được: `check_deploy.py` trước, commit, build `web_prod`, rồi đưa lệnh `deploy.ps1 -Server -Web
+  -Target fbt-server` + restart cho người dùng tự chạy, sau đó AI kiểm lại bằng `check_deploy.py`/curl 401.
 - **Zone Cloudflare `fortebio.tech` DÙNG CHUNG với `api.fortebio.tech` của team RAPID ERP** — mọi
   setting mức ZONE (Caching → Configuration → Browser Cache TTL…) đụng luôn hệ của họ mà không ai báo.
   Sửa cache cho `/app/` thì phải dùng **Caching Rule khớp host + path**, đừng vặn setting toàn zone.
