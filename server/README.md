@@ -89,8 +89,10 @@ tailscale status ; tailscale ip -4
 
 - [x] **Ống chuẩn hiệu chuẩn quang** (app tab Hiệu chuẩn, thay Google Sheet + Apps Script bàn giao): `/calib/template` ·
   `/calib/limits` · `/calib/batches[/{id}[/rank|/sets]]` · `/calib/sets[/{id}]` → file trong `~/fbt_server/calib/`
-  — code + test xong 2026-09-21 (130/130 pass cả bộ, xem [docs/plan/calib-ong-chuan.md](docs/plan/calib-ong-chuan.md));
-  **CHƯA DEPLOY** (thêm `FBT_CALIB_DIR` vào `/etc/fbt-receiver.env` khi deploy)
+  — code + test xong 2026-09-21 (133/133 pass cả bộ, xem [docs/plan/calib-ong-chuan.md](docs/plan/calib-ong-chuan.md));
+  **ĐÃ DEPLOY 2026-09-23 15:27** (cùng đợt B1–B3; `FBT_CALIB_DIR` bỏ trống được — `calib.py` tự tạo
+  `~/fbt_server/calib/`). Sửa R² không làm tròn + `se` deploy tiếp **18:14:57** cùng ngày, xem
+  [docs/history/2026-09-23.md](docs/history/2026-09-23.md)
 
 - [x] **Vai trò xưởng** `manager`/`operator` cho app (bước A kế hoạch tài khoản nhà máy): `app/auth.py`
   nhận 2 vai trò mới, quản lý SX chỉ quản lý được thao tác viên, và **chỉ root/admin nhận token ghi OTA**
